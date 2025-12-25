@@ -1,8 +1,24 @@
 """Pydantic models for admin API endpoints."""
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+# ==============================================================================
+# Common Enums
+# ==============================================================================
+
+
+class TimePeriod(str, Enum):
+    """Time period for drill-down filtering."""
+
+    HOUR = "hour"
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    ALL = "all"
+
 
 # ==============================================================================
 # User Management Models
@@ -95,12 +111,16 @@ class UserListResponse(BaseModel):
         users: List of user info
         page: Current page number
         per_page: Number of users per page
+        has_more: Whether more users exist beyond current page
+        next_offset: Offset for next page (None if no more pages)
     """
 
     total_count: int = Field(..., description="Total number of users", examples=[100])
     users: list[UserInfo] = Field(..., description="List of user info")
     page: int = Field(..., description="Current page number", examples=[1])
     per_page: int = Field(..., description="Number of users per page", examples=[10])
+    has_more: bool = Field(..., description="Whether more users exist beyond current page")
+    next_offset: int | None = Field(None, description="Offset for next page (None if no more)")
 
 
 class UpdateUserRequest(BaseModel):
@@ -468,6 +488,68 @@ class StaleEntriesResponse(BaseModel):
     entries: list[dict[str, Any]] = Field(..., description="List of stale cache entries")
 
 
+class SimilarityBucket(BaseModel):
+    """A bucket in the similarity distribution histogram.
+
+    Attributes:
+        bucket: Bucket number (1-5)
+        range_start: Start of similarity range
+        range_end: End of similarity range
+        count: Number of entries in this bucket
+    """
+
+    bucket: int = Field(..., description="Bucket number (1-5)")
+    range_start: float = Field(..., description="Start of similarity range")
+    range_end: float = Field(..., description="End of similarity range")
+    count: int = Field(..., description="Number of entries in this bucket")
+
+
+class CacheMetricsResponse(BaseModel):
+    """Response model for detailed research cache metrics.
+
+    Provides multi-period hit rates, miss distribution, and threshold recommendations.
+
+    Attributes:
+        hit_rate_1d: Cache hit rate in last 24 hours (percentage)
+        hit_rate_7d: Cache hit rate in last 7 days (percentage)
+        hit_rate_30d: Cache hit rate in last 30 days (percentage)
+        total_queries_1d: Total research queries in last 24 hours
+        total_queries_7d: Total research queries in last 7 days
+        total_queries_30d: Total research queries in last 30 days
+        cache_hits_1d: Cache hits in last 24 hours
+        cache_hits_7d: Cache hits in last 7 days
+        cache_hits_30d: Cache hits in last 30 days
+        avg_similarity_on_hit: Mean similarity score for cache hits
+        miss_distribution: Histogram of near-miss similarity scores (0.70-0.85)
+        current_threshold: Current similarity threshold from config
+        recommended_threshold: Algorithm-suggested threshold
+        recommendation_reason: Explanation for recommendation
+        recommendation_confidence: Confidence level (low, medium, high)
+        total_cached_results: Total entries in cache
+        cost_savings_30d: Estimated cost savings in last 30 days (USD)
+    """
+
+    hit_rate_1d: float = Field(..., description="Cache hit rate in last 24 hours (%)")
+    hit_rate_7d: float = Field(..., description="Cache hit rate in last 7 days (%)")
+    hit_rate_30d: float = Field(..., description="Cache hit rate in last 30 days (%)")
+    total_queries_1d: int = Field(..., description="Total queries in last 24 hours")
+    total_queries_7d: int = Field(..., description="Total queries in last 7 days")
+    total_queries_30d: int = Field(..., description="Total queries in last 30 days")
+    cache_hits_1d: int = Field(..., description="Cache hits in last 24 hours")
+    cache_hits_7d: int = Field(..., description="Cache hits in last 7 days")
+    cache_hits_30d: int = Field(..., description="Cache hits in last 30 days")
+    avg_similarity_on_hit: float = Field(..., description="Mean similarity score for hits")
+    miss_distribution: list[SimilarityBucket] = Field(
+        ..., description="Near-miss similarity distribution (0.70-0.85)"
+    )
+    current_threshold: float = Field(..., description="Current similarity threshold")
+    recommended_threshold: float = Field(..., description="Recommended similarity threshold")
+    recommendation_reason: str = Field(..., description="Explanation for recommendation")
+    recommendation_confidence: str = Field(..., description="Confidence level: low, medium, high")
+    total_cached_results: int = Field(..., description="Total entries in cache")
+    cost_savings_30d: float = Field(..., description="Estimated savings in last 30 days (USD)")
+
+
 # ==============================================================================
 # Beta Whitelist Models
 # ==============================================================================
@@ -817,6 +899,7 @@ class ProjectStats(BaseModel):
         paused: Paused projects
         completed: Completed projects
         archived: Archived projects
+        deleted: Soft-deleted projects
     """
 
     total_projects: int = Field(..., description="Total projects")
@@ -824,6 +907,7 @@ class ProjectStats(BaseModel):
     paused: int = Field(0, description="Paused projects")
     completed: int = Field(0, description="Completed projects")
     archived: int = Field(0, description="Archived projects")
+    deleted: int = Field(0, description="Deleted projects")
 
 
 class ActionStats(BaseModel):
@@ -835,6 +919,7 @@ class ActionStats(BaseModel):
         in_progress: In-progress actions
         completed: Completed actions
         cancelled: Cancelled actions
+        deleted: Soft-deleted actions
     """
 
     total_actions: int = Field(..., description="Total actions")
@@ -842,6 +927,35 @@ class ActionStats(BaseModel):
     in_progress: int = Field(0, description="In-progress actions")
     completed: int = Field(0, description="Completed actions")
     cancelled: int = Field(0, description="Cancelled actions")
+    deleted: int = Field(0, description="Deleted actions")
+
+
+class MeetingStats(BaseModel):
+    """Statistics for meetings/sessions by status.
+
+    Attributes:
+        total_meetings: Total meetings across all users
+        created: Meetings with status 'created'
+        running: Currently running meetings
+        completed: Successfully completed meetings
+        failed: Failed meetings
+        killed: Killed meetings
+        deleted: Soft-deleted meetings
+        meetings_today: Meetings created today
+        meetings_this_week: Meetings in the last 7 days
+        meetings_this_month: Meetings in the last 30 days
+    """
+
+    total_meetings: int = Field(..., description="Total meetings")
+    created: int = Field(0, description="Created meetings")
+    running: int = Field(0, description="Running meetings")
+    completed: int = Field(0, description="Completed meetings")
+    failed: int = Field(0, description="Failed meetings")
+    killed: int = Field(0, description="Killed meetings")
+    deleted: int = Field(0, description="Deleted meetings")
+    meetings_today: int = Field(0, description="Meetings today")
+    meetings_this_week: int = Field(0, description="Meetings in last 7 days")
+    meetings_this_month: int = Field(0, description="Meetings in last 30 days")
 
 
 class ExtendedKPIsResponse(BaseModel):
@@ -852,12 +966,14 @@ class ExtendedKPIsResponse(BaseModel):
         data_analyses: Dataset analysis statistics
         projects: Project statistics by status
         actions: Action statistics by status
+        meetings: Meeting/session statistics by status
     """
 
     mentor_sessions: MentorSessionStats = Field(..., description="Mentor session stats")
     data_analyses: DataAnalysisStats = Field(..., description="Dataset analysis stats")
     projects: ProjectStats = Field(..., description="Project stats by status")
     actions: ActionStats = Field(..., description="Action stats by status")
+    meetings: MeetingStats = Field(..., description="Meeting stats by status")
 
 
 # ==============================================================================
@@ -965,3 +1081,245 @@ class DailySummaryResponse(BaseModel):
     days: list[DailySummaryItem]
     period_start: str
     period_end: str
+
+
+# ==============================================================================
+# Drill-Down Models
+# ==============================================================================
+
+
+class UserDrillDownItem(BaseModel):
+    """Single user item in drill-down list.
+
+    Attributes:
+        user_id: User identifier
+        email: User email
+        subscription_tier: Subscription tier
+        is_admin: Whether user is admin
+        created_at: When user was created (ISO 8601)
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    email: str = Field(..., description="User email")
+    subscription_tier: str = Field(..., description="Subscription tier")
+    is_admin: bool = Field(..., description="Whether user is admin")
+    created_at: str = Field(..., description="When user was created (ISO 8601)")
+
+
+class UserDrillDownResponse(BaseModel):
+    """Response for user drill-down list.
+
+    Attributes:
+        items: List of user items
+        total: Total count matching filter
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+        period: Time period filter applied
+    """
+
+    items: list[UserDrillDownItem] = Field(..., description="List of users")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+    period: str = Field(..., description="Time period filter applied")
+
+
+class CostDrillDownItem(BaseModel):
+    """Single cost record in drill-down list.
+
+    Attributes:
+        id: Cost record ID
+        user_id: User who incurred cost
+        email: User email (if available)
+        provider: LLM provider
+        model: Model name
+        amount_usd: Cost in USD
+        created_at: When cost was recorded (ISO 8601)
+    """
+
+    id: int = Field(..., description="Cost record ID")
+    user_id: str = Field(..., description="User identifier")
+    email: str | None = Field(None, description="User email")
+    provider: str = Field(..., description="LLM provider")
+    model: str = Field(..., description="Model name")
+    amount_usd: float = Field(..., description="Cost in USD")
+    created_at: str = Field(..., description="When cost was recorded (ISO 8601)")
+
+
+class CostDrillDownResponse(BaseModel):
+    """Response for cost drill-down list.
+
+    Attributes:
+        items: List of cost items
+        total: Total count matching filter
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+        period: Time period filter applied
+        total_cost_usd: Sum of costs in period
+    """
+
+    items: list[CostDrillDownItem] = Field(..., description="List of cost records")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+    period: str = Field(..., description="Time period filter applied")
+    total_cost_usd: float = Field(..., description="Sum of costs in period")
+
+
+class WaitlistDrillDownItem(BaseModel):
+    """Single waitlist entry in drill-down list.
+
+    Attributes:
+        id: Entry ID
+        email: Email address
+        status: Status (pending, invited, converted)
+        source: Signup source
+        created_at: When added to waitlist (ISO 8601)
+    """
+
+    id: str = Field(..., description="Entry ID")
+    email: str = Field(..., description="Email address")
+    status: str = Field(..., description="Status")
+    source: str | None = Field(None, description="Signup source")
+    created_at: str = Field(..., description="When added (ISO 8601)")
+
+
+class WaitlistDrillDownResponse(BaseModel):
+    """Response for waitlist drill-down list.
+
+    Attributes:
+        items: List of waitlist entries
+        total: Total count matching filter
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+        period: Time period filter applied
+    """
+
+    items: list[WaitlistDrillDownItem] = Field(..., description="List of waitlist entries")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+    period: str = Field(..., description="Time period filter applied")
+
+
+class WhitelistDrillDownItem(BaseModel):
+    """Single whitelist entry in drill-down list.
+
+    Attributes:
+        id: Entry ID
+        email: Whitelisted email
+        added_by: Admin who added
+        notes: Optional notes
+        created_at: When added (ISO 8601)
+    """
+
+    id: str = Field(..., description="Entry ID")
+    email: str = Field(..., description="Email address")
+    added_by: str | None = Field(None, description="Admin who added")
+    notes: str | None = Field(None, description="Notes")
+    created_at: str = Field(..., description="When added (ISO 8601)")
+
+
+class WhitelistDrillDownResponse(BaseModel):
+    """Response for whitelist drill-down list.
+
+    Attributes:
+        items: List of whitelist entries
+        total: Total count matching filter
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+        period: Time period filter applied
+    """
+
+    items: list[WhitelistDrillDownItem] = Field(..., description="List of whitelist entries")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+    period: str = Field(..., description="Time period filter applied")
+
+
+# ==============================================================================
+# Research Costs Models
+# ==============================================================================
+
+
+class ResearchCostItem(BaseModel):
+    """Cost data for a single research provider.
+
+    Attributes:
+        provider: Research provider name (brave, tavily)
+        amount_usd: Total cost in USD
+        query_count: Number of API calls made
+    """
+
+    provider: str = Field(..., description="Research provider (brave, tavily)")
+    amount_usd: float = Field(..., description="Total cost in USD")
+    query_count: int = Field(..., description="Number of queries/calls")
+
+
+class ResearchCostsByPeriod(BaseModel):
+    """Research costs aggregated by time period.
+
+    Attributes:
+        today: Costs from today
+        week: Costs from last 7 days
+        month: Costs from last 30 days
+        all_time: All-time costs
+    """
+
+    today: float = Field(0.0, description="Cost today (USD)")
+    week: float = Field(0.0, description="Cost this week (USD)")
+    month: float = Field(0.0, description="Cost this month (USD)")
+    all_time: float = Field(0.0, description="All-time cost (USD)")
+
+
+class DailyResearchCost(BaseModel):
+    """Daily research cost for trend chart.
+
+    Attributes:
+        date: Date (YYYY-MM-DD)
+        brave: Brave costs for the day
+        tavily: Tavily costs for the day
+        total: Total costs for the day
+    """
+
+    date: str = Field(..., description="Date (YYYY-MM-DD)")
+    brave: float = Field(0.0, description="Brave costs (USD)")
+    tavily: float = Field(0.0, description="Tavily costs (USD)")
+    total: float = Field(0.0, description="Total costs (USD)")
+
+
+class ResearchCostsResponse(BaseModel):
+    """Response model for research costs endpoint.
+
+    Attributes:
+        brave: Brave Search costs breakdown
+        tavily: Tavily costs breakdown
+        total_usd: Total research costs
+        total_queries: Total number of research queries
+        by_period: Costs aggregated by time period
+        daily_trend: Last 7 days of costs for chart
+    """
+
+    brave: ResearchCostItem = Field(..., description="Brave Search costs")
+    tavily: ResearchCostItem = Field(..., description="Tavily costs")
+    total_usd: float = Field(..., description="Total research costs (USD)")
+    total_queries: int = Field(..., description="Total research queries")
+    by_period: ResearchCostsByPeriod = Field(..., description="Costs by time period")
+    daily_trend: list[DailyResearchCost] = Field(..., description="Daily costs for chart")

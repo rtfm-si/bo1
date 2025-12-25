@@ -20,7 +20,11 @@ from backend.api.admin.models import (
     SessionKillResponse,
     SessionKillsResponse,
 )
-from backend.api.dependencies import get_redis_manager, get_session_manager
+from backend.api.dependencies import (
+    VerifiedSessionAdmin,
+    get_redis_manager,
+    get_session_manager,
+)
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
@@ -121,24 +125,20 @@ async def list_active_sessions(
 @handle_api_errors("get full session")
 async def get_full_session(
     session_id: str,
-    _admin: str = Depends(require_admin_any),
+    metadata: VerifiedSessionAdmin,
 ) -> FullSessionResponse:
-    """Get full session details including all metadata and state."""
-    # Validate session ID format
-    session_id = validate_session_id(session_id)
+    """Get full session details including all metadata and state.
 
+    Uses VerifiedSessionAdmin dependency which:
+    - Validates admin API key
+    - Validates session_id format
+    - Loads metadata with caching
+    - Raises 404 if session not found
+    """
     session_manager = get_session_manager()
     redis_manager = get_redis_manager()
 
-    # Load metadata
-    metadata = redis_manager.load_metadata(session_id)
-    if not metadata:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session not found: {session_id}",
-        )
-
-    # Load state
+    # Load state (metadata already loaded by dependency)
     state = redis_manager.load_state(session_id)
 
     # Convert state to dict if it's a DeliberationState
@@ -157,7 +157,7 @@ async def get_full_session(
 
     return FullSessionResponse(
         session_id=session_id,
-        metadata=metadata,
+        metadata=dict(metadata),
         state=state_dict,
         is_active=is_active,
     )

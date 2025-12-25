@@ -545,15 +545,23 @@ class ActionRepository(BaseRepository):
 
                 return success
 
-    def complete_action(self, action_id: str | UUID, user_id: str) -> bool:
+    def complete_action(
+        self,
+        action_id: str | UUID,
+        user_id: str,
+        lessons_learned: str | None = None,
+        went_well: str | None = None,
+    ) -> bool:
         """Mark action as completed.
 
         Sets actual_end_date to current timestamp and recalculates
-        dependent action dates.
+        dependent action dates. Optionally captures post-mortem reflections.
 
         Args:
             action_id: Action UUID
             user_id: User completing the action
+            lessons_learned: Optional reflection on lessons learned
+            went_well: Optional reflection on what went well
 
         Returns:
             True if updated successfully
@@ -568,10 +576,12 @@ class ActionRepository(BaseRepository):
                     UPDATE actions
                     SET status = 'done',
                         actual_end_date = NOW(),
+                        lessons_learned = COALESCE(%s, lessons_learned),
+                        went_well = COALESCE(%s, went_well),
                         updated_at = NOW()
                     WHERE id = %s AND status != 'done'
                     """,
-                    (action_id_str,),
+                    (lessons_learned, went_well, action_id_str),
                 )
                 success = bool(cur.rowcount and cur.rowcount > 0)
 
@@ -1859,6 +1869,41 @@ class ActionRepository(BaseRepository):
 
         logger.info(f"Recalculated dates for {count} actions")
         return count
+
+    # =========================================================================
+    # Post-Mortem Insights
+    # =========================================================================
+
+    def get_postmortem_insights(
+        self,
+        user_id: str,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Get completed actions with post-mortem reflections.
+
+        Returns actions that have lessons_learned or went_well populated,
+        ordered by most recently completed.
+
+        Args:
+            user_id: User identifier
+            limit: Maximum insights to return (default: 10)
+
+        Returns:
+            List of action dicts with post-mortem data
+        """
+        return self._execute_query(
+            """
+            SELECT id, title, lessons_learned, went_well, actual_end_date
+            FROM actions
+            WHERE user_id = %s
+              AND status = 'done'
+              AND (lessons_learned IS NOT NULL OR went_well IS NOT NULL)
+              AND deleted_at IS NULL
+            ORDER BY actual_end_date DESC NULLS LAST
+            LIMIT %s
+            """,
+            (user_id, limit),
+        )
 
     # =========================================================================
     # Progress Tracking

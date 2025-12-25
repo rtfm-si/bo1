@@ -16,6 +16,11 @@ LEGACY_EXCEPTIONS = frozenset(
         "total_meetings",
         "last_meeting_at",
         "last_meeting_id",
+        # admin/models.py - MeetingStats (admin KPIs, user-facing name intentional)
+        "meetings",
+        "meetings_today",
+        "meetings_this_week",
+        "meetings_this_month",
         # events.py - SSE event fields
         "expert_panel",
         "expert_summaries",

@@ -17,14 +17,17 @@
 	interface Props {
 		initialMessage?: string;
 		initialPersona?: string;
+		loadConversationId?: string | null;
+		onConversationChange?: (id: string | null) => void;
 	}
-	let { initialMessage, initialPersona }: Props = $props();
+	let { initialMessage, initialPersona, loadConversationId = null, onConversationChange }: Props = $props();
 
 	// Chat state
 	let messages = $state<MessageType[]>([]);
 	let inputValue = $state('');
 	let isStreaming = $state(false);
 	let isThinking = $state(false);
+	let isGenerating = $state(false);
 	let error = $state<string | null>(null);
 	let conversationId = $state<string | null>(null);
 	let streamingContent = $state('');
@@ -86,7 +89,7 @@
 		mentionPosition = { top: -280, left: 0 };
 	}
 
-	function handleMentionSelect(type: 'meeting' | 'action' | 'dataset', id: string, title: string) {
+	function handleMentionSelect(type: 'meeting' | 'action' | 'dataset' | 'chat', id: string, title: string) {
 		if (!textareaElement) return;
 
 		const cursorPos = textareaElement.selectionStart;
@@ -139,6 +142,7 @@
 		// Start streaming
 		isStreaming = true;
 		isThinking = true;
+		isGenerating = false;
 		streamingContent = '';
 
 		try {
@@ -152,6 +156,7 @@
 							const thinkingData = JSON.parse(data);
 							if (thinkingData.status === 'calling_llm') {
 								isThinking = false;
+								isGenerating = true;
 								// Track actual persona being used (whether auto-selected or manual)
 								if (thinkingData.persona) {
 									activePersona = thinkingData.persona;
@@ -205,10 +210,16 @@
 					case 'done':
 						try {
 							const doneData = JSON.parse(data);
-							conversationId = doneData.conversation_id || conversationId;
+							const newId = doneData.conversation_id || conversationId;
+							if (newId !== conversationId) {
+								conversationId = newId;
+								// Notify parent of new conversation
+								onConversationChange?.(newId);
+							}
 							if (doneData.persona) {
 								activePersona = doneData.persona;
 							}
+							isGenerating = false;
 						} catch {
 							// Ignore parse errors
 						}
@@ -231,6 +242,7 @@
 		} finally {
 			isStreaming = false;
 			isThinking = false;
+			isGenerating = false;
 			streamingContent = '';
 			currentAbort = null;
 			scrollToBottom();
@@ -265,6 +277,7 @@
 		}
 		isStreaming = false;
 		isThinking = false;
+		isGenerating = false;
 		streamingContent = '';
 	}
 
@@ -285,9 +298,42 @@
 		selectedPersona = persona;
 	}
 
+	// Load existing conversation
+	async function loadConversation(id: string) {
+		try {
+			const conv = await apiClient.getMentorConversation(id);
+			conversationId = conv.id;
+			messages = conv.messages.map(m => ({
+				role: m.role,
+				content: m.content,
+				timestamp: m.timestamp,
+				persona: m.persona
+			}));
+			selectedPersona = conv.persona;
+			activePersona = conv.persona;
+			contextSources = conv.context_sources;
+			scrollToBottom();
+		} catch (e) {
+			console.error('Failed to load conversation:', e);
+			error = 'Failed to load conversation';
+		}
+	}
+
+	// React to loadConversationId prop changes
+	$effect(() => {
+		if (loadConversationId && loadConversationId !== conversationId) {
+			loadConversation(loadConversationId);
+		} else if (loadConversationId === null && conversationId !== null) {
+			// Clear for new conversation
+			clearConversation();
+		}
+	});
+
 	// Initialize with props on mount
 	onMount(() => {
-		if (initialMessage) {
+		if (loadConversationId) {
+			loadConversation(loadConversationId);
+		} else if (initialMessage) {
 			inputValue = initialMessage;
 		}
 		if (initialPersona) {
@@ -363,6 +409,11 @@
 				<div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
 					<Loader2 class="w-4 h-4 animate-spin" />
 					<span class="text-sm">Thinking...</span>
+				</div>
+			{:else if isGenerating && !streamingContent}
+				<div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+					<Loader2 class="w-4 h-4 animate-spin" />
+					<span class="text-sm">Working...</span>
 				</div>
 			{/if}
 		{/if}

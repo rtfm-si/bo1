@@ -6,6 +6,9 @@ import pytest
 
 from backend.services.embedding_visualizer import (
     compute_2d_coordinates,
+    compute_clusters,
+    generate_cluster_labels,
+    get_distinct_categories,
     get_embedding_stats,
     get_sample_embeddings,
     reduce_dimensions,
@@ -205,3 +208,163 @@ class TestCompute2DCoordinates:
         assert result[0]["preview"] == "Important content"
         assert result[0]["metadata"]["persona"] == "strategist"
         assert result[0]["created_at"] == "2025-01-01T12:00:00"
+
+
+class TestComputeClusters:
+    """Tests for K-means clustering."""
+
+    def test_too_few_points_returns_single_cluster(self):
+        """Less than 20 points returns all points in cluster 0."""
+        coords = [(float(i), float(i * 2)) for i in range(10)]
+        assignments, centroids = compute_clusters(coords)
+        assert len(assignments) == 10
+        assert all(a == 0 for a in assignments)
+        assert len(centroids) == 1
+
+    def test_clusters_with_sufficient_points(self):
+        """20+ points produces multiple clusters."""
+        # Create two distinct clusters
+        coords = [(0.0, 0.0)] * 15 + [(100.0, 100.0)] * 15
+        assignments, centroids = compute_clusters(coords)
+        assert len(assignments) == 30
+        assert len(centroids) >= 2
+        # Should have exactly 2 cluster IDs
+        unique_clusters = set(assignments)
+        assert len(unique_clusters) >= 2
+
+    def test_cluster_assignments_match_centroid_count(self):
+        """Each cluster ID maps to a centroid."""
+        coords = [(float(i % 3), float(i // 3)) for i in range(30)]
+        assignments, centroids = compute_clusters(coords)
+        unique_clusters = set(assignments)
+        # Every cluster ID should be < len(centroids)
+        for cluster_id in unique_clusters:
+            assert 0 <= cluster_id < len(centroids)
+
+
+class TestGenerateClusterLabels:
+    """Tests for cluster label generation."""
+
+    def test_generates_labels_for_each_cluster(self):
+        """Returns a label for every cluster."""
+        assignments = [0, 0, 0, 1, 1, 1]
+        previews = [
+            "saas metrics growth",
+            "saas metrics revenue",
+            "saas metrics churn",
+            "pricing strategy tier",
+            "pricing strategy plan",
+            "pricing model",
+        ]
+        centroids = [(0.0, 0.0), (10.0, 10.0)]
+        coords = [(0.0, 0.0), (0.1, 0.1), (0.2, 0.2), (10.0, 10.0), (10.1, 10.1), (10.2, 10.2)]
+
+        labels = generate_cluster_labels(assignments, previews, centroids, coords)
+
+        assert len(labels) == 2
+        assert 0 in labels
+        assert 1 in labels
+        assert isinstance(labels[0], str)
+        assert isinstance(labels[1], str)
+
+    def test_fallback_label_for_empty_cluster(self):
+        """Falls back to 'Cluster N' when no pattern found."""
+        assignments = [0]
+        previews = ["x"]
+        centroids = [(0.0, 0.0), (10.0, 10.0)]  # Second cluster empty
+        coords = [(0.0, 0.0)]
+
+        labels = generate_cluster_labels(assignments, previews, centroids, coords)
+
+        assert 1 in labels
+        assert "Cluster" in labels[1]
+
+    def test_extracts_common_ngrams(self):
+        """Picks label from repeated 2-word patterns."""
+        assignments = [0, 0, 0, 0, 0]
+        previews = [
+            "market trends analysis for saas",
+            "market trends overview today",
+            "market trends report 2025",
+            "market trends prediction model",
+            "market trends forecast quarterly",
+        ]
+        centroids = [(0.0, 0.0)]
+        coords = [(0.0, 0.0), (0.1, 0.1), (0.2, 0.2), (0.3, 0.3), (0.4, 0.4)]
+
+        labels = generate_cluster_labels(assignments, previews, centroids, coords)
+
+        # Should find "market trends" as common pattern
+        assert "Market Trends" in labels[0]
+
+
+class TestGetDistinctCategories:
+    """Tests for category retrieval."""
+
+    @patch("backend.services.embedding_visualizer.db_session")
+    def test_returns_categories_with_counts(self, mock_db):
+        """Returns category list sorted by count."""
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            {"category": "saas_metrics", "count": 50},
+            {"category": "pricing", "count": 30},
+            {"category": "competitors", "count": 10},
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_db.return_value.__enter__.return_value = mock_conn
+
+        categories = get_distinct_categories()
+
+        assert len(categories) == 3
+        assert categories[0]["category"] == "saas_metrics"
+        assert categories[0]["count"] == 50
+
+    @patch("backend.services.embedding_visualizer.db_session")
+    def test_returns_empty_when_no_categories(self, mock_db):
+        """Returns empty list when no embeddings with categories."""
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_db.return_value.__enter__.return_value = mock_conn
+
+        categories = get_distinct_categories()
+
+        assert categories == []
+
+
+class TestGetSampleEmbeddingsWithCategory:
+    """Tests for category filtering in sample retrieval."""
+
+    @patch("backend.services.embedding_visualizer.db_session")
+    def test_filters_by_category(self, mock_db):
+        """Passes category to SQL query when provided."""
+        emb_str = "[" + ",".join(["0.1"] * 1024) + "]"
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            {
+                "embedding": emb_str,
+                "type": "research",
+                "preview": "Filtered research",
+                "category": "saas_metrics",
+                "industry": "tech",
+                "created_at": "2025-01-01T00:00:00",
+            }
+        ]
+        mock_cursor.fetchone.return_value = {"exists": False}
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_db.return_value.__enter__.return_value = mock_conn
+
+        samples = get_sample_embeddings(
+            embedding_type="research", limit=10, category="saas_metrics"
+        )
+
+        # Verify SQL was called with category parameter
+        call_args = mock_cursor.execute.call_args_list
+        # Find the research cache query call
+        research_call = [c for c in call_args if "saas_metrics" in str(c)]
+        assert len(research_call) > 0
+        assert len(samples) == 1
+        assert samples[0]["metadata"]["category"] == "saas_metrics"

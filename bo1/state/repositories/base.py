@@ -31,6 +31,7 @@ class BaseRepository:
         query: str,
         params: tuple[Any, ...] | None = None,
         user_id: str | None = None,
+        statement_timeout_ms: int | None = None,
     ) -> list[dict[str, Any]]:
         """Execute query and return results as list of dicts.
 
@@ -38,11 +39,12 @@ class BaseRepository:
             query: SQL query string
             params: Query parameters
             user_id: Optional user ID for RLS context
+            statement_timeout_ms: Optional statement timeout in ms
 
         Returns:
             List of row dictionaries
         """
-        with db_session(user_id=user_id) as conn:
+        with db_session(user_id=user_id, statement_timeout_ms=statement_timeout_ms) as conn:
             with conn.cursor() as cur:
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
@@ -52,6 +54,7 @@ class BaseRepository:
         query: str,
         params: tuple[Any, ...] | None = None,
         user_id: str | None = None,
+        statement_timeout_ms: int | None = None,
     ) -> dict[str, Any] | None:
         """Execute query and return first result or None.
 
@@ -59,11 +62,12 @@ class BaseRepository:
             query: SQL query string
             params: Query parameters
             user_id: Optional user ID for RLS context
+            statement_timeout_ms: Optional statement timeout in ms
 
         Returns:
             Row dictionary or None if no results
         """
-        with db_session(user_id=user_id) as conn:
+        with db_session(user_id=user_id, statement_timeout_ms=statement_timeout_ms) as conn:
             with conn.cursor() as cur:
                 cur.execute(query, params)
                 row = cur.fetchone()

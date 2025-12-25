@@ -232,14 +232,49 @@ def get_landing_page_metrics(
         end_date: End of date range
 
     Returns:
-        Dict with daily_stats, geo_breakdown, funnel, bounce_rate
+        Dict with daily_stats, geo_breakdown, funnel, bounce_rate.
+        Each section may be empty/default if query times out.
     """
-    return {
-        "daily_stats": page_analytics_repository.get_daily_stats(start_date, end_date, path="/"),
-        "geo_breakdown": page_analytics_repository.get_geo_breakdown(start_date, end_date),
-        "funnel": page_analytics_repository.get_funnel_stats(start_date, end_date),
-        "bounce_rate": page_analytics_repository.get_bounce_rate(start_date, end_date, path="/"),
-    }
+    # Fetch each metric independently with timeout protection
+    # If one query times out, others still return data
+    result: dict[str, Any] = {}
+
+    try:
+        result["daily_stats"] = page_analytics_repository.get_daily_stats(
+            start_date, end_date, path="/"
+        )
+    except Exception as e:
+        logger.warning(f"get_landing_page_metrics: daily_stats query failed: {e}")
+        result["daily_stats"] = []
+
+    try:
+        result["geo_breakdown"] = page_analytics_repository.get_geo_breakdown(start_date, end_date)
+    except Exception as e:
+        logger.warning(f"get_landing_page_metrics: geo_breakdown query failed: {e}")
+        result["geo_breakdown"] = []
+
+    try:
+        result["funnel"] = page_analytics_repository.get_funnel_stats(start_date, end_date)
+    except Exception as e:
+        logger.warning(f"get_landing_page_metrics: funnel query failed: {e}")
+        result["funnel"] = {
+            "unique_visitors": 0,
+            "signup_clicks": 0,
+            "signup_completions": 0,
+            "click_through_rate": 0.0,
+            "completion_rate": 0.0,
+            "overall_conversion_rate": 0.0,
+        }
+
+    try:
+        result["bounce_rate"] = page_analytics_repository.get_bounce_rate(
+            start_date, end_date, path="/"
+        )
+    except Exception as e:
+        logger.warning(f"get_landing_page_metrics: bounce_rate query failed: {e}")
+        result["bounce_rate"] = {"bounce_rate": 0.0, "total_sessions": 0, "bounced_sessions": 0}
+
+    return result
 
 
 def get_daily_stats(

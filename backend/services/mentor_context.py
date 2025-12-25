@@ -42,6 +42,7 @@ class MentorContext:
     active_actions: list[dict[str, Any]] | None = None
     datasets: list[dict[str, Any]] | None = None
     failure_patterns: FailurePatternContext | None = None
+    postmortem_insights: list[dict[str, Any]] | None = None
 
     def sources_used(self) -> list[str]:
         """Return list of context sources that have data."""
@@ -54,6 +55,8 @@ class MentorContext:
             sources.append("active_actions")
         if self.datasets:
             sources.append("datasets")
+        if self.postmortem_insights:
+            sources.append("postmortem_insights")
         if self.failure_patterns and self.failure_patterns.should_inject():
             sources.append("failure_patterns")
         return sources
@@ -163,6 +166,22 @@ class MentorContextService:
             logger.warning(f"Failed to get datasets for {user_id}: {e}")
             return []
 
+    def get_postmortem_insights(self, user_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Get post-mortem insights from completed actions.
+
+        Args:
+            user_id: User identifier
+            limit: Maximum insights to return
+
+        Returns:
+            List of action dicts with post-mortem data
+        """
+        try:
+            return self._action_repo.get_postmortem_insights(user_id=user_id, limit=limit)
+        except Exception as e:
+            logger.warning(f"Failed to get postmortem insights for {user_id}: {e}")
+            return []
+
     def get_failure_patterns(self, user_id: str, days: int = 30) -> FailurePatternContext:
         """Get action failure patterns for proactive mentoring.
 
@@ -221,6 +240,7 @@ class MentorContextService:
             active_actions=self.get_active_actions(user_id),
             datasets=self.get_dataset_summaries(user_id),
             failure_patterns=self.get_failure_patterns(user_id),
+            postmortem_insights=self.get_postmortem_insights(user_id),
         )
 
 

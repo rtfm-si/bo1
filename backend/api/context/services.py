@@ -14,7 +14,7 @@ from backend.api.context.models import (
     DetectedCompetitor,
     EnrichmentSource,
 )
-from backend.api.utils.db_helpers import execute_query, get_single_value
+from backend.api.utils.db_helpers import get_single_value
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.security import sanitize_for_prompt
 
@@ -268,24 +268,36 @@ def merge_context(
     return merged
 
 
-async def auto_save_competitors(user_id: str, competitors: list[DetectedCompetitor]) -> None:
-    """Auto-save detected competitors to competitor_profiles table.
+async def auto_save_competitors(
+    user_id: str,
+    competitors: list[DetectedCompetitor],
+    source: str = "auto_detected",
+) -> int:
+    """Auto-save detected competitors to managed_competitors in user context.
 
-    Respects tier limits and doesn't duplicate existing competitors.
+    Respects tier limits and doesn't duplicate existing competitors (case-insensitive).
 
     Args:
         user_id: User ID
         competitors: List of detected competitors
+        source: Source of competitors ("auto_detected" or "manual")
+
+    Returns:
+        Number of competitors added
     """
+    from datetime import UTC, datetime
+
+    from bo1.state.repositories import user_repository
+
     if not competitors:
-        return
+        return 0
 
     try:
         # Get user tier and limits
         tier_limits = {
-            "free": {"max_competitors": 3, "data_depth": "basic"},
-            "starter": {"max_competitors": 5, "data_depth": "standard"},
-            "pro": {"max_competitors": 8, "data_depth": "deep"},
+            "free": 3,
+            "starter": 5,
+            "pro": 8,
         }
 
         # Get user's tier
@@ -295,55 +307,56 @@ async def auto_save_competitors(user_id: str, competitors: list[DetectedCompetit
             column="subscription_tier",
             default="free",
         )
-        tier_config = tier_limits.get(tier, tier_limits["free"])
+        max_competitors = tier_limits.get(tier, 3)
 
-        # Get current competitor count and names
-        existing_rows = execute_query(
-            "SELECT name FROM competitor_profiles WHERE user_id = %s",
-            (user_id,),
-            fetch="all",
-        )
-        existing = {row["name"].lower() for row in existing_rows}
-        current_count = len(existing)
+        # Get current managed competitors
+        context = user_repository.get_context(user_id) or {}
+        managed = context.get("managed_competitors", [])
+        if not isinstance(managed, list):
+            managed = []
+
+        # Build set of existing names (case-insensitive)
+        existing_names = {c.get("name", "").lower().strip() for c in managed}
+        current_count = len(managed)
 
         # Calculate how many we can add
-        available_slots = tier_config["max_competitors"] - current_count
+        available_slots = max_competitors - current_count
         if available_slots <= 0:
-            logger.info(
-                f"User {user_id} at competitor limit ({current_count}/{tier_config['max_competitors']})"
-            )
-            return
+            logger.info(f"User {user_id} at competitor limit ({current_count}/{max_competitors})")
+            return 0
 
         # Add new competitors (up to available slots)
         added = 0
+        now = datetime.now(UTC).isoformat()
+
         for comp in competitors:
             if added >= available_slots:
                 break
-            if comp.name.lower() in existing:
+
+            name_lower = comp.name.lower().strip()
+            if name_lower in existing_names:
                 continue
 
-            # Use INSERT ... ON CONFLICT - check if inserted via RETURNING
-            result = execute_query(
-                """
-                INSERT INTO competitor_profiles (user_id, name, website, tagline, data_depth)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
-                """,
-                (
-                    user_id,
-                    comp.name,
-                    comp.url,
-                    comp.description,
-                    tier_config["data_depth"],
-                ),
-                fetch="one",
+            # Add to managed competitors with source tracking
+            managed.append(
+                {
+                    "name": comp.name.strip(),
+                    "url": comp.url.strip() if comp.url else None,
+                    "notes": comp.description.strip() if comp.description else None,
+                    "added_at": now,
+                    "source": source,
+                }
             )
-            if result:
-                added += 1
-                existing.add(comp.name.lower())
+            existing_names.add(name_lower)
+            added += 1
 
-        logger.info(f"Auto-saved {added} competitors for user {user_id}")
+        # Save updated context
+        if added > 0:
+            context["managed_competitors"] = managed
+            user_repository.save_context(user_id, context)
+            logger.info(f"Auto-saved {added} competitors for user {user_id} (source={source})")
+
+        return added
 
     except Exception as e:
         # Don't fail the main request if auto-save fails
@@ -353,6 +366,7 @@ async def auto_save_competitors(user_id: str, competitors: list[DetectedCompetit
             f"Failed to auto-save competitors: {e}",
             user_id=user_id,
         )
+        return 0
 
 
 # =============================================================================

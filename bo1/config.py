@@ -224,6 +224,9 @@ class Settings(BaseSettings):
 
     # Email Configuration (Resend)
     resend_api_key: str = Field(default="", description="Resend API key for transactional emails")
+    resend_webhook_secret: str | None = Field(
+        default=None, description="Resend webhook signing secret for event verification"
+    )
 
     # DigitalOcean Spaces Configuration (S3-compatible object storage)
     do_spaces_key: str = Field(default="", description="DO Spaces access key ID")
@@ -469,6 +472,12 @@ class Settings(BaseSettings):
     model_experiment_mapping: str = Field(
         default="",
         description='JSON string of task→model overrides. Example: \'{"synthesis":"haiku","voting":"sonnet"}\'',
+    )
+
+    # Action Update Summarizer (LLM-based cleanup of user updates)
+    action_update_summarizer_enabled: bool = Field(
+        default=True,
+        description="Pass action updates through LLM for grammar/formatting cleanup",
     )
 
     # AI Model Override (for testing to avoid expensive model costs)

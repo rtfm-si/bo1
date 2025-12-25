@@ -12,6 +12,7 @@
 	import DependencyGraph from '$lib/components/actions/DependencyGraph.svelte';
 	import ReminderSettings from '$lib/components/actions/ReminderSettings.svelte';
 	import ProjectSelector from '$lib/components/actions/ProjectSelector.svelte';
+	import UnblockSuggestions from '$lib/components/actions/UnblockSuggestions.svelte';
 	import {
 		ArrowLeft,
 		CheckCircle2,
@@ -34,7 +35,10 @@
 		FolderKanban,
 		Trophy,
 		HelpCircle,
-		MessageCircle
+		MessageCircle,
+		Lightbulb,
+		ThumbsUp,
+		Users
 	} from 'lucide-svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
 	import ActionSocialShare from '$lib/components/actions/ActionSocialShare.svelte';
@@ -112,6 +116,17 @@
 	let isCreatingReplanMeeting = $state(false);
 	let replanningSuggestionError = $state<string | null>(null);
 	let replanSuggestionContext = $state<any>(null);
+
+	// Escalate blocker state
+	let isEscalating = $state(false);
+	let escalateError = $state<string | null>(null);
+
+	// Post-mortem completion state
+	let showCompletionModal = $state(false);
+	let completionWentWell = $state('');
+	let completionLessonsLearned = $state('');
+	let isCompletingWithPostMortem = $state(false);
+	let completionError = $state<string | null>(null);
 
 	// Derive achievement data for social sharing (completed actions only)
 	const achievementData = $derived.by((): ActionAchievementData | null => {
@@ -206,6 +221,23 @@
 		showReplanningSuggestionModal = false;
 		replanSuggestionContext = null;
 		replanningSuggestionError = null;
+	}
+
+	// Escalate blocker to meeting
+	async function escalateBlocker() {
+		if (!action) return;
+
+		isEscalating = true;
+		escalateError = null;
+
+		try {
+			const result = await apiClient.escalateBlocker(action.id);
+			// Navigate to the new meeting
+			goto(result.redirect_url);
+		} catch (e: any) {
+			escalateError = e.message || 'Failed to escalate blocker';
+			isEscalating = false;
+		}
 	}
 
 	// Submit replanning suggestion - create new meeting
@@ -463,6 +495,52 @@
 		}
 	}
 
+	// Open completion modal for post-mortem capture
+	function openCompletionModal() {
+		completionWentWell = '';
+		completionLessonsLearned = '';
+		completionError = null;
+		showCompletionModal = true;
+	}
+
+	// Close completion modal
+	function closeCompletionModal() {
+		showCompletionModal = false;
+		completionWentWell = '';
+		completionLessonsLearned = '';
+		completionError = null;
+	}
+
+	// Complete action with optional post-mortem
+	async function completeWithPostMortem(skipPostMortem: boolean = false) {
+		if (!action) return;
+
+		isCompletingWithPostMortem = true;
+		completionError = null;
+
+		try {
+			const postMortem = skipPostMortem
+				? undefined
+				: {
+						lessonsLearned: completionLessonsLearned.trim() || undefined,
+						wentWell: completionWentWell.trim() || undefined
+					};
+
+			await apiClient.completeAction(actionId, postMortem);
+			action = {
+				...action,
+				status: 'done',
+				lessons_learned: postMortem?.lessonsLearned || null,
+				went_well: postMortem?.wentWell || null
+			};
+			showCompletionModal = false;
+		} catch (err) {
+			completionError = err instanceof Error ? err.message : 'Failed to complete action';
+		} finally {
+			isCompletingWithPostMortem = false;
+		}
+	}
+
 	async function updateStatus(newStatus: ActionStatus) {
 		if (!action || action.status === newStatus || isUpdatingStatus) return;
 
@@ -472,7 +550,10 @@
 			if (newStatus === 'in_progress' && action.status === 'todo') {
 				await apiClient.startAction(actionId);
 			} else if (newStatus === 'done') {
-				await apiClient.completeAction(actionId);
+				// Show completion modal for post-mortem capture
+				openCompletionModal();
+				isUpdatingStatus = false;
+				return;
 			} else {
 				await apiClient.updateActionStatus(actionId, newStatus);
 			}
@@ -1004,6 +1085,34 @@
 													Get AI assistance to find an alternative approach for this blocked action
 												</p>
 											{/if}
+
+											<!-- AI-powered unblock suggestions -->
+											<div class="mt-4">
+												<UnblockSuggestions actionId={action.id} />
+											</div>
+
+											<!-- Escalate to meeting button -->
+											<div class="mt-4 pt-4 border-t border-error-200 dark:border-error-800">
+												<button
+													onclick={escalateBlocker}
+													disabled={isEscalating}
+													class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+												>
+													{#if isEscalating}
+														<Loader2 class="w-4 h-4 animate-spin" />
+														Starting meeting...
+													{:else}
+														<Users class="w-4 h-4" />
+														Start Unblock Meeting
+													{/if}
+												</button>
+												<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5">
+													Get AI personas to deliberate on the best approach to unblock this action
+												</p>
+												{#if escalateError}
+													<p class="text-xs text-error-500 dark:text-error-400 mt-1">{escalateError}</p>
+												{/if}
+											</div>
 										</div>
 									</div>
 								</div>
@@ -1241,6 +1350,36 @@
 								</li>
 							{/each}
 						</ul>
+					</div>
+				{/if}
+
+				<!-- Post-Mortem (completed actions only) -->
+				{#if action.status === 'done' && (action.went_well || action.lessons_learned)}
+					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
+						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-4">
+							<Trophy class="w-4 h-4 text-success-500" />
+							Reflections
+						</h2>
+						<div class="space-y-4">
+							{#if action.went_well}
+								<div class="p-4 rounded-lg bg-success-50/50 dark:bg-success-900/10 border border-success-200/50 dark:border-success-800/30">
+									<div class="flex items-center gap-2 mb-2">
+										<ThumbsUp class="w-4 h-4 text-success-600 dark:text-success-400" />
+										<span class="text-sm font-medium text-success-700 dark:text-success-300">What went well</span>
+									</div>
+									<p class="text-sm text-success-800 dark:text-success-200 whitespace-pre-wrap">{action.went_well}</p>
+								</div>
+							{/if}
+							{#if action.lessons_learned}
+								<div class="p-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
+									<div class="flex items-center gap-2 mb-2">
+										<Lightbulb class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+										<span class="text-sm font-medium text-amber-700 dark:text-amber-300">Lessons learned</span>
+									</div>
+									<p class="text-sm text-amber-800 dark:text-amber-200 whitespace-pre-wrap">{action.lessons_learned}</p>
+								</div>
+							{/if}
+						</div>
 					</div>
 				{/if}
 
@@ -1529,3 +1668,114 @@
 	oncancel={closeReplanningSuggestionModal}
 	onsubmit={submitReplanningSuggestion}
 />
+
+<!-- Completion Post-Mortem Modal -->
+{#if showCompletionModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center">
+		<!-- Backdrop -->
+		<button
+			type="button"
+			class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+			onclick={closeCompletionModal}
+			aria-label="Close modal"
+		></button>
+
+		<!-- Modal Content -->
+		<div class="relative bg-white dark:bg-neutral-900 rounded-xl shadow-xl max-w-lg w-full mx-4 overflow-hidden">
+			<!-- Header -->
+			<div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+				<div class="flex items-center gap-3">
+					<div class="p-2 rounded-lg bg-success-50 dark:bg-success-900/30">
+						<Trophy class="w-5 h-5 text-success-600 dark:text-success-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Complete Action</h3>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">Capture your reflections (optional)</p>
+					</div>
+				</div>
+				<button
+					onclick={closeCompletionModal}
+					class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					aria-label="Close"
+				>
+					<X class="w-5 h-5 text-neutral-500" />
+				</button>
+			</div>
+
+			<!-- Body -->
+			<div class="px-6 py-4 space-y-4">
+				{#if action}
+					<div class="p-3 rounded-lg bg-success-50/50 dark:bg-success-900/10 border border-success-200/50 dark:border-success-800/30">
+						<div class="flex items-center gap-2">
+							<CheckCircle2 class="w-4 h-4 text-success-600 dark:text-success-400" />
+							<span class="text-sm font-medium text-success-900 dark:text-success-100">{action.title}</span>
+						</div>
+					</div>
+				{/if}
+
+				<label class="block">
+					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
+						What went well?
+					</span>
+					<textarea
+						bind:value={completionWentWell}
+						placeholder="What aspects of this action worked particularly well? Any wins or positive outcomes..."
+						rows="3"
+						maxlength="500"
+						class="w-full px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
+					></textarea>
+					<p class="text-xs text-neutral-400 dark:text-neutral-500 mt-1 text-right">{completionWentWell.length}/500</p>
+				</label>
+
+				<label class="block">
+					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
+						Lessons learned?
+					</span>
+					<textarea
+						bind:value={completionLessonsLearned}
+						placeholder="What would you do differently next time? Any insights for future actions..."
+						rows="3"
+						maxlength="500"
+						class="w-full px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
+					></textarea>
+					<p class="text-xs text-neutral-400 dark:text-neutral-500 mt-1 text-right">{completionLessonsLearned.length}/500</p>
+				</label>
+
+				{#if completionError}
+					<div class="p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800">
+						<p class="text-sm text-error-700 dark:text-error-300">{completionError}</p>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="flex items-center justify-between gap-3 px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50">
+				<Button
+					variant="ghost"
+					onclick={() => completeWithPostMortem(true)}
+					disabled={isCompletingWithPostMortem}
+				>
+					Skip
+				</Button>
+				<div class="flex items-center gap-3">
+					<Button variant="ghost" onclick={closeCompletionModal} disabled={isCompletingWithPostMortem}>
+						Cancel
+					</Button>
+					<Button
+						variant="brand"
+						onclick={() => completeWithPostMortem(false)}
+						disabled={isCompletingWithPostMortem}
+					>
+						{#if isCompletingWithPostMortem}
+							<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+							Completing...
+						{:else}
+							<CheckCircle2 class="w-4 h-4 mr-2" />
+							Complete Action
+						{/if}
+					</Button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}

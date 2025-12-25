@@ -1,6 +1,6 @@
 """Tests for admin rate limit configuration.
 
-Verifies that admin endpoints use higher rate limits (300/minute)
+Verifies that admin endpoints use higher rate limits (600/minute)
 to support dashboard page loads that fire multiple API requests in parallel.
 """
 
@@ -15,7 +15,7 @@ class TestAdminRateLimitConstants:
     def test_admin_rate_limit_exists(self):
         """Admin rate limit constant is defined."""
         assert hasattr(RateLimits, "ADMIN")
-        assert RateLimits.ADMIN == "300/minute"
+        assert RateLimits.ADMIN == "600/minute"
 
     def test_admin_rate_limit_higher_than_general(self):
         """Admin rate limit is higher than general rate limit."""
@@ -24,7 +24,7 @@ class TestAdminRateLimitConstants:
         general_limit = int(RateLimits.GENERAL.split("/")[0])
 
         assert admin_limit > general_limit
-        assert admin_limit >= 300  # At least 300/minute for admin
+        assert admin_limit >= 600  # At least 600/minute for admin
 
     def test_admin_rate_limit_format(self):
         """Admin rate limit has correct format."""
@@ -40,7 +40,47 @@ class TestAdminRateLimitImports:
         from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT
 
         assert ADMIN_RATE_LIMIT == RateLimits.ADMIN
-        assert ADMIN_RATE_LIMIT == "300/minute"
+        assert ADMIN_RATE_LIMIT == "600/minute"
+
+
+class TestGlobalIPRateLimiterAdminExemption:
+    """Tests for admin exemption from global IP rate limiting."""
+
+    def test_admin_path_prefix_in_skip_list(self):
+        """Admin path prefix is in global rate limiter skip list."""
+        from backend.api.middleware.rate_limit import GlobalIPRateLimiter
+
+        assert "/api/admin/" in GlobalIPRateLimiter.SKIP_PATH_PREFIXES
+
+    def test_admin_exempt_ips_attribute_exists(self):
+        """EXEMPT_IPS attribute exists on GlobalIPRateLimiter."""
+        from backend.api.middleware.rate_limit import GlobalIPRateLimiter
+
+        assert hasattr(GlobalIPRateLimiter, "EXEMPT_IPS")
+        assert isinstance(GlobalIPRateLimiter.EXEMPT_IPS, frozenset)
+
+    def test_load_exempt_ips_returns_frozenset(self):
+        """_load_exempt_ips returns frozenset."""
+        from backend.api.middleware.rate_limit import GlobalIPRateLimiter
+
+        result = GlobalIPRateLimiter._load_exempt_ips()
+        assert isinstance(result, frozenset)
+
+    def test_load_exempt_ips_parses_comma_separated(self, monkeypatch):
+        """_load_exempt_ips parses comma-separated IPs."""
+        from backend.api.middleware.rate_limit import GlobalIPRateLimiter
+
+        monkeypatch.setenv("ADMIN_EXEMPT_IPS", "1.2.3.4, 5.6.7.8, 9.10.11.12")
+        result = GlobalIPRateLimiter._load_exempt_ips()
+        assert result == frozenset({"1.2.3.4", "5.6.7.8", "9.10.11.12"})
+
+    def test_load_exempt_ips_empty_when_unset(self, monkeypatch):
+        """_load_exempt_ips returns empty frozenset when env var unset."""
+        from backend.api.middleware.rate_limit import GlobalIPRateLimiter
+
+        monkeypatch.delenv("ADMIN_EXEMPT_IPS", raising=False)
+        result = GlobalIPRateLimiter._load_exempt_ips()
+        assert result == frozenset()
 
 
 class TestAdminEndpointRateLimits:

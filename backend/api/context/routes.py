@@ -17,6 +17,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.api.context.auto_detect import (
+    get_auto_detect_status,
+    run_auto_detect_competitors,
+    should_trigger_auto_detect,
+)
 from backend.api.context.competitors import (
     detect_competitors_for_user,
     refresh_market_trends,
@@ -27,6 +32,8 @@ from backend.api.context.models import (
     ClarificationInsight,
     CompetitorDetectRequest,
     CompetitorDetectResponse,
+    CompetitorInsightResponse,
+    CompetitorInsightsListResponse,
     ContextResponse,
     ContextUpdateSource,
     ContextUpdateSuggestion,
@@ -34,14 +41,27 @@ from backend.api.context.models import (
     DismissRefreshRequest,
     EnrichmentRequest,
     EnrichmentResponse,
+    GoalHistoryEntry,
+    GoalHistoryResponse,
+    GoalProgressResponse,
+    GoalStalenessResponse,
     InsightCategory,
     InsightMetricResponse,
     InsightsResponse,
+    ManagedCompetitor,
+    ManagedCompetitorCreate,
+    ManagedCompetitorListResponse,
+    ManagedCompetitorResponse,
+    ManagedCompetitorUpdate,
     PendingUpdatesResponse,
     RefreshCheckResponse,
     StaleFieldSummary,
     StaleMetricResponse,
     StaleMetricsResponse,
+    TrendInsight,
+    TrendInsightRequest,
+    TrendInsightResponse,
+    TrendInsightsListResponse,
     TrendsRefreshRequest,
     TrendsRefreshResponse,
     UpdateInsightRequest,
@@ -156,11 +176,16 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
     # Parse benchmark timestamps from raw data
     benchmark_timestamps = context_data.get("benchmark_timestamps")
 
+    # Get auto-detect status for competitor refresh indicator
+    auto_detect_status = get_auto_detect_status(user_id)
+
     return ContextResponse(
         exists=True,
         context=context,
         updated_at=context_data.get("updated_at"),
         benchmark_timestamps=benchmark_timestamps,
+        needs_competitor_refresh=auto_detect_status.get("needs_competitor_refresh", False),
+        competitor_count=auto_detect_status.get("competitor_count", 0),
     )
 
 
@@ -217,7 +242,26 @@ async def update_context(
     # Save to database
     user_repository.save_context(user_id, context_dict)
 
+    # Record goal change if north_star_goal changed
+    new_goal = context_dict.get("north_star_goal")
+    previous_goal = existing_context.get("north_star_goal") if existing_context else None
+    if new_goal and new_goal != previous_goal:
+        from backend.services.goal_tracker import record_goal_change
+
+        try:
+            record_goal_change(user_id, new_goal, previous_goal)
+        except Exception as e:
+            logger.warning(f"Failed to record goal change for user {user_id}: {e}")
+
     logger.info(f"Updated context for user {user_id}")
+
+    # Check if auto-detect should trigger (background task)
+    if should_trigger_auto_detect(user_id, context_dict):
+        import asyncio
+
+        logger.info(f"Triggering auto-detect competitors for user {user_id}")
+        # Schedule as background task (don't block response)
+        asyncio.create_task(run_auto_detect_competitors(user_id))
 
     return {"status": "updated"}
 
@@ -1297,4 +1341,1340 @@ async def get_stale_metrics(
         has_stale_metrics=result.has_stale_metrics,
         stale_metrics=stale_metrics_response,
         total_metrics_checked=result.total_metrics_checked,
+    )
+
+
+# =============================================================================
+# Competitor Insights Endpoints
+# =============================================================================
+
+# Tier limits for visible competitor insights
+COMPETITOR_INSIGHT_TIER_LIMITS = {
+    "free": 1,
+    "starter": 3,
+    "pro": 100,  # effectively unlimited
+    "enterprise": 100,
+}
+
+
+def _get_insight_limit_for_tier(tier: str) -> int:
+    """Get the insight visibility limit for a tier."""
+    return COMPETITOR_INSIGHT_TIER_LIMITS.get(tier, 1)
+
+
+@router.post(
+    "/v1/context/competitors/{name}/insights",
+    response_model=CompetitorInsightResponse,
+    summary="Generate insight for a competitor",
+    description="""
+    Generate an AI-powered insight card for a specific competitor.
+
+    Uses Haiku for fast, cost-effective analysis (~$0.003/request).
+    Includes web search for fresh company data when available.
+
+    **Rate Limit:** 3 requests per minute per user (LLM cost control).
+
+    **Caching:** Results are cached in user context. Subsequent calls
+    for the same competitor return cached data unless forced refresh.
+    """,
+    responses={
+        200: {"description": "Insight generated or retrieved from cache"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Analysis failed"},
+    },
+)
+@handle_api_errors("generate competitor insight")
+async def generate_competitor_insight(
+    name: str,
+    refresh: bool = False,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CompetitorInsightResponse:
+    """Generate AI-powered insight for a competitor."""
+    from backend.services.competitor_analyzer import get_competitor_analyzer
+
+    user_id = extract_user_id(user)
+
+    # Sanitize competitor name
+    name = name.strip()[:100]
+    if not name:
+        raise HTTPException(status_code=400, detail="Competitor name required")
+
+    # Load user context
+    context_data = user_repository.get_context(user_id) or {}
+
+    # Check cache first (unless refresh requested)
+    cached_insights = context_data.get("competitor_insights", {})
+    if name in cached_insights and not refresh:
+        insight_data = cached_insights[name]
+        from backend.api.context.models import CompetitorInsight
+
+        return CompetitorInsightResponse(
+            success=True,
+            insight=CompetitorInsight(**insight_data),
+            generation_status="cached",
+        )
+
+    # Generate new insight
+    analyzer = get_competitor_analyzer()
+    result = await analyzer.generate_insight(
+        competitor_name=name,
+        industry=context_data.get("industry"),
+        product_description=context_data.get("product_description"),
+        value_proposition=context_data.get("main_value_proposition"),
+    )
+
+    if result.status == "error":
+        return CompetitorInsightResponse(
+            success=False,
+            insight=None,
+            error=result.error,
+            generation_status="error",
+        )
+
+    # Cache the result
+    insight_dict = result.to_dict()
+    cached_insights[name] = insight_dict
+    context_data["competitor_insights"] = cached_insights
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Generated competitor insight for {name} (user={user_id})")
+
+    from backend.api.context.models import CompetitorInsight
+
+    return CompetitorInsightResponse(
+        success=True,
+        insight=CompetitorInsight(**insight_dict),
+        generation_status=result.status,
+    )
+
+
+@router.get(
+    "/v1/context/competitors/insights",
+    response_model=CompetitorInsightsListResponse,
+    summary="List cached competitor insights",
+    description="""
+    Retrieve all cached competitor insights for the user.
+
+    **Tier Gating:**
+    - Free: 1 visible insight
+    - Starter: 3 visible insights
+    - Pro: Unlimited insights
+
+    Returns `visible_count` and `total_count` to show users what they're missing.
+    Includes `upgrade_prompt` when tier limit is reached.
+    """,
+)
+@handle_api_errors("list competitor insights")
+async def list_competitor_insights(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CompetitorInsightsListResponse:
+    """List all cached competitor insights with tier gating."""
+    from backend.api.context.models import CompetitorInsight
+
+    user_id = extract_user_id(user)
+    tier = user.get("subscription_tier", "free")
+
+    # Load cached insights
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return CompetitorInsightsListResponse(
+            success=True,
+            insights=[],
+            visible_count=0,
+            total_count=0,
+            tier=tier,
+        )
+
+    cached_insights = context_data.get("competitor_insights", {})
+    total_count = len(cached_insights)
+
+    # Apply tier limit
+    limit = _get_insight_limit_for_tier(tier)
+    visible_count = min(total_count, limit)
+
+    # Convert to list and apply limit
+    insights = []
+    for i, (name, data) in enumerate(cached_insights.items()):
+        if i >= limit:
+            break
+        try:
+            insights.append(CompetitorInsight(**data))
+        except Exception as e:
+            logger.warning(f"Failed to parse cached insight for {name}: {e}")
+            continue
+
+    # Build upgrade prompt if limit reached
+    upgrade_prompt = None
+    if total_count > visible_count:
+        hidden_count = total_count - visible_count
+        upgrade_prompt = (
+            f"Upgrade to see {hidden_count} more competitor insight"
+            f"{'s' if hidden_count > 1 else ''}."
+        )
+
+    return CompetitorInsightsListResponse(
+        success=True,
+        insights=insights,
+        visible_count=visible_count,
+        total_count=total_count,
+        tier=tier,
+        upgrade_prompt=upgrade_prompt,
+    )
+
+
+@router.delete(
+    "/v1/context/competitors/{name}/insights",
+    response_model=dict[str, str],
+    summary="Delete cached competitor insight",
+    description="""
+    Remove a cached competitor insight.
+
+    This frees up a slot for users on limited tiers.
+    The insight can be regenerated by calling the POST endpoint.
+    """,
+)
+@handle_api_errors("delete competitor insight")
+async def delete_competitor_insight(
+    name: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Delete a cached competitor insight."""
+    user_id = extract_user_id(user)
+
+    # Load context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    cached_insights = context_data.get("competitor_insights", {})
+    if name not in cached_insights:
+        raise HTTPException(status_code=404, detail="Insight not found")
+
+    # Remove insight
+    del cached_insights[name]
+    context_data["competitor_insights"] = cached_insights
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Deleted competitor insight for {name} (user={user_id})")
+
+    return {"status": "deleted"}
+
+
+# =============================================================================
+# Managed Competitors Endpoints (User-submitted competitor list)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/managed-competitors",
+    response_model=ManagedCompetitorListResponse,
+    summary="List user's managed competitors",
+    description="""
+    Retrieve the user's manually managed competitor list.
+
+    These are competitors the user has explicitly added, distinct from:
+    - Auto-detected competitors (from enrichment)
+    - Competitor insights (AI-generated analysis cards)
+
+    Returns competitors sorted by added_at (newest first).
+    """,
+)
+@handle_api_errors("list managed competitors")
+async def list_managed_competitors(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ManagedCompetitorListResponse:
+    """List user's managed competitors."""
+    user_id = extract_user_id(user)
+
+    competitors_data = user_repository.get_managed_competitors(user_id)
+
+    # Convert to models and sort by added_at (newest first)
+    competitors = []
+    for c in competitors_data:
+        try:
+            added_at = c.get("added_at")
+            if isinstance(added_at, str):
+                added_at = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
+            competitors.append(
+                ManagedCompetitor(
+                    name=c.get("name", ""),
+                    url=c.get("url"),
+                    notes=c.get("notes"),
+                    added_at=added_at or datetime.now(UTC),
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse managed competitor: {e}")
+            continue
+
+    # Sort by added_at (newest first)
+    competitors.sort(key=lambda c: c.added_at, reverse=True)
+
+    return ManagedCompetitorListResponse(
+        success=True,
+        competitors=competitors,
+        count=len(competitors),
+    )
+
+
+@router.post(
+    "/v1/context/managed-competitors",
+    response_model=ManagedCompetitorResponse,
+    summary="Add a managed competitor",
+    description="""
+    Add a new competitor to the user's managed list.
+
+    Performs case-insensitive deduplication - if a competitor with
+    the same name (ignoring case) already exists, returns error.
+
+    **Use Cases:**
+    - User manually adds known competitor
+    - Capture competitor from external source
+    """,
+    responses={
+        200: {"description": "Competitor added successfully"},
+        409: {"description": "Competitor with this name already exists"},
+    },
+)
+@handle_api_errors("add managed competitor")
+async def add_managed_competitor(
+    request: ManagedCompetitorCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ManagedCompetitorResponse:
+    """Add a new managed competitor."""
+    user_id = extract_user_id(user)
+
+    result = user_repository.add_managed_competitor(
+        user_id=user_id,
+        name=request.name,
+        url=request.url,
+        notes=request.notes,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Competitor '{request.name}' already exists",
+        )
+
+    # Convert added_at to datetime
+    added_at = result.get("added_at")
+    if isinstance(added_at, str):
+        added_at = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
+
+    return ManagedCompetitorResponse(
+        success=True,
+        competitor=ManagedCompetitor(
+            name=result.get("name", ""),
+            url=result.get("url"),
+            notes=result.get("notes"),
+            added_at=added_at or datetime.now(UTC),
+        ),
+    )
+
+
+@router.patch(
+    "/v1/context/managed-competitors/{name}",
+    response_model=ManagedCompetitorResponse,
+    summary="Update a managed competitor",
+    description="""
+    Update the URL and/or notes for a managed competitor.
+
+    Competitor is matched by name (case-insensitive).
+    Only provided fields are updated - omitted fields remain unchanged.
+    """,
+    responses={
+        200: {"description": "Competitor updated successfully"},
+        404: {"description": "Competitor not found"},
+    },
+)
+@handle_api_errors("update managed competitor")
+async def update_managed_competitor(
+    name: str,
+    request: ManagedCompetitorUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ManagedCompetitorResponse:
+    """Update a managed competitor's url and/or notes."""
+    user_id = extract_user_id(user)
+
+    result = user_repository.update_managed_competitor(
+        user_id=user_id,
+        name=name,
+        url=request.url,
+        notes=request.notes,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Competitor '{name}' not found",
+        )
+
+    # Convert added_at to datetime
+    added_at = result.get("added_at")
+    if isinstance(added_at, str):
+        added_at = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
+
+    return ManagedCompetitorResponse(
+        success=True,
+        competitor=ManagedCompetitor(
+            name=result.get("name", ""),
+            url=result.get("url"),
+            notes=result.get("notes"),
+            added_at=added_at or datetime.now(UTC),
+        ),
+    )
+
+
+@router.delete(
+    "/v1/context/managed-competitors/{name}",
+    response_model=dict[str, str],
+    summary="Remove a managed competitor",
+    description="""
+    Remove a competitor from the user's managed list.
+
+    Competitor is matched by name (case-insensitive).
+    This does not delete any associated competitor insights.
+    """,
+    responses={
+        200: {"description": "Competitor removed successfully"},
+        404: {"description": "Competitor not found"},
+    },
+)
+@handle_api_errors("remove managed competitor")
+async def remove_managed_competitor(
+    name: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Remove a managed competitor."""
+    user_id = extract_user_id(user)
+
+    success = user_repository.remove_managed_competitor(user_id, name)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Competitor '{name}' not found",
+        )
+
+    return {"status": "deleted"}
+
+
+# =============================================================================
+# Phase 9: Goal Progress Endpoint
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/goal-progress",
+    response_model=GoalProgressResponse,
+    summary="Get goal progress metrics",
+    description="""
+    Get action completion stats for the last 30 days.
+
+    Returns:
+    - Progress percentage (completed / total active actions)
+    - Trend compared to previous 30-day period (up/down/stable)
+    - Completed and total counts
+
+    Useful for displaying goal progress on the dashboard.
+    """,
+)
+@handle_api_errors("get goal progress")
+async def get_goal_progress(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> GoalProgressResponse:
+    """Get goal progress based on action completion."""
+    from datetime import timedelta
+
+    from bo1.state import db_session
+
+    user_id = extract_user_id(user)
+
+    # Calculate date ranges
+    now = datetime.now(UTC)
+    period_30d_start = now - timedelta(days=30)
+    period_60d_start = now - timedelta(days=60)
+
+    # Query action stats for current 30-day period
+    with db_session(user_id=user_id) as conn:
+        # Current period (last 30 days)
+        result = execute_query(
+            conn,
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'done') as completed,
+                COUNT(*) FILTER (WHERE status IN ('todo', 'in_progress', 'done')) as total
+            FROM actions
+            WHERE user_id = %s
+              AND deleted_at IS NULL
+              AND (
+                  completed_at >= %s
+                  OR (status IN ('todo', 'in_progress') AND created_at <= %s)
+              )
+            """,
+            (user_id, period_30d_start, now),
+            user_id=user_id,
+        )
+        current = result.fetchone() if result else None
+        current_completed = current[0] if current else 0
+        current_total = current[1] if current else 0
+
+        # Previous period (30-60 days ago)
+        result = execute_query(
+            conn,
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'done') as completed,
+                COUNT(*) FILTER (WHERE status IN ('todo', 'in_progress', 'done')) as total
+            FROM actions
+            WHERE user_id = %s
+              AND deleted_at IS NULL
+              AND (
+                  completed_at >= %s AND completed_at < %s
+                  OR (status IN ('todo', 'in_progress') AND created_at <= %s AND created_at >= %s)
+              )
+            """,
+            (user_id, period_60d_start, period_30d_start, period_30d_start, period_60d_start),
+            user_id=user_id,
+        )
+        previous = result.fetchone() if result else None
+        prev_completed = previous[0] if previous else 0
+        prev_total = previous[1] if previous else 0
+
+    # Calculate progress percentage
+    progress_percent = 0
+    if current_total > 0:
+        progress_percent = min(100, int((current_completed / current_total) * 100))
+
+    # Calculate trend
+    current_rate = current_completed / current_total if current_total > 0 else 0
+    prev_rate = prev_completed / prev_total if prev_total > 0 else 0
+
+    if current_rate > prev_rate + 0.05:
+        trend = "up"
+    elif current_rate < prev_rate - 0.05:
+        trend = "down"
+    else:
+        trend = "stable"
+
+    logger.info(
+        f"Goal progress for user {user_id}: {progress_percent}% ({current_completed}/{current_total}), trend={trend}"
+    )
+
+    return GoalProgressResponse(
+        progress_percent=progress_percent,
+        trend=trend,
+        completed_count=current_completed,
+        total_count=current_total,
+    )
+
+
+# =============================================================================
+# Trend Insights Endpoints
+# =============================================================================
+
+
+@router.post(
+    "/v1/context/trends/analyze",
+    response_model=TrendInsightResponse,
+    summary="Analyze a trend URL for insights",
+    description="""
+    Analyze a market trend URL and generate structured insights.
+
+    Uses Haiku for fast, cost-effective analysis (~$0.003/request).
+    Fetches URL content and extracts key takeaways, relevance to user's
+    business, and recommended actions.
+
+    **Rate Limit:** 3 requests per minute per user (web fetching cost control).
+
+    **Caching:** Results are cached in user context. Subsequent calls
+    for the same URL return cached data unless forced refresh.
+
+    **Supported content:** HTML pages. PDFs and other formats are not supported.
+    """,
+    responses={
+        200: {"description": "Insight generated or retrieved from cache"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Analysis failed"},
+    },
+)
+@handle_api_errors("analyze trend")
+async def analyze_trend(
+    request: TrendInsightRequest,
+    refresh: bool = False,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> TrendInsightResponse:
+    """Analyze a trend URL and generate structured insights."""
+    from backend.services.trend_analyzer import get_trend_analyzer
+
+    user_id = extract_user_id(user)
+
+    # Validate URL
+    url = request.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL required")
+
+    # Load user context
+    context_data = user_repository.get_context(user_id) or {}
+
+    # Check cache first (unless refresh requested)
+    cached_insights = context_data.get("trend_insights", {})
+    if url in cached_insights and not refresh:
+        insight_data = cached_insights[url]
+        return TrendInsightResponse(
+            success=True,
+            insight=TrendInsight(**insight_data),
+            analysis_status="cached",
+        )
+
+    # Generate new insight
+    analyzer = get_trend_analyzer()
+    result = await analyzer.analyze_trend(
+        url=url,
+        industry=context_data.get("industry"),
+        product_description=context_data.get("product_description"),
+        business_model=context_data.get("business_model"),
+        target_market=context_data.get("target_market"),
+    )
+
+    if result.status == "error":
+        return TrendInsightResponse(
+            success=False,
+            insight=None,
+            error=result.error,
+            analysis_status="error",
+        )
+
+    # Cache the result
+    insight_dict = result.to_dict()
+    cached_insights[url] = insight_dict
+    context_data["trend_insights"] = cached_insights
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Generated trend insight for {url[:50]}... (user={user_id})")
+
+    return TrendInsightResponse(
+        success=True,
+        insight=TrendInsight(**insight_dict),
+        analysis_status=result.status,
+    )
+
+
+@router.get(
+    "/v1/context/trends/insights",
+    response_model=TrendInsightsListResponse,
+    summary="List cached trend insights",
+    description="""
+    Retrieve all cached trend insights for the user.
+
+    Returns insights sorted by analysis date (newest first).
+    """,
+)
+@handle_api_errors("list trend insights")
+async def list_trend_insights(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> TrendInsightsListResponse:
+    """List all cached trend insights."""
+    user_id = extract_user_id(user)
+
+    # Load cached insights
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return TrendInsightsListResponse(
+            success=True,
+            insights=[],
+            count=0,
+        )
+
+    cached_insights = context_data.get("trend_insights", {})
+
+    # Convert to list and sort by analyzed_at
+    insights = []
+    for url, data in cached_insights.items():
+        try:
+            insights.append(TrendInsight(**data))
+        except Exception as e:
+            logger.warning(f"Failed to parse cached trend insight for {url}: {e}")
+            continue
+
+    # Sort by analyzed_at (newest first)
+    insights.sort(
+        key=lambda i: i.analyzed_at or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+
+    return TrendInsightsListResponse(
+        success=True,
+        insights=insights,
+        count=len(insights),
+    )
+
+
+@router.delete(
+    "/v1/context/trends/insights/{url_hash}",
+    response_model=dict[str, str],
+    summary="Delete a cached trend insight",
+    description="""
+    Remove a cached trend insight by URL hash.
+
+    The url_hash is a URL-safe base64 encoding of the URL.
+    """,
+)
+@handle_api_errors("delete trend insight")
+async def delete_trend_insight(
+    url_hash: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Delete a cached trend insight."""
+    import base64
+
+    user_id = extract_user_id(user)
+
+    # Decode the URL from the hash
+    try:
+        url = base64.urlsafe_b64decode(url_hash.encode()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode URL hash: {e}")
+        raise HTTPException(status_code=400, detail="Invalid URL hash") from None
+
+    # Load context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    cached_insights = context_data.get("trend_insights", {})
+    if url not in cached_insights:
+        raise HTTPException(status_code=404, detail="Insight not found")
+
+    # Remove insight
+    del cached_insights[url]
+    context_data["trend_insights"] = cached_insights
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Deleted trend insight for {url[:50]}... (user={user_id})")
+
+    return {"status": "deleted"}
+
+
+# =============================================================================
+# Trend Summary Endpoints (AI-generated industry summaries)
+# =============================================================================
+
+
+# Rate limit: 1 refresh per hour per user
+TREND_SUMMARY_REFRESH_COOLDOWN_HOURS = 1
+TREND_SUMMARY_STALENESS_DAYS = 7
+
+
+@router.get(
+    "/v1/context/trends/summary",
+    summary="Get cached trend summary",
+    description="""
+    Get the AI-generated market trend summary for the user's industry.
+
+    Returns cached summary if available, with staleness indicator.
+    If summary is stale (>7 days) or industry has changed, `stale` will be true.
+    If user has no industry set, `needs_industry` will be true.
+
+    **Auto-refresh:** Frontend should call POST /refresh if stale=true.
+    """,
+)
+@handle_api_errors("get trend summary")
+async def get_trend_summary(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get cached trend summary with staleness check."""
+    from datetime import timedelta
+
+    from backend.api.context.models import TrendSummary, TrendSummaryResponse
+
+    user_id = extract_user_id(user)
+
+    # Load user context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return TrendSummaryResponse(
+            success=True,
+            summary=None,
+            stale=False,
+            needs_industry=True,
+        ).model_dump()
+
+    # Check if user has industry
+    industry = context_data.get("industry")
+    if not industry:
+        return TrendSummaryResponse(
+            success=True,
+            summary=None,
+            stale=False,
+            needs_industry=True,
+        ).model_dump()
+
+    # Get cached trend summary
+    summary_data = context_data.get("trend_summary")
+    if not summary_data:
+        return TrendSummaryResponse(
+            success=True,
+            summary=None,
+            stale=True,  # No summary = stale
+            needs_industry=False,
+        ).model_dump()
+
+    # Check staleness
+    generated_at_str = summary_data.get("generated_at")
+    summary_industry = summary_data.get("industry", "")
+    is_stale = True
+
+    if generated_at_str:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            age = datetime.now(UTC) - generated_at
+            # Stale if >7 days old OR industry changed
+            is_stale = (
+                age > timedelta(days=TREND_SUMMARY_STALENESS_DAYS)
+                or summary_industry.lower() != industry.lower()
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse generated_at: {e}")
+            is_stale = True
+
+    # Build response
+    try:
+        summary = TrendSummary(
+            summary=summary_data.get("summary", ""),
+            key_trends=summary_data.get("key_trends", []),
+            opportunities=summary_data.get("opportunities", []),
+            threats=summary_data.get("threats", []),
+            generated_at=datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            if generated_at_str
+            else datetime.now(UTC),
+            industry=summary_industry,
+        )
+        return TrendSummaryResponse(
+            success=True,
+            summary=summary,
+            stale=is_stale,
+            needs_industry=False,
+        ).model_dump()
+    except Exception as e:
+        logger.warning(f"Failed to parse trend summary: {e}")
+        return TrendSummaryResponse(
+            success=True,
+            summary=None,
+            stale=True,
+            needs_industry=False,
+        ).model_dump()
+
+
+@router.post(
+    "/v1/context/trends/summary/refresh",
+    summary="Refresh trend summary",
+    description="""
+    Generate or refresh the AI-powered market trend summary.
+
+    Uses Brave Search + Claude Haiku to generate a structured summary:
+    - Executive summary of current market conditions
+    - Key trends (3-5 items)
+    - Opportunities (2-4 items)
+    - Threats/challenges (2-4 items)
+
+    **Rate Limit:** 1 refresh per hour per user.
+    **Cost:** ~$0.005 per generation.
+
+    Returns `rate_limited=true` if called too frequently.
+    """,
+    responses={
+        200: {"description": "Summary generated or rate limited"},
+        400: {"description": "Industry not set"},
+    },
+)
+@handle_api_errors("refresh trend summary")
+async def refresh_trend_summary(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Generate or refresh the trend summary."""
+    from datetime import timedelta
+
+    from backend.api.context.models import TrendSummary, TrendSummaryRefreshResponse
+    from backend.services.trend_summary_generator import get_trend_summary_generator
+
+    user_id = extract_user_id(user)
+
+    # Load user context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        context_data = {}
+
+    # Check if user has industry
+    industry = context_data.get("industry")
+    if not industry:
+        raise HTTPException(
+            status_code=400,
+            detail="Industry is required. Set your industry in Business Context settings first.",
+        )
+
+    # Check rate limit (1 per hour)
+    summary_data = context_data.get("trend_summary", {})
+    generated_at_str = summary_data.get("generated_at")
+    if generated_at_str:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            time_since = datetime.now(UTC) - generated_at
+            if time_since < timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS):
+                minutes_remaining = int(
+                    (timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS) - time_since).seconds
+                    / 60
+                )
+                logger.info(
+                    f"Trend summary refresh rate limited for user {user_id} "
+                    f"({minutes_remaining} min remaining)"
+                )
+                return TrendSummaryRefreshResponse(
+                    success=False,
+                    summary=None,
+                    error=f"Please wait {minutes_remaining} minutes before refreshing again",
+                    rate_limited=True,
+                ).model_dump()
+        except Exception as e:
+            logger.warning(f"Failed to check rate limit: {e}")
+            # Continue with refresh if we can't parse the date
+
+    # Generate new summary
+    generator = get_trend_summary_generator()
+    result = await generator.generate_summary(industry)
+
+    if result.status == "error":
+        return TrendSummaryRefreshResponse(
+            success=False,
+            summary=None,
+            error=result.error,
+            rate_limited=False,
+        ).model_dump()
+
+    # Save to context
+    summary_dict = result.to_dict()
+    context_data["trend_summary"] = summary_dict
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Generated trend summary for {industry} (user={user_id})")
+
+    # Build response
+    summary = TrendSummary(
+        summary=result.summary or "",
+        key_trends=result.key_trends or [],
+        opportunities=result.opportunities or [],
+        threats=result.threats or [],
+        generated_at=result.generated_at or datetime.now(UTC),
+        industry=result.industry or industry,
+    )
+
+    return TrendSummaryRefreshResponse(
+        success=True,
+        summary=summary,
+        rate_limited=False,
+    ).model_dump()
+
+
+# =============================================================================
+# Trend Forecast Endpoints (Tier-Gated Timeframe Views)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/trends/forecast",
+    summary="Get trend forecast for timeframe",
+    description="""
+    Get AI-generated market forecast for a specific timeframe.
+
+    **Tier Gating:**
+    - Free: 3m only
+    - Starter: 3m, 12m
+    - Pro/Enterprise: 3m, 12m, 24m
+
+    Returns 403 with upgrade_prompt if tier insufficient for requested timeframe.
+    Cache key: `trend_forecasts_{timeframe}` in user_context.
+    """,
+    responses={
+        200: {"description": "Forecast retrieved or tier-gated"},
+        400: {"description": "Invalid timeframe"},
+    },
+)
+@handle_api_errors("get trend forecast")
+async def get_trend_forecast(
+    timeframe: str = "3m",
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get trend forecast for a specific timeframe with tier gating."""
+    from datetime import timedelta
+
+    from backend.api.context.models import TrendForecastResponse, TrendSummary
+    from backend.services.trend_summary_generator import (
+        TIMEFRAME_LABELS,
+        get_available_timeframes,
+    )
+
+    user_id = extract_user_id(user)
+    tier = user.get("subscription_tier", "free")
+
+    # Validate timeframe
+    if timeframe not in TIMEFRAME_LABELS:
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+
+    # Get available timeframes for tier
+    available_timeframes = get_available_timeframes(tier)
+
+    # Load user context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return TrendForecastResponse(
+            success=True,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            stale=False,
+            needs_industry=True,
+        ).model_dump()
+
+    # Check if user has industry
+    industry = context_data.get("industry")
+    if not industry:
+        return TrendForecastResponse(
+            success=True,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            stale=False,
+            needs_industry=True,
+        ).model_dump()
+
+    # Tier gating check
+    if timeframe not in available_timeframes:
+        upgrade_msg = {
+            "12m": "Upgrade to Starter or higher to access 12-month forecasts.",
+            "24m": "Upgrade to Pro or Enterprise to access 24-month forecasts.",
+        }.get(timeframe, "Upgrade to access this timeframe.")
+
+        return TrendForecastResponse(
+            success=False,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            upgrade_prompt=upgrade_msg,
+        ).model_dump()
+
+    # Get cached forecast for this timeframe
+    forecasts = context_data.get("trend_forecasts", {})
+    forecast_data = forecasts.get(timeframe)
+
+    if not forecast_data:
+        return TrendForecastResponse(
+            success=True,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            stale=True,  # No forecast = stale
+            needs_industry=False,
+        ).model_dump()
+
+    # Check staleness
+    generated_at_str = forecast_data.get("generated_at")
+    forecast_industry = forecast_data.get("industry", "")
+    is_stale = True
+
+    if generated_at_str:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            age = datetime.now(UTC) - generated_at
+            # Stale if >7 days old OR industry changed
+            is_stale = (
+                age > timedelta(days=TREND_SUMMARY_STALENESS_DAYS)
+                or forecast_industry.lower() != industry.lower()
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse generated_at: {e}")
+            is_stale = True
+
+    # Build response
+    try:
+        summary = TrendSummary(
+            summary=forecast_data.get("summary", ""),
+            key_trends=forecast_data.get("key_trends", []),
+            opportunities=forecast_data.get("opportunities", []),
+            threats=forecast_data.get("threats", []),
+            generated_at=datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            if generated_at_str
+            else datetime.now(UTC),
+            industry=forecast_industry,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+        )
+        return TrendForecastResponse(
+            success=True,
+            summary=summary,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            stale=is_stale,
+            needs_industry=False,
+        ).model_dump()
+    except Exception as e:
+        logger.warning(f"Failed to parse trend forecast: {e}")
+        return TrendForecastResponse(
+            success=True,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            stale=True,
+            needs_industry=False,
+        ).model_dump()
+
+
+@router.post(
+    "/v1/context/trends/forecast/refresh",
+    summary="Refresh trend forecast for timeframe",
+    description="""
+    Generate or refresh the AI-powered market forecast for a specific timeframe.
+
+    **Tier Gating:**
+    - Free: 3m only
+    - Starter: 3m, 12m
+    - Pro/Enterprise: 3m, 12m, 24m
+
+    **Rate Limit:** 1 refresh per hour per timeframe.
+    **Cost:** ~$0.005 per generation.
+
+    Returns 403 with upgrade_prompt if tier insufficient.
+    """,
+    responses={
+        200: {"description": "Forecast generated or rate limited"},
+        400: {"description": "Industry not set or invalid timeframe"},
+        403: {"description": "Tier insufficient for requested timeframe"},
+    },
+)
+@handle_api_errors("refresh trend forecast")
+async def refresh_trend_forecast(
+    timeframe: str = "3m",
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Generate or refresh the trend forecast for a specific timeframe."""
+    from datetime import timedelta
+
+    from backend.api.context.models import TrendForecastResponse, TrendSummary
+    from backend.services.trend_summary_generator import (
+        TIMEFRAME_LABELS,
+        get_available_timeframes,
+        get_trend_summary_generator,
+    )
+
+    user_id = extract_user_id(user)
+    tier = user.get("subscription_tier", "free")
+
+    # Validate timeframe
+    if timeframe not in TIMEFRAME_LABELS:
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+
+    # Get available timeframes for tier
+    available_timeframes = get_available_timeframes(tier)
+
+    # Tier gating check
+    if timeframe not in available_timeframes:
+        upgrade_msg = {
+            "12m": "Upgrade to Starter or higher to access 12-month forecasts.",
+            "24m": "Upgrade to Pro or Enterprise to access 24-month forecasts.",
+        }.get(timeframe, "Upgrade to access this timeframe.")
+
+        raise HTTPException(
+            status_code=403,
+            detail=upgrade_msg,
+        )
+
+    # Load user context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        context_data = {}
+
+    # Check if user has industry
+    industry = context_data.get("industry")
+    if not industry:
+        raise HTTPException(
+            status_code=400,
+            detail="Industry is required. Set your industry in Business Context settings first.",
+        )
+
+    # Check rate limit (1 per hour per timeframe)
+    forecasts = context_data.get("trend_forecasts", {})
+    forecast_data = forecasts.get(timeframe, {})
+    generated_at_str = forecast_data.get("generated_at")
+
+    if generated_at_str:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
+            time_since = datetime.now(UTC) - generated_at
+            if time_since < timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS):
+                minutes_remaining = int(
+                    (timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS) - time_since).seconds
+                    / 60
+                )
+                logger.info(
+                    f"Trend forecast refresh rate limited for user {user_id} "
+                    f"(timeframe={timeframe}, {minutes_remaining} min remaining)"
+                )
+                return TrendForecastResponse(
+                    success=False,
+                    summary=None,
+                    timeframe=timeframe,
+                    available_timeframes=available_timeframes,
+                    error=f"Please wait {minutes_remaining} minutes before refreshing again",
+                ).model_dump()
+        except Exception as e:
+            logger.warning(f"Failed to check rate limit: {e}")
+            # Continue with refresh if we can't parse the date
+
+    # Generate new forecast
+    generator = get_trend_summary_generator()
+    result = await generator.generate_summary(
+        industry,
+        timeframe=timeframe,
+        available_timeframes=available_timeframes,
+    )
+
+    if result.status == "error":
+        return TrendForecastResponse(
+            success=False,
+            summary=None,
+            timeframe=timeframe,
+            available_timeframes=available_timeframes,
+            error=result.error,
+        ).model_dump()
+
+    # Save to context under trend_forecasts[timeframe]
+    forecast_dict = result.to_dict()
+    forecasts[timeframe] = forecast_dict
+    context_data["trend_forecasts"] = forecasts
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Generated trend forecast for {industry} ({timeframe}) (user={user_id})")
+
+    # Build response
+    summary = TrendSummary(
+        summary=result.summary or "",
+        key_trends=result.key_trends or [],
+        opportunities=result.opportunities or [],
+        threats=result.threats or [],
+        generated_at=result.generated_at or datetime.now(UTC),
+        industry=result.industry or industry,
+        timeframe=timeframe,
+        available_timeframes=available_timeframes,
+    )
+
+    return TrendForecastResponse(
+        success=True,
+        summary=summary,
+        timeframe=timeframe,
+        available_timeframes=available_timeframes,
+        stale=False,
+    ).model_dump()
+
+
+# =============================================================================
+# Goal History Endpoints (North Star Goal Tracking)
+# =============================================================================
+
+# Staleness threshold: prompt user to review goal after 30 days
+GOAL_STALENESS_THRESHOLD_DAYS = 30
+
+
+@router.get(
+    "/v1/context/goal-history",
+    response_model=GoalHistoryResponse,
+    summary="Get goal change history",
+    description="""
+    Retrieve the history of north star goal changes for the user.
+
+    Returns up to 10 most recent goal changes, newest first.
+    Each entry includes the goal text, when it was changed, and the previous goal.
+
+    **Use Cases:**
+    - Display goal evolution timeline in strategic context page
+    - Show users how their focus has shifted over time
+    """,
+)
+@handle_api_errors("get goal history")
+async def get_goal_history_endpoint(
+    limit: int = 10,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> GoalHistoryResponse:
+    """Get history of goal changes."""
+    from backend.services.goal_tracker import get_goal_history as fetch_goal_history
+
+    user_id = extract_user_id(user)
+
+    try:
+        history = fetch_goal_history(user_id, limit=min(limit, 50))
+    except Exception as e:
+        logger.error(f"Failed to fetch goal history for user {user_id}: {e}")
+        return GoalHistoryResponse(entries=[], count=0)
+
+    entries = [
+        GoalHistoryEntry(
+            goal_text=h["goal_text"],
+            changed_at=h["changed_at"],
+            previous_goal=h["previous_goal"],
+        )
+        for h in history
+    ]
+
+    return GoalHistoryResponse(entries=entries, count=len(entries))
+
+
+@router.get(
+    "/v1/context/goal-staleness",
+    response_model=GoalStalenessResponse,
+    summary="Check goal staleness",
+    description="""
+    Check if the user's north star goal needs review.
+
+    Returns:
+    - Days since the goal was last changed
+    - Whether to show a "Review your goal?" prompt (>30 days unchanged)
+    - The current/last goal text
+
+    **Use Cases:**
+    - Dashboard banner prompting goal review
+    - Strategic context page staleness indicator
+    """,
+)
+@handle_api_errors("check goal staleness")
+async def check_goal_staleness(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> GoalStalenessResponse:
+    """Check if goal needs review based on staleness."""
+    from backend.services.goal_tracker import get_days_since_last_change
+
+    user_id = extract_user_id(user)
+
+    # Get current goal from context
+    context_data = user_repository.get_context(user_id)
+    current_goal = context_data.get("north_star_goal") if context_data else None
+
+    if not current_goal:
+        return GoalStalenessResponse(
+            days_since_change=None,
+            should_prompt=False,
+            last_goal=None,
+        )
+
+    # Get days since last change
+    try:
+        days = get_days_since_last_change(user_id)
+    except Exception as e:
+        logger.warning(f"Failed to check goal staleness for user {user_id}: {e}")
+        days = None
+
+    should_prompt = days is not None and days >= GOAL_STALENESS_THRESHOLD_DAYS
+
+    return GoalStalenessResponse(
+        days_since_change=days,
+        should_prompt=should_prompt,
+        last_goal=current_goal,
     )

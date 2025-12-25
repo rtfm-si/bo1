@@ -161,48 +161,6 @@ Specify the dataset and specific analysis questions.
 - Questions: [List of specific analysis questions]
 - Reason: [Why this analysis would inform the discussion]
 </decision>
-
-<decision_examples>
-Example 1 - OPTION A (Continue Discussion):
-
-<scenario>Round 2 of 5. Three experts have contributed. Financial expert raised budget concerns, but technical expert hasn't addressed implementation feasibility. Exploration score: 0.45 (missing technical details).</scenario>
-
-<thinking>
-- Financial concerns well-articulated (budget: $500K, ROI: 18 months)
-- Technical feasibility not yet explored (no estimates on development time, team size)
-- Marketing expert mentioned customer acquisition but didn't quantify
-- Gap: Implementation details needed before we can synthesize
-</thinking>
-
-<decision>
-OPTION A - Continue Discussion
-- Next speaker: technical_lead
-- Reason: Technical feasibility is a critical gap. Need estimates on development timeline, team requirements, and technical debt implications.
-- Prompt: "The financial analysis shows $500K budget with 18-month ROI target. From a technical perspective, what development timeline and team size would be required? What technical risks could derail this estimate?"
-</decision>
-
----
-
-Example 2 - OPTION B (Transition to Voting):
-
-<scenario>Round 5 of 6. All 5 experts have contributed 2-3 times. Convergence score: 0.75. Novelty score: 0.25 (repeating arguments). Exploration score: 0.72 (all 8 aspects covered).</scenario>
-
-<thinking>
-- All critical aspects addressed: objectives (clear), risks (identified), constraints (defined)
-- Strong consensus: 4/5 experts favor Option A with minor conditions
-- Novelty declining: Round 5 contributions restated Round 3-4 points
-- Exploration sufficient: 0.72 exceeds 0.60 threshold
-- Stopping criteria met: convergence + low novelty + sufficient exploration
-</thinking>
-
-<decision>
-OPTION B - Transition to Next Phase (Voting)
-- Summary: Consensus emerged around Option A (phased implementation) with emphasis on upfront technical feasibility study. Key tension: timeline (marketing wants 6 months, engineering needs 9 months). Resolved via phased approach: MVP in 6 months, full feature set in 9 months.
-- Reason: High convergence (0.75), declining novelty (0.25), and sufficient exploration (0.72) indicate readiness to decide. All experts have had multiple chances to raise concerns.
-- Next phase: voting
-</decision>
-
-</decision_examples>
 </instructions>
 
 {security_protocol}

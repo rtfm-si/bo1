@@ -19,6 +19,9 @@ from bo1.state.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
+# Analytics query timeout (10 seconds) - prevents 502 on slow aggregations
+ANALYTICS_TIMEOUT_MS = 10000
+
 
 class PageAnalyticsRepository(BaseRepository):
     """Repository for page_views and conversion_events tables."""
@@ -208,7 +211,7 @@ class PageAnalyticsRepository(BaseRepository):
             GROUP BY DATE(timestamp)
             ORDER BY date DESC
         """
-        return self._execute_query(query, tuple(params))
+        return self._execute_query(query, tuple(params), statement_timeout_ms=ANALYTICS_TIMEOUT_MS)
 
     def get_geo_breakdown(
         self,
@@ -245,7 +248,9 @@ class PageAnalyticsRepository(BaseRepository):
             ORDER BY visitors DESC
             LIMIT %s
         """
-        return self._execute_query(query, (start_date, end_date, limit))
+        return self._execute_query(
+            query, (start_date, end_date, limit), statement_timeout_ms=ANALYTICS_TIMEOUT_MS
+        )
 
     def get_funnel_stats(
         self,
@@ -274,7 +279,9 @@ class PageAnalyticsRepository(BaseRepository):
               AND DATE(timestamp) <= %s
               AND is_bot = false
         """
-        views_result = self._execute_one(views_query, (start_date, end_date))
+        views_result = self._execute_one(
+            views_query, (start_date, end_date), statement_timeout_ms=ANALYTICS_TIMEOUT_MS
+        )
         unique_visitors = views_result["unique_visitors"] if views_result else 0
 
         # Get signup clicks
@@ -285,7 +292,9 @@ class PageAnalyticsRepository(BaseRepository):
               AND DATE(timestamp) <= %s
               AND event_type = 'signup_click'
         """
-        clicks_result = self._execute_one(clicks_query, (start_date, end_date))
+        clicks_result = self._execute_one(
+            clicks_query, (start_date, end_date), statement_timeout_ms=ANALYTICS_TIMEOUT_MS
+        )
         signup_clicks = clicks_result["clickers"] if clicks_result else 0
 
         # Get signup completions
@@ -296,7 +305,9 @@ class PageAnalyticsRepository(BaseRepository):
               AND DATE(timestamp) <= %s
               AND event_type = 'signup_complete'
         """
-        completions_result = self._execute_one(completions_query, (start_date, end_date))
+        completions_result = self._execute_one(
+            completions_query, (start_date, end_date), statement_timeout_ms=ANALYTICS_TIMEOUT_MS
+        )
         signup_completions = completions_result["completers"] if completions_result else 0
 
         # Calculate rates
@@ -359,7 +370,9 @@ class PageAnalyticsRepository(BaseRepository):
                 ) as bounced_sessions
             FROM session_views
         """
-        result = self._execute_one(query, (start_date, end_date, path))
+        result = self._execute_one(
+            query, (start_date, end_date, path), statement_timeout_ms=ANALYTICS_TIMEOUT_MS
+        )
         if not result:
             return {"bounce_rate": 0.0, "total_sessions": 0, "bounced_sessions": 0}
 

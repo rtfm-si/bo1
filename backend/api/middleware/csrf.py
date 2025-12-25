@@ -37,6 +37,7 @@ CSRF_EXEMPT_PREFIXES = (
     "/api/health",
     "/api/ready",
     "/api/v1/webhooks/",
+    "/api/v1/email/webhook",  # Resend webhook (verified via svix signature)
     "/api/v1/csp-report",
     "/api/v1/waitlist",  # Public form submission
     "/api/v1/metrics/client",  # Browser sendBeacon for observability metrics

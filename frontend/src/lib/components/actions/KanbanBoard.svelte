@@ -6,6 +6,7 @@
 	 */
 	import type { TaskWithStatus, TaskWithSessionContext, ActionStatus, KanbanColumn } from '$lib/api/types';
 	import TaskCard from './TaskCard.svelte';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
 
@@ -175,7 +176,9 @@
 								{#if showMeetingContext && hasSessionContext(task)}
 									<div class="meeting-context" class:from-failed={isFromFailedMeeting(task)}>
 										{#if isFromFailedMeeting(task)}
-											<span class="failed-badge" title="This action is from a meeting that didn't complete">⚠</span>
+											<Tooltip text="This action is from a meeting that didn't complete" position="top">
+												<span class="failed-badge">⚠</span>
+											</Tooltip>
 										{/if}
 										From: {truncate(task.problem_statement)}
 									</div>
@@ -193,7 +196,9 @@
 							{#if showMeetingContext && hasSessionContext(task)}
 								<div class="meeting-context" class:from-failed={isFromFailedMeeting(task)}>
 									{#if isFromFailedMeeting(task)}
-										<span class="failed-badge" title="This action is from a meeting that didn't complete">⚠</span>
+										<Tooltip text="This action is from a meeting that didn't complete" position="top">
+											<span class="failed-badge">⚠</span>
+										</Tooltip>
 									{/if}
 									From: {truncate(task.problem_statement)}
 								</div>

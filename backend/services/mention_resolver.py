@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass, field
 
 from backend.services.mention_parser import Mention, MentionType
+from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
 from bo1.state.repositories.action_repository import ActionRepository
 from bo1.state.repositories.dataset_repository import DatasetRepository
 from bo1.state.repositories.session_repository import SessionRepository
@@ -53,17 +54,29 @@ class ResolvedDataset:
 
 
 @dataclass
+class ResolvedChat:
+    """Resolved mentor chat conversation data."""
+
+    id: str
+    label: str | None
+    persona: str
+    created_at: str | None = None
+    message_preview: str | None = None
+
+
+@dataclass
 class ResolvedMentions:
     """Container for all resolved mention data."""
 
     meetings: list[ResolvedMeeting] = field(default_factory=list)
     actions: list[ResolvedAction] = field(default_factory=list)
     datasets: list[ResolvedDataset] = field(default_factory=list)
+    chats: list[ResolvedChat] = field(default_factory=list)
     not_found: list[str] = field(default_factory=list)  # IDs that couldn't be resolved
 
     def has_context(self) -> bool:
         """Check if any context was resolved."""
-        return bool(self.meetings or self.actions or self.datasets)
+        return bool(self.meetings or self.actions or self.datasets or self.chats)
 
 
 class MentionResolver:
@@ -74,6 +87,7 @@ class MentionResolver:
         self._session_repo = SessionRepository()
         self._action_repo = ActionRepository()
         self._dataset_repo = DatasetRepository()
+        self._mentor_repo = get_mentor_conversation_repo()
 
     def resolve(self, user_id: str, mentions: list[Mention]) -> ResolvedMentions:
         """Resolve mentions to entity data.
@@ -115,6 +129,13 @@ class MentionResolver:
                         result.datasets.append(resolved)
                     else:
                         result.not_found.append(f"dataset:{mention.id}")
+
+                elif mention.type == MentionType.CHAT:
+                    resolved = self._resolve_chat(user_id, mention.id)
+                    if resolved:
+                        result.chats.append(resolved)
+                    else:
+                        result.not_found.append(f"chat:{mention.id}")
 
             except Exception as e:
                 logger.warning(f"Error resolving mention {mention.type}:{mention.id}: {e}")
@@ -208,6 +229,40 @@ class MentionResolver:
             row_count=dataset.get("row_count"),
             column_count=dataset.get("column_count"),
             summary=summary,
+        )
+
+    def _resolve_chat(self, user_id: str, conversation_id: str) -> ResolvedChat | None:
+        """Resolve a mentor chat conversation mention."""
+        conversation = self._mentor_repo.get(conversation_id, user_id)
+        if not conversation:
+            return None
+
+        # get() already validates ownership via user_id parameter
+
+        # Get a preview of recent messages (last 2-3 exchanges)
+        messages = conversation.get("messages", [])
+        message_preview = None
+        if messages:
+            # Get last few messages for context
+            recent = messages[-6:]  # Up to 3 exchanges (user + assistant)
+            previews = []
+            for msg in recent:
+                role = msg.get("role", "")
+                content = msg.get("content", "")[:100]
+                if role == "user":
+                    previews.append(f"User: {content}")
+                elif role == "assistant":
+                    previews.append(f"Mentor: {content}")
+            message_preview = " | ".join(previews)[:300] if previews else None
+
+        return ResolvedChat(
+            id=str(conversation["id"]),
+            label=conversation.get("label"),
+            persona=conversation.get("persona", "general"),
+            created_at=str(conversation.get("created_at", ""))[:10]
+            if conversation.get("created_at")
+            else None,
+            message_preview=message_preview,
         )
 
 

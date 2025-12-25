@@ -42,6 +42,7 @@ from backend.api.models import (
     SessionResponse,
 )
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.pagination import make_page_pagination_fields
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.project_repository import ProjectRepository
 
@@ -121,11 +122,14 @@ async def get_projects(
         per_page=per_page,
     )
 
+    pagination = make_page_pagination_fields(total, page, per_page)
     return {
         "projects": [_format_project_response(p) for p in projects],
         "total": total,
         "page": page,
         "per_page": per_page,
+        "has_more": pagination["has_more"],
+        "next_offset": pagination["next_offset"],
     }
 
 
@@ -802,7 +806,7 @@ async def create_from_autogen(
 @handle_api_errors("get unassigned count")
 async def get_unassigned_count(
     user: dict = Depends(get_current_user),
-) -> dict[str, int]:
+) -> dict[str, int | bool]:
     """Get count of unassigned actions."""
     from backend.services.project_autogen import (
         MIN_ACTIONS_FOR_AUTOGEN,

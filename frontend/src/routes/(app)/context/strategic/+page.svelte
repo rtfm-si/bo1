@@ -5,11 +5,31 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient, type MarketTrend, type DetectedCompetitor } from '$lib/api/client';
-	import type { UserContext } from '$lib/api/types';
+	import type { UserContext, CompetitorInsight, TrendInsight } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Dropdown, { type DropdownItem } from '$lib/components/ui/Dropdown.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import CompetitorInsightCard from '$lib/components/context/CompetitorInsightCard.svelte';
+	import TrendInsightCard from '$lib/components/context/TrendInsightCard.svelte';
+	import TrendSummaryCard from '$lib/components/context/TrendSummaryCard.svelte';
+	import CompetitorManager from '$lib/components/context/CompetitorManager.svelte';
+	import GoalHistory from '$lib/components/context/GoalHistory.svelte';
+	import type { ManagedCompetitor } from '$lib/api/types';
+
+	// Trend Summary types (inline until OpenAPI regenerated)
+	interface TrendSummary {
+		summary: string;
+		key_trends: string[];
+		opportunities: string[];
+		threats: string[];
+		generated_at: string;
+		industry: string;
+		timeframe?: string;
+		available_timeframes?: string[];
+	}
+
+	type Timeframe = '3m' | '12m' | '24m';
 
 	// Form state - Value Proposition & Positioning
 	let mainValueProposition = $state('');
@@ -20,6 +40,9 @@
 	// Form state - Competitors (stored as comma-separated string for simplicity)
 	let competitorsText = $state('');
 	let detectedCompetitors = $state<string[]>([]);
+
+	// Managed competitors state
+	let managedCompetitors = $state<ManagedCompetitor[]>([]);
 
 	// Form state - ICP
 	let idealCustomerProfile = $state('');
@@ -34,6 +57,31 @@
 	// Market Trends state
 	let marketTrends = $state<MarketTrend[]>([]);
 
+	// Competitor Insights state
+	let competitorInsights = $state<CompetitorInsight[]>([]);
+	let insightsTotalCount = $state(0);
+	let insightsVisibleCount = $state(0);
+	let insightsUpgradePrompt = $state<string | null>(null);
+	let generatingInsightFor = $state<string | null>(null);
+
+	// Trend Insights state
+	let trendInsights = $state<TrendInsight[]>([]);
+	let trendUrlInput = $state('');
+	let isAnalyzingTrend = $state(false);
+	let isLoadingTrendInsights = $state(false);
+	let trendInsightsError = $state<string | null>(null);
+
+	// Trend Summary state (AI-generated industry summary with timeframe support)
+	let trendSummary = $state<TrendSummary | null>(null);
+	let trendSummaryStale = $state(false);
+	let trendSummaryNeedsIndustry = $state(false);
+	let isLoadingTrendSummary = $state(false);
+	let isRefreshingTrendSummary = $state(false);
+	let trendSummaryError = $state<string | null>(null);
+	let selectedTimeframe = $state<Timeframe>('3m');
+	let availableTimeframes = $state<string[]>(['3m']);
+	let forecastUpgradePrompt = $state<string | null>(null);
+
 	// UI state
 	let isLoading = $state(true);
 	let isSaving = $state(false);
@@ -41,8 +89,14 @@
 	let saveSuccess = $state(false);
 	let isDetectingCompetitors = $state(false);
 	let isRefreshingTrends = $state(false);
+	let isLoadingInsights = $state(false);
 	let detectError = $state<string | null>(null);
 	let trendsError = $state<string | null>(null);
+	let insightsError = $state<string | null>(null);
+
+	// Auto-detect status
+	let needsCompetitorRefresh = $state(false);
+	let competitorCount = $state(0);
 
 	// Dropdown options
 	const brandToneOptions: DropdownItem[] = [
@@ -82,12 +136,233 @@
 				timeConstraints = ctx.time_constraints || '';
 				regulatoryConstraints = ctx.regulatory_constraints || '';
 			}
+			// Get auto-detect status (uses new response fields)
+			needsCompetitorRefresh = (response as { needs_competitor_refresh?: boolean }).needs_competitor_refresh ?? false;
+			competitorCount = (response as { competitor_count?: number }).competitor_count ?? 0;
+
+			// Load competitor insights, trend insights, and trend summary in parallel
+			await Promise.all([loadCompetitorInsights(), loadTrendInsights(), loadTrendSummary()]);
 		} catch (error) {
 			console.error('Failed to load context:', error);
 		} finally {
 			isLoading = false;
 		}
 	});
+
+	async function loadCompetitorInsights() {
+		isLoadingInsights = true;
+		insightsError = null;
+		try {
+			const response = await apiClient.listCompetitorInsights();
+			if (response.success) {
+				competitorInsights = response.insights;
+				insightsTotalCount = response.total_count;
+				insightsVisibleCount = response.visible_count;
+				insightsUpgradePrompt = response.upgrade_prompt;
+			} else {
+				insightsError = response.error || 'Failed to load insights';
+			}
+		} catch (error) {
+			console.error('Failed to load competitor insights:', error);
+			insightsError = error instanceof Error ? error.message : 'Failed to load insights';
+		} finally {
+			isLoadingInsights = false;
+		}
+	}
+
+	async function handleGenerateInsight(competitorName: string) {
+		generatingInsightFor = competitorName;
+		insightsError = null;
+
+		try {
+			const response = await apiClient.generateCompetitorInsight(competitorName);
+			if (response.success && response.insight) {
+				// Reload the full list to get updated tier-gated results
+				await loadCompetitorInsights();
+			} else {
+				insightsError = response.error || 'Failed to generate insight';
+			}
+		} catch (error) {
+			console.error('Failed to generate insight:', error);
+			insightsError = error instanceof Error ? error.message : 'Failed to generate insight';
+		} finally {
+			generatingInsightFor = null;
+		}
+	}
+
+	async function handleRefreshInsight(competitorName: string) {
+		generatingInsightFor = competitorName;
+		insightsError = null;
+
+		try {
+			const response = await apiClient.generateCompetitorInsight(competitorName, true);
+			if (response.success && response.insight) {
+				await loadCompetitorInsights();
+			} else {
+				insightsError = response.error || 'Failed to refresh insight';
+			}
+		} catch (error) {
+			console.error('Failed to refresh insight:', error);
+			insightsError = error instanceof Error ? error.message : 'Failed to refresh insight';
+		} finally {
+			generatingInsightFor = null;
+		}
+	}
+
+	async function handleDeleteInsight(competitorName: string) {
+		try {
+			await apiClient.deleteCompetitorInsight(competitorName);
+			await loadCompetitorInsights();
+		} catch (error) {
+			console.error('Failed to delete insight:', error);
+			insightsError = error instanceof Error ? error.message : 'Failed to delete insight';
+		}
+	}
+
+	// Trend Forecast functions (with timeframe support)
+	async function loadTrendForecast(timeframe: Timeframe = selectedTimeframe) {
+		isLoadingTrendSummary = true;
+		trendSummaryError = null;
+		forecastUpgradePrompt = null;
+		try {
+			const response = await fetch(`/api/v1/context/trends/forecast?timeframe=${timeframe}`, {
+				credentials: 'include'
+			});
+			const data = await response.json();
+			if (data.success) {
+				trendSummary = data.summary;
+				trendSummaryStale = data.stale;
+				trendSummaryNeedsIndustry = data.needs_industry;
+				availableTimeframes = data.available_timeframes || ['3m'];
+				forecastUpgradePrompt = data.upgrade_prompt || null;
+			} else if (data.upgrade_prompt) {
+				// Tier-gated - show upgrade prompt
+				forecastUpgradePrompt = data.upgrade_prompt;
+				availableTimeframes = data.available_timeframes || ['3m'];
+			} else {
+				trendSummaryError = data.error || 'Failed to load trend forecast';
+			}
+		} catch (error) {
+			console.error('Failed to load trend forecast:', error);
+			trendSummaryError = error instanceof Error ? error.message : 'Failed to load trend forecast';
+		} finally {
+			isLoadingTrendSummary = false;
+		}
+	}
+
+	// Alias for backwards compatibility
+	const loadTrendSummary = () => loadTrendForecast(selectedTimeframe);
+
+	async function handleRefreshTrendForecast() {
+		isRefreshingTrendSummary = true;
+		trendSummaryError = null;
+		try {
+			const response = await fetch(`/api/v1/context/trends/forecast/refresh?timeframe=${selectedTimeframe}`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			const data = await response.json();
+			if (data.success && data.summary) {
+				trendSummary = data.summary;
+				trendSummaryStale = false;
+				availableTimeframes = data.available_timeframes || ['3m'];
+				forecastUpgradePrompt = null;
+			} else if (response.status === 403) {
+				trendSummaryError = data.detail || 'Upgrade required to access this timeframe.';
+			} else {
+				trendSummaryError = data.error || 'Failed to refresh trend forecast';
+			}
+		} catch (error) {
+			console.error('Failed to refresh trend forecast:', error);
+			trendSummaryError =
+				error instanceof Error ? error.message : 'Failed to refresh trend forecast';
+		} finally {
+			isRefreshingTrendSummary = false;
+		}
+	}
+
+	// Alias for backwards compatibility
+	const handleRefreshTrendSummary = handleRefreshTrendForecast;
+
+	async function handleTimeframeChange(newTimeframe: Timeframe) {
+		if (newTimeframe === selectedTimeframe) return;
+		selectedTimeframe = newTimeframe;
+		await loadTrendForecast(newTimeframe);
+	}
+
+	// Trend Insight functions
+	async function loadTrendInsights() {
+		isLoadingTrendInsights = true;
+		trendInsightsError = null;
+		try {
+			const response = await apiClient.listTrendInsights();
+			if (response.success) {
+				trendInsights = response.insights;
+			} else {
+				trendInsightsError = response.error || 'Failed to load trend insights';
+			}
+		} catch (error) {
+			console.error('Failed to load trend insights:', error);
+			trendInsightsError = error instanceof Error ? error.message : 'Failed to load trend insights';
+		} finally {
+			isLoadingTrendInsights = false;
+		}
+	}
+
+	async function handleAnalyzeTrend() {
+		const url = trendUrlInput.trim();
+		if (!url) return;
+
+		isAnalyzingTrend = true;
+		trendInsightsError = null;
+
+		try {
+			const response = await apiClient.analyzeTrendUrl(url);
+			if (response.success && response.insight) {
+				// Reload the full list to get updated results
+				await loadTrendInsights();
+				trendUrlInput = ''; // Clear input on success
+			} else {
+				trendInsightsError = response.error || 'Failed to analyze trend';
+			}
+		} catch (error) {
+			console.error('Failed to analyze trend:', error);
+			trendInsightsError = error instanceof Error ? error.message : 'Failed to analyze trend';
+		} finally {
+			isAnalyzingTrend = false;
+		}
+	}
+
+	async function handleRefreshTrendInsight(url: string) {
+		isAnalyzingTrend = true;
+		trendInsightsError = null;
+
+		try {
+			const response = await apiClient.analyzeTrendUrl(url, true);
+			if (response.success && response.insight) {
+				await loadTrendInsights();
+			} else {
+				trendInsightsError = response.error || 'Failed to refresh trend insight';
+			}
+		} catch (error) {
+			console.error('Failed to refresh trend insight:', error);
+			trendInsightsError =
+				error instanceof Error ? error.message : 'Failed to refresh trend insight';
+		} finally {
+			isAnalyzingTrend = false;
+		}
+	}
+
+	async function handleDeleteTrendInsight(url: string) {
+		try {
+			await apiClient.deleteTrendInsight(url);
+			await loadTrendInsights();
+		} catch (error) {
+			console.error('Failed to delete trend insight:', error);
+			trendInsightsError =
+				error instanceof Error ? error.message : 'Failed to delete trend insight';
+		}
+	}
 
 	async function handleSave() {
 		isSaving = true;
@@ -218,6 +493,22 @@
 			</p>
 		</div>
 
+		<!-- Goal History Section -->
+		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="flex items-center gap-3 mb-4">
+				<span class="text-2xl">🎯</span>
+				<div>
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						Goal Evolution
+					</h3>
+					<p class="text-sm text-slate-500 dark:text-slate-400">
+						Track how your north star goal has evolved over time
+					</p>
+				</div>
+			</div>
+			<GoalHistory limit={10} />
+		</div>
+
 		<!-- Value Proposition Section -->
 		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
 			<div class="flex items-center gap-3 mb-4">
@@ -309,6 +600,23 @@
 				</Alert>
 			{/if}
 
+			{#if needsCompetitorRefresh && competitorCount === 0}
+				<Alert variant="info" class="mb-4">
+					<div class="flex items-center gap-2">
+						<span>We can auto-detect competitors based on your business context.</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={handleDetectCompetitors}
+							disabled={isDetectingCompetitors}
+							loading={isDetectingCompetitors}
+						>
+							{isDetectingCompetitors ? 'Detecting...' : 'Detect Now'}
+						</Button>
+					</div>
+				</Alert>
+			{/if}
+
 			<div class="space-y-4">
 				<div>
 					<label
@@ -355,6 +663,93 @@
 							Click a competitor to remove it from the list
 						</p>
 					</div>
+				{/if}
+
+				<!-- Managed Competitors -->
+				<div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+					<CompetitorManager
+						initialCompetitors={managedCompetitors}
+						onUpdate={(updated) => (managedCompetitors = updated)}
+					/>
+				</div>
+			</div>
+		</div>
+
+		<!-- Competitor Insights Section -->
+		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center gap-3">
+					<span class="text-2xl">📊</span>
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						Competitor Insights
+					</h3>
+					{#if insightsTotalCount > 0}
+						<span class="text-sm text-slate-500 dark:text-slate-400">
+							({insightsVisibleCount} of {insightsTotalCount})
+						</span>
+					{/if}
+				</div>
+			</div>
+
+			{#if insightsError}
+				<Alert variant="warning" class="mb-4">
+					{insightsError}
+				</Alert>
+			{/if}
+
+			{#if insightsUpgradePrompt}
+				<Alert variant="info" class="mb-4">
+					{insightsUpgradePrompt}
+					<a href="/settings/billing" class="font-medium underline ml-1">Upgrade now</a>
+				</Alert>
+			{/if}
+
+			<div class="space-y-4">
+				{#if isLoadingInsights}
+					<div class="flex items-center justify-center py-8">
+						<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full"></div>
+					</div>
+				{:else if competitorInsights.length > 0}
+					<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+						{#each competitorInsights as insight}
+							<CompetitorInsightCard
+								{insight}
+								isGenerating={generatingInsightFor === insight.name}
+								onRefresh={() => handleRefreshInsight(insight.name)}
+								onDelete={() => handleDeleteInsight(insight.name)}
+							/>
+						{/each}
+					</div>
+				{:else}
+					<p class="text-sm text-slate-500 dark:text-slate-400">
+						No competitor insights yet. Click on a detected competitor above to generate an AI-powered analysis.
+					</p>
+				{/if}
+
+				<!-- Generate insight for detected competitors without insights -->
+				{#if detectedCompetitors.length > 0}
+					{@const insightNames = new Set(competitorInsights.map((i) => i.name))}
+					{@const missingInsights = detectedCompetitors.filter((c) => !insightNames.has(c))}
+					{#if missingInsights.length > 0}
+						<div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+							<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
+								Generate insights for:
+							</span>
+							<div class="flex flex-wrap gap-2">
+								{#each missingInsights as competitor}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => handleGenerateInsight(competitor)}
+										disabled={generatingInsightFor !== null}
+										loading={generatingInsightFor === competitor}
+									>
+										{generatingInsightFor === competitor ? 'Generating...' : competitor}
+									</Button>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -471,6 +866,21 @@
 			</div>
 		</div>
 
+		<!-- Trend Forecast Section (AI-generated industry summary with timeframe selector) -->
+		<TrendSummaryCard
+			summary={trendSummary}
+			isStale={trendSummaryStale}
+			needsIndustry={trendSummaryNeedsIndustry}
+			isLoading={isLoadingTrendSummary}
+			isRefreshing={isRefreshingTrendSummary}
+			error={trendSummaryError}
+			{selectedTimeframe}
+			{availableTimeframes}
+			upgradePrompt={forecastUpgradePrompt}
+			onRefresh={handleRefreshTrendForecast}
+			onTimeframeChange={handleTimeframeChange}
+		/>
+
 		<!-- Market Trends Section -->
 		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
 			<div class="flex items-center justify-between mb-4">
@@ -520,6 +930,68 @@
 					Click "Refresh Trends" to fetch the latest market trends for your industry.
 					Make sure you've set your industry in the Overview tab first.
 				</p>
+			{/if}
+		</div>
+
+		<!-- Trend Insights Section -->
+		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="flex items-center gap-3 mb-4">
+				<span class="text-2xl">🔍</span>
+				<div>
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						Trend Insights
+					</h3>
+					<p class="text-sm text-slate-500 dark:text-slate-400">
+						Paste article URLs to get AI-powered analysis of market trends
+					</p>
+				</div>
+			</div>
+
+			{#if trendInsightsError}
+				<Alert variant="warning" class="mb-4">
+					{trendInsightsError}
+				</Alert>
+			{/if}
+
+			<!-- URL Input -->
+			<div class="flex gap-2 mb-6">
+				<input
+					type="url"
+					bind:value={trendUrlInput}
+					placeholder="Paste a trend article URL (e.g., https://techcrunch.com/...)"
+					class="flex-1 px-4 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors duration-200"
+					onkeydown={(e) => e.key === 'Enter' && handleAnalyzeTrend()}
+				/>
+				<Button
+					onclick={handleAnalyzeTrend}
+					disabled={isAnalyzingTrend || !trendUrlInput.trim()}
+					loading={isAnalyzingTrend}
+				>
+					{isAnalyzingTrend ? 'Analyzing...' : 'Analyze'}
+				</Button>
+			</div>
+
+			<!-- Trend Insights Grid -->
+			{#if isLoadingTrendInsights}
+				<div class="flex items-center justify-center py-8">
+					<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full"></div>
+				</div>
+			{:else if trendInsights.length > 0}
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+					{#each trendInsights as insight}
+						<TrendInsightCard
+							{insight}
+							isGenerating={isAnalyzingTrend}
+							onRefresh={() => handleRefreshTrendInsight(insight.url)}
+							onDelete={() => handleDeleteTrendInsight(insight.url)}
+						/>
+					{/each}
+				</div>
+			{:else}
+				<div class="text-center py-8 text-slate-500 dark:text-slate-400">
+					<p class="text-sm">No trend insights yet.</p>
+					<p class="text-xs mt-1">Paste a URL above to analyze a market trend article.</p>
+				</div>
 			{/if}
 		</div>
 

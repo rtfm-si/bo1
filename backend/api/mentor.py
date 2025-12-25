@@ -7,6 +7,7 @@ Provides:
 - DELETE /api/v1/mentor/conversations/{id} - Delete conversation
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
@@ -24,6 +25,7 @@ from backend.services.mention_parser import parse_mentions
 from backend.services.mention_resolver import get_mention_resolver
 from backend.services.mentor_context import MentorContext, get_mentor_context_service
 from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
+from backend.services.mentor_label_generator import generate_and_save_label
 from backend.services.mentor_persona import (
     auto_select_persona,
     list_all_personas,
@@ -40,6 +42,7 @@ from bo1.prompts.mentor import (
     format_dataset_summaries,
     format_failure_patterns,
     format_mentioned_context,
+    format_postmortem_insights,
     format_recent_meetings,
     get_mentor_system_prompt,
 )
@@ -80,10 +83,22 @@ class MentorConversationResponse(BaseModel):
     id: str
     user_id: str
     persona: str
+    label: str | None = None
     created_at: str
     updated_at: str
     message_count: int
     context_sources: list[str]
+
+
+class UpdateConversationLabelRequest(BaseModel):
+    """Request model for updating conversation label."""
+
+    label: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="New conversation label (1-100 characters)",
+    )
 
 
 class MentorConversationListResponse(BaseModel):
@@ -294,10 +309,13 @@ async def _stream_mentor_response(
                 context_sources.append("mentioned_actions")
             if resolved_mentions.datasets:
                 context_sources.append("mentioned_datasets")
+            if resolved_mentions.chats:
+                context_sources.append("mentioned_chats")
 
         yield f"event: context\ndata: {json.dumps({'sources': context_sources})}\n\n"
 
         # Get or create conversation
+        is_new_conversation = False
         if conversation_id:
             conversation = mentor_conv_repo.get(conversation_id, user_id)
             if not conversation:
@@ -310,6 +328,7 @@ async def _stream_mentor_response(
             )
             conversation = mentor_conv_repo.create(user_id, selected_persona)
             conversation_id = conversation["id"]
+            is_new_conversation = True
 
         # Determine persona (from request, conversation, or auto-select)
         if persona:
@@ -330,12 +349,19 @@ async def _stream_mentor_response(
             context_sources=context_sources,
         )
 
+        # Trigger async label generation for new conversations (fire-and-forget)
+        if is_new_conversation:
+            asyncio.create_task(generate_and_save_label(conversation_id, user_id, message))
+
         # Format context for prompt
         business_ctx = format_business_context(context.business_context)
         meetings_ctx = format_recent_meetings(context.recent_meetings or [])
         actions_ctx = format_active_actions(context.active_actions or [])
         datasets_ctx = format_dataset_summaries(context.datasets or [])
         conv_history = format_conversation_history(conversation.get("messages", []))
+
+        # Format post-mortem insights (lessons from completed actions)
+        postmortem_ctx = format_postmortem_insights(context.postmortem_insights or [])
 
         # Format failure patterns for proactive mentoring (only if high failure rate)
         failure_ctx = ""
@@ -359,6 +385,7 @@ async def _stream_mentor_response(
             datasets_context=datasets_ctx,
             conversation_history=conv_history,
             mentioned_context=mentioned_ctx,
+            postmortem_context=postmortem_ctx,
             failure_context=failure_ctx,
         )
 
@@ -402,6 +429,9 @@ async def _stream_mentor_response(
                 ],
                 "actions": [{"id": a.id, "title": a.title} for a in resolved_mentions.actions],
                 "datasets": [{"id": d.id, "title": d.name} for d in resolved_mentions.datasets],
+                "chats": [
+                    {"id": c.id, "title": c.label or "Unnamed"} for c in resolved_mentions.chats
+                ],
             }
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
@@ -507,18 +537,21 @@ async def list_personas(
     "/mentions/search",
     response_model=MentionSearchResponse,
     summary="Search for mentionable entities",
-    description="Search meetings, actions, or datasets for @mention autocomplete",
+    description="Search meetings, actions, datasets, or chats for @mention autocomplete",
 )
 @handle_api_errors("search mentions")
 async def search_mentions(
-    type: str = Query(..., description="Entity type: meeting, action, dataset"),
+    type: str = Query(..., description="Entity type: meeting, action, dataset, chat"),
     q: str = Query("", description="Search query (optional, returns recent if empty)"),
     limit: int = Query(10, ge=1, le=20, description="Max results"),
+    conversation_id: str | None = Query(
+        None, description="Current conversation ID to exclude from results"
+    ),
     user: dict = Depends(get_current_user),
 ) -> MentionSearchResponse:
     """Search for entities to mention in chat.
 
-    Returns matching meetings, actions, or datasets with preview text.
+    Returns matching meetings, actions, datasets, or chats with preview text.
     Used by frontend autocomplete when user types @.
     """
     from bo1.state.repositories.action_repository import ActionRepository
@@ -529,13 +562,14 @@ async def search_mentions(
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
 
-    if type not in ("meeting", "action", "dataset"):
+    if type not in ("meeting", "action", "dataset", "chat"):
         raise HTTPException(
-            status_code=400, detail="Invalid type. Must be: meeting, action, dataset"
+            status_code=400, detail="Invalid type. Must be: meeting, action, dataset, chat"
         )
 
     suggestions: list[MentionSuggestion] = []
     query_lower = q.lower().strip()
+    mentor_conv_repo = get_mentor_conversation_repo()
 
     if type == "meeting":
         repo = SessionRepository()
@@ -595,6 +629,46 @@ async def search_mentions(
             if len(suggestions) >= limit:
                 break
 
+    elif type == "chat":
+        # Search mentor conversations by label or first message
+        conversations = mentor_conv_repo.list_by_user(user_id, limit=50)
+        for c in conversations:
+            # Exclude current conversation (prevent self-reference)
+            if conversation_id and c["id"] == conversation_id:
+                continue
+            # Skip empty conversations
+            if c["message_count"] == 0:
+                continue
+
+            # Use label if available, else fallback to first user message
+            label = c.get("label")
+            first_msg_preview = None
+            if not label:
+                # Try to get first user message from messages list if available
+                messages = c.get("messages", [])
+                for msg in messages:
+                    if msg.get("role") == "user":
+                        first_msg_preview = msg.get("content", "")[:50]
+                        break
+                label = first_msg_preview or "Unnamed conversation"
+
+            # Filter by query if provided
+            if query_lower:
+                label_lower = label.lower() if label else ""
+                if query_lower not in label_lower:
+                    continue
+
+            suggestions.append(
+                MentionSuggestion(
+                    id=str(c["id"]),
+                    type="chat",
+                    title=label[:80] + ("..." if len(label) > 80 else "") if label else "Unnamed",
+                    preview=c.get("persona", "general"),
+                )
+            )
+            if len(suggestions) >= limit:
+                break
+
     return MentionSearchResponse(suggestions=suggestions, total=len(suggestions))
 
 
@@ -623,6 +697,7 @@ async def list_mentor_conversations(
                 id=c["id"],
                 user_id=c["user_id"],
                 persona=c.get("persona", "general"),
+                label=c.get("label"),
                 created_at=c["created_at"],
                 updated_at=c["updated_at"],
                 message_count=c["message_count"],
@@ -673,6 +748,46 @@ async def get_mentor_conversation(
             )
             for m in conversation.get("messages", [])
         ],
+    )
+
+
+@router.patch(
+    "/conversations/{conversation_id}",
+    response_model=MentorConversationResponse,
+    summary="Update mentor conversation",
+    description="Update a mentor conversation (currently supports label update)",
+)
+@handle_api_errors("update mentor conversation")
+async def update_mentor_conversation(
+    conversation_id: str,
+    request: UpdateConversationLabelRequest,
+    user: dict = Depends(get_current_user),
+) -> MentorConversationResponse:
+    """Update a mentor conversation label."""
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    mentor_conv_repo = get_mentor_conversation_repo()
+    updated = mentor_conv_repo.update_label(conversation_id, user_id, request.label)
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Fetch updated conversation for response
+    conversation = mentor_conv_repo.get(conversation_id, user_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return MentorConversationResponse(
+        id=conversation["id"],
+        user_id=conversation["user_id"],
+        persona=conversation.get("persona", "general"),
+        label=conversation.get("label"),
+        created_at=conversation["created_at"],
+        updated_at=conversation["updated_at"],
+        message_count=len(conversation.get("messages", [])),
+        context_sources=conversation.get("context_sources", []),
     )
 
 

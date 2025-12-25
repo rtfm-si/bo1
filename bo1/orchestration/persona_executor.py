@@ -91,8 +91,13 @@ class PersonaExecutor:
 
         start_time = datetime.now()
 
-        # Select model based on phase and round
-        selected_model = get_model_for_phase("contribution", round_number=round_number + 1)
+        # Get session_id from state for A/B test group assignment
+        session_id = self.state.get("session_id") if self.state else None
+
+        # Select model based on phase, round, and A/B test group
+        selected_model = get_model_for_phase(
+            "contribution", round_number=round_number + 1, session_id=session_id
+        )
 
         # Apply phase-adaptive temperature adjustment
         base_temperature = round_config["temperature"]

@@ -418,6 +418,7 @@ app = FastAPI(
 _module_init_start = time.perf_counter()
 init_supertokens()
 add_supertokens_middleware(app)
+
 _startup_times["supertokens_init"] = (time.perf_counter() - _module_init_start) * 1000
 print(f"⏱️  SuperTokens init: {_startup_times['supertokens_init']:.1f}ms")
 
@@ -615,6 +616,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     SECURITY: Sanitizes error messages in production to prevent information leakage.
     Development mode returns full error details for debugging.
 
+    Special handling:
+    - SuperTokens connection errors on auth paths return 503 (graceful degradation)
+
     Args:
         request: FastAPI request object
         exc: Exception that was raised
@@ -625,8 +629,16 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     import logging
 
     from backend.api.middleware.metrics import record_api_endpoint_error
+    from backend.api.middleware.supertokens_error import handle_supertokens_error
 
     logger = logging.getLogger(__name__)
+
+    # Check if this is a SuperTokens connection error on an auth path
+    # Returns 503 for graceful degradation when SuperTokens Core is unavailable
+    supertokens_response = handle_supertokens_error(request, exc)
+    if supertokens_response is not None:
+        record_api_endpoint_error(request.url.path, 503)
+        return supertokens_response
 
     # Get settings to check debug mode
     from bo1.config import get_settings

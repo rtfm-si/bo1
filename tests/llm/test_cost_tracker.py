@@ -855,6 +855,8 @@ class TestAggregationCache:
             5000,  # total_tokens
             0.05,  # total_saved
             0.4,  # cache_hit_rate
+            200,  # prompt_cache_read_tokens
+            1000,  # prompt_cache_total_tokens
         )
 
         with patch("bo1.llm.cost_tracker.db_session") as mock_db:
@@ -1012,6 +1014,8 @@ class TestPartitionPruning:
             5000,  # total_tokens
             0.02,  # total_saved
             0.5,  # cache_hit_rate
+            100,  # prompt_cache_read_tokens
+            500,  # prompt_cache_total_tokens
         )
 
         with patch("bo1.llm.cost_tracker.db_session") as mock_db:
@@ -1049,6 +1053,96 @@ class TestPartitionPruning:
         assert "created_at >=" in query, (
             "get_subproblem_costs() query must include created_at filter for partition pruning"
         )
+
+
+class TestPromptCacheHitRate:
+    """Tests for prompt_cache_hit_rate metric in get_session_costs()."""
+
+    def setup_method(self):
+        """Clear cache before each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
+
+    def teardown_method(self):
+        """Clear cache after each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
+
+    def test_prompt_cache_hit_rate_with_cache_reads(self):
+        """Verify calculation with cache tokens present."""
+        session_id = "test_session_prompt_cache"
+
+        # Row: calls, cost, anthropic, voyage, brave, tavily, tokens, saved, hit_rate, cache_read, cache_total
+        # cache_read=500, cache_total=1000 => 50% hit rate
+        mock_row = (10, 0.50, 0.50, 0.0, 0.0, 0.0, 5000, 0.10, 0.3, 500, 1000)
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            result = CostTracker.get_session_costs(session_id)
+
+        assert result["prompt_cache_hit_rate"] == 0.5
+
+    def test_prompt_cache_hit_rate_no_anthropic_calls(self):
+        """Verify 0.0 when no Anthropic calls (only Voyage/Brave)."""
+        session_id = "test_session_no_anthropic"
+
+        # Zero cache tokens = 0% hit rate
+        mock_row = (5, 0.25, 0.0, 0.20, 0.05, 0.0, 2000, 0.0, 0.0, 0, 0)
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            result = CostTracker.get_session_costs(session_id)
+
+        assert result["prompt_cache_hit_rate"] == 0.0
+
+    def test_prompt_cache_hit_rate_zero_tokens(self):
+        """Verify no division by zero when total tokens is zero."""
+        session_id = "test_session_zero_tokens"
+
+        # cache_total=0 should return 0.0, not error
+        mock_row = (1, 0.01, 0.01, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0, 0)
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            result = CostTracker.get_session_costs(session_id)
+
+        # Should be 0.0, not raise ZeroDivisionError
+        assert result["prompt_cache_hit_rate"] == 0.0
+
+    def test_prompt_cache_hit_rate_100_percent(self):
+        """Verify 1.0 when all tokens from cache."""
+        session_id = "test_session_100pct"
+
+        # cache_read=1000, cache_total=1000 => 100% hit rate
+        mock_row = (5, 0.10, 0.10, 0.0, 0.0, 0.0, 3000, 0.05, 0.5, 1000, 1000)
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            result = CostTracker.get_session_costs(session_id)
+
+        assert result["prompt_cache_hit_rate"] == 1.0
+
+    def test_prompt_cache_hit_rate_empty_session(self):
+        """Verify 0.0 returned for empty session (no rows)."""
+        session_id = "test_session_empty"
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = None
+
+            result = CostTracker.get_session_costs(session_id)
+
+        assert result["prompt_cache_hit_rate"] == 0.0
 
 
 class TestPromptTypeField:

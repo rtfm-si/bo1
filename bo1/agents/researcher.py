@@ -79,6 +79,7 @@ class ResearcherAgent:
         industry: str | None = None,
         research_depth: Literal["basic", "deep"] = "basic",
         enable_consolidation: bool = True,
+        user_tier: str = "free",
     ) -> list[dict[str, Any]]:
         """Research external questions with semantic cache.
 
@@ -89,6 +90,7 @@ class ResearcherAgent:
             industry: Optional industry filter (e.g., 'saas', 'ecommerce')
             research_depth: Depth of research - "basic" for quick facts, "deep" for comprehensive analysis
             enable_consolidation: Enable request consolidation (P2-RESEARCH-3)
+            user_tier: User's subscription tier - "free", "starter", "pro", or "enterprise"
 
         Returns:
             List of research results with cache metadata:
@@ -133,7 +135,7 @@ class ResearcherAgent:
         batch_results = []
         for batch in batches:
             result_items, cost = await self._process_batch_with_retry(
-                batch, category, industry, research_depth
+                batch, category, industry, research_depth, user_tier=user_tier
             )
             batch_results.append((result_items, cost))
 
@@ -153,6 +155,7 @@ class ResearcherAgent:
         industry: str | None,
         research_depth: Literal["basic", "deep"],
         max_retries: int = 3,
+        user_tier: str = "free",
     ) -> tuple[list[dict[str, Any]], float]:
         """Process a batch with exponential backoff on rate limit errors.
 
@@ -162,6 +165,7 @@ class ResearcherAgent:
             industry: Industry filter
             research_depth: Research depth
             max_retries: Maximum retry attempts for rate limit errors
+            user_tier: User's subscription tier
 
         Returns:
             Tuple of (result_items, total_cost)
@@ -179,7 +183,7 @@ class ResearcherAgent:
         for attempt in range(max_retries):
             try:
                 result = await self._research_single_question(
-                    question_data, category, industry, research_depth
+                    question_data, category, industry, research_depth, user_tier=user_tier
                 )
 
                 # Check if result indicates rate limit failure
@@ -242,6 +246,7 @@ class ResearcherAgent:
         category: str | None,
         industry: str | None,
         research_depth: Literal["basic", "deep"],
+        user_tier: str = "free",
     ) -> dict[str, Any]:
         """Research a single question (internal method).
 
@@ -253,6 +258,7 @@ class ResearcherAgent:
             category: Category filter
             industry: Industry filter
             research_depth: Research depth
+            user_tier: User's subscription tier
 
         Returns:
             Research result dict
@@ -379,8 +385,10 @@ class ResearcherAgent:
             }
 
         else:
-            # CACHE MISS - Perform research (Brave or Tavily based on depth)
-            research_result = await self._perform_web_research(question, research_depth)
+            # CACHE MISS - Perform research (Brave or Tavily based on tier + depth)
+            research_result = await self._perform_web_research(
+                question, research_depth, user_tier=user_tier
+            )
 
             # Only cache successful results with meaningful data
             # Don't cache rate-limited, errored, or empty results
@@ -472,19 +480,22 @@ class ResearcherAgent:
         )
 
     async def _perform_web_research(
-        self, question: str, research_depth: Literal["basic", "deep"] = "basic"
+        self,
+        question: str,
+        research_depth: Literal["basic", "deep"] = "basic",
+        user_tier: str = "free",
     ) -> dict[str, Any]:
         """Perform web research using Brave Search (default) or Tavily (premium).
 
-        Research Strategy:
-        - basic: Brave Search + Haiku summarization (~$0.025 per query)
-          Use for: quick facts, statistics, general info
-        - deep: Tavily AI (combined search + analysis) (~$0.001 per query, but richer)
-          Use for: competitor analysis, market landscape, regulatory research
+        Research Strategy (tier-based):
+        - free/starter: Brave Search + Haiku (~$0.025/query) regardless of depth
+        - pro/enterprise + deep: Tavily AI (~$0.001/query) for comprehensive analysis
+        - pro/enterprise + basic: Brave Search + Haiku (faster for simple queries)
 
         Args:
             question: Research question
-            research_depth: "basic" (Brave) or "deep" (Tavily)
+            research_depth: "basic" (quick facts) or "deep" (comprehensive analysis)
+            user_tier: User's subscription tier - "free", "starter", "pro", or "enterprise"
 
         Returns:
             Dictionary with summary, sources, confidence, tokens_used, cost
@@ -493,13 +504,20 @@ class ResearcherAgent:
             >>> agent = ResearcherAgent()
             >>> result = await agent._perform_web_research("What is average SaaS churn?")
             >>> result = await agent._perform_web_research(
-            ...     "Analyze competitor pricing strategies", research_depth="deep"
+            ...     "Analyze competitor pricing strategies", research_depth="deep", user_tier="pro"
             ... )
         """
-        if research_depth == "deep":
-            return await self._tavily_search(question)
+        # Tier-based provider selection:
+        # - Pro/enterprise with deep research → Tavily (premium)
+        # - All other cases → Brave (cost-effective)
+        use_tavily = user_tier in ("pro", "enterprise") and research_depth == "deep"
+
+        if use_tavily:
+            logger.info(f"[RESEARCH] Using Tavily (tier={user_tier}, depth={research_depth})")
+            return await self._tavily_search(question, user_tier=user_tier)
         else:
-            return await self._brave_search_and_summarize(question)
+            logger.info(f"[RESEARCH] Using Brave (tier={user_tier}, depth={research_depth})")
+            return await self._brave_search_and_summarize(question, user_tier=user_tier)
 
     def format_research_context(self, research_results: list[dict[str, Any]]) -> str:
         """Format research results for inclusion in deliberation prompts.
@@ -544,13 +562,16 @@ class ResearcherAgent:
 
         return "\n".join(lines)
 
-    async def _brave_search_and_summarize(self, question: str) -> dict[str, Any]:
+    async def _brave_search_and_summarize(
+        self, question: str, user_tier: str = "free"
+    ) -> dict[str, Any]:
         """Perform web search using Brave Search API + Haiku summarization.
 
         Cost: ~$0.025 per query ($0.005 search + $0.02 Haiku)
 
         Args:
             question: Research question
+            user_tier: User's subscription tier for rate limiter selection
 
         Returns:
             Dictionary with summary, sources, confidence, tokens_used, cost
@@ -581,11 +602,14 @@ class ResearcherAgent:
                 "circuit_breaker_open": True,
             }
 
-        # P2-RESEARCH-4: Apply rate limiting
-        limiter = get_rate_limiter("brave_free")  # TODO: Detect API tier from settings
+        # P2-RESEARCH-4: Apply rate limiting (tier-based bucket selection)
+        rate_limiter_key: Literal["brave_free", "brave_basic"] = (
+            "brave_basic" if user_tier in ("pro", "enterprise") else "brave_free"
+        )
+        limiter = get_rate_limiter(rate_limiter_key)
         wait_time = await limiter.acquire()
         if wait_time > 0:
-            logger.info(f"Rate limited: waited {wait_time:.2f}s for Brave API")
+            logger.info(f"Rate limited: waited {wait_time:.2f}s for Brave API ({rate_limiter_key})")
 
         # Get cost context for attribution
         ctx = get_cost_context()
@@ -736,7 +760,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                 "cost": 0.0,
             }
 
-    async def _tavily_search(self, question: str) -> dict[str, Any]:
+    async def _tavily_search(self, question: str, user_tier: str = "pro") -> dict[str, Any]:
         """Perform deep research using Tavily AI (premium option).
 
         Tavily provides AI-powered search with built-in summarization and context.
@@ -746,6 +770,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
 
         Args:
             question: Research question requiring deep analysis
+            user_tier: User's subscription tier for rate limiter selection
 
         Returns:
             Dictionary with summary, sources, confidence, tokens_used, cost
@@ -763,11 +788,16 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             logger.warning("Tavily circuit breaker is OPEN - falling back to Brave")
             return await self._brave_search_and_summarize(question)
 
-        # P2-RESEARCH-4: Apply rate limiting
-        limiter = get_rate_limiter("tavily_free")  # TODO: Detect API tier from settings
+        # P2-RESEARCH-4: Apply rate limiting (tier-based bucket selection)
+        rate_limiter_key: Literal["tavily_free", "tavily_basic"] = (
+            "tavily_basic" if user_tier in ("pro", "enterprise") else "tavily_free"
+        )
+        limiter = get_rate_limiter(rate_limiter_key)
         wait_time = await limiter.acquire()
         if wait_time > 0:
-            logger.info(f"Rate limited: waited {wait_time:.2f}s for Tavily API")
+            logger.info(
+                f"Rate limited: waited {wait_time:.2f}s for Tavily API ({rate_limiter_key})"
+            )
 
         # Get cost context for attribution
         ctx = get_cost_context()

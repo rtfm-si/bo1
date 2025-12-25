@@ -39,6 +39,30 @@ class TestParseMentions:
         assert result.mentions[0].id == "11111111-2222-3333-4444-555555555555"
         assert result.clean_text == "Analyze"
 
+    def test_parse_chat_mention(self):
+        """Parse a single @chat mention."""
+        result = parse_mentions(
+            "Continue our discussion from @chat:44444444-5555-6666-7777-888888888888"
+        )
+
+        assert len(result.mentions) == 1
+        assert result.mentions[0].type == MentionType.CHAT
+        assert result.mentions[0].id == "44444444-5555-6666-7777-888888888888"
+        assert result.clean_text == "Continue our discussion from"
+
+    def test_parse_mixed_mentions_with_chat(self):
+        """Parse mentions including chat mixed with meeting/action."""
+        msg = (
+            "Based on @chat:11111111-1111-1111-1111-111111111111 "
+            "and @meeting:22222222-2222-2222-2222-222222222222"
+        )
+        result = parse_mentions(msg)
+
+        assert len(result.mentions) == 2
+        assert result.mentions[0].type == MentionType.CHAT
+        assert result.mentions[1].type == MentionType.MEETING
+        assert result.clean_text == "Based on and"
+
     def test_parse_multiple_mentions(self):
         """Parse multiple mentions of different types."""
         msg = (
@@ -137,3 +161,8 @@ class TestFormatMention:
         """Format a dataset mention."""
         result = format_mention(MentionType.DATASET, "11111111-2222-3333-4444-555555555555")
         assert result == "@dataset:11111111-2222-3333-4444-555555555555"
+
+    def test_format_chat_mention(self):
+        """Format a chat mention."""
+        result = format_mention(MentionType.CHAT, "44444444-5555-6666-7777-888888888888")
+        assert result == "@chat:44444444-5555-6666-7777-888888888888"

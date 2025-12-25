@@ -9,6 +9,7 @@ Handles:
 
 import json
 import logging
+from datetime import UTC, datetime
 
 import resend
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -16,6 +17,13 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
+
+try:
+    from svix.webhooks import Webhook, WebhookVerificationError
+except ImportError:
+    # svix is optional - webhook endpoint will fail gracefully if not available
+    Webhook = None  # type: ignore
+    WebhookVerificationError = Exception  # type: ignore
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.utils import RATE_LIMIT_RESPONSE
@@ -447,3 +455,132 @@ a:hover {{ text-decoration: underline; }}
 </div>
 </body>
 </html>"""
+
+
+# =============================================================================
+# Resend Webhook Endpoint
+# =============================================================================
+
+# Map Resend event types to database columns
+EVENT_TO_COLUMN = {
+    "email.delivered": "delivered_at",
+    "email.opened": "opened_at",
+    "email.clicked": "clicked_at",
+    "email.bounced": "bounced_at",
+    "email.delivery_failed": "failed_at",
+}
+
+
+class WebhookResponse(BaseModel):
+    """Response for webhook endpoint."""
+
+    status: str
+
+
+@router.post(
+    "/v1/email/webhook",
+    response_model=WebhookResponse,
+    responses={400: {"description": "Invalid signature or payload"}},
+)
+@limiter.limit("100/minute")
+async def resend_webhook(request: Request) -> WebhookResponse:
+    """Handle Resend webhook events.
+
+    Validates signature using svix and updates email_log with event timestamps.
+    Idempotent: ignores duplicate events or unknown resend_ids.
+
+    Event types handled:
+    - email.delivered: Email successfully delivered
+    - email.opened: Email opened by recipient
+    - email.clicked: Link clicked in email
+    - email.bounced: Email bounced (soft/hard)
+    - email.delivery_failed: Email delivery failed
+    """
+    settings = get_settings()
+
+    # Get raw body for signature verification
+    body = await request.body()
+    payload = body.decode("utf-8")
+
+    # Verify signature if secret is configured
+    if settings.resend_webhook_secret:
+        if Webhook is None:
+            logger.error("svix library not installed - cannot verify webhook signature")
+            raise HTTPException(
+                status_code=500, detail="Webhook verification unavailable"
+            ) from None
+
+        headers = {
+            "svix-id": request.headers.get("svix-id", ""),
+            "svix-timestamp": request.headers.get("svix-timestamp", ""),
+            "svix-signature": request.headers.get("svix-signature", ""),
+        }
+
+        try:
+            wh = Webhook(settings.resend_webhook_secret)
+            wh.verify(payload, headers)
+        except WebhookVerificationError as e:
+            logger.warning(f"Webhook signature verification failed: {e}")
+            raise HTTPException(status_code=400, detail="Invalid webhook signature") from None
+    else:
+        logger.warning("RESEND_WEBHOOK_SECRET not configured - skipping signature verification")
+
+    # Parse event data
+    try:
+        event_data = json.loads(payload)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid webhook JSON payload: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
+
+    event_type = event_data.get("type", "")
+    data = event_data.get("data", {})
+
+    # Only process known event types
+    if event_type not in EVENT_TO_COLUMN:
+        logger.debug(f"Ignoring unknown webhook event type: {event_type}")
+        return WebhookResponse(status="ignored")
+
+    # Extract email ID from event data
+    email_id = data.get("email_id")
+    if not email_id:
+        logger.warning(f"Webhook event missing email_id: {event_type}")
+        return WebhookResponse(status="ignored")
+
+    column = EVENT_TO_COLUMN[event_type]
+    event_time = datetime.now(UTC)
+
+    # Update email_log with event timestamp (idempotent - only set if NULL)
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Use COALESCE to preserve first event timestamp (don't overwrite)
+                cur.execute(
+                    f"""
+                    UPDATE email_log
+                    SET {column} = COALESCE({column}, %s)
+                    WHERE resend_id = %s
+                    RETURNING id
+                    """,
+                    (event_time, email_id),
+                )
+                result = cur.fetchone()
+
+        if result:
+            logger.info(f"Webhook: {event_type} for email {email_id}")
+        else:
+            # resend_id not found - email may not have been logged yet (race condition)
+            # or it's from an email sent before logging was enabled
+            logger.debug(f"Webhook: {event_type} - resend_id {email_id} not found (ignored)")
+
+        return WebhookResponse(status="ok")
+
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Failed to process webhook {event_type}: {e}",
+            email_id=email_id,
+            event_type=event_type,
+        )
+        # Return 200 to prevent Resend from retrying (log the error, don't fail the webhook)
+        return WebhookResponse(status="error")

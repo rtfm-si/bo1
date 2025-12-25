@@ -221,12 +221,16 @@ class SessionListResponse(BaseModel):
         total: Total number of sessions
         limit: Page size
         offset: Page offset
+        has_more: Whether more sessions exist beyond current page
+        next_offset: Offset for next page (None if no more pages)
     """
 
     sessions: list[SessionResponse] = Field(..., description="List of session summaries")
     total: int = Field(..., description="Total number of sessions")
     limit: int = Field(..., description="Page size")
     offset: int = Field(..., description="Page offset")
+    has_more: bool = Field(..., description="Whether more sessions exist beyond current page")
+    next_offset: int | None = Field(None, description="Offset for next page (None if no more)")
 
 
 class SessionDetailResponse(BaseModel):
@@ -767,6 +771,13 @@ class ActionDetailResponse(BaseModel):
     )
     scheduled_start_date: str | None = Field(
         default=None, description="Original planned start date (ISO)"
+    )
+    # Post-mortem fields (z28 migration)
+    lessons_learned: str | None = Field(
+        default=None, description="User reflection on lessons learned from this action"
+    )
+    went_well: str | None = Field(
+        default=None, description="User reflection on what went well during this action"
     )
 
 
@@ -1343,14 +1354,18 @@ class ProjectListResponse(BaseModel):
     Attributes:
         projects: List of projects
         total: Total count
-        page: Current page
+        page: Current page (1-indexed)
         per_page: Items per page
+        has_more: Whether more projects exist beyond current page
+        next_offset: Offset for next page (None if no more pages)
     """
 
     projects: list[ProjectDetailResponse] = Field(..., description="List of projects")
     total: int = Field(..., description="Total count")
     page: int = Field(..., description="Current page")
     per_page: int = Field(..., description="Items per page")
+    has_more: bool = Field(..., description="Whether more projects exist beyond current page")
+    next_offset: int | None = Field(None, description="Offset for next page (None if no more)")
 
 
 class ProjectActionSummary(BaseModel):
@@ -2272,12 +2287,16 @@ class DatasetListResponse(BaseModel):
         total: Total count
         limit: Page size
         offset: Page offset
+        has_more: Whether more datasets exist beyond current page
+        next_offset: Offset for next page (None if no more pages)
     """
 
     datasets: list[DatasetResponse] = Field(..., description="List of datasets")
     total: int = Field(..., description="Total count")
     limit: int = Field(..., description="Page size")
     offset: int = Field(..., description="Page offset")
+    has_more: bool = Field(..., description="Whether more datasets exist beyond current page")
+    next_offset: int | None = Field(None, description="Offset for next page (None if no more)")
 
 
 # =============================================================================
@@ -3690,6 +3709,26 @@ class ActionStartedResponse(BaseModel):
     action_id: str = Field(..., description="UUID of the started action")
 
 
+class ActionCompleteRequest(BaseModel):
+    """Request model for completing an action with optional post-mortem.
+
+    Attributes:
+        lessons_learned: Optional reflection on lessons learned (max 500 chars)
+        went_well: Optional reflection on what went well (max 500 chars)
+    """
+
+    lessons_learned: str | None = Field(
+        None,
+        max_length=500,
+        description="Reflection on lessons learned from this action",
+    )
+    went_well: str | None = Field(
+        None,
+        max_length=500,
+        description="Reflection on what went well during this action",
+    )
+
+
 class ActionCompletedResponse(BaseModel):
     """Response for completing an action."""
 
@@ -3810,6 +3849,62 @@ class ReminderSnoozedResponse(BaseModel):
     message: str = Field(..., description="Success message")
     action_id: str = Field(..., description="UUID of the action")
     snooze_days: int = Field(..., description="Number of days snoozed")
+
+
+# =============================================================================
+# Unblock Suggestions
+# =============================================================================
+
+
+class UnblockSuggestionModel(BaseModel):
+    """A single suggestion for unblocking a blocked action."""
+
+    approach: str = Field(
+        ...,
+        description="The suggested approach to unblock",
+        max_length=500,
+        examples=["Break the task into smaller sub-tasks"],
+    )
+    rationale: str = Field(
+        ...,
+        description="Why this approach might work",
+        max_length=500,
+        examples=["Large tasks often get blocked because they're overwhelming"],
+    )
+    effort_level: str = Field(
+        ...,
+        description="Estimated effort level",
+        pattern="^(low|medium|high)$",
+        examples=["low"],
+    )
+
+
+class UnblockPathsResponse(BaseModel):
+    """Response containing suggested paths to unblock an action."""
+
+    action_id: str = Field(..., description="UUID of the blocked action")
+    suggestions: list[UnblockSuggestionModel] = Field(
+        ...,
+        description="List of 3-5 suggestions to unblock",
+        min_length=1,
+        max_length=5,
+    )
+
+
+class EscalateBlockerRequest(BaseModel):
+    """Request model for escalating a blocked action to a meeting."""
+
+    include_suggestions: bool = Field(
+        default=True,
+        description="Include prior unblock suggestions in meeting context",
+    )
+
+
+class EscalateBlockerResponse(BaseModel):
+    """Response model for blocker escalation."""
+
+    session_id: str = Field(..., description="ID of the created meeting session")
+    redirect_url: str = Field(..., description="URL to redirect to the meeting")
 
 
 class SSEEvent(BaseModel):

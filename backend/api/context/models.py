@@ -284,6 +284,8 @@ class ContextResponse(BaseModel):
         context: Business context data (if exists)
         updated_at: Last update timestamp (if exists)
         benchmark_timestamps: When each benchmark metric was last set
+        needs_competitor_refresh: Whether auto-detect should run for competitors
+        competitor_count: Current number of managed competitors
     """
 
     exists: bool = Field(..., description="Whether user has saved context")
@@ -292,6 +294,10 @@ class ContextResponse(BaseModel):
     benchmark_timestamps: dict[str, datetime] | None = Field(
         None, description="Timestamps for when each benchmark metric was last set"
     )
+    needs_competitor_refresh: bool = Field(
+        False, description="Whether auto-detect should run for competitors"
+    )
+    competitor_count: int = Field(0, description="Current number of managed competitors")
 
     model_config = {
         "json_schema_extra": {
@@ -688,3 +694,415 @@ class StaleMetricsResponse(BaseModel):
         default_factory=list, description="List of stale metrics (max 3)"
     )
     total_metrics_checked: int = Field(..., description="Total number of metrics checked")
+
+
+# =============================================================================
+# Competitor Insight Models
+# =============================================================================
+
+
+class CompetitorInsight(BaseModel):
+    """Structured AI-generated insight about a competitor.
+
+    Contains comprehensive analysis of competitor including:
+    - Company identification and positioning
+    - Size and revenue estimates
+    - Strengths, weaknesses, and market gaps
+    """
+
+    name: str = Field(..., description="Competitor company name")
+    tagline: str | None = Field(None, max_length=200, description="Company tagline/slogan")
+    size_estimate: str | None = Field(
+        None,
+        max_length=100,
+        description="Estimated company size (e.g., '50-200 employees')",
+    )
+    revenue_estimate: str | None = Field(
+        None,
+        max_length=100,
+        description="Estimated revenue range (e.g., '$5M-20M ARR')",
+    )
+    strengths: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Key strengths (up to 5)",
+    )
+    weaknesses: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Key weaknesses (up to 5)",
+    )
+    market_gaps: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Market gaps/opportunities (up to 5)",
+    )
+    last_updated: datetime | None = Field(None, description="When insight was last generated")
+
+
+class CompetitorInsightRequest(BaseModel):
+    """Request to generate insight for a single competitor."""
+
+    competitor_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Name of competitor to analyze",
+    )
+
+
+class CompetitorInsightResponse(BaseModel):
+    """Response from generating a single competitor insight."""
+
+    success: bool = Field(..., description="Whether generation succeeded")
+    insight: CompetitorInsight | None = Field(None, description="Generated insight")
+    error: str | None = Field(None, description="Error message if failed")
+    generation_status: str | None = Field(
+        None,
+        description="Status: 'complete', 'cached', 'limited_data'",
+    )
+
+
+class CompetitorInsightsListResponse(BaseModel):
+    """Response containing list of competitor insights with tier gating.
+
+    Tier limits:
+    - Free: 1 visible insight
+    - Starter: 3 visible insights
+    - Pro: Unlimited insights
+    """
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    insights: list[CompetitorInsight] = Field(
+        default_factory=list,
+        description="List of competitor insights (tier-gated)",
+    )
+    visible_count: int = Field(0, description="Number of visible insights for tier")
+    total_count: int = Field(0, description="Total number of cached insights")
+    tier: str | None = Field(None, description="User's current tier")
+    upgrade_prompt: str | None = Field(
+        None,
+        description="Upgrade prompt if limit reached",
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class GoalProgressResponse(BaseModel):
+    """Response for goal progress tracking.
+
+    Returns action completion stats for the last 30 days,
+    useful for showing progress toward goals on the dashboard.
+    """
+
+    progress_percent: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Percentage of actions completed in period",
+    )
+    trend: Literal["up", "down", "stable"] = Field(
+        ...,
+        description="Trend compared to previous period",
+    )
+    completed_count: int = Field(0, description="Actions completed in period")
+    total_count: int = Field(0, description="Total active actions in period")
+
+
+# =============================================================================
+# Trend Insight Models
+# =============================================================================
+
+
+class TrendInsight(BaseModel):
+    """Structured AI-generated insight from a market trend URL.
+
+    Contains actionable analysis of market trends including:
+    - Key takeaway from the trend
+    - Relevance to user's business
+    - Recommended actions
+    - Timeframe classification
+    """
+
+    url: str = Field(..., description="Original URL of the trend article")
+    title: str | None = Field(None, max_length=200, description="Article title")
+    key_takeaway: str | None = Field(
+        None,
+        max_length=500,
+        description="The single most important insight from this trend",
+    )
+    relevance: str | None = Field(
+        None,
+        max_length=500,
+        description="Why this trend matters for the user's business",
+    )
+    actions: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description="Recommended actions (2-3 items)",
+    )
+    timeframe: Literal["immediate", "short_term", "long_term"] | None = Field(
+        None,
+        description="When this trend is most relevant",
+    )
+    confidence: Literal["high", "medium", "low"] | None = Field(
+        None,
+        description="Confidence level of the analysis",
+    )
+    analyzed_at: datetime | None = Field(None, description="When insight was generated")
+
+
+class TrendInsightRequest(BaseModel):
+    """Request to analyze a single trend URL."""
+
+    url: str = Field(
+        ...,
+        min_length=10,
+        max_length=2000,
+        description="URL of the trend article to analyze",
+    )
+
+
+class TrendInsightResponse(BaseModel):
+    """Response from analyzing a single trend URL."""
+
+    success: bool = Field(..., description="Whether analysis succeeded")
+    insight: TrendInsight | None = Field(None, description="Generated insight")
+    error: str | None = Field(None, description="Error message if failed")
+    analysis_status: str | None = Field(
+        None,
+        description="Status: 'complete', 'cached', 'limited_data', 'error'",
+    )
+
+
+class TrendInsightsListResponse(BaseModel):
+    """Response containing list of trend insights.
+
+    Rate limited to 3/min per user due to web fetching costs.
+    """
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    insights: list[TrendInsight] = Field(
+        default_factory=list,
+        description="List of trend insights",
+    )
+    count: int = Field(0, description="Number of cached insights")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Managed Competitor Models (User-submitted competitors)
+# =============================================================================
+
+
+class ManagedCompetitor(BaseModel):
+    """A user-managed competitor entry.
+
+    Stores competitor name, optional URL and notes, and when it was added.
+    Distinct from CompetitorInsight which is AI-generated analysis.
+    """
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Competitor company name",
+    )
+    url: str | None = Field(
+        None,
+        max_length=500,
+        description="Competitor website URL",
+    )
+    notes: str | None = Field(
+        None,
+        max_length=1000,
+        description="User notes about the competitor",
+    )
+    added_at: datetime = Field(..., description="When competitor was added")
+
+
+class ManagedCompetitorCreate(BaseModel):
+    """Request to add a new managed competitor."""
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Competitor company name",
+    )
+    url: str | None = Field(
+        None,
+        max_length=500,
+        description="Competitor website URL",
+    )
+    notes: str | None = Field(
+        None,
+        max_length=1000,
+        description="User notes about the competitor",
+    )
+
+
+class ManagedCompetitorUpdate(BaseModel):
+    """Request to update a managed competitor."""
+
+    url: str | None = Field(
+        None,
+        max_length=500,
+        description="Updated competitor website URL",
+    )
+    notes: str | None = Field(
+        None,
+        max_length=1000,
+        description="Updated user notes",
+    )
+
+
+class ManagedCompetitorResponse(BaseModel):
+    """Response for single managed competitor operations."""
+
+    success: bool = Field(..., description="Whether operation succeeded")
+    competitor: ManagedCompetitor | None = Field(None, description="Competitor data")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class ManagedCompetitorListResponse(BaseModel):
+    """Response for listing managed competitors."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    competitors: list[ManagedCompetitor] = Field(
+        default_factory=list,
+        description="List of user-managed competitors",
+    )
+    count: int = Field(0, description="Number of competitors")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Trend Summary Models (AI-generated industry summaries)
+# =============================================================================
+
+
+class TrendSummary(BaseModel):
+    """AI-generated market trend summary for user's industry.
+
+    Generated from Brave Search + Claude Haiku analysis.
+    Refreshes every 7 days or when industry changes.
+    Cost: ~$0.005/generation.
+    """
+
+    summary: str = Field(
+        ...,
+        max_length=1000,
+        description="Executive summary of current market trends",
+    )
+    key_trends: list[str] = Field(
+        default_factory=list,
+        description="Top 3-5 key market trends",
+    )
+    opportunities: list[str] = Field(
+        default_factory=list,
+        description="2-4 identified opportunities",
+    )
+    threats: list[str] = Field(
+        default_factory=list,
+        description="2-4 identified threats/challenges",
+    )
+    generated_at: datetime = Field(..., description="When summary was generated")
+    industry: str = Field(..., description="Industry the summary is for")
+    timeframe: str = Field(
+        default="3m",
+        description="Forecast timeframe: 3m, 12m, or 24m",
+    )
+    available_timeframes: list[str] = Field(
+        default_factory=lambda: ["3m"],
+        description="Timeframes available to user's tier",
+    )
+
+
+class TrendSummaryResponse(BaseModel):
+    """Response for trend summary endpoint."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    summary: TrendSummary | None = Field(None, description="Trend summary data")
+    stale: bool = Field(False, description="Whether summary needs refresh (>7 days)")
+    needs_industry: bool = Field(
+        False,
+        description="True if user has no industry set",
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class TrendSummaryRefreshResponse(BaseModel):
+    """Response from refreshing trend summary."""
+
+    success: bool = Field(..., description="Whether refresh succeeded")
+    summary: TrendSummary | None = Field(None, description="New trend summary")
+    error: str | None = Field(None, description="Error message if failed")
+    rate_limited: bool = Field(
+        False,
+        description="True if rate limit exceeded (1/hour)",
+    )
+
+
+class TrendForecastResponse(BaseModel):
+    """Response for trend forecast endpoint with tier-gating."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    summary: TrendSummary | None = Field(None, description="Forecast data")
+    timeframe: str = Field(default="3m", description="Requested timeframe")
+    available_timeframes: list[str] = Field(
+        default_factory=lambda: ["3m"],
+        description="Timeframes available to user's tier",
+    )
+    stale: bool = Field(False, description="Whether forecast needs refresh (>7 days)")
+    needs_industry: bool = Field(False, description="True if user has no industry set")
+    upgrade_prompt: str | None = Field(
+        None,
+        description="Shown when user requests locked timeframe",
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class TrendForecastRefreshRequest(BaseModel):
+    """Request to refresh a specific forecast timeframe."""
+
+    timeframe: str = Field(
+        default="3m",
+        description="Timeframe to refresh: 3m, 12m, or 24m",
+    )
+
+
+# =============================================================================
+# Goal History Models (North Star Goal Tracking)
+# =============================================================================
+
+
+class GoalHistoryEntry(BaseModel):
+    """A single goal change in history."""
+
+    goal_text: str = Field(..., description="The goal text")
+    changed_at: datetime = Field(..., description="When this goal was set")
+    previous_goal: str | None = Field(None, description="Previous goal before this change")
+
+
+class GoalHistoryResponse(BaseModel):
+    """Response for goal history endpoint."""
+
+    entries: list[GoalHistoryEntry] = Field(
+        default_factory=list,
+        description="Goal history entries, newest first",
+    )
+    count: int = Field(0, description="Number of entries returned")
+
+
+class GoalStalenessResponse(BaseModel):
+    """Response for goal staleness check."""
+
+    days_since_change: int | None = Field(
+        None,
+        description="Days since last goal change, or None if no history",
+    )
+    should_prompt: bool = Field(
+        False,
+        description="Whether to show 'Review your goal?' prompt (>30 days)",
+    )
+    last_goal: str | None = Field(None, description="Current/last goal text")

@@ -10,6 +10,7 @@ from backend.api.admin.models import (
     ActionStats,
     DataAnalysisStats,
     ExtendedKPIsResponse,
+    MeetingStats,
     MentorSessionStats,
     ProjectStats,
 )
@@ -83,7 +84,8 @@ def get_project_stats() -> ProjectStats:
                     COUNT(*) FILTER (WHERE status = 'active') AS active,
                     COUNT(*) FILTER (WHERE status = 'paused') AS paused,
                     COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-                    COUNT(*) FILTER (WHERE status = 'archived') AS archived
+                    COUNT(*) FILTER (WHERE status = 'archived') AS archived,
+                    COUNT(*) FILTER (WHERE deleted_at IS NOT NULL) AS deleted
                 FROM projects
                 """
             )
@@ -94,6 +96,7 @@ def get_project_stats() -> ProjectStats:
                 paused=row["paused"],
                 completed=row["completed"],
                 archived=row["archived"],
+                deleted=row["deleted"],
             )
 
 
@@ -108,7 +111,8 @@ def get_action_stats() -> ActionStats:
                     COUNT(*) FILTER (WHERE status = 'pending') AS pending,
                     COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
                     COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-                    COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
+                    COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+                    COUNT(*) FILTER (WHERE deleted_at IS NOT NULL) AS deleted
                 FROM actions
                 """
             )
@@ -119,6 +123,42 @@ def get_action_stats() -> ActionStats:
                 in_progress=row["in_progress"],
                 completed=row["completed"],
                 cancelled=row["cancelled"],
+                deleted=row["deleted"],
+            )
+
+
+def get_meeting_stats() -> MeetingStats:
+    """Get meeting/session statistics grouped by status."""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_meetings,
+                    COALESCE(COUNT(*) FILTER (WHERE status = 'created'), 0) AS created,
+                    COALESCE(COUNT(*) FILTER (WHERE status = 'running'), 0) AS running,
+                    COALESCE(COUNT(*) FILTER (WHERE status = 'completed'), 0) AS completed,
+                    COALESCE(COUNT(*) FILTER (WHERE status = 'failed'), 0) AS failed,
+                    COALESCE(COUNT(*) FILTER (WHERE status = 'killed'), 0) AS killed,
+                    COALESCE(COUNT(*) FILTER (WHERE deleted_at IS NOT NULL), 0) AS deleted,
+                    COALESCE(COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE), 0) AS today,
+                    COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'), 0) AS week,
+                    COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'), 0) AS month
+                FROM sessions
+                """
+            )
+            row = cur.fetchone()
+            return MeetingStats(
+                total_meetings=row["total_meetings"],
+                created=row["created"],
+                running=row["running"],
+                completed=row["completed"],
+                failed=row["failed"],
+                killed=row["killed"],
+                deleted=row["deleted"],
+                meetings_today=row["today"],
+                meetings_this_week=row["week"],
+                meetings_this_month=row["month"],
             )
 
 
@@ -154,4 +194,5 @@ async def get_extended_kpis(
         data_analyses=get_data_analysis_stats(),
         projects=get_project_stats(),
         actions=get_action_stats(),
+        meetings=get_meeting_stats(),
     )

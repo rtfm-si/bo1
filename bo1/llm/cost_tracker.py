@@ -1496,7 +1496,8 @@ class CostTracker:
                 },
                 "total_tokens": int,
                 "total_saved": float,
-                "cache_hit_rate": float
+                "cache_hit_rate": float,
+                "prompt_cache_hit_rate": float  # Anthropic prompt cache effectiveness (0.0-1.0)
             }
 
         Examples:
@@ -1544,7 +1545,9 @@ class CostTracker:
                         SUM(CASE WHEN provider = 'tavily' THEN total_cost ELSE 0 END) as tavily_cost,
                         SUM(total_tokens) as total_tokens,
                         SUM(cost_saved) as total_saved,
-                        AVG(CASE WHEN cache_hit THEN 1 ELSE 0 END) as cache_hit_rate
+                        AVG(CASE WHEN cache_hit THEN 1 ELSE 0 END) as cache_hit_rate,
+                        SUM(CASE WHEN provider = 'anthropic' THEN cache_read_tokens ELSE 0 END) as prompt_cache_read_tokens,
+                        SUM(CASE WHEN provider = 'anthropic' THEN cache_read_tokens + cache_creation_tokens + input_tokens ELSE 0 END) as prompt_cache_total_tokens
                     FROM api_costs
                     WHERE session_id = %s
                       AND created_at >= NOW() - INTERVAL '30 days'
@@ -1554,6 +1557,14 @@ class CostTracker:
 
                 row = cur.fetchone()
                 if row:
+                    # Calculate prompt cache hit rate (Anthropic prompt caching)
+                    prompt_cache_read = row[9] or 0
+                    prompt_cache_total = row[10] or 0
+                    prompt_cache_hit_rate = (
+                        float(prompt_cache_read) / float(prompt_cache_total)
+                        if prompt_cache_total > 0
+                        else 0.0
+                    )
                     return {
                         "total_calls": row[0] or 0,
                         "total_cost": float(row[1] or 0),
@@ -1566,6 +1577,7 @@ class CostTracker:
                         "total_tokens": row[6] or 0,
                         "total_saved": float(row[7] or 0),
                         "cache_hit_rate": float(row[8] or 0),
+                        "prompt_cache_hit_rate": prompt_cache_hit_rate,
                     }
                 return {
                     "total_calls": 0,
@@ -1579,6 +1591,7 @@ class CostTracker:
                     "total_tokens": 0,
                     "total_saved": 0.0,
                     "cache_hit_rate": 0.0,
+                    "prompt_cache_hit_rate": 0.0,
                 }
 
     @staticmethod

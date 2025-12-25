@@ -38,6 +38,8 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.agents.researcher import ResearcherAgent
 
     session_id = state.get("session_id")
+    # Extract subscription tier from state (populated via init_state from user data)
+    subscription_tier = state.get("subscription_tier") or "free"
 
     # PROACTIVE RESEARCH: Check for pending queries first
     pending_queries = state.get("pending_research_queries", [])
@@ -73,6 +75,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             questions=research_questions,
             category="general",
             research_depth=research_depth,
+            user_tier=subscription_tier,
         )
 
         # Add to state context
@@ -238,6 +241,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         ],
         category="general",
         research_depth=facilitator_research_depth,
+        user_tier=subscription_tier,
     )
 
     if not results:

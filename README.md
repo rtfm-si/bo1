@@ -132,6 +132,18 @@ bo1/
 └── pyproject.toml         # Python package configuration
 ```
 
+## API Documentation
+
+- **[openapi.json](./openapi.json)** - Full OpenAPI specification (includes admin endpoints)
+- **[openapi-public.json](./openapi-public.json)** - Public API specification (excludes admin endpoints)
+- **[SSE Events](./docs/SSE_EVENTS.md)** - Server-Sent Events schema contracts
+
+Generate specs with:
+```bash
+make openapi-export     # Full spec
+make openapi-public     # Public spec (no admin endpoints)
+```
+
 ## Documentation
 
 - **[CLAUDE.md](./CLAUDE.md)** - Developer guide for working with this codebase

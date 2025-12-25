@@ -526,6 +526,26 @@ class GlobalIPRateLimiter:
     # Endpoints to skip (health/monitoring must always respond)
     SKIP_PATHS = frozenset({"/health", "/ready", "/metrics", "/api/health", "/api/ready"})
 
+    # Path prefixes to skip (admin endpoints already have admin auth + endpoint-specific limits)
+    SKIP_PATH_PREFIXES = frozenset({"/api/admin/"})
+
+    # IPs exempt from global rate limiting (loaded from ADMIN_EXEMPT_IPS env var)
+    # Set at module load time from comma-separated env var
+    EXEMPT_IPS: frozenset[str] = frozenset()
+
+    @classmethod
+    def _load_exempt_ips(cls) -> frozenset[str]:
+        """Load exempt IPs from environment variable."""
+        import os
+
+        exempt_str = os.getenv("ADMIN_EXEMPT_IPS", "")
+        if not exempt_str:
+            return frozenset()
+        ips = {ip.strip() for ip in exempt_str.split(",") if ip.strip()}
+        if ips:
+            logger.info(f"Loaded {len(ips)} admin exempt IPs from ADMIN_EXEMPT_IPS")
+        return frozenset(ips)
+
     def __init__(self) -> None:
         """Initialize the global rate limiter."""
         self._redis: Any = None
@@ -568,6 +588,10 @@ class GlobalIPRateLimiter:
             (allowed, retry_after) - allowed=True if within limit,
             retry_after=seconds to wait if blocked
         """
+        # Skip exempt IPs (operators accessing admin dashboard)
+        if ip in GlobalIPRateLimiter.EXEMPT_IPS:
+            return True, None
+
         redis_client = self._get_redis()
 
         if not redis_client:
@@ -619,6 +643,9 @@ class GlobalIPRateLimiter:
             return True, None  # Fail open
 
 
+# Load exempt IPs from environment at module load time
+GlobalIPRateLimiter.EXEMPT_IPS = GlobalIPRateLimiter._load_exempt_ips()
+
 # Singleton instance
 global_ip_rate_limiter = GlobalIPRateLimiter()
 
@@ -648,6 +675,11 @@ class GlobalRateLimitMiddleware:
 
         # Skip health/metrics endpoints
         if path in GlobalIPRateLimiter.SKIP_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Skip admin endpoints (they have admin auth + endpoint-specific limits)
+        if any(path.startswith(prefix) for prefix in GlobalIPRateLimiter.SKIP_PATH_PREFIXES):
             await self.app(scope, receive, send)
             return
 

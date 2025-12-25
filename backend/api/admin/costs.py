@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from backend.api.admin.models import (
     CostsByProviderResponse,
     CreateFixedCostRequest,
+    DailyResearchCost,
     DailySummaryItem,
     DailySummaryResponse,
     FixedCostItem,
@@ -25,6 +26,9 @@ from backend.api.admin.models import (
     PerUserCostItem,
     PerUserCostResponse,
     ProviderCostItem,
+    ResearchCostItem,
+    ResearchCostsByPeriod,
+    ResearchCostsResponse,
     UpdateFixedCostRequest,
 )
 from backend.api.middleware.admin import require_admin_any
@@ -464,4 +468,127 @@ async def get_daily_summary(
         days=list(days_data.values()),
         period_start=start_date.isoformat(),
         period_end=end_date.isoformat(),
+    )
+
+
+# ==============================================================================
+# Research Costs (Brave + Tavily)
+# ==============================================================================
+
+
+@router.get(
+    "/research",
+    response_model=ResearchCostsResponse,
+    summary="Research costs",
+    description="Get Brave and Tavily research API costs breakdown.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get research costs")
+async def get_research_costs(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+) -> ResearchCostsResponse:
+    """Get research costs for Brave and Tavily."""
+    today = date.today()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # All-time totals by provider
+            cur.execute(
+                """
+                SELECT
+                    provider,
+                    COALESCE(SUM(total_cost), 0) as amount,
+                    COUNT(*) as query_count
+                FROM api_costs
+                WHERE provider IN ('brave', 'tavily')
+                  AND created_at >= NOW() - INTERVAL '365 days'
+                GROUP BY provider
+                """
+            )
+            provider_totals = {r["provider"]: r for r in cur.fetchall()}
+
+            # Time-period breakdown (total)
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN DATE(created_at) = %s THEN total_cost ELSE 0 END), 0) as today,
+                    COALESCE(SUM(CASE WHEN created_at >= %s THEN total_cost ELSE 0 END), 0) as week,
+                    COALESCE(SUM(CASE WHEN created_at >= %s THEN total_cost ELSE 0 END), 0) as month,
+                    COALESCE(SUM(total_cost), 0) as all_time
+                FROM api_costs
+                WHERE provider IN ('brave', 'tavily')
+                  AND created_at >= NOW() - INTERVAL '365 days'
+                """,
+                (today, week_ago, month_ago),
+            )
+            period_row = cur.fetchone()
+
+            # Daily breakdown for trend (last 7 days)
+            cur.execute(
+                """
+                SELECT
+                    DATE(created_at) as day,
+                    provider,
+                    COALESCE(SUM(total_cost), 0) as amount
+                FROM api_costs
+                WHERE provider IN ('brave', 'tavily')
+                  AND created_at >= %s
+                GROUP BY DATE(created_at), provider
+                ORDER BY day
+                """,
+                (week_ago,),
+            )
+            daily_rows = cur.fetchall()
+
+    # Build provider items
+    brave_data = provider_totals.get("brave", {"amount": 0, "query_count": 0})
+    tavily_data = provider_totals.get("tavily", {"amount": 0, "query_count": 0})
+
+    brave = ResearchCostItem(
+        provider="brave",
+        amount_usd=float(brave_data["amount"]),
+        query_count=brave_data["query_count"],
+    )
+    tavily = ResearchCostItem(
+        provider="tavily",
+        amount_usd=float(tavily_data["amount"]),
+        query_count=tavily_data["query_count"],
+    )
+
+    # Build period breakdown
+    by_period = ResearchCostsByPeriod(
+        today=float(period_row["today"]),
+        week=float(period_row["week"]),
+        month=float(period_row["month"]),
+        all_time=float(period_row["all_time"]),
+    )
+
+    # Build daily trend
+    daily_dict: dict[str, DailyResearchCost] = {}
+    # Initialize all 7 days
+    for i in range(7):
+        day = (week_ago + timedelta(days=i)).isoformat()
+        daily_dict[day] = DailyResearchCost(date=day, brave=0.0, tavily=0.0, total=0.0)
+
+    for row in daily_rows:
+        day_str = row["day"].isoformat() if hasattr(row["day"], "isoformat") else str(row["day"])
+        if day_str in daily_dict:
+            if row["provider"] == "brave":
+                daily_dict[day_str].brave = float(row["amount"])
+            elif row["provider"] == "tavily":
+                daily_dict[day_str].tavily = float(row["amount"])
+            daily_dict[day_str].total = daily_dict[day_str].brave + daily_dict[day_str].tavily
+
+    daily_trend = list(daily_dict.values())
+
+    return ResearchCostsResponse(
+        brave=brave,
+        tavily=tavily,
+        total_usd=brave.amount_usd + tavily.amount_usd,
+        total_queries=brave.query_count + tavily.query_count,
+        by_period=by_period,
+        daily_trend=daily_trend,
     )

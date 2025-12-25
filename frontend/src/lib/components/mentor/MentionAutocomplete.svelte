@@ -3,13 +3,13 @@
 	 * MentionAutocomplete - Dropdown for @mention suggestions in mentor chat
 	 *
 	 * Shows when user types @ in the input field.
-	 * Categories: Meetings | Actions | Datasets
+	 * Categories: Meetings | Actions | Datasets | Chats
 	 */
 	import { apiClient } from '$lib/api/client';
 	import type { MentionSuggestion } from '$lib/api/types';
-	import { Calendar, CheckSquare, Database, Loader2 } from 'lucide-svelte';
+	import { Calendar, CheckSquare, Database, Loader2, MessageSquare } from 'lucide-svelte';
 
-	type MentionType = 'meeting' | 'action' | 'dataset';
+	type MentionType = 'meeting' | 'action' | 'dataset' | 'chat';
 
 	interface Props {
 		visible: boolean;
@@ -109,7 +109,7 @@
 			case 'Tab':
 				// Switch tabs with Tab key
 				e.preventDefault();
-				const tabs: MentionType[] = ['meeting', 'action', 'dataset'];
+				const tabs: MentionType[] = ['meeting', 'action', 'dataset', 'chat'];
 				const currentIndex = tabs.indexOf(activeTab);
 				const nextIndex = e.shiftKey
 					? (currentIndex - 1 + tabs.length) % tabs.length
@@ -127,7 +127,8 @@
 	const tabConfig: { id: MentionType; label: string; icon: typeof Calendar }[] = [
 		{ id: 'meeting', label: 'Meetings', icon: Calendar },
 		{ id: 'action', label: 'Actions', icon: CheckSquare },
-		{ id: 'dataset', label: 'Datasets', icon: Database }
+		{ id: 'dataset', label: 'Datasets', icon: Database },
+		{ id: 'chat', label: 'Chats', icon: MessageSquare }
 	];
 </script>
 

@@ -26,6 +26,7 @@ from backend.api.admin import (
     blog,
     cost_analytics,
     costs,
+    drilldown,
     email,
     email_stats,
     embeddings,
@@ -73,6 +74,7 @@ router.include_router(embeddings.router)
 router.include_router(extended_kpis.router)
 router.include_router(costs.router)
 router.include_router(email_stats.router)
+router.include_router(drilldown.router)
 router.include_router(runtime_config.router)
 router.include_router(email.router)
 router.include_router(queries.router)

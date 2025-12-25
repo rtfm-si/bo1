@@ -14,6 +14,9 @@
 	import PendingReminders from '$lib/components/dashboard/PendingReminders.svelte';
 	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
 	import FailedMeetingAlert from '$lib/components/dashboard/FailedMeetingAlert.svelte';
+	import GoalBanner from '$lib/components/dashboard/GoalBanner.svelte';
+	import WeeklyPlanView from '$lib/components/dashboard/WeeklyPlanView.svelte';
+	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -40,6 +43,14 @@
 	const statsData = useDataFetch(() => apiClient.getActionStats(365));
 	// Fetch user context for onboarding checklist
 	const contextData = useDataFetch(() => apiClient.getUserContext());
+
+	// Goal staleness state (fetched separately as it's a new endpoint)
+	interface GoalStaleness {
+		days_since_change: number | null;
+		should_prompt: boolean;
+		last_goal: string | null;
+	}
+	let goalStaleness = $state<GoalStaleness | null>(null);
 
 	// Derived state for template compatibility
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
@@ -130,6 +141,16 @@
 		actionsData.fetch();
 		statsData.fetch();
 		contextData.fetch();
+
+		// Fetch goal staleness (new endpoint)
+		try {
+			const res = await fetch('/api/v1/context/goal-staleness', { credentials: 'include' });
+			if (res.ok) {
+				goalStaleness = await res.json();
+			}
+		} catch (e) {
+			log.error('Failed to fetch goal staleness:', e);
+		}
 
 		// Check if user needs onboarding tour
 		if (browser) {
@@ -258,6 +279,14 @@
 		<!-- Failed meeting alert -->
 		<FailedMeetingAlert class="mb-6" />
 
+		<!-- Goal Banner -->
+		<GoalBanner
+			northStarGoal={contextData.data?.context?.north_star_goal}
+			strategicObjectives={contextData.data?.context?.strategic_objectives}
+			daysSinceChange={goalStaleness?.days_since_change}
+			shouldPromptReview={goalStaleness?.should_prompt ?? false}
+		/>
+
 		<!-- Quick Actions Panel -->
 		<div class="mb-8">
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -377,10 +406,18 @@
 			</div>
 		{/if}
 
+		<!-- Weekly Plan View -->
+		<div class="mb-8">
+			<WeeklyPlanView actionsData={actionsData.data} />
+		</div>
+
 		<!-- Value Metrics Panel -->
 		<div class="mb-8">
 			<ValueMetricsPanel />
 		</div>
+
+		<!-- Daily Activities / Today's Focus -->
+		<DailyActivities actionsData={actionsData.data} />
 
 		<!-- Actions Needing Attention (overdue + due today) -->
 		{#if actionsData.isLoading}

@@ -1206,6 +1206,14 @@ class AdminApiClient {
 		return this.fetch<ResearchCacheStats>('/api/admin/research-cache/stats');
 	}
 
+	async getResearchCacheMetrics(): Promise<CacheMetricsResponse> {
+		return this.fetch<CacheMetricsResponse>('/api/admin/research-cache/metrics');
+	}
+
+	async getResearchCosts(): Promise<ResearchCostsResponse> {
+		return this.fetch<ResearchCostsResponse>('/api/admin/costs/research');
+	}
+
 	// =========================================================================
 	// Admin Email
 	// =========================================================================
@@ -1409,6 +1417,66 @@ export interface ResearchCacheStats {
 		hit_count: number;
 		last_accessed: string;
 	}>;
+}
+
+export interface SimilarityBucket {
+	bucket: number;
+	range_start: number;
+	range_end: number;
+	count: number;
+}
+
+export interface CacheMetricsResponse {
+	hit_rate_1d: number;
+	hit_rate_7d: number;
+	hit_rate_30d: number;
+	total_queries_1d: number;
+	total_queries_7d: number;
+	total_queries_30d: number;
+	cache_hits_1d: number;
+	cache_hits_7d: number;
+	cache_hits_30d: number;
+	avg_similarity_on_hit: number;
+	miss_distribution: SimilarityBucket[];
+	current_threshold: number;
+	recommended_threshold: number;
+	recommendation_reason: string;
+	recommendation_confidence: 'low' | 'medium' | 'high';
+	total_cached_results: number;
+	cost_savings_30d: number;
+}
+
+// =============================================================================
+// Research Costs Types
+// =============================================================================
+
+export interface ResearchCostItem {
+	provider: string;
+	amount_usd: number;
+	query_count: number;
+}
+
+export interface ResearchCostsByPeriod {
+	today: number;
+	week: number;
+	month: number;
+	all_time: number;
+}
+
+export interface DailyResearchCost {
+	date: string;
+	brave: number;
+	tavily: number;
+	total: number;
+}
+
+export interface ResearchCostsResponse {
+	brave: ResearchCostItem;
+	tavily: ResearchCostItem;
+	total_usd: number;
+	total_queries: number;
+	by_period: ResearchCostsByPeriod;
+	daily_trend: DailyResearchCost[];
 }
 
 // =============================================================================

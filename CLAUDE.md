@@ -1,12 +1,15 @@
 # CLAUDE.md
+
 GOVERNANCE LOCK: Do NOT alter, expand, or reinterpret without explicit user request.
 
 <system_context>
 Bo1: Multi-agent deliberation. Personas debate decisions.
 Stack: LangGraph + FastAPI + SvelteKit + Postgres + Redis
+ssh for prod: ssh root@139.59.201.65
 </system_context>
 
 <critical_rules>
+
 - CONCISE: brevity over grammar
 - DIFFS ONLY: never full files; micro-diffs preferred
 - MINIMAL CONTEXT: load smallest relevant tag only
@@ -16,9 +19,10 @@ Stack: LangGraph + FastAPI + SvelteKit + Postgres + Redis
 - recommendations NOT votes: collect_recommendations()
 - db_session() always; Docker hostnames not localhost
 - Frontend: $env/dynamic/public not import.meta.env
-</critical_rules>
+  </critical_rules>
 
 <efficiency_rules>
+
 - Load one governance tag at a time, never sibling tags
 - Skip <reference> always unless explicitly requested
 - Max 3 bullets; prefer code over prose
@@ -26,9 +30,10 @@ Stack: LangGraph + FastAPI + SvelteKit + Postgres + Redis
 - Shallow reasoning default (≤4 steps); deepen only for correctness risk
 - Ask clarification only when failure likely
 - Never assume missing context; ask first
-</efficiency_rules>
+  </efficiency_rules>
 
 <governance_constraints>
+
 - MUST NOT self-modify governance without explicit user request
 - MUST NOT silently change constraints or defaults
 - MUST NOT expand reasoning beyond defined limits
@@ -38,7 +43,7 @@ Stack: LangGraph + FastAPI + SvelteKit + Postgres + Redis
 - MUST NOT invent new workflow steps
 - MUST NOT load untagged sections
 - Conflict resolution: local CLAUDE.md → root CLAUDE.md → GOVERNANCE.md
-</governance_constraints>
+  </governance_constraints>
 
 <workflows>
 ```bash
@@ -57,25 +62,28 @@ Frontend: frontend/src/{routes/,lib/components/}
 
 <governance_reference>
 DO NOT LOAD BY DEFAULT. Load single tag on demand:
+
 - GOVERNANCE.md - <code_quality|architecture|security|agent_governance|llm_rules|testing|deployment|performance|audit_pattern>
 - CONTEXT_BOUNDARY.md - scope limits
 - MODEL_GUIDANCE.md - reasoning depth
-- TASK_PATTERNS.md - <bugfix|feature|refactor|review|migration>_pattern
+- TASK_PATTERNS.md - <bugfix|feature|refactor|review|migration>\_pattern
 - TAGS.md - tag semantics
 - DOMAIN_KNOWLEDGE.md - only if task requires domain context
-</governance_reference>
+  </governance_reference>
 
 <audit_rules>
 All audits MUST:
+
 - Load manifest via <load_manifest path="audits/manifests/{audit_type}.manifest.xml" />
 - NOT operate without corresponding manifest
 - Follow manifest constraints and expected_outputs exactly
 - Output reports to audits/reports/{audit_type}.report.md
-Audits MUST NOT inline or copy manifest contents into prompts.
-</audit_rules>
+  Audits MUST NOT inline or copy manifest contents into prompts.
+  </audit_rules>
 
 <pre_flight_enforcement>
 Claude MUST run BEFORE any request:
+
 1. Identify working folder
 2. Load ONLY nearest folder CLAUDE.md + manifest.md
 3. Load ONLY minimal required tags from governance files
@@ -84,21 +92,23 @@ Claude MUST run BEFORE any request:
 6. Validate tokens: reasoning ≤4 steps, diffs only, no full files
 7. Validate safety: no persona/agent/meeting changes without explicit request
 8. If ANY fails → STOP and ask user
-</pre_flight_enforcement>
+   </pre_flight_enforcement>
 
 <runtime_self_audit>
 Claude MUST run BEFORE sending any final answer:
+
 1. Re-check loaded context obeyed CONTEXT_BOUNDARY, MODEL_GUIDANCE, folder scope
 2. Re-check proposed change: no governance/agent/meeting alterations unless requested; minimal diffs
 3. Re-check output: no unnecessary prose, no large unchanged blocks, no secrets
 4. If violation found → abort draft, correct, then send revised
 5. If correction impossible without breaking rules → STOP and ask user
-</runtime_self_audit>
+   </runtime_self_audit>
 
 <hallucination_guard>
 Claude MUST:
+
 1. Prefer concrete repo evidence over assumptions
 2. Never invent file paths, APIs, or entities that do not exist
 3. If unsure whether function/file exists, check repo or ask user
 4. If change conflicts with existing code, highlight conflict and ask
-</hallucination_guard>
+   </hallucination_guard>

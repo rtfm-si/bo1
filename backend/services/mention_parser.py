@@ -15,6 +15,7 @@ class MentionType(str, Enum):
     MEETING = "meeting"
     ACTION = "action"
     DATASET = "dataset"
+    CHAT = "chat"
 
 
 @dataclass
@@ -37,7 +38,7 @@ class MentionParseResult:
 # Regex pattern: @type:uuid (supports standard UUID format)
 # Captures: (type)(uuid)
 MENTION_PATTERN = re.compile(
-    r"@(meeting|action|dataset):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+    r"@(meeting|action|dataset|chat):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
 )
 
 

@@ -179,8 +179,11 @@ def collect_user_data(user_id: str) -> dict[str, Any]:
                 )
                 data["gdpr_audit_log"] = [dict(r) for r in cur.fetchall()]
 
-        # Collect Redis conversation history
+        # Collect Redis conversation history (dataset Q&A)
         data["dataset_conversations"] = _collect_conversations(user_id)
+
+        # Collect mentor conversations from PostgreSQL
+        data["mentor_conversations"] = _collect_mentor_conversations(user_id)
 
         # Convert datetime objects to ISO strings for JSON serialization
         data = _serialize_for_json(data)
@@ -222,11 +225,15 @@ def delete_user_data(user_id: str) -> dict[str, Any]:
         "datasets_deleted": 0,
         "files_deleted": 0,
         "conversations_deleted": 0,
+        "mentor_conversations_deleted": 0,
         "errors": [],
     }
 
     # Delete Redis conversation history first (before DB changes)
     summary["conversations_deleted"] = _delete_user_conversations(user_id)
+
+    # Delete mentor conversations from PostgreSQL (via CASCADE, but explicit is safer)
+    summary["mentor_conversations_deleted"] = _delete_mentor_conversations(user_id)
 
     try:
         with db_session() as conn:
@@ -335,6 +342,52 @@ def delete_user_data(user_id: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"GDPR deletion failed for {user_id}: {e}")
         raise GDPRError(f"Deletion failed: {e}") from e
+
+
+def _collect_mentor_conversations(user_id: str) -> list[dict[str, Any]]:
+    """Collect mentor chat conversations from PostgreSQL for GDPR export.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        List of mentor conversation dicts with full messages
+    """
+    try:
+        from backend.services.mentor_conversation_pg_repo import (
+            get_mentor_conversation_pg_repo,
+        )
+
+        pg_repo = get_mentor_conversation_pg_repo()
+        conversations = pg_repo.get_all_for_export(user_id)
+        logger.info(f"Collected {len(conversations)} mentor conversations for user {user_id}")
+        return conversations
+    except Exception as e:
+        logger.warning(f"Failed to collect mentor conversations for {user_id}: {e}")
+        return []
+
+
+def _delete_mentor_conversations(user_id: str) -> int:
+    """Delete all mentor conversations for a user.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        Number of conversations deleted
+    """
+    try:
+        from backend.services.mentor_conversation_pg_repo import (
+            get_mentor_conversation_pg_repo,
+        )
+
+        pg_repo = get_mentor_conversation_pg_repo()
+        deleted = pg_repo.delete_all_for_user(user_id)
+        logger.info(f"Deleted {deleted} mentor conversations for user {user_id}")
+        return deleted
+    except Exception as e:
+        logger.warning(f"Failed to delete mentor conversations for {user_id}: {e}")
+        return 0
 
 
 def _collect_conversations(user_id: str) -> list[dict[str, Any]]:

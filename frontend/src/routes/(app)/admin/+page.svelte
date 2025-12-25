@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
+	import ResearchCostsPanel from '$lib/components/admin/ResearchCostsPanel.svelte';
+	import ResearchCacheMetrics from '$lib/components/admin/ResearchCacheMetrics.svelte';
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
 	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse } from '$lib/api/admin';
@@ -293,6 +295,12 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Research Cache Metrics (Detailed) -->
+		<ResearchCacheMetrics />
+
+		<!-- Research Costs Panel -->
+		<ResearchCostsPanel />
 
 		<!-- Extended KPIs Panel -->
 		<ExtendedKPIsPanel />

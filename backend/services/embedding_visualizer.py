@@ -163,15 +163,37 @@ def get_embedding_stats() -> dict[str, Any]:
     }
 
 
+def get_distinct_categories() -> list[dict[str, Any]]:
+    """Get distinct research cache categories with counts.
+
+    Returns:
+        List of dicts with 'category' and 'count'
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT category, COUNT(*) as count
+                FROM research_cache
+                WHERE question_embedding IS NOT NULL AND category IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                """
+            )
+            return [{"category": row["category"], "count": row["count"]} for row in cur.fetchall()]
+
+
 def get_sample_embeddings(
     embedding_type: str = "all",
     limit: int = 500,
+    category: str | None = None,
 ) -> list[dict[str, Any]]:
     """Retrieve sample embeddings with metadata for visualization.
 
     Args:
         embedding_type: 'contributions', 'research', 'context', or 'all'
         limit: Maximum samples to return
+        category: Filter research embeddings by category (e.g., 'saas_metrics', 'pricing')
 
     Returns:
         List of dicts with 'embedding', 'type', 'preview', 'created_at'
@@ -221,22 +243,40 @@ def get_sample_embeddings(
 
             # Research cache
             if embedding_type in ("all", "research"):
-                cur.execute(
-                    """
-                    SELECT
-                        question_embedding::text AS embedding,
-                        'research' AS type,
-                        LEFT(question, 100) AS preview,
-                        category,
-                        industry,
-                        research_date::text AS created_at
-                    FROM research_cache
-                    WHERE question_embedding IS NOT NULL
-                    ORDER BY research_date DESC
-                    LIMIT %s
-                    """,
-                    (per_type_limit,),
-                )
+                if category:
+                    cur.execute(
+                        """
+                        SELECT
+                            question_embedding::text AS embedding,
+                            'research' AS type,
+                            LEFT(question, 100) AS preview,
+                            category,
+                            industry,
+                            research_date::text AS created_at
+                        FROM research_cache
+                        WHERE question_embedding IS NOT NULL AND category = %s
+                        ORDER BY research_date DESC
+                        LIMIT %s
+                        """,
+                        (category, per_type_limit),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT
+                            question_embedding::text AS embedding,
+                            'research' AS type,
+                            LEFT(question, 100) AS preview,
+                            category,
+                            industry,
+                            research_date::text AS created_at
+                        FROM research_cache
+                        WHERE question_embedding IS NOT NULL
+                        ORDER BY research_date DESC
+                        LIMIT %s
+                        """,
+                        (per_type_limit,),
+                    )
                 for row in cur.fetchall():
                     emb_str = row["embedding"]
                     if emb_str and emb_str.startswith("[") and emb_str.endswith("]"):
@@ -334,3 +374,121 @@ def compute_2d_coordinates(
         )
 
     return result
+
+
+def compute_clusters(
+    coords: list[tuple[float, float]],
+    min_k: int = 2,
+    max_k: int = 8,
+) -> tuple[list[int], list[tuple[float, float]]]:
+    """Compute K-means clusters on 2D coordinates with automatic k selection.
+
+    Uses silhouette score to pick optimal k between min_k and max_k.
+
+    Args:
+        coords: List of (x, y) coordinate pairs
+        min_k: Minimum number of clusters
+        max_k: Maximum number of clusters
+
+    Returns:
+        Tuple of (cluster_assignments, centroids)
+        - cluster_assignments: List of cluster IDs (0-indexed) for each point
+        - centroids: List of (x, y) centroid coordinates for each cluster
+    """
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+
+    n_points = len(coords)
+    if n_points < 20:
+        # Too few points for meaningful clustering
+        return [0] * n_points, [(0.0, 0.0)]
+
+    arr = np.array(coords, dtype=np.float32)
+
+    # Clamp k range to available points
+    max_k = min(max_k, n_points - 1)
+    if min_k > max_k:
+        min_k = max_k
+
+    best_k = min_k
+    best_score = -1.0
+    best_labels: list[int] = []
+    best_centroids: list[tuple[float, float]] = []
+
+    for k in range(min_k, max_k + 1):
+        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = km.fit_predict(arr)
+        score = silhouette_score(arr, labels)
+        if score > best_score:
+            best_score = score
+            best_k = k
+            best_labels = labels.tolist()
+            best_centroids = [(float(c[0]), float(c[1])) for c in km.cluster_centers_]
+
+    logger.info(f"K-means: selected k={best_k} with silhouette={best_score:.3f}")
+    return best_labels, best_centroids
+
+
+def generate_cluster_labels(
+    cluster_assignments: list[int],
+    previews: list[str],
+    centroids: list[tuple[float, float]],
+    coords: list[tuple[float, float]],
+) -> dict[int, str]:
+    """Generate human-readable labels for clusters based on text previews.
+
+    For each cluster, finds the points closest to centroid and extracts common patterns.
+
+    Args:
+        cluster_assignments: Cluster ID for each point
+        previews: Text preview for each point
+        centroids: (x, y) centroid for each cluster
+        coords: (x, y) coordinates for each point
+
+    Returns:
+        Dict mapping cluster_id to label string
+    """
+    from collections import Counter
+
+    n_clusters = len(centroids)
+    labels: dict[int, str] = {}
+
+    for cluster_id in range(n_clusters):
+        # Find points in this cluster
+        cluster_indices = [i for i, c in enumerate(cluster_assignments) if c == cluster_id]
+        if not cluster_indices:
+            labels[cluster_id] = f"Cluster {cluster_id + 1}"
+            continue
+
+        # Sort by distance to centroid
+        cx, cy = centroids[cluster_id]
+        distances = [
+            (i, (coords[i][0] - cx) ** 2 + (coords[i][1] - cy) ** 2) for i in cluster_indices
+        ]
+        distances.sort(key=lambda x: x[1])
+
+        # Take 5 closest points
+        sample_indices = [d[0] for d in distances[:5]]
+        sample_texts = [previews[i] for i in sample_indices]
+
+        # Extract 2-word ngrams and find most common
+        ngrams: list[str] = []
+        for text in sample_texts:
+            words = text.lower().split()[:10]  # First 10 words
+            for i in range(len(words) - 1):
+                ngram = f"{words[i]} {words[i + 1]}"
+                # Filter out common stopwords
+                if not any(w in ngram for w in ["the ", " the", "to ", " to", " a ", "of ", " of"]):
+                    ngrams.append(ngram)
+
+        if ngrams:
+            most_common = Counter(ngrams).most_common(1)
+            if most_common and most_common[0][1] >= 2:
+                labels[cluster_id] = most_common[0][0].title()
+            else:
+                # Fall back to first 20 chars of centroid's preview
+                labels[cluster_id] = previews[sample_indices[0]][:20].strip() + "..."
+        else:
+            labels[cluster_id] = f"Cluster {cluster_id + 1}"
+
+    return labels

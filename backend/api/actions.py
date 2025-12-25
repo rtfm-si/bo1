@@ -13,9 +13,10 @@ from datetime import datetime
 from typing import Any
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import limiter
 from backend.api.models import (
     ActionBlockedResponse,
     ActionCloneReplanRequest,
@@ -23,6 +24,7 @@ from backend.api.models import (
     ActionCloseRequest,
     ActionCloseResponse,
     ActionCompletedResponse,
+    ActionCompleteRequest,
     ActionDatesResponse,
     ActionDatesUpdate,
     ActionDeletedResponse,
@@ -50,11 +52,14 @@ from backend.api.models import (
     DependencyRemovedResponse,
     DependencyResponse,
     ErrorResponse,
+    EscalateBlockerRequest,
+    EscalateBlockerResponse,
     GanttActionData,
     GanttDependency,
     GeneratedProjectInfo,
     GlobalGanttResponse,
     IncompleteDependencyInfo,
+    RateLimitResponse,
     RelatedAction,
     ReminderSettingsResponse,
     ReminderSettingsUpdate,
@@ -64,10 +69,13 @@ from backend.api.models import (
     SnoozeReminderRequest,
     TagResponse,
     UnblockActionRequest,
+    UnblockPathsResponse,
+    UnblockSuggestionModel,
 )
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors
+from backend.services.blocker_analyzer import get_blocker_analyzer
 from backend.services.gantt_service import GanttColorService
 from bo1.config import get_settings
 from bo1.constants import GanttColorStrategy
@@ -892,12 +900,14 @@ async def start_action(
 @handle_api_errors("complete action")
 async def complete_action(
     action_id: str,
+    request: ActionCompleteRequest | None = None,
     user_data: dict = Depends(get_current_user),
 ) -> ActionCompletedResponse:
     """Complete an action (mark as done).
 
     Args:
         action_id: Action UUID
+        request: Optional post-mortem data (lessons_learned, went_well)
         user_data: Current user from auth
 
     Returns:
@@ -913,8 +923,14 @@ async def complete_action(
     if action.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Action not found")
 
-    # Complete action
-    success = action_repository.complete_action(action_id, user_id)
+    # Extract post-mortem data if provided
+    lessons_learned = request.lessons_learned if request else None
+    went_well = request.went_well if request else None
+
+    # Complete action with optional post-mortem
+    success = action_repository.complete_action(
+        action_id, user_id, lessons_learned=lessons_learned, went_well=went_well
+    )
     if not success:
         raise HTTPException(status_code=400, detail="Action cannot be completed (already done)")
 
@@ -1779,6 +1795,164 @@ async def unblock_action(
 
 
 # =============================================================================
+# Suggest Unblock Paths (AI-powered)
+# =============================================================================
+
+
+@router.post(
+    "/{action_id}/suggest-unblock",
+    response_model=UnblockPathsResponse,
+    summary="Suggest ways to unblock a blocked action",
+    description="Uses AI to generate 3-5 concrete suggestions for unblocking a stuck action.",
+    responses={
+        200: {"description": "Suggestions generated successfully"},
+        400: {"description": "Action is not blocked", "model": ErrorResponse},
+        404: {"description": "Action not found", "model": ErrorResponse},
+        429: {"description": "Rate limit exceeded", "model": RateLimitResponse},
+    },
+)
+@limiter.limit("5/minute")
+@handle_api_errors("suggest unblock paths")
+async def suggest_unblock_paths(
+    request: Request,
+    action_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> UnblockPathsResponse:
+    """Generate AI suggestions for unblocking a blocked action.
+
+    Rate limited to 5 requests per minute per user to control LLM costs.
+
+    Args:
+        request: FastAPI request (for rate limiter)
+        action_id: Action UUID
+        user_data: Current user from auth
+
+    Returns:
+        UnblockPathsResponse with 3-5 suggestions
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Generating unblock suggestions for action {action_id}")
+
+    # Verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Require blocked status
+    if action.get("status") != "blocked":
+        raise HTTPException(
+            status_code=400,
+            detail="Action must be blocked to suggest unblock paths",
+        )
+
+    # Get project name for context if available
+    project_name = None
+    project_id = action.get("project_id")
+    if project_id:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT name FROM projects WHERE id = %s",
+                    (project_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    project_name = row["name"]
+
+    # Generate suggestions
+    analyzer = get_blocker_analyzer()
+    suggestions = await analyzer.suggest_unblock_paths(
+        title=action.get("name", ""),
+        description=action.get("description"),
+        blocking_reason=action.get("blocking_reason"),
+        project_name=project_name,
+    )
+
+    return UnblockPathsResponse(
+        action_id=action_id,
+        suggestions=[
+            UnblockSuggestionModel(
+                approach=s.approach,
+                rationale=s.rationale,
+                effort_level=s.effort_level.value,
+            )
+            for s in suggestions
+        ],
+    )
+
+
+# =============================================================================
+# Escalate Blocker to Meeting
+# =============================================================================
+
+
+@router.post(
+    "/{action_id}/escalate-blocker",
+    response_model=EscalateBlockerResponse,
+    summary="Escalate blocked action to a meeting",
+    description="Create a focused meeting session to resolve a blocked action with AI personas.",
+    responses={
+        200: {"description": "Meeting created successfully"},
+        400: {"description": "Action is not blocked", "model": ErrorResponse},
+        404: {"description": "Action not found", "model": ErrorResponse},
+        429: {"description": "Rate limit exceeded", "model": RateLimitResponse},
+    },
+)
+@limiter.limit("1/minute")
+@handle_api_errors("escalate blocker")
+async def escalate_blocker(
+    request: Request,
+    action_id: str,
+    body: EscalateBlockerRequest | None = None,
+    user_data: dict = Depends(get_current_user),
+) -> EscalateBlockerResponse:
+    """Escalate a blocked action to a meeting for AI-assisted resolution.
+
+    Creates a deliberation session pre-populated with action context,
+    blocking reason, and optional unblock suggestions.
+
+    Rate limited to 1 request per minute per user.
+
+    Args:
+        request: FastAPI request (for rate limiter)
+        action_id: Action UUID
+        body: Optional request body with include_suggestions flag
+        user_data: Current user from auth
+
+    Returns:
+        EscalateBlockerResponse with session_id and redirect_url
+    """
+    from backend.services.blocker_analyzer import escalate_blocked_action
+
+    user_id = user_data.get("user_id")
+    include_suggestions = body.include_suggestions if body else True
+
+    logger.info(f"Escalating blocked action {action_id} to meeting for user {user_id}")
+
+    try:
+        result = await escalate_blocked_action(
+            action_id=action_id,
+            user_id=user_id,
+            include_suggestions=include_suggestions,
+        )
+        return EscalateBlockerResponse(
+            session_id=result["session_id"],
+            redirect_url=result["redirect_url"],
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "Action not found" or error_msg == "Not authorized":
+            raise HTTPException(status_code=404, detail="Action not found") from None
+        if error_msg == "Action is not blocked":
+            raise HTTPException(status_code=400, detail="Action is not blocked") from None
+        if error_msg == "Service temporarily unavailable":
+            raise HTTPException(status_code=503, detail=error_msg) from None
+        raise HTTPException(status_code=400, detail=error_msg) from None
+
+
+# =============================================================================
 # Replanning Endpoint
 # =============================================================================
 
@@ -2152,12 +2326,21 @@ async def add_action_update(
             detail="progress_percent is required for progress updates",
         )
 
+    # Summarize content if enabled (clean up grammar/formatting)
+    from backend.services.action_update_summarizer import summarize_action_update
+
+    content = await summarize_action_update(
+        content=update.content,
+        update_type=update.update_type,
+        user_id=user_id,
+    )
+
     # Add update
     created = action_repository.add_update(
         action_id=action_id,
         user_id=user_id,
         update_type=update.update_type,
-        content=update.content,
+        content=content,
         progress_percent=update.progress_percent,
     )
 

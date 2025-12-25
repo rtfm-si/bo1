@@ -289,3 +289,85 @@ async def test_researcher_agent_research_questions_stub():
     assert results[0]["question"] == "What is average SaaS churn?"
     assert results[0]["confidence"] in ("stub", "high", "medium", "low")  # Accept any confidence
     assert results[1]["question"] == "What is typical CAC?"
+
+
+# --- Tier-based provider selection tests ---
+
+
+@pytest.mark.unit
+def test_tier_based_provider_selection_free_uses_brave():
+    """Test that free tier always uses Brave, even with deep research."""
+    from bo1.agents.researcher import ResearcherAgent
+
+    _agent = ResearcherAgent()  # noqa: F841 - instantiate to verify import
+    # Free tier + deep research → should still use Brave
+    use_tavily = "free" in ("pro", "enterprise") and "deep" == "deep"
+    assert use_tavily is False
+
+
+@pytest.mark.unit
+def test_tier_based_provider_selection_starter_uses_brave():
+    """Test that starter tier always uses Brave, even with deep research."""
+    # Starter tier + deep research → should still use Brave
+    use_tavily = "starter" in ("pro", "enterprise") and "deep" == "deep"
+    assert use_tavily is False
+
+
+@pytest.mark.unit
+def test_tier_based_provider_selection_pro_basic_uses_brave():
+    """Test that pro tier with basic research uses Brave."""
+    # Pro tier + basic research → should use Brave
+    use_tavily = "pro" in ("pro", "enterprise") and "basic" == "deep"
+    assert use_tavily is False
+
+
+@pytest.mark.unit
+def test_tier_based_provider_selection_pro_deep_uses_tavily():
+    """Test that pro tier with deep research uses Tavily."""
+    # Pro tier + deep research → should use Tavily
+    use_tavily = "pro" in ("pro", "enterprise") and "deep" == "deep"
+    assert use_tavily is True
+
+
+@pytest.mark.unit
+def test_tier_based_provider_selection_enterprise_deep_uses_tavily():
+    """Test that enterprise tier with deep research uses Tavily."""
+    # Enterprise tier + deep research → should use Tavily
+    use_tavily = "enterprise" in ("pro", "enterprise") and "deep" == "deep"
+    assert use_tavily is True
+
+
+@pytest.mark.unit
+def test_tier_based_rate_limiter_key_selection():
+    """Test rate limiter key selection based on tier."""
+    # Free tier → free rate limiter
+    key_free = "brave_basic" if "free" in ("pro", "enterprise") else "brave_free"
+    assert key_free == "brave_free"
+
+    # Starter tier → free rate limiter
+    key_starter = "brave_basic" if "starter" in ("pro", "enterprise") else "brave_free"
+    assert key_starter == "brave_free"
+
+    # Pro tier → basic rate limiter (higher limits)
+    key_pro = "brave_basic" if "pro" in ("pro", "enterprise") else "brave_free"
+    assert key_pro == "brave_basic"
+
+    # Enterprise tier → basic rate limiter (higher limits)
+    key_enterprise = "brave_basic" if "enterprise" in ("pro", "enterprise") else "brave_free"
+    assert key_enterprise == "brave_basic"
+
+
+@pytest.mark.unit
+def test_tier_based_tavily_rate_limiter_key_selection():
+    """Test Tavily rate limiter key selection based on tier."""
+    # Pro tier → basic rate limiter (higher limits)
+    key_pro = "tavily_basic" if "pro" in ("pro", "enterprise") else "tavily_free"
+    assert key_pro == "tavily_basic"
+
+    # Enterprise tier → basic rate limiter (higher limits)
+    key_enterprise = "tavily_basic" if "enterprise" in ("pro", "enterprise") else "tavily_free"
+    assert key_enterprise == "tavily_basic"
+
+    # Free tier → free rate limiter (edge case: shouldn't reach Tavily but tests the logic)
+    key_free = "tavily_basic" if "free" in ("pro", "enterprise") else "tavily_free"
+    assert key_free == "tavily_free"

@@ -74,6 +74,8 @@ import type {
 	ActionRemindersResponse,
 	ReminderSettingsResponse,
 	ReminderSettingsUpdateRequest,
+	// Unblock Suggestions types
+	UnblockPathsResponse,
 	// Query types (Data Analysis)
 	QuerySpec,
 	QueryResultResponse,
@@ -90,6 +92,7 @@ import type {
 	ConversationResponse,
 	ConversationListResponse,
 	// Mentor Chat types
+	MentorConversationResponse,
 	MentorConversationListResponse,
 	MentorConversationDetailResponse,
 	MentorPersonaListResponse,
@@ -148,7 +151,19 @@ import type {
 	PublicBlogPostListResponse,
 	// Meeting Template types
 	MeetingTemplate,
-	MeetingTemplateListResponse
+	MeetingTemplateListResponse,
+	// Competitor Insight types
+	CompetitorInsightResponse,
+	CompetitorInsightsListResponse,
+	// Trend Insight types
+	TrendInsightResponse,
+	TrendInsightsListResponse,
+	// Managed Competitor types
+	ManagedCompetitor,
+	ManagedCompetitorCreate,
+	ManagedCompetitorUpdate,
+	ManagedCompetitorResponse,
+	ManagedCompetitorListResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -800,6 +815,10 @@ export class ApiClient {
 		return this.delete<{ status: string }>('/api/v1/context');
 	}
 
+	async getGoalHistory(limit = 10): Promise<{ entries: Array<{ goal_text: string; changed_at: string; previous_goal: string | null }> }> {
+		return this.fetch<{ entries: Array<{ goal_text: string; changed_at: string; previous_goal: string | null }> }>(`/api/v1/context/goal-history?limit=${limit}`);
+	}
+
 	async getValueMetrics(): Promise<ValueMetricsResponse> {
 		return this.fetch<ValueMetricsResponse>('/api/v1/user/value-metrics');
 	}
@@ -946,8 +965,20 @@ export class ApiClient {
 		return this.post<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}/start`);
 	}
 
-	async completeAction(actionId: string): Promise<{ message: string; action_id: string }> {
-		return this.post<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}/complete`);
+	async completeAction(
+		actionId: string,
+		postMortem?: { lessonsLearned?: string; wentWell?: string }
+	): Promise<{ message: string; action_id: string }> {
+		const body = postMortem
+			? {
+					lessons_learned: postMortem.lessonsLearned || null,
+					went_well: postMortem.wentWell || null
+				}
+			: undefined;
+		return this.post<{ message: string; action_id: string }>(
+			`/api/v1/actions/${actionId}/complete`,
+			body
+		);
 	}
 
 	async updateActionStatus(
@@ -1028,6 +1059,33 @@ export class ApiClient {
 		return this.post<{ message: string }>(`/api/v1/actions/${actionId}/snooze-reminder`, {
 			snooze_days: snoozeDays
 		});
+	}
+
+	// ==========================================================================
+	// Action Unblock Suggestions Endpoints
+	// ==========================================================================
+
+	/**
+	 * Get AI-generated suggestions for unblocking a blocked action.
+	 * Rate limited to 5 requests per minute.
+	 */
+	async suggestUnblockPaths(actionId: string): Promise<UnblockPathsResponse> {
+		return this.post<UnblockPathsResponse>(`/api/v1/actions/${actionId}/suggest-unblock`, {});
+	}
+
+	/**
+	 * Escalate a blocked action to a meeting for AI-assisted resolution.
+	 * Creates a deliberation session with action context and optional suggestions.
+	 * Rate limited to 1 request per minute.
+	 */
+	async escalateBlocker(
+		actionId: string,
+		includeSuggestions: boolean = true
+	): Promise<{ session_id: string; redirect_url: string }> {
+		return this.post<{ session_id: string; redirect_url: string }>(
+			`/api/v1/actions/${actionId}/escalate-blocker`,
+			{ include_suggestions: includeSuggestions }
+		);
 	}
 
 	// ==========================================================================
@@ -1140,6 +1198,133 @@ export class ApiClient {
 
 	async refreshTrends(request?: TrendsRefreshRequest): Promise<TrendsRefreshResponse> {
 		return this.post<TrendsRefreshResponse>('/api/v1/context/trends/refresh', request);
+	}
+
+	// ==========================================================================
+	// Competitor Insight Endpoints (AI-powered analysis)
+	// ==========================================================================
+
+	/**
+	 * Generate or retrieve cached insight for a competitor.
+	 * @param name - Competitor name
+	 * @param refresh - Force regeneration instead of using cache
+	 */
+	async generateCompetitorInsight(
+		name: string,
+		refresh = false
+	): Promise<CompetitorInsightResponse> {
+		const encodedName = encodeURIComponent(name);
+		return this.post<CompetitorInsightResponse>(
+			`/api/v1/context/competitors/${encodedName}/insights${refresh ? '?refresh=true' : ''}`
+		);
+	}
+
+	/**
+	 * List all cached competitor insights (tier-gated).
+	 */
+	async listCompetitorInsights(): Promise<CompetitorInsightsListResponse> {
+		return this.fetch<CompetitorInsightsListResponse>('/api/v1/context/competitors/insights');
+	}
+
+	/**
+	 * Delete a cached competitor insight.
+	 * @param name - Competitor name
+	 */
+	async deleteCompetitorInsight(name: string): Promise<{ status: string }> {
+		const encodedName = encodeURIComponent(name);
+		return this.fetch<{ status: string }>(`/api/v1/context/competitors/${encodedName}/insights`, {
+			method: 'DELETE'
+		});
+	}
+
+	// ==========================================================================
+	// Managed Competitors Endpoints (User-submitted competitor list)
+	// ==========================================================================
+
+	/**
+	 * List user's managed competitors.
+	 */
+	async listManagedCompetitors(): Promise<ManagedCompetitorListResponse> {
+		return this.fetch<ManagedCompetitorListResponse>('/api/v1/context/managed-competitors');
+	}
+
+	/**
+	 * Add a new managed competitor.
+	 * @param request - Competitor details
+	 */
+	async addManagedCompetitor(request: ManagedCompetitorCreate): Promise<ManagedCompetitorResponse> {
+		return this.post<ManagedCompetitorResponse>('/api/v1/context/managed-competitors', request);
+	}
+
+	/**
+	 * Update a managed competitor's url and/or notes.
+	 * @param name - Competitor name
+	 * @param request - Updated fields
+	 */
+	async updateManagedCompetitor(
+		name: string,
+		request: ManagedCompetitorUpdate
+	): Promise<ManagedCompetitorResponse> {
+		const encodedName = encodeURIComponent(name);
+		return this.fetch<ManagedCompetitorResponse>(
+			`/api/v1/context/managed-competitors/${encodedName}`,
+			{
+				method: 'PATCH',
+				body: JSON.stringify(request)
+			}
+		);
+	}
+
+	/**
+	 * Remove a managed competitor.
+	 * @param name - Competitor name
+	 */
+	async removeManagedCompetitor(name: string): Promise<{ status: string }> {
+		const encodedName = encodeURIComponent(name);
+		return this.fetch<{ status: string }>(
+			`/api/v1/context/managed-competitors/${encodedName}`,
+			{
+				method: 'DELETE'
+			}
+		);
+	}
+
+	// ==========================================================================
+	// Trend Insight Endpoints
+	// ==========================================================================
+
+	/**
+	 * Analyze a trend URL and generate structured insights.
+	 * @param url - URL of the trend article to analyze
+	 * @param refresh - Force regeneration instead of using cache
+	 */
+	async analyzeTrendUrl(
+		url: string,
+		refresh = false
+	): Promise<TrendInsightResponse> {
+		return this.post<TrendInsightResponse>(
+			`/api/v1/context/trends/analyze${refresh ? '?refresh=true' : ''}`,
+			{ url }
+		);
+	}
+
+	/**
+	 * List all cached trend insights.
+	 */
+	async listTrendInsights(): Promise<TrendInsightsListResponse> {
+		return this.fetch<TrendInsightsListResponse>('/api/v1/context/trends/insights');
+	}
+
+	/**
+	 * Delete a cached trend insight.
+	 * @param url - URL of the trend to delete
+	 */
+	async deleteTrendInsight(url: string): Promise<{ status: string }> {
+		// Encode URL as base64 for path parameter
+		const urlHash = btoa(url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+		return this.fetch<{ status: string }>(`/api/v1/context/trends/insights/${urlHash}`, {
+			method: 'DELETE'
+		});
 	}
 
 	// ==========================================================================
@@ -2063,6 +2248,19 @@ export class ApiClient {
 	}
 
 	/**
+	 * Update a mentor conversation label
+	 */
+	async updateMentorConversationLabel(
+		conversationId: string,
+		label: string
+	): Promise<MentorConversationResponse> {
+		return this.patch<MentorConversationResponse>(
+			`/api/v1/mentor/conversations/${conversationId}`,
+			{ label }
+		);
+	}
+
+	/**
 	 * Get available mentor personas for manual selection
 	 */
 	async getMentorPersonas(): Promise<MentorPersonaListResponse> {
@@ -2070,15 +2268,19 @@ export class ApiClient {
 	}
 
 	/**
-	 * Search for mentionable entities (@meeting, @action, @dataset)
+	 * Search for mentionable entities (@meeting, @action, @dataset, @chat)
 	 * Used by autocomplete when user types @ in mentor chat
 	 */
 	async searchMentions(
-		type: 'meeting' | 'action' | 'dataset',
+		type: 'meeting' | 'action' | 'dataset' | 'chat',
 		query: string = '',
-		limit: number = 10
+		limit: number = 10,
+		conversationId?: string
 	): Promise<MentionSearchResponse> {
 		const params = new URLSearchParams({ type, q: query, limit: String(limit) });
+		if (conversationId) {
+			params.set('conversation_id', conversationId);
+		}
 		return this.fetch<MentionSearchResponse>(`/api/v1/mentor/mentions/search?${params}`);
 	}
 

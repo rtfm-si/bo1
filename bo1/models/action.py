@@ -137,6 +137,10 @@ class Action(BaseModel):
     # Soft delete (from b2 migration)
     deleted_at: datetime | None = Field(None, description="Soft delete timestamp (NULL = active)")
 
+    # Post-mortem fields (from z28 migration)
+    lessons_learned: str | None = Field(None, description="User reflection on lessons learned")
+    went_well: str | None = Field(None, description="User reflection on what went well")
+
     # Timestamps
     created_at: datetime = Field(..., description="Action creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
@@ -259,6 +263,9 @@ class Action(BaseModel):
             replanned_from_id=replanned_from_id,
             # Soft delete
             deleted_at=row.get("deleted_at"),
+            # Post-mortem
+            lessons_learned=row.get("lessons_learned"),
+            went_well=row.get("went_well"),
             # Timestamps
             created_at=row["created_at"],
             updated_at=row["updated_at"],

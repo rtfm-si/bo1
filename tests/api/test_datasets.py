@@ -197,11 +197,15 @@ class TestDatasetListResponse:
             total=50,
             limit=10,
             offset=0,
+            has_more=True,
+            next_offset=10,
         )
         assert len(response.datasets) == 2
         assert response.total == 50
         assert response.limit == 10
         assert response.offset == 0
+        assert response.has_more is True
+        assert response.next_offset == 10
 
     def test_list_response_empty(self):
         """Test DatasetListResponse with empty datasets."""
@@ -210,9 +214,13 @@ class TestDatasetListResponse:
             total=0,
             limit=50,
             offset=0,
+            has_more=False,
+            next_offset=None,
         )
         assert response.datasets == []
         assert response.total == 0
+        assert response.has_more is False
+        assert response.next_offset is None
 
 
 # =============================================================================

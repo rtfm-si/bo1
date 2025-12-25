@@ -41,17 +41,47 @@ class EmailPeriodCounts(BaseModel):
     month: int
 
 
+class EmailRates(BaseModel):
+    """Email engagement rates."""
+
+    open_rate: float
+    click_rate: float
+    failed_rate: float
+
+
+class EmailEventCounts(BaseModel):
+    """Email event counts for rate calculation."""
+
+    sent_count: int
+    delivered_count: int
+    opened_count: int
+    clicked_count: int
+    bounced_count: int
+    failed_count: int
+
+
 class EmailStatsResponse(BaseModel):
     """Email statistics response."""
 
     total: int
     by_type: dict[str, int]
     by_period: EmailPeriodCounts
+    # New fields for engagement metrics
+    rates: EmailRates
+    event_counts: EmailEventCounts
+    by_type_rates: dict[str, EmailRates]
 
 
 # ==============================================================================
 # Endpoints
 # ==============================================================================
+
+
+def _calculate_rate(numerator: int, denominator: int) -> float:
+    """Calculate rate, handling division by zero."""
+    if denominator == 0:
+        return 0.0
+    return round(numerator / denominator, 4)
 
 
 @router.get(
@@ -111,9 +141,79 @@ async def get_email_stats(
             )
             week_count = cur.fetchone()["count"]
 
+            # Event counts for rates (overall)
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as sent_count,
+                    COUNT(delivered_at) as delivered_count,
+                    COUNT(opened_at) as opened_count,
+                    COUNT(clicked_at) as clicked_count,
+                    COUNT(bounced_at) as bounced_count,
+                    COUNT(failed_at) as failed_count
+                FROM email_log
+                WHERE created_at >= %s AND status = 'sent'
+                """,
+                (month_ago,),
+            )
+            event_row = cur.fetchone()
+
+            # Event counts by email type for per-type rates
+            cur.execute(
+                """
+                SELECT
+                    email_type,
+                    COUNT(*) as sent_count,
+                    COUNT(delivered_at) as delivered_count,
+                    COUNT(opened_at) as opened_count,
+                    COUNT(clicked_at) as clicked_count,
+                    COUNT(bounced_at) as bounced_count,
+                    COUNT(failed_at) as failed_count
+                FROM email_log
+                WHERE created_at >= %s AND status = 'sent'
+                GROUP BY email_type
+                """,
+                (month_ago,),
+            )
+            type_event_rows = cur.fetchall()
+
     by_type = {row["email_type"]: row["count"] for row in type_rows}
     total = sum(by_type.values())
     month_count = total  # Already filtered by month_ago
+
+    # Calculate overall event counts
+    event_counts = EmailEventCounts(
+        sent_count=event_row["sent_count"],
+        delivered_count=event_row["delivered_count"],
+        opened_count=event_row["opened_count"],
+        clicked_count=event_row["clicked_count"],
+        bounced_count=event_row["bounced_count"],
+        failed_count=event_row["failed_count"],
+    )
+
+    # Calculate overall rates
+    # Use delivered_count as denominator if available, else sent_count
+    rate_denominator = event_counts.delivered_count or event_counts.sent_count
+    rates = EmailRates(
+        open_rate=_calculate_rate(event_counts.opened_count, rate_denominator),
+        click_rate=_calculate_rate(event_counts.clicked_count, rate_denominator),
+        failed_rate=_calculate_rate(
+            event_counts.bounced_count + event_counts.failed_count, event_counts.sent_count
+        ),
+    )
+
+    # Calculate per-type rates
+    by_type_rates: dict[str, EmailRates] = {}
+    for row in type_event_rows:
+        email_type = row["email_type"]
+        delivered = row["delivered_count"]
+        sent = row["sent_count"]
+        denom = delivered or sent
+        by_type_rates[email_type] = EmailRates(
+            open_rate=_calculate_rate(row["opened_count"], denom),
+            click_rate=_calculate_rate(row["clicked_count"], denom),
+            failed_rate=_calculate_rate(row["bounced_count"] + row["failed_count"], sent),
+        )
 
     return EmailStatsResponse(
         total=total,
@@ -123,4 +223,7 @@ async def get_email_stats(
             week=week_count,
             month=month_count,
         ),
+        rates=rates,
+        event_counts=event_counts,
+        by_type_rates=by_type_rates,
     )

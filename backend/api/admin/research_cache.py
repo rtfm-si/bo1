@@ -2,13 +2,14 @@
 
 Provides:
 - GET /api/admin/research-cache/stats - Get research cache statistics
+- GET /api/admin/research-cache/metrics - Get detailed cache metrics with threshold recommendation
 - DELETE /api/admin/research-cache/{cache_id} - Delete cached research result
 - GET /api/admin/research-cache/stale - Get stale research cache entries
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from backend.api.admin.models import ResearchCacheStats, StaleEntriesResponse
+from backend.api.admin.models import CacheMetricsResponse, ResearchCacheStats, StaleEntriesResponse
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
@@ -44,6 +45,35 @@ async def get_research_cache_stats(
     stats = cache_repository.get_stats()
     logger.info("Admin: Retrieved research cache statistics")
     return ResearchCacheStats(**stats)
+
+
+@router.get(
+    "/research-cache/metrics",
+    response_model=CacheMetricsResponse,
+    summary="Get detailed cache metrics with threshold recommendation",
+    description="Get multi-period hit rates, miss distribution, and similarity threshold recommendation.",
+    responses={
+        200: {"description": "Cache metrics retrieved successfully"},
+        401: {"description": "Admin API key required", "model": ErrorResponse},
+        403: {"description": "Invalid admin API key", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get research cache metrics")
+async def get_research_cache_metrics(
+    request: Request,
+    _admin: str = Depends(require_admin_any),
+) -> CacheMetricsResponse:
+    """Get detailed cache metrics including threshold recommendation."""
+    from backend.services.cache_threshold_analyzer import get_full_cache_metrics
+
+    metrics = get_full_cache_metrics()
+    logger.info(
+        f"Admin: Retrieved cache metrics - hit_rate_30d={metrics['hit_rate_30d']:.1f}%, "
+        f"recommended_threshold={metrics['recommended_threshold']}"
+    )
+    return CacheMetricsResponse(**metrics)
 
 
 @router.delete(

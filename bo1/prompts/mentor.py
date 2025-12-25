@@ -311,6 +311,7 @@ def build_mentor_prompt(
     datasets_context: str = "",
     conversation_history: str = "",
     mentioned_context: str = "",
+    postmortem_context: str = "",
     failure_context: str = "",
 ) -> str:
     """Build the full user prompt for the mentor.
@@ -323,6 +324,7 @@ def build_mentor_prompt(
         datasets_context: Formatted dataset summaries
         conversation_history: Formatted conversation history
         mentioned_context: Formatted @mention context (meetings, actions, datasets)
+        postmortem_context: Formatted post-mortem insights from completed actions
         failure_context: Formatted failure patterns for proactive mentoring
 
     Returns:
@@ -338,6 +340,9 @@ def build_mentor_prompt(
         parts.append(actions_context)
     if datasets_context:
         parts.append(datasets_context)
+    # Add post-mortem insights after actions context (wisdom from past work)
+    if postmortem_context:
+        parts.append(postmortem_context)
     # Add failure patterns before mentioned context (proactive mentoring context)
     if failure_context:
         parts.append(failure_context)
@@ -415,6 +420,20 @@ def format_mentioned_context(resolved: "ResolvedMentions") -> str:
             lines.append("    </dataset>")
         lines.append("  </referenced_datasets>")
 
+    # Format chats (prior mentor conversations)
+    if resolved.chats:
+        lines.append("  <referenced_chats>")
+        for c in resolved.chats:
+            label = c.label or "Unnamed conversation"
+            lines.append(
+                f'    <chat id="{c.id}" persona="{c.persona}" date="{c.created_at or "unknown"}">'
+            )
+            lines.append(f"      <label>{label}</label>")
+            if c.message_preview:
+                lines.append(f"      <recent_exchanges>{c.message_preview}</recent_exchanges>")
+            lines.append("    </chat>")
+        lines.append("  </referenced_chats>")
+
     # Note if some mentions couldn't be resolved
     if resolved.not_found:
         lines.append(f"  <not_found>{', '.join(resolved.not_found)}</not_found>")
@@ -426,6 +445,42 @@ def format_mentioned_context(resolved: "ResolvedMentions") -> str:
 # =============================================================================
 # Failure Patterns Formatter
 # =============================================================================
+
+
+def format_postmortem_insights(insights: list[dict[str, Any]]) -> str:
+    """Format post-mortem insights from completed actions.
+
+    Args:
+        insights: List of action dicts with id, title, lessons_learned, went_well, actual_end_date
+
+    Returns:
+        Formatted XML string for prompt injection, or empty string if no insights
+    """
+    if not insights:
+        return ""
+
+    lines = [
+        "<postmortem_insights>",
+        "Lessons from the user's completed actions:",
+    ]
+
+    for insight in insights:
+        title = insight.get("title", "Untitled")
+        completed = insight.get("actual_end_date")
+        completed_str = str(completed)[:10] if completed else "unknown"
+        went_well = insight.get("went_well", "")
+        lessons = insight.get("lessons_learned", "")
+
+        lines.append(f'  <insight title="{title}" completed="{completed_str}">')
+        if went_well:
+            # Truncate to 500 chars
+            lines.append(f"    <went_well>{went_well[:500]}</went_well>")
+        if lessons:
+            lines.append(f"    <lessons>{lessons[:500]}</lessons>")
+        lines.append("  </insight>")
+
+    lines.append("</postmortem_insights>")
+    return "\n".join(lines)
 
 
 def format_failure_patterns(

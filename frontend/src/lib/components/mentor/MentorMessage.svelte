@@ -129,7 +129,11 @@
 				<MarkdownContent content={message.content} />
 			</div>
 			{#if isStreaming}
-				<span class="inline-block w-2 h-4 bg-brand-500 animate-pulse ml-1"></span>
+				<span class="inline-flex ml-1 text-brand-500">
+					<span class="animate-typing-dot" style="animation-delay: 0s;">.</span>
+					<span class="animate-typing-dot" style="animation-delay: 0.15s;">.</span>
+					<span class="animate-typing-dot" style="animation-delay: 0.3s;">.</span>
+				</span>
 			{/if}
 		{/if}
 	</div>

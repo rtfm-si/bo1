@@ -187,6 +187,12 @@ class UserRepository(BaseRepository):
         "benchmark_timestamps",
         # Benchmark historical values (max 6 per metric)
         "benchmark_history",
+        # Competitor insight cards (AI-generated)
+        "competitor_insights",
+        # User-managed competitor list
+        "managed_competitors",
+        # Trend insights (AI-generated from URLs)
+        "trend_insights",
     ]
 
     @classmethod
@@ -334,6 +340,9 @@ class UserRepository(BaseRepository):
             "pending_updates",
             "benchmark_timestamps",
             "benchmark_history",
+            "competitor_insights",
+            "managed_competitors",
+            "trend_insights",
         }
 
         values = []
@@ -1082,6 +1091,142 @@ class UserRepository(BaseRepository):
         except Exception as e:
             logger.error(f"Failed to update cost calculator defaults for user {user_id}: {e}")
             return defaults
+
+    # =========================================================================
+    # Managed Competitors (user-submitted competitor list)
+    # =========================================================================
+
+    def get_managed_competitors(self, user_id: str) -> list[dict[str, Any]]:
+        """Get user's managed competitors list.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            List of competitor dicts with name, url, notes, added_at
+        """
+        context = self.get_context(user_id)
+        if not context:
+            return []
+        competitors = context.get("managed_competitors", [])
+        return competitors if isinstance(competitors, list) else []
+
+    def add_managed_competitor(
+        self,
+        user_id: str,
+        name: str,
+        url: str | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Add a new managed competitor (case-insensitive dedup by name).
+
+        Args:
+            user_id: User identifier
+            name: Competitor company name
+            url: Optional competitor website URL
+            notes: Optional notes about the competitor
+
+        Returns:
+            The added competitor dict, or None if duplicate exists
+        """
+        from datetime import UTC, datetime
+
+        context = self.get_context(user_id) or {}
+        competitors = context.get("managed_competitors", [])
+        if not isinstance(competitors, list):
+            competitors = []
+
+        # Case-insensitive duplicate check
+        name_lower = name.lower().strip()
+        for c in competitors:
+            if c.get("name", "").lower().strip() == name_lower:
+                logger.debug(f"Competitor '{name}' already exists for user {user_id}")
+                return None
+
+        # Create new competitor entry
+        new_competitor = {
+            "name": name.strip(),
+            "url": url.strip() if url else None,
+            "notes": notes.strip() if notes else None,
+            "added_at": datetime.now(UTC).isoformat(),
+        }
+
+        competitors.append(new_competitor)
+        context["managed_competitors"] = competitors
+        self.save_context(user_id, context)
+
+        logger.info(f"Added managed competitor '{name}' for user {user_id}")
+        return new_competitor
+
+    def update_managed_competitor(
+        self,
+        user_id: str,
+        name: str,
+        url: str | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Update a managed competitor's url and/or notes.
+
+        Args:
+            user_id: User identifier
+            name: Competitor name to update (case-insensitive match)
+            url: New URL (None to leave unchanged)
+            notes: New notes (None to leave unchanged)
+
+        Returns:
+            Updated competitor dict, or None if not found
+        """
+        context = self.get_context(user_id)
+        if not context:
+            return None
+
+        competitors = context.get("managed_competitors", [])
+        if not isinstance(competitors, list):
+            return None
+
+        name_lower = name.lower().strip()
+        for c in competitors:
+            if c.get("name", "").lower().strip() == name_lower:
+                if url is not None:
+                    c["url"] = url.strip() if url else None
+                if notes is not None:
+                    c["notes"] = notes.strip() if notes else None
+                context["managed_competitors"] = competitors
+                self.save_context(user_id, context)
+                logger.info(f"Updated managed competitor '{name}' for user {user_id}")
+                return dict(c)  # Ensure proper dict type
+
+        return None
+
+    def remove_managed_competitor(self, user_id: str, name: str) -> bool:
+        """Remove a managed competitor by name.
+
+        Args:
+            user_id: User identifier
+            name: Competitor name to remove (case-insensitive match)
+
+        Returns:
+            True if removed, False if not found
+        """
+        context = self.get_context(user_id)
+        if not context:
+            return False
+
+        competitors = context.get("managed_competitors", [])
+        if not isinstance(competitors, list):
+            return False
+
+        name_lower = name.lower().strip()
+        original_len = len(competitors)
+        competitors = [c for c in competitors if c.get("name", "").lower().strip() != name_lower]
+
+        if len(competitors) == original_len:
+            return False
+
+        context["managed_competitors"] = competitors
+        self.save_context(user_id, context)
+        logger.info(f"Removed managed competitor '{name}' for user {user_id}")
+        return True
 
 
 # Validate SQL identifiers at module load time (defense-in-depth)

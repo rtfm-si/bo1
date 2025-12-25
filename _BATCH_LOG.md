@@ -1,22 +1,22 @@
 === Starting batch run: 20 iterations ===
-2025-12-23 17:04:17: ✓ [OBS][P2] Add event stream metrics
-2025-12-23 17:10:57: ✓ [OBS][P2] Add graph_node_errors_total and api_endpoint_errors_total counters
-2025-12-23 17:19:54: ✓ [OBS][P2] Health Check History Storage
-2025-12-23 17:28:10: ✓ [OBS][P2] Send cost anomaly alerts to ntfy topic
-2025-12-23 17:46:33: ✓ [DATA][P3] Add CHECK Constraints to Enum Columns
-2025-12-23 17:56:18: ✓ [REL][P2] Track SSE Reconnect Attempts + Retry-After Header
-2025-12-23 17:59:25: ✓ [API][P2] Document ExpertEventBuffer Merging Behavior
-2025-12-23 18:05:47: ✓ Add 40P01 Deadlock Error to Retryable Exceptions
-2025-12-23 18:17:03: ✓ [DATA][P3] Add COMMENT ON TABLE/COLUMN for all tables
-2025-12-23 18:24:38: ✓ [API][P2] Add sessionAuth security scheme to OpenAPI spec components
-2025-12-23 18:52:40: ✓ [API][P2] Add rate limit info to OpenAPI responses (429)
-2025-12-23 19:08:53: ✓ [API][P2] Add Field(max_length=) to text request fields
-2025-12-23 19:15:34: ✓ [API][P2] Update OpenAPI error examples to include error_code field
-2025-12-23 19:24:32: ✓ [REL][P2] Set statement_timeout in db_session() for batch operations
-2025-12-23 19:37:18: ✓ [REL][P2] Chaos test Redis down SSE uses Postgres events
-2025-12-23 19:46:42: ✓ Consolidate frontend types to single source of truth
-2025-12-23 19:56:44: ✓ ClamAV Scanner for User-Uploaded Files
-2025-12-23 20:05:11: ✓ Fix Landing Page Chunk Loading Errors
-2025-12-23 20:15:51: ✓ Fix Frontend Type Errors from Generated Types Migration
-2025-12-23 20:28:57: ✓ [FEAT][P2] Decision Delivery Templates
+2025-12-25 23:54:16: ✓ Fix Admin Rate Limiting & 502 Errors
+2025-12-25 23:57:05: ✓ Audit Research Call Sites (Brave/Tavily vs LLM Providers)
+2025-12-26 00:01:09: ✓ Verify Admin Impersonation Feature
+2025-12-26 00:08:20: ✓ [RESEARCH][P2] Tier Research Providers
+2025-12-26 00:16:21: ✓ [FEAT][P2] Action Update LLM Summarizer
+2025-12-26 00:27:33: ✓ [ADMIN][P2] Extended KPIs - Add Meeting Tracking
+2025-12-26 00:42:30: ✓ Market Trends Summary Display
+2025-12-26 00:51:47: ✓ Auto-detect Competitors from Business Context
+2025-12-26 00:56:08: ✓ Add deleted count to ActionStats [ADMIN][P2]
+2025-12-26 01:08:37: ✓ North Star Goal Tracking
+2025-12-26 01:13:33: ✓ [ADMIN][P2] Add deleted count to ProjectStats
+2025-12-26 01:22:32: ✓ Admin Dashboard Drill-Down Views
+2025-12-26 01:38:25: ✓ Email Activity Metrics (Admin Dashboard)
+2025-12-26 01:51:06: ✓ Track Brave and Tavily API Costs in Admin Dashboard
+2025-12-26 01:59:13: ✓ Feed Action Post-Mortems into Mentor
+2025-12-26 02:12:00: ✓ [COST][P3] Monitor Cache Hit Rate and Adjust Similarity Threshold
+2025-12-26 02:22:48: ✓ [FEAT][P3] Blocker Buster - Escalate Blocked Actions to Meeting
+2025-12-26 02:25:40: ✓ Remove verbose facilitator.py examples [COST][P3]
+2025-12-26 02:40:35: ✓ Market Trends Forecast Views with Tier-Gating
+2025-12-26 02:48:37: ✓ Embeddings Graph Improvements - Category Filtering & Clustering
 === Batch complete: 20 completed, 0 deferred ===

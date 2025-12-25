@@ -1,16 +1,25 @@
-"""Redis-backed conversation repository for mentor chat.
+"""Mentor conversation repository with PostgreSQL + Redis cache.
 
-Stores multi-turn mentor conversation state with 24-hour TTL.
-Similar to ConversationRepository but for mentor (not dataset-scoped).
+PostgreSQL is the source of truth for durable storage.
+Redis caches hot conversations with 24-hour TTL for fast reads.
+
+Architecture:
+- create(): Write to PostgreSQL first, then cache in Redis
+- get(): Check Redis first; on miss, load from PostgreSQL and populate cache
+- append_message(): Write to PostgreSQL, update Redis cache
+- list_by_user(): Read from PostgreSQL (not cached, always fresh)
+- delete(): Delete from PostgreSQL, remove from Redis
 """
 
 import json
 import logging
-import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from bo1.state.redis_manager import RedisManager
+
+if TYPE_CHECKING:
+    from backend.services.mentor_conversation_pg_repo import MentorConversationPgRepository
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +32,31 @@ CONVERSATION_TTL = 86400  # 24 hours
 
 
 class MentorConversationRepository:
-    """Redis-backed storage for mentor chat conversations."""
+    """PostgreSQL + Redis cache storage for mentor chat conversations."""
 
-    def __init__(self, redis_manager: RedisManager | None = None) -> None:
+    def __init__(
+        self,
+        redis_manager: RedisManager | None = None,
+        pg_repo: "MentorConversationPgRepository | None" = None,
+    ) -> None:
         """Initialize repository.
 
         Args:
             redis_manager: Optional Redis manager instance
+            pg_repo: Optional PostgreSQL repository (for dependency injection in tests)
         """
         self._redis = redis_manager or RedisManager()
+        self._pg_repo = pg_repo
+
+    def _get_pg_repo(self) -> "MentorConversationPgRepository":
+        """Get or create PostgreSQL repository (lazy init)."""
+        if self._pg_repo is None:
+            from backend.services.mentor_conversation_pg_repo import (
+                get_mentor_conversation_pg_repo,
+            )
+
+            self._pg_repo = get_mentor_conversation_pg_repo()
+        return self._pg_repo
 
     def _conv_key(self, conversation_id: str) -> str:
         """Generate Redis key for conversation."""
@@ -48,38 +73,36 @@ class MentorConversationRepository:
     ) -> dict[str, Any]:
         """Create a new mentor conversation.
 
+        Writes to PostgreSQL first (source of truth), then caches in Redis.
+
         Args:
-            user_id: User UUID
+            user_id: User ID (string)
             persona: Initial persona (general, action_coach, data_analyst)
 
         Returns:
             Conversation dict with id, user_id, persona, created_at, messages
         """
-        conversation_id = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
+        # Write to PostgreSQL first
+        pg_repo = self._get_pg_repo()
+        conversation = pg_repo.create(user_id, persona)
+        conversation_id = conversation["id"]
 
-        conversation = {
-            "id": conversation_id,
-            "user_id": user_id,
-            "persona": persona,
-            "created_at": now,
-            "updated_at": now,
-            "messages": [],
-            "context_sources": [],  # Track which context was used
-        }
+        # Cache in Redis
+        try:
+            key = self._conv_key(conversation_id)
+            self._redis.client.setex(
+                key,
+                CONVERSATION_TTL,
+                json.dumps(conversation),
+            )
 
-        # Store conversation
-        key = self._conv_key(conversation_id)
-        self._redis.client.setex(
-            key,
-            CONVERSATION_TTL,
-            json.dumps(conversation),
-        )
-
-        # Add to user's conversation index
-        index_key = self._index_key(user_id)
-        self._redis.client.zadd(index_key, {conversation_id: datetime.now(UTC).timestamp()})
-        self._redis.client.expire(index_key, CONVERSATION_TTL)
+            # Add to user's conversation index
+            index_key = self._index_key(user_id)
+            self._redis.client.zadd(index_key, {conversation_id: datetime.now(UTC).timestamp()})
+            self._redis.client.expire(index_key, CONVERSATION_TTL)
+        except Exception as e:
+            # Redis cache failure is non-fatal - PostgreSQL is source of truth
+            logger.warning(f"Failed to cache conversation {conversation_id} in Redis: {e}")
 
         logger.info(f"Created mentor conversation {conversation_id} for user {user_id}")
         return conversation
@@ -91,28 +114,49 @@ class MentorConversationRepository:
     ) -> dict[str, Any] | None:
         """Get a conversation by ID.
 
+        Checks Redis cache first; on miss, loads from PostgreSQL and populates cache.
+
         Args:
             conversation_id: Conversation UUID
-            user_id: Optional user ID for ownership check
+            user_id: User ID for ownership check and RLS context
 
         Returns:
             Conversation dict or None if not found
         """
-        key = self._conv_key(conversation_id)
-        data = self._redis.client.get(key)
+        # Try Redis cache first
+        try:
+            key = self._conv_key(conversation_id)
+            data = self._redis.client.get(key)
 
-        if not data:
-            return None
+            if data:
+                conversation = json.loads(data)
+                # Verify ownership if user_id provided
+                if user_id and conversation.get("user_id") != user_id:
+                    logger.warning(
+                        f"User {user_id} attempted to access mentor conversation "
+                        f"{conversation_id} owned by {conversation.get('user_id')}"
+                    )
+                    return None
+                return conversation
+        except Exception as e:
+            logger.warning(f"Redis cache lookup failed for {conversation_id}: {e}")
 
-        conversation = json.loads(data)
+        # Cache miss or Redis failure - load from PostgreSQL
+        pg_repo = self._get_pg_repo()
+        conversation = pg_repo.get(conversation_id, user_id)
 
-        # Verify ownership if user_id provided
-        if user_id and conversation.get("user_id") != user_id:
-            logger.warning(
-                f"User {user_id} attempted to access mentor conversation {conversation_id} "
-                f"owned by {conversation.get('user_id')}"
-            )
-            return None
+        if conversation:
+            # Populate Redis cache
+            try:
+                key = self._conv_key(conversation_id)
+                self._redis.client.setex(
+                    key,
+                    CONVERSATION_TTL,
+                    json.dumps(conversation),
+                )
+                logger.debug(f"Cached conversation {conversation_id} from PostgreSQL")
+            except Exception as e:
+                logger.warning(f"Failed to cache conversation {conversation_id}: {e}")
 
         return conversation
 
@@ -126,6 +170,8 @@ class MentorConversationRepository:
     ) -> dict[str, Any] | None:
         """Append a message to a mentor conversation.
 
+        Writes to PostgreSQL first (source of truth), then updates Redis cache.
+
         Args:
             conversation_id: Conversation UUID
             role: Message role (user or assistant)
@@ -136,47 +182,44 @@ class MentorConversationRepository:
         Returns:
             Updated conversation dict or None if not found
         """
-        conversation = self.get(conversation_id)
+        # Get user_id from existing conversation for RLS
+        existing = self.get(conversation_id)
+        if not existing:
+            return None
+        user_id = existing.get("user_id")
+
+        # Write to PostgreSQL
+        pg_repo = self._get_pg_repo()
+        conversation = pg_repo.append_message(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            persona=persona,
+            context_sources=context_sources,
+            user_id=user_id,
+        )
+
         if not conversation:
             return None
 
-        now = datetime.now(UTC).isoformat()
-        message: dict[str, Any] = {
-            "role": role,
-            "content": content,
-            "timestamp": now,
-        }
-
-        if persona:
-            message["persona"] = persona
-
-        conversation["messages"].append(message)
-        conversation["updated_at"] = now
-
-        # Update persona if changed
-        if persona:
-            conversation["persona"] = persona
-
-        # Update context sources
-        if context_sources:
-            conversation["context_sources"] = list(
-                set(conversation.get("context_sources", []) + context_sources)
+        # Update Redis cache
+        try:
+            key = self._conv_key(conversation_id)
+            self._redis.client.setex(
+                key,
+                CONVERSATION_TTL,
+                json.dumps(conversation),
             )
 
-        # Update in Redis with TTL refresh
-        key = self._conv_key(conversation_id)
-        self._redis.client.setex(
-            key,
-            CONVERSATION_TTL,
-            json.dumps(conversation),
-        )
-
-        # Update index timestamp
-        index_key = self._index_key(conversation["user_id"])
-        self._redis.client.zadd(
-            index_key,
-            {conversation_id: datetime.now(UTC).timestamp()},
-        )
+            # Update index timestamp
+            index_key = self._index_key(conversation["user_id"])
+            self._redis.client.zadd(
+                index_key,
+                {conversation_id: datetime.now(UTC).timestamp()},
+            )
+        except Exception as e:
+            # Redis cache failure is non-fatal
+            logger.warning(f"Failed to update cache for conversation {conversation_id}: {e}")
 
         return conversation
 
@@ -184,40 +227,60 @@ class MentorConversationRepository:
         self,
         user_id: str,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """List recent mentor conversations for a user.
 
+        Reads from PostgreSQL (not cached, always fresh).
+
         Args:
-            user_id: User UUID
+            user_id: User ID
             limit: Maximum conversations to return
+            offset: Offset for pagination
 
         Returns:
             List of conversation dicts (without full messages)
         """
-        index_key = self._index_key(user_id)
+        pg_repo = self._get_pg_repo()
+        conversations, _total = pg_repo.list_by_user(user_id, limit, offset)
+        return conversations
 
-        # Get conversation IDs sorted by recency
-        conv_ids = self._redis.client.zrevrange(index_key, 0, limit - 1)
+    def update_label(
+        self,
+        conversation_id: str,
+        user_id: str,
+        label: str,
+    ) -> bool:
+        """Update conversation label.
 
-        conversations = []
-        for conv_id in conv_ids:
-            conv_id_str = conv_id.decode("utf-8") if isinstance(conv_id, bytes) else conv_id
-            conv = self.get(conv_id_str, user_id)
-            if conv:
-                # Return summary without full messages
-                conversations.append(
-                    {
-                        "id": conv["id"],
-                        "user_id": conv["user_id"],
-                        "persona": conv.get("persona", "general"),
-                        "created_at": conv["created_at"],
-                        "updated_at": conv["updated_at"],
-                        "message_count": len(conv.get("messages", [])),
-                        "context_sources": conv.get("context_sources", []),
-                    }
+        Writes to PostgreSQL first (source of truth), then invalidates Redis cache.
+
+        Args:
+            conversation_id: Conversation UUID
+            user_id: User ID for ownership check
+            label: New label (1-100 chars)
+
+        Returns:
+            True if updated, False if not found
+        """
+        # Write to PostgreSQL
+        pg_repo = self._get_pg_repo()
+        updated = pg_repo.update_label(conversation_id, label, user_id)
+
+        if updated:
+            # Invalidate Redis cache (next get() will repopulate from PostgreSQL)
+            try:
+                key = self._conv_key(conversation_id)
+                self._redis.client.delete(key)
+            except Exception as e:
+                # Redis cache failure is non-fatal
+                logger.warning(
+                    f"Failed to invalidate cache for conversation {conversation_id}: {e}"
                 )
 
-        return conversations
+            logger.info(f"Updated label for mentor conversation {conversation_id}")
+
+        return updated
 
     def delete(
         self,
@@ -226,51 +289,64 @@ class MentorConversationRepository:
     ) -> bool:
         """Delete a mentor conversation.
 
+        Deletes from PostgreSQL first (source of truth), then removes from Redis.
+
         Args:
             conversation_id: Conversation UUID
-            user_id: User UUID for ownership check
+            user_id: User ID for ownership check
 
         Returns:
             True if deleted, False if not found
         """
-        conversation = self.get(conversation_id, user_id)
-        if not conversation:
-            return False
+        # Delete from PostgreSQL
+        pg_repo = self._get_pg_repo()
+        deleted = pg_repo.delete(conversation_id, user_id)
 
-        # Remove from index
-        index_key = self._index_key(user_id)
-        self._redis.client.zrem(index_key, conversation_id)
+        if deleted:
+            # Remove from Redis cache
+            try:
+                index_key = self._index_key(user_id)
+                self._redis.client.zrem(index_key, conversation_id)
 
-        # Delete conversation
-        key = self._conv_key(conversation_id)
-        self._redis.client.delete(key)
+                key = self._conv_key(conversation_id)
+                self._redis.client.delete(key)
+            except Exception as e:
+                # Redis failure is non-fatal
+                logger.warning(f"Failed to remove conversation {conversation_id} from cache: {e}")
 
-        logger.info(f"Deleted mentor conversation {conversation_id}")
-        return True
+            logger.info(f"Deleted mentor conversation {conversation_id}")
+
+        return deleted
 
     def delete_all_for_user(self, user_id: str) -> int:
         """Delete all mentor conversations for a user (for GDPR deletion).
 
+        Deletes from PostgreSQL first, then clears Redis cache.
+
         Args:
-            user_id: User UUID
+            user_id: User ID
 
         Returns:
             Number of conversations deleted
         """
-        index_key = self._index_key(user_id)
+        # Delete from PostgreSQL
+        pg_repo = self._get_pg_repo()
+        deleted = pg_repo.delete_all_for_user(user_id)
 
-        # Get all conversation IDs
-        conv_ids = self._redis.client.zrange(index_key, 0, -1)
+        # Clear Redis cache
+        try:
+            index_key = self._index_key(user_id)
+            conv_ids = self._redis.client.zrange(index_key, 0, -1)
 
-        deleted = 0
-        for conv_id in conv_ids:
-            conv_id_str = conv_id.decode("utf-8") if isinstance(conv_id, bytes) else conv_id
-            key = self._conv_key(conv_id_str)
-            if self._redis.client.delete(key):
-                deleted += 1
+            for conv_id in conv_ids:
+                conv_id_str = conv_id.decode("utf-8") if isinstance(conv_id, bytes) else conv_id
+                key = self._conv_key(conv_id_str)
+                self._redis.client.delete(key)
 
-        # Delete the index
-        self._redis.client.delete(index_key)
+            self._redis.client.delete(index_key)
+        except Exception as e:
+            # Redis failure is non-fatal
+            logger.warning(f"Failed to clear conversation cache for user {user_id}: {e}")
 
         logger.info(f"Deleted {deleted} mentor conversations for user {user_id}")
         return deleted

@@ -663,7 +663,7 @@ class TestAdminEndpointRateLimits:
         general_limit = int(RateLimits.GENERAL.split("/")[0])
 
         assert admin_limit > general_limit
-        assert admin_limit == 300  # 300/minute for admin
+        assert admin_limit == 600  # 600/minute for admin (doubled for dashboard page loads)
         assert general_limit == 60  # 60/minute for general
 
 
@@ -822,7 +822,7 @@ class TestRateLimitConstants:
         assert RateLimits.UPLOAD == "10/hour"
         assert RateLimits.GENERAL == "60/minute"
         assert RateLimits.CONTROL == "20/minute"
-        assert RateLimits.ADMIN == "300/minute"
+        assert RateLimits.ADMIN == "600/minute"
 
     def test_rate_limit_format_valid(self):
         """Rate limit format should be parseable (N/unit)."""

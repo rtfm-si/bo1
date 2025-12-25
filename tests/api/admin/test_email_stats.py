@@ -49,15 +49,57 @@ class TestEmailStatsEndpoint:
             mock_db_session.return_value.__enter__ = MagicMock(return_value=mock_conn)
             mock_db_session.return_value.__exit__ = MagicMock(return_value=None)
 
-            # Mock query results
-            mock_cursor.fetchall.return_value = [
-                {"email_type": "welcome", "count": 50},
-                {"email_type": "meeting_completed", "count": 30},
-                {"email_type": "action_reminder", "count": 20},
+            # Mock query results - now includes event counts
+            mock_cursor.fetchall.side_effect = [
+                # by_type counts
+                [
+                    {"email_type": "welcome", "count": 50},
+                    {"email_type": "meeting_completed", "count": 30},
+                    {"email_type": "action_reminder", "count": 20},
+                ],
+                # by_type event counts
+                [
+                    {
+                        "email_type": "welcome",
+                        "sent_count": 50,
+                        "delivered_count": 48,
+                        "opened_count": 24,
+                        "clicked_count": 10,
+                        "bounced_count": 1,
+                        "failed_count": 1,
+                    },
+                    {
+                        "email_type": "meeting_completed",
+                        "sent_count": 30,
+                        "delivered_count": 30,
+                        "opened_count": 20,
+                        "clicked_count": 5,
+                        "bounced_count": 0,
+                        "failed_count": 0,
+                    },
+                    {
+                        "email_type": "action_reminder",
+                        "sent_count": 20,
+                        "delivered_count": 18,
+                        "opened_count": 6,
+                        "clicked_count": 2,
+                        "bounced_count": 1,
+                        "failed_count": 1,
+                    },
+                ],
             ]
             mock_cursor.fetchone.side_effect = [
                 {"count": 5},  # today
                 {"count": 35},  # week
+                # Overall event counts
+                {
+                    "sent_count": 100,
+                    "delivered_count": 96,
+                    "opened_count": 50,
+                    "clicked_count": 17,
+                    "bounced_count": 2,
+                    "failed_count": 2,
+                },
             ]
 
             response = client.get("/api/admin/email-stats", headers=admin_headers)
@@ -78,6 +120,24 @@ class TestEmailStatsEndpoint:
             assert data["by_period"]["week"] == 35
             assert data["by_period"]["month"] == 100
 
+            # Verify event counts (new)
+            assert data["event_counts"]["sent_count"] == 100
+            assert data["event_counts"]["delivered_count"] == 96
+            assert data["event_counts"]["opened_count"] == 50
+            assert data["event_counts"]["clicked_count"] == 17
+            assert data["event_counts"]["bounced_count"] == 2
+            assert data["event_counts"]["failed_count"] == 2
+
+            # Verify rates (new)
+            assert "rates" in data
+            assert data["rates"]["open_rate"] == pytest.approx(50 / 96, rel=0.01)
+            assert data["rates"]["click_rate"] == pytest.approx(17 / 96, rel=0.01)
+            assert data["rates"]["failed_rate"] == pytest.approx(4 / 100, rel=0.01)
+
+            # Verify by_type_rates (new)
+            assert "by_type_rates" in data
+            assert "welcome" in data["by_type_rates"]
+
     def test_handles_empty_data(self, client: TestClient, admin_headers: dict):
         """Should handle empty email log gracefully."""
         with (
@@ -95,10 +155,18 @@ class TestEmailStatsEndpoint:
             mock_db_session.return_value.__exit__ = MagicMock(return_value=None)
 
             # Empty results
-            mock_cursor.fetchall.return_value = []
+            mock_cursor.fetchall.side_effect = [[], []]  # type counts, type event counts
             mock_cursor.fetchone.side_effect = [
-                {"count": 0},
-                {"count": 0},
+                {"count": 0},  # today
+                {"count": 0},  # week
+                {  # overall event counts
+                    "sent_count": 0,
+                    "delivered_count": 0,
+                    "opened_count": 0,
+                    "clicked_count": 0,
+                    "bounced_count": 0,
+                    "failed_count": 0,
+                },
             ]
 
             response = client.get("/api/admin/email-stats", headers=admin_headers)
@@ -110,6 +178,11 @@ class TestEmailStatsEndpoint:
             assert data["by_period"]["today"] == 0
             assert data["by_period"]["week"] == 0
             assert data["by_period"]["month"] == 0
+            # Verify rates are 0.0 when no data (division by zero handling)
+            assert data["rates"]["open_rate"] == 0.0
+            assert data["rates"]["click_rate"] == 0.0
+            assert data["rates"]["failed_rate"] == 0.0
+            assert data["by_type_rates"] == {}
 
     def test_accepts_days_parameter(self, client: TestClient, admin_headers: dict):
         """Should accept custom days parameter."""
@@ -127,11 +200,50 @@ class TestEmailStatsEndpoint:
             mock_db_session.return_value.__enter__ = MagicMock(return_value=mock_conn)
             mock_db_session.return_value.__exit__ = MagicMock(return_value=None)
 
-            mock_cursor.fetchall.return_value = []
-            mock_cursor.fetchone.side_effect = [{"count": 0}, {"count": 0}]
+            mock_cursor.fetchall.side_effect = [[], []]  # type counts, type event counts
+            mock_cursor.fetchone.side_effect = [
+                {"count": 0},
+                {"count": 0},
+                {
+                    "sent_count": 0,
+                    "delivered_count": 0,
+                    "opened_count": 0,
+                    "clicked_count": 0,
+                    "bounced_count": 0,
+                    "failed_count": 0,
+                },
+            ]
 
             response = client.get("/api/admin/email-stats?days=7", headers=admin_headers)
             assert response.status_code == 200
+
+
+class TestRateCalculation:
+    """Tests for rate calculation helper."""
+
+    def test_calculate_rate_normal(self):
+        """Test rate calculation with normal values."""
+        from backend.api.admin.email_stats import _calculate_rate
+
+        # 50% open rate
+        assert _calculate_rate(50, 100) == 0.5
+        # 25% click rate
+        assert _calculate_rate(25, 100) == 0.25
+
+    def test_calculate_rate_division_by_zero(self):
+        """Test rate calculation handles division by zero."""
+        from backend.api.admin.email_stats import _calculate_rate
+
+        assert _calculate_rate(50, 0) == 0.0
+        assert _calculate_rate(0, 0) == 0.0
+
+    def test_calculate_rate_rounding(self):
+        """Test rate calculation rounds to 4 decimal places."""
+        from backend.api.admin.email_stats import _calculate_rate
+
+        # 33.33...% should round to 0.3333
+        result = _calculate_rate(1, 3)
+        assert result == 0.3333
 
 
 class TestEmailTypeExtraction:

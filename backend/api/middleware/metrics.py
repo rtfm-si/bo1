@@ -455,6 +455,13 @@ bo1_db_statement_timeout_total = Counter(
     "Total database queries cancelled due to statement_timeout (SQLSTATE 57014)",
 )
 
+# Model tier selection metrics (A/B test)
+bo1_model_tier_selected_total = Counter(
+    "bo1_model_tier_selected_total",
+    "Total model tier selections for A/B test analysis",
+    ["tier", "round", "ab_group"],  # tier: fast/core, round: 1-6, ab_group: test/control/none
+)
+
 # File scan metrics (ClamAV antivirus)
 bo1_file_scan_total = Counter(
     "bo1_file_scan_total",
@@ -975,6 +982,19 @@ def record_sse_reconnect(session_id: str, gap_seconds: float | None = None) -> N
     bo1_sse_reconnect_total.labels(session_id=truncate_label(session_id)).inc()
     if gap_seconds is not None and gap_seconds > 0:
         bo1_sse_reconnect_gap_seconds.observe(gap_seconds)
+
+
+def record_model_tier_selected(tier: str, round_number: int, ab_group: str) -> None:
+    """Record model tier selection for A/B test analysis.
+
+    Args:
+        tier: Model tier selected ("fast" or "core")
+        round_number: Current round number (1-6)
+        ab_group: A/B test group ("test", "control", or "none")
+    """
+    bo1_model_tier_selected_total.labels(
+        tier=tier, round=str(round_number), ab_group=ab_group
+    ).inc()
 
 
 def increment_sse_active_connections() -> None:

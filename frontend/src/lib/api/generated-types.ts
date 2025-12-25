@@ -657,6 +657,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/drilldown/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cost records with time filter
+         * @description Get paginated list of cost records within the specified time period.
+         */
+        get: operations["get_costs_drilldown_api_admin_drilldown_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List users with time filter
+         * @description Get paginated list of users registered within the specified time period.
+         */
+        get: operations["get_users_drilldown_api_admin_drilldown_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List waitlist entries with time filter
+         * @description Get paginated list of waitlist entries added within the specified time period.
+         */
+        get: operations["get_waitlist_drilldown_api_admin_drilldown_waitlist_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/whitelist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List whitelist entries with time filter
+         * @description Get paginated list of whitelist entries added within the specified time period.
+         */
+        get: operations["get_whitelist_drilldown_api_admin_drilldown_whitelist_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/email-stats": {
         parameters: {
             query?: never;
@@ -3078,6 +3158,26 @@ export interface paths {
         patch: operations["update_action_status_api_v1_actions__action_id__status_patch"];
         trace?: never;
     };
+    "/api/v1/actions/{action_id}/suggest-unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest ways to unblock a blocked action
+         * @description Uses AI to generate 3-5 concrete suggestions for unblocking a stuck action.
+         */
+        post: operations["suggest_unblock_paths_api_v1_actions__action_id__suggest_unblock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/actions/{action_id}/tags": {
         parameters: {
             query?: never;
@@ -3785,6 +3885,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/competitors/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cached competitor insights
+         * @description Retrieve all cached competitor insights for the user.
+         *
+         *         **Tier Gating:**
+         *         - Free: 1 visible insight
+         *         - Starter: 3 visible insights
+         *         - Pro: Unlimited insights
+         *
+         *         Returns `visible_count` and `total_count` to show users what they're missing.
+         *         Includes `upgrade_prompt` when tier limit is reached.
+         */
+        get: operations["list_competitor_insights_api_v1_context_competitors_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/competitors/{name}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate insight for a competitor
+         * @description Generate an AI-powered insight card for a specific competitor.
+         *
+         *         Uses Haiku for fast, cost-effective analysis (~$0.003/request).
+         *         Includes web search for fresh company data when available.
+         *
+         *         **Rate Limit:** 3 requests per minute per user (LLM cost control).
+         *
+         *         **Caching:** Results are cached in user context. Subsequent calls
+         *         for the same competitor return cached data unless forced refresh.
+         */
+        post: operations["generate_competitor_insight_api_v1_context_competitors__name__insights_post"];
+        /**
+         * Delete cached competitor insight
+         * @description Remove a cached competitor insight.
+         *
+         *         This frees up a slot for users on limited tiers.
+         *         The insight can be regenerated by calling the POST endpoint.
+         */
+        delete: operations["delete_competitor_insight_api_v1_context_competitors__name__insights_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/demo-questions": {
         parameters: {
             query?: never;
@@ -3883,6 +4046,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/goal-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get goal change history
+         * @description Retrieve the history of north star goal changes for the user.
+         *
+         *         Returns up to 10 most recent goal changes, newest first.
+         *         Each entry includes the goal text, when it was changed, and the previous goal.
+         *
+         *         **Use Cases:**
+         *         - Display goal evolution timeline in strategic context page
+         *         - Show users how their focus has shifted over time
+         */
+        get: operations["get_goal_history_endpoint_api_v1_context_goal_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/goal-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get goal progress metrics
+         * @description Get action completion stats for the last 30 days.
+         *
+         *         Returns:
+         *         - Progress percentage (completed / total active actions)
+         *         - Trend compared to previous 30-day period (up/down/stable)
+         *         - Completed and total counts
+         *
+         *         Useful for displaying goal progress on the dashboard.
+         */
+        get: operations["get_goal_progress_api_v1_context_goal_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/goal-staleness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check goal staleness
+         * @description Check if the user's north star goal needs review.
+         *
+         *         Returns:
+         *         - Days since the goal was last changed
+         *         - Whether to show a "Review your goal?" prompt (>30 days unchanged)
+         *         - The current/last goal text
+         *
+         *         **Use Cases:**
+         *         - Dashboard banner prompting goal review
+         *         - Strategic context page staleness indicator
+         */
+        get: operations["check_goal_staleness_api_v1_context_goal_staleness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/insights": {
         parameters: {
             query?: never;
@@ -3944,6 +4190,73 @@ export interface paths {
          *         users to keep their responses current as their business evolves.
          */
         patch: operations["update_insight_api_v1_context_insights__question_hash__patch"];
+        trace?: never;
+    };
+    "/api/v1/context/managed-competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List user's managed competitors
+         * @description Retrieve the user's manually managed competitor list.
+         *
+         *         These are competitors the user has explicitly added, distinct from:
+         *         - Auto-detected competitors (from enrichment)
+         *         - Competitor insights (AI-generated analysis cards)
+         *
+         *         Returns competitors sorted by added_at (newest first).
+         */
+        get: operations["list_managed_competitors_api_v1_context_managed_competitors_get"];
+        put?: never;
+        /**
+         * Add a managed competitor
+         * @description Add a new competitor to the user's managed list.
+         *
+         *         Performs case-insensitive deduplication - if a competitor with
+         *         the same name (ignoring case) already exists, returns error.
+         *
+         *         **Use Cases:**
+         *         - User manually adds known competitor
+         *         - Capture competitor from external source
+         */
+        post: operations["add_managed_competitor_api_v1_context_managed_competitors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/managed-competitors/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a managed competitor
+         * @description Remove a competitor from the user's managed list.
+         *
+         *         Competitor is matched by name (case-insensitive).
+         *         This does not delete any associated competitor insights.
+         */
+        delete: operations["remove_managed_competitor_api_v1_context_managed_competitors__name__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a managed competitor
+         * @description Update the URL and/or notes for a managed competitor.
+         *
+         *         Competitor is matched by name (case-insensitive).
+         *         Only provided fields are updated - omitted fields remain unchanged.
+         */
+        patch: operations["update_managed_competitor_api_v1_context_managed_competitors__name__patch"];
         trace?: never;
     };
     "/api/v1/context/pending-updates": {
@@ -4086,6 +4399,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/trends/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze a trend URL for insights
+         * @description Analyze a market trend URL and generate structured insights.
+         *
+         *         Uses Haiku for fast, cost-effective analysis (~$0.003/request).
+         *         Fetches URL content and extracts key takeaways, relevance to user's
+         *         business, and recommended actions.
+         *
+         *         **Rate Limit:** 3 requests per minute per user (web fetching cost control).
+         *
+         *         **Caching:** Results are cached in user context. Subsequent calls
+         *         for the same URL return cached data unless forced refresh.
+         *
+         *         **Supported content:** HTML pages. PDFs and other formats are not supported.
+         */
+        post: operations["analyze_trend_api_v1_context_trends_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cached trend insights
+         * @description Retrieve all cached trend insights for the user.
+         *
+         *         Returns insights sorted by analysis date (newest first).
+         */
+        get: operations["list_trend_insights_api_v1_context_trends_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/insights/{url_hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a cached trend insight
+         * @description Remove a cached trend insight by URL hash.
+         *
+         *         The url_hash is a URL-safe base64 encoding of the URL.
+         */
+        delete: operations["delete_trend_insight_api_v1_context_trends_insights__url_hash__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/trends/refresh": {
         parameters: {
             query?: never;
@@ -4105,6 +4493,63 @@ export interface paths {
          *         Returns a list of trends with sources.
          */
         post: operations["refresh_trends_api_v1_context_trends_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get cached trend summary
+         * @description Get the AI-generated market trend summary for the user's industry.
+         *
+         *         Returns cached summary if available, with staleness indicator.
+         *         If summary is stale (>7 days) or industry has changed, `stale` will be true.
+         *         If user has no industry set, `needs_industry` will be true.
+         *
+         *         **Auto-refresh:** Frontend should call POST /refresh if stale=true.
+         */
+        get: operations["get_trend_summary_api_v1_context_trends_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/summary/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh trend summary
+         * @description Generate or refresh the AI-powered market trend summary.
+         *
+         *         Uses Brave Search + Claude Haiku to generate a structured summary:
+         *         - Executive summary of current market conditions
+         *         - Key trends (3-5 items)
+         *         - Opportunities (2-4 items)
+         *         - Threats/challenges (2-4 items)
+         *
+         *         **Rate Limit:** 1 refresh per hour per user.
+         *         **Cost:** ~$0.005 per generation.
+         *
+         *         Returns `rate_limited=true` if called too frequently.
+         */
+        post: operations["refresh_trend_summary_api_v1_context_trends_summary_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4410,6 +4855,36 @@ export interface paths {
         get: operations["unsubscribe_api_v1_email_unsubscribe_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Webhook
+         * @description Handle Resend webhook events.
+         *
+         *     Validates signature using svix and updates email_log with event timestamps.
+         *     Idempotent: ignores duplicate events or unknown resend_ids.
+         *
+         *     Event types handled:
+         *     - email.delivered: Email successfully delivered
+         *     - email.opened: Email opened by recipient
+         *     - email.clicked: Link clicked in email
+         *     - email.bounced: Email bounced (soft/hard)
+         *     - email.delivery_failed: Email delivery failed
+         */
+        post: operations["resend_webhook_api_v1_email_webhook_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4808,7 +5283,11 @@ export interface paths {
         delete: operations["delete_mentor_conversation_api_v1_mentor_conversations__conversation_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update mentor conversation
+         * @description Update a mentor conversation (currently supports label update)
+         */
+        patch: operations["update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch"];
         trace?: never;
     };
     "/api/v1/mentor/failure-patterns": {
@@ -4860,7 +5339,7 @@ export interface paths {
         };
         /**
          * Search for mentionable entities
-         * @description Search meetings, actions, or datasets for @mention autocomplete
+         * @description Search meetings, actions, datasets, or chats for @mention autocomplete
          */
         get: operations["search_mentions_api_v1_mentor_mentions_search_get"];
         put?: never;
@@ -7325,6 +7804,26 @@ export interface components {
             status: string;
         };
         /**
+         * ActionCompleteRequest
+         * @description Request model for completing an action with optional post-mortem.
+         *
+         *     Attributes:
+         *         lessons_learned: Optional reflection on lessons learned (max 500 chars)
+         *         went_well: Optional reflection on what went well (max 500 chars)
+         */
+        ActionCompleteRequest: {
+            /**
+             * Lessons Learned
+             * @description Reflection on lessons learned from this action
+             */
+            lessons_learned?: string | null;
+            /**
+             * Went Well
+             * @description Reflection on what went well during this action
+             */
+            went_well?: string | null;
+        };
+        /**
          * ActionCompletedResponse
          * @description Response for completing an action.
          */
@@ -7556,6 +8055,11 @@ export interface components {
              */
             kill_criteria?: string[];
             /**
+             * Lessons Learned
+             * @description User reflection on lessons learned from this action
+             */
+            lessons_learned?: string | null;
+            /**
              * Priority
              * @description Priority level
              * @default medium
@@ -7654,6 +8158,11 @@ export interface components {
              * @description Action title
              */
             title: string;
+            /**
+             * Went Well
+             * @description User reflection on what went well during this action
+             */
+            went_well?: string | null;
             /**
              * What And How
              * @description Steps to complete
@@ -7905,6 +8414,7 @@ export interface components {
          *         in_progress: In-progress actions
          *         completed: Completed actions
          *         cancelled: Cancelled actions
+         *         deleted: Soft-deleted actions
          */
         ActionStats: {
             /**
@@ -7919,6 +8429,12 @@ export interface components {
              * @default 0
              */
             completed: number;
+            /**
+             * Deleted
+             * @description Deleted actions
+             * @default 0
+             */
+            deleted: number;
             /**
              * In Progress
              * @description In-progress actions
@@ -10526,6 +11042,128 @@ export interface components {
             success: boolean;
         };
         /**
+         * CompetitorInsight
+         * @description Structured AI-generated insight about a competitor.
+         *
+         *     Contains comprehensive analysis of competitor including:
+         *     - Company identification and positioning
+         *     - Size and revenue estimates
+         *     - Strengths, weaknesses, and market gaps
+         */
+        CompetitorInsight: {
+            /**
+             * Last Updated
+             * @description When insight was last generated
+             */
+            last_updated?: string | null;
+            /**
+             * Market Gaps
+             * @description Market gaps/opportunities (up to 5)
+             */
+            market_gaps?: string[];
+            /**
+             * Name
+             * @description Competitor company name
+             */
+            name: string;
+            /**
+             * Revenue Estimate
+             * @description Estimated revenue range (e.g., '$5M-20M ARR')
+             */
+            revenue_estimate?: string | null;
+            /**
+             * Size Estimate
+             * @description Estimated company size (e.g., '50-200 employees')
+             */
+            size_estimate?: string | null;
+            /**
+             * Strengths
+             * @description Key strengths (up to 5)
+             */
+            strengths?: string[];
+            /**
+             * Tagline
+             * @description Company tagline/slogan
+             */
+            tagline?: string | null;
+            /**
+             * Weaknesses
+             * @description Key weaknesses (up to 5)
+             */
+            weaknesses?: string[];
+        };
+        /**
+         * CompetitorInsightResponse
+         * @description Response from generating a single competitor insight.
+         */
+        CompetitorInsightResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Generation Status
+             * @description Status: 'complete', 'cached', 'limited_data'
+             */
+            generation_status?: string | null;
+            /** @description Generated insight */
+            insight?: components["schemas"]["CompetitorInsight"] | null;
+            /**
+             * Success
+             * @description Whether generation succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * CompetitorInsightsListResponse
+         * @description Response containing list of competitor insights with tier gating.
+         *
+         *     Tier limits:
+         *     - Free: 1 visible insight
+         *     - Starter: 3 visible insights
+         *     - Pro: Unlimited insights
+         */
+        CompetitorInsightsListResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Insights
+             * @description List of competitor insights (tier-gated)
+             */
+            insights?: components["schemas"]["CompetitorInsight"][];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Tier
+             * @description User's current tier
+             */
+            tier?: string | null;
+            /**
+             * Total Count
+             * @description Total number of cached insights
+             * @default 0
+             */
+            total_count: number;
+            /**
+             * Upgrade Prompt
+             * @description Upgrade prompt if limit reached
+             */
+            upgrade_prompt?: string | null;
+            /**
+             * Visible Count
+             * @description Number of visible insights for tier
+             * @default 0
+             */
+            visible_count: number;
+        };
+        /**
          * CompetitorListResponse
          * @description Response for competitor list.
          */
@@ -10783,6 +11421,8 @@ export interface components {
          *         context: Business context data (if exists)
          *         updated_at: Last update timestamp (if exists)
          *         benchmark_timestamps: When each benchmark metric was last set
+         *         needs_competitor_refresh: Whether auto-detect should run for competitors
+         *         competitor_count: Current number of managed competitors
          * @example {
          *       "context": {
          *         "business_model": "B2B SaaS",
@@ -10813,6 +11453,12 @@ export interface components {
             benchmark_timestamps?: {
                 [key: string]: string;
             } | null;
+            /**
+             * Competitor Count
+             * @description Current number of managed competitors
+             * @default 0
+             */
+            competitor_count: number;
             /** @description Business context data */
             context?: components["schemas"]["BusinessContext"] | null;
             /**
@@ -10820,6 +11466,12 @@ export interface components {
              * @description Whether user has saved context
              */
             exists: boolean;
+            /**
+             * Needs Competitor Refresh
+             * @description Whether auto-detect should run for competitors
+             * @default false
+             */
+            needs_competitor_refresh: boolean;
             /**
              * Updated At
              * @description Last update timestamp
@@ -11253,6 +11905,112 @@ export interface components {
              * @default 30
              */
             typical_prep_mins: number;
+        };
+        /**
+         * CostDrillDownItem
+         * @description Single cost record in drill-down list.
+         *
+         *     Attributes:
+         *         id: Cost record ID
+         *         user_id: User who incurred cost
+         *         email: User email (if available)
+         *         provider: LLM provider
+         *         model: Model name
+         *         amount_usd: Cost in USD
+         *         created_at: When cost was recorded (ISO 8601)
+         */
+        CostDrillDownItem: {
+            /**
+             * Amount Usd
+             * @description Cost in USD
+             */
+            amount_usd: number;
+            /**
+             * Created At
+             * @description When cost was recorded (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Email
+             * @description User email
+             */
+            email?: string | null;
+            /**
+             * Id
+             * @description Cost record ID
+             */
+            id: number;
+            /**
+             * Model
+             * @description Model name
+             */
+            model: string;
+            /**
+             * Provider
+             * @description LLM provider
+             */
+            provider: string;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
+        };
+        /**
+         * CostDrillDownResponse
+         * @description Response for cost drill-down list.
+         *
+         *     Attributes:
+         *         items: List of cost items
+         *         total: Total count matching filter
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         *         period: Time period filter applied
+         *         total_cost_usd: Sum of costs in period
+         */
+        CostDrillDownResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of cost records
+             */
+            items: components["schemas"]["CostDrillDownItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+            /**
+             * Total Cost Usd
+             * @description Sum of costs in period
+             */
+            total_cost_usd: number;
         };
         /**
          * CostSummaryResponse
@@ -11929,6 +12687,8 @@ export interface components {
          *         total: Total count
          *         limit: Page size
          *         offset: Page offset
+         *         has_more: Whether more datasets exist beyond current page
+         *         next_offset: Offset for next page (None if no more pages)
          */
         DatasetListResponse: {
             /**
@@ -11937,10 +12697,20 @@ export interface components {
              */
             datasets: components["schemas"]["DatasetResponse"][];
             /**
+             * Has More
+             * @description Whether more datasets exist beyond current page
+             */
+            has_more: boolean;
+            /**
              * Limit
              * @description Page size
              */
             limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page (None if no more)
+             */
+            next_offset?: number | null;
             /**
              * Offset
              * @description Page offset
@@ -12449,6 +13219,24 @@ export interface components {
             user_id: string;
         };
         /**
+         * EmailEventCounts
+         * @description Email event counts for rate calculation.
+         */
+        EmailEventCounts: {
+            /** Bounced Count */
+            bounced_count: number;
+            /** Clicked Count */
+            clicked_count: number;
+            /** Delivered Count */
+            delivered_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Opened Count */
+            opened_count: number;
+            /** Sent Count */
+            sent_count: number;
+        };
+        /**
          * EmailPeriodCounts
          * @description Counts for different time periods.
          */
@@ -12489,6 +13277,18 @@ export interface components {
             preferences: components["schemas"]["EmailPreferences"];
         };
         /**
+         * EmailRates
+         * @description Email engagement rates.
+         */
+        EmailRates: {
+            /** Click Rate */
+            click_rate: number;
+            /** Failed Rate */
+            failed_rate: number;
+            /** Open Rate */
+            open_rate: number;
+        };
+        /**
          * EmailStatsResponse
          * @description Email statistics response.
          */
@@ -12498,6 +13298,12 @@ export interface components {
             by_type: {
                 [key: string]: number;
             };
+            /** By Type Rates */
+            by_type_rates: {
+                [key: string]: components["schemas"]["EmailRates"];
+            };
+            event_counts: components["schemas"]["EmailEventCounts"];
+            rates: components["schemas"]["EmailRates"];
             /** Total */
             total: number;
         };
@@ -12845,12 +13651,15 @@ export interface components {
          *         data_analyses: Dataset analysis statistics
          *         projects: Project statistics by status
          *         actions: Action statistics by status
+         *         meetings: Meeting/session statistics by status
          */
         ExtendedKPIsResponse: {
             /** @description Action stats by status */
             actions: components["schemas"]["ActionStats"];
             /** @description Dataset analysis stats */
             data_analyses: components["schemas"]["DataAnalysisStats"];
+            /** @description Meeting stats by status */
+            meetings: components["schemas"]["MeetingStats"];
             /** @description Mentor session stats */
             mentor_sessions: components["schemas"]["MentorSessionStats"];
             /** @description Project stats by status */
@@ -13599,6 +14408,99 @@ export interface components {
              * @description List of dependencies
              */
             dependencies: components["schemas"]["GanttDependency"][];
+        };
+        /**
+         * GoalHistoryEntry
+         * @description A single goal change in history.
+         */
+        GoalHistoryEntry: {
+            /**
+             * Changed At
+             * Format: date-time
+             * @description When this goal was set
+             */
+            changed_at: string;
+            /**
+             * Goal Text
+             * @description The goal text
+             */
+            goal_text: string;
+            /**
+             * Previous Goal
+             * @description Previous goal before this change
+             */
+            previous_goal?: string | null;
+        };
+        /**
+         * GoalHistoryResponse
+         * @description Response for goal history endpoint.
+         */
+        GoalHistoryResponse: {
+            /**
+             * Count
+             * @description Number of entries returned
+             * @default 0
+             */
+            count: number;
+            /**
+             * Entries
+             * @description Goal history entries, newest first
+             */
+            entries?: components["schemas"]["GoalHistoryEntry"][];
+        };
+        /**
+         * GoalProgressResponse
+         * @description Response for goal progress tracking.
+         *
+         *     Returns action completion stats for the last 30 days,
+         *     useful for showing progress toward goals on the dashboard.
+         */
+        GoalProgressResponse: {
+            /**
+             * Completed Count
+             * @description Actions completed in period
+             * @default 0
+             */
+            completed_count: number;
+            /**
+             * Progress Percent
+             * @description Percentage of actions completed in period
+             */
+            progress_percent: number;
+            /**
+             * Total Count
+             * @description Total active actions in period
+             * @default 0
+             */
+            total_count: number;
+            /**
+             * Trend
+             * @description Trend compared to previous period
+             * @enum {string}
+             */
+            trend: "up" | "down" | "stable";
+        };
+        /**
+         * GoalStalenessResponse
+         * @description Response for goal staleness check.
+         */
+        GoalStalenessResponse: {
+            /**
+             * Days Since Change
+             * @description Days since last goal change, or None if no history
+             */
+            days_since_change?: number | null;
+            /**
+             * Last Goal
+             * @description Current/last goal text
+             */
+            last_goal?: string | null;
+            /**
+             * Should Prompt
+             * @description Whether to show 'Review your goal?' prompt (>30 days)
+             * @default false
+             */
+            should_prompt: boolean;
         };
         /**
          * GroupBySpec
@@ -14682,6 +15584,118 @@ export interface components {
             user_id: string;
         };
         /**
+         * ManagedCompetitor
+         * @description A user-managed competitor entry.
+         *
+         *     Stores competitor name, optional URL and notes, and when it was added.
+         *     Distinct from CompetitorInsight which is AI-generated analysis.
+         */
+        ManagedCompetitor: {
+            /**
+             * Added At
+             * Format: date-time
+             * @description When competitor was added
+             */
+            added_at: string;
+            /**
+             * Name
+             * @description Competitor company name
+             */
+            name: string;
+            /**
+             * Notes
+             * @description User notes about the competitor
+             */
+            notes?: string | null;
+            /**
+             * Url
+             * @description Competitor website URL
+             */
+            url?: string | null;
+        };
+        /**
+         * ManagedCompetitorCreate
+         * @description Request to add a new managed competitor.
+         */
+        ManagedCompetitorCreate: {
+            /**
+             * Name
+             * @description Competitor company name
+             */
+            name: string;
+            /**
+             * Notes
+             * @description User notes about the competitor
+             */
+            notes?: string | null;
+            /**
+             * Url
+             * @description Competitor website URL
+             */
+            url?: string | null;
+        };
+        /**
+         * ManagedCompetitorListResponse
+         * @description Response for listing managed competitors.
+         */
+        ManagedCompetitorListResponse: {
+            /**
+             * Competitors
+             * @description List of user-managed competitors
+             */
+            competitors?: components["schemas"]["ManagedCompetitor"][];
+            /**
+             * Count
+             * @description Number of competitors
+             * @default 0
+             */
+            count: number;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * ManagedCompetitorResponse
+         * @description Response for single managed competitor operations.
+         */
+        ManagedCompetitorResponse: {
+            /** @description Competitor data */
+            competitor?: components["schemas"]["ManagedCompetitor"] | null;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether operation succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * ManagedCompetitorUpdate
+         * @description Request to update a managed competitor.
+         */
+        ManagedCompetitorUpdate: {
+            /**
+             * Notes
+             * @description Updated user notes
+             */
+            notes?: string | null;
+            /**
+             * Url
+             * @description Updated competitor website URL
+             */
+            url?: string | null;
+        };
+        /**
          * MarketTrend
          * @description A market trend.
          */
@@ -14721,6 +15735,83 @@ export interface components {
             session_id: string;
             /** Total Cost */
             total_cost: number;
+        };
+        /**
+         * MeetingStats
+         * @description Statistics for meetings/sessions by status.
+         *
+         *     Attributes:
+         *         total_meetings: Total meetings across all users
+         *         created: Meetings with status 'created'
+         *         running: Currently running meetings
+         *         completed: Successfully completed meetings
+         *         failed: Failed meetings
+         *         killed: Killed meetings
+         *         deleted: Soft-deleted meetings
+         *         meetings_today: Meetings created today
+         *         meetings_this_week: Meetings in the last 7 days
+         *         meetings_this_month: Meetings in the last 30 days
+         */
+        MeetingStats: {
+            /**
+             * Completed
+             * @description Completed meetings
+             * @default 0
+             */
+            completed: number;
+            /**
+             * Created
+             * @description Created meetings
+             * @default 0
+             */
+            created: number;
+            /**
+             * Deleted
+             * @description Deleted meetings
+             * @default 0
+             */
+            deleted: number;
+            /**
+             * Failed
+             * @description Failed meetings
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Killed
+             * @description Killed meetings
+             * @default 0
+             */
+            killed: number;
+            /**
+             * Meetings This Month
+             * @description Meetings in last 30 days
+             * @default 0
+             */
+            meetings_this_month: number;
+            /**
+             * Meetings This Week
+             * @description Meetings in last 7 days
+             * @default 0
+             */
+            meetings_this_week: number;
+            /**
+             * Meetings Today
+             * @description Meetings today
+             * @default 0
+             */
+            meetings_today: number;
+            /**
+             * Running
+             * @description Running meetings
+             * @default 0
+             */
+            running: number;
+            /**
+             * Total Meetings
+             * @description Total meetings
+             */
+            total_meetings: number;
         };
         /**
          * MeetingTemplate
@@ -15016,6 +16107,8 @@ export interface components {
             created_at: string;
             /** Id */
             id: string;
+            /** Label */
+            label?: string | null;
             /** Message Count */
             message_count: number;
             /** Persona */
@@ -16114,10 +17207,22 @@ export interface components {
          *     Attributes:
          *         projects: List of projects
          *         total: Total count
-         *         page: Current page
+         *         page: Current page (1-indexed)
          *         per_page: Items per page
+         *         has_more: Whether more projects exist beyond current page
+         *         next_offset: Offset for next page (None if no more pages)
          */
         ProjectListResponse: {
+            /**
+             * Has More
+             * @description Whether more projects exist beyond current page
+             */
+            has_more: boolean;
+            /**
+             * Next Offset
+             * @description Offset for next page (None if no more)
+             */
+            next_offset?: number | null;
             /**
              * Page
              * @description Current page
@@ -16170,6 +17275,7 @@ export interface components {
          *         paused: Paused projects
          *         completed: Completed projects
          *         archived: Archived projects
+         *         deleted: Soft-deleted projects
          */
         ProjectStats: {
             /**
@@ -16190,6 +17296,12 @@ export interface components {
              * @default 0
              */
             completed: number;
+            /**
+             * Deleted
+             * @description Deleted projects
+             * @default 0
+             */
+            deleted: number;
             /**
              * Paused
              * @description Paused projects
@@ -17481,13 +18593,25 @@ export interface components {
          *         total: Total number of sessions
          *         limit: Page size
          *         offset: Page offset
+         *         has_more: Whether more sessions exist beyond current page
+         *         next_offset: Offset for next page (None if no more pages)
          */
         SessionListResponse: {
+            /**
+             * Has More
+             * @description Whether more sessions exist beyond current page
+             */
+            has_more: boolean;
             /**
              * Limit
              * @description Page size
              */
             limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page (None if no more)
+             */
+            next_offset?: number | null;
             /**
              * Offset
              * @description Page offset
@@ -18486,6 +19610,12 @@ export interface components {
             user_id: string;
         };
         /**
+         * TimePeriod
+         * @description Time period for drill-down filtering.
+         * @enum {string}
+         */
+        TimePeriod: "hour" | "day" | "week" | "month" | "all";
+        /**
          * TopUsersCostResponse
          * @description Top users by cost (admin only, abuse detection).
          *
@@ -18610,6 +19740,121 @@ export interface components {
          */
         TrendDirection: "improving" | "worsening" | "stable" | "insufficient_data";
         /**
+         * TrendInsight
+         * @description Structured AI-generated insight from a market trend URL.
+         *
+         *     Contains actionable analysis of market trends including:
+         *     - Key takeaway from the trend
+         *     - Relevance to user's business
+         *     - Recommended actions
+         *     - Timeframe classification
+         */
+        TrendInsight: {
+            /**
+             * Actions
+             * @description Recommended actions (2-3 items)
+             */
+            actions?: string[];
+            /**
+             * Analyzed At
+             * @description When insight was generated
+             */
+            analyzed_at?: string | null;
+            /**
+             * Confidence
+             * @description Confidence level of the analysis
+             */
+            confidence?: ("high" | "medium" | "low") | null;
+            /**
+             * Key Takeaway
+             * @description The single most important insight from this trend
+             */
+            key_takeaway?: string | null;
+            /**
+             * Relevance
+             * @description Why this trend matters for the user's business
+             */
+            relevance?: string | null;
+            /**
+             * Timeframe
+             * @description When this trend is most relevant
+             */
+            timeframe?: ("immediate" | "short_term" | "long_term") | null;
+            /**
+             * Title
+             * @description Article title
+             */
+            title?: string | null;
+            /**
+             * Url
+             * @description Original URL of the trend article
+             */
+            url: string;
+        };
+        /**
+         * TrendInsightRequest
+         * @description Request to analyze a single trend URL.
+         */
+        TrendInsightRequest: {
+            /**
+             * Url
+             * @description URL of the trend article to analyze
+             */
+            url: string;
+        };
+        /**
+         * TrendInsightResponse
+         * @description Response from analyzing a single trend URL.
+         */
+        TrendInsightResponse: {
+            /**
+             * Analysis Status
+             * @description Status: 'complete', 'cached', 'limited_data', 'error'
+             */
+            analysis_status?: string | null;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /** @description Generated insight */
+            insight?: components["schemas"]["TrendInsight"] | null;
+            /**
+             * Success
+             * @description Whether analysis succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * TrendInsightsListResponse
+         * @description Response containing list of trend insights.
+         *
+         *     Rate limited to 3/min per user due to web fetching costs.
+         */
+        TrendInsightsListResponse: {
+            /**
+             * Count
+             * @description Number of cached insights
+             * @default 0
+             */
+            count: number;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Insights
+             * @description List of trend insights
+             */
+            insights?: components["schemas"]["TrendInsight"][];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
          * TrendSpec
          * @description Trend specification for time-series analysis.
          *
@@ -18691,6 +19936,46 @@ export interface components {
             target_status: string;
         };
         /**
+         * UnblockPathsResponse
+         * @description Response containing suggested paths to unblock an action.
+         */
+        UnblockPathsResponse: {
+            /**
+             * Action Id
+             * @description UUID of the blocked action
+             */
+            action_id: string;
+            /**
+             * Suggestions
+             * @description List of 3-5 suggestions to unblock
+             */
+            suggestions: components["schemas"]["UnblockSuggestionModel"][];
+        };
+        /**
+         * UnblockSuggestionModel
+         * @description A single suggestion for unblocking a blocked action.
+         */
+        UnblockSuggestionModel: {
+            /**
+             * Approach
+             * @description The suggested approach to unblock
+             * @example Break the task into smaller sub-tasks
+             */
+            approach: string;
+            /**
+             * Effort Level
+             * @description Estimated effort level
+             * @example low
+             */
+            effort_level: string;
+            /**
+             * Rationale
+             * @description Why this approach might work
+             * @example Large tasks often get blocked because they're overwhelming
+             */
+            rationale: string;
+        };
+        /**
          * UpdateBudgetSettingsRequest
          * @description Request to update user budget settings (admin only).
          *
@@ -18715,6 +20000,17 @@ export interface components {
              * @description Monthly limit (cents)
              */
             monthly_cost_limit_cents?: number | null;
+        };
+        /**
+         * UpdateConversationLabelRequest
+         * @description Request model for updating conversation label.
+         */
+        UpdateConversationLabelRequest: {
+            /**
+             * Label
+             * @description New conversation label (1-100 characters)
+             */
+            label: string;
         };
         /**
          * UpdateFeatureFlagRequest
@@ -19169,6 +20465,94 @@ export interface components {
             users: components["schemas"]["UserCostItem"][];
         };
         /**
+         * UserDrillDownItem
+         * @description Single user item in drill-down list.
+         *
+         *     Attributes:
+         *         user_id: User identifier
+         *         email: User email
+         *         subscription_tier: Subscription tier
+         *         is_admin: Whether user is admin
+         *         created_at: When user was created (ISO 8601)
+         */
+        UserDrillDownItem: {
+            /**
+             * Created At
+             * @description When user was created (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Email
+             * @description User email
+             */
+            email: string;
+            /**
+             * Is Admin
+             * @description Whether user is admin
+             */
+            is_admin: boolean;
+            /**
+             * Subscription Tier
+             * @description Subscription tier
+             */
+            subscription_tier: string;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
+        };
+        /**
+         * UserDrillDownResponse
+         * @description Response for user drill-down list.
+         *
+         *     Attributes:
+         *         items: List of user items
+         *         total: Total count matching filter
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         *         period: Time period filter applied
+         */
+        UserDrillDownResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of users
+             */
+            items: components["schemas"]["UserDrillDownItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
          * UserInfo
          * @description Information about a user.
          *
@@ -19305,8 +20689,20 @@ export interface components {
          *         users: List of user info
          *         page: Current page number
          *         per_page: Number of users per page
+         *         has_more: Whether more users exist beyond current page
+         *         next_offset: Offset for next page (None if no more pages)
          */
         UserListResponse: {
+            /**
+             * Has More
+             * @description Whether more users exist beyond current page
+             */
+            has_more: boolean;
+            /**
+             * Next Offset
+             * @description Offset for next page (None if no more)
+             */
+            next_offset?: number | null;
             /**
              * Page
              * @description Current page number
@@ -19693,6 +21089,94 @@ export interface components {
          */
         VolatilityLevel: "stable" | "moderate" | "volatile";
         /**
+         * WaitlistDrillDownItem
+         * @description Single waitlist entry in drill-down list.
+         *
+         *     Attributes:
+         *         id: Entry ID
+         *         email: Email address
+         *         status: Status (pending, invited, converted)
+         *         source: Signup source
+         *         created_at: When added to waitlist (ISO 8601)
+         */
+        WaitlistDrillDownItem: {
+            /**
+             * Created At
+             * @description When added (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Email
+             * @description Email address
+             */
+            email: string;
+            /**
+             * Id
+             * @description Entry ID
+             */
+            id: string;
+            /**
+             * Source
+             * @description Signup source
+             */
+            source?: string | null;
+            /**
+             * Status
+             * @description Status
+             */
+            status: string;
+        };
+        /**
+         * WaitlistDrillDownResponse
+         * @description Response for waitlist drill-down list.
+         *
+         *     Attributes:
+         *         items: List of waitlist entries
+         *         total: Total count matching filter
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         *         period: Time period filter applied
+         */
+        WaitlistDrillDownResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of waitlist entries
+             */
+            items: components["schemas"]["WaitlistDrillDownItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
          * WaitlistEntry
          * @description Response model for waitlist entry.
          *
@@ -19749,6 +21233,14 @@ export interface components {
             email: string;
         };
         /**
+         * WebhookResponse
+         * @description Response for webhook endpoint.
+         */
+        WebhookResponse: {
+            /** Status */
+            status: string;
+        };
+        /**
          * WhitelistCheckResponse
          * @description Response for whitelist/beta access check endpoints.
          */
@@ -19758,6 +21250,94 @@ export interface components {
              * @description Whether the email is whitelisted
              */
             is_whitelisted: boolean;
+        };
+        /**
+         * WhitelistDrillDownItem
+         * @description Single whitelist entry in drill-down list.
+         *
+         *     Attributes:
+         *         id: Entry ID
+         *         email: Whitelisted email
+         *         added_by: Admin who added
+         *         notes: Optional notes
+         *         created_at: When added (ISO 8601)
+         */
+        WhitelistDrillDownItem: {
+            /**
+             * Added By
+             * @description Admin who added
+             */
+            added_by?: string | null;
+            /**
+             * Created At
+             * @description When added (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Email
+             * @description Email address
+             */
+            email: string;
+            /**
+             * Id
+             * @description Entry ID
+             */
+            id: string;
+            /**
+             * Notes
+             * @description Notes
+             */
+            notes?: string | null;
+        };
+        /**
+         * WhitelistDrillDownResponse
+         * @description Response for whitelist drill-down list.
+         *
+         *     Attributes:
+         *         items: List of whitelist entries
+         *         total: Total count matching filter
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         *         period: Time period filter applied
+         */
+        WhitelistDrillDownResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of whitelist entries
+             */
+            items: components["schemas"]["WhitelistDrillDownItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
         };
         /**
          * WorkspaceBillingInfoResponse
@@ -21660,6 +23240,230 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PerUserCostResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_costs_drilldown_api_admin_drilldown_costs_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Costs retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostDrillDownResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_users_drilldown_api_admin_drilldown_users_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDrillDownResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_waitlist_drilldown_api_admin_drilldown_waitlist_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Waitlist entries retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistDrillDownResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_whitelist_drilldown_api_admin_drilldown_whitelist_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whitelist entries retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhitelistDrillDownResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26905,7 +28709,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ActionCompleteRequest"] | null;
+            };
+        };
         responses: {
             /** @description Action completed successfully */
             200: {
@@ -27496,6 +29304,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    suggest_unblock_paths_api_v1_actions__action_id__suggest_unblock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suggestions generated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnblockPathsResponse"];
+                };
+            };
+            /** @description Action is not blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Action not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
             };
         };
     };
@@ -28691,6 +30557,106 @@ export interface operations {
             };
         };
     };
+    list_competitor_insights_api_v1_context_competitors_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitorInsightsListResponse"];
+                };
+            };
+        };
+    };
+    generate_competitor_insight_api_v1_context_competitors__name__insights_post: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insight generated or retrieved from cache */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitorInsightResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Analysis failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_competitor_insight_api_v1_context_competitors__name__insights_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_demo_questions_api_v1_context_demo_questions_get: {
         parameters: {
             query?: {
@@ -28832,6 +30798,77 @@ export interface operations {
             };
         };
     };
+    get_goal_history_endpoint_api_v1_context_goal_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_goal_progress_api_v1_context_goal_progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalProgressResponse"];
+                };
+            };
+        };
+    };
+    check_goal_staleness_api_v1_context_goal_staleness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalStalenessResponse"];
+                };
+            };
+        };
+    };
     get_insights_api_v1_context_insights_get: {
         parameters: {
             query?: never;
@@ -28921,6 +30958,148 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ClarificationInsight"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_managed_competitors_api_v1_context_managed_competitors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedCompetitorListResponse"];
+                };
+            };
+        };
+    };
+    add_managed_competitor_api_v1_context_managed_competitors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManagedCompetitorCreate"];
+            };
+        };
+        responses: {
+            /** @description Competitor added successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedCompetitorResponse"];
+                };
+            };
+            /** @description Competitor with this name already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_managed_competitor_api_v1_context_managed_competitors__name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Competitor removed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Competitor not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_managed_competitor_api_v1_context_managed_competitors__name__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManagedCompetitorUpdate"];
+            };
+        };
+        responses: {
+            /** @description Competitor updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedCompetitorResponse"];
+                };
+            };
+            /** @description Competitor not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -29057,6 +31236,108 @@ export interface operations {
             };
         };
     };
+    analyze_trend_api_v1_context_trends_analyze_post: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrendInsightRequest"];
+            };
+        };
+        responses: {
+            /** @description Insight generated or retrieved from cache */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendInsightResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Analysis failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_trend_insights_api_v1_context_trends_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendInsightsListResponse"];
+                };
+            };
+        };
+    };
+    delete_trend_insight_api_v1_context_trends_insights__url_hash__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                url_hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refresh_trends_api_v1_context_trends_refresh_post: {
         parameters: {
             query?: never;
@@ -29087,6 +31368,57 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_trend_summary_api_v1_context_trends_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    refresh_trend_summary_api_v1_context_trends_summary_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary generated or rate limited */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Industry not set */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -29617,6 +31949,33 @@ export interface operations {
             };
         };
     };
+    resend_webhook_api_v1_email_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResponse"];
+                };
+            };
+            /** @description Invalid signature or payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     submit_feedback_api_v1_feedback_post: {
         parameters: {
             query?: never;
@@ -30133,6 +32492,41 @@ export interface operations {
             };
         };
     };
+    update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateConversationLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorConversationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_failure_patterns_api_v1_mentor_failure_patterns_get: {
         parameters: {
             query?: {
@@ -30204,12 +32598,14 @@ export interface operations {
     search_mentions_api_v1_mentor_mentions_search_get: {
         parameters: {
             query: {
-                /** @description Entity type: meeting, action, dataset */
+                /** @description Entity type: meeting, action, dataset, chat */
                 type: string;
                 /** @description Search query (optional, returns recent if empty) */
                 q?: string;
                 /** @description Max results */
                 limit?: number;
+                /** @description Current conversation ID to exclude from results */
+                conversation_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -30645,7 +33041,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: number;
+                        [key: string]: number | boolean;
                     };
                 };
             };

@@ -147,6 +147,39 @@
         "title": "ActionCloseResponse",
         "type": "object"
       },
+      "ActionCompleteRequest": {
+        "description": "Request model for completing an action with optional post-mortem.\n\nAttributes:\n    lessons_learned: Optional reflection on lessons learned (max 500 chars)\n    went_well: Optional reflection on what went well (max 500 chars)",
+        "properties": {
+          "lessons_learned": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reflection on lessons learned from this action",
+            "title": "Lessons Learned"
+          },
+          "went_well": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reflection on what went well during this action",
+            "title": "Went Well"
+          }
+        },
+        "title": "ActionCompleteRequest",
+        "type": "object"
+      },
       "ActionCompletedResponse": {
         "description": "Response for completing an action.",
         "properties": {
@@ -512,6 +545,18 @@
             "title": "Kill Criteria",
             "type": "array"
           },
+          "lessons_learned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User reflection on lessons learned from this action",
+            "title": "Lessons Learned"
+          },
           "priority": {
             "default": "medium",
             "description": "Priority level",
@@ -691,6 +736,18 @@
             "description": "Action title",
             "title": "Title",
             "type": "string"
+          },
+          "went_well": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User reflection on what went well during this action",
+            "title": "Went Well"
           },
           "what_and_how": {
             "description": "Steps to complete",
@@ -1066,7 +1123,7 @@
         "type": "object"
       },
       "ActionStats": {
-        "description": "Statistics for actions by status.\n\nAttributes:\n    total_actions: Total actions across all users\n    pending: Pending actions\n    in_progress: In-progress actions\n    completed: Completed actions\n    cancelled: Cancelled actions",
+        "description": "Statistics for actions by status.\n\nAttributes:\n    total_actions: Total actions across all users\n    pending: Pending actions\n    in_progress: In-progress actions\n    completed: Completed actions\n    cancelled: Cancelled actions\n    deleted: Soft-deleted actions",
         "properties": {
           "cancelled": {
             "default": 0,
@@ -1078,6 +1135,12 @@
             "default": 0,
             "description": "Completed actions",
             "title": "Completed",
+            "type": "integer"
+          },
+          "deleted": {
+            "default": 0,
+            "description": "Deleted actions",
+            "title": "Deleted",
             "type": "integer"
           },
           "in_progress": {
@@ -5139,6 +5202,221 @@
         "title": "CompetitorDetectResponse",
         "type": "object"
       },
+      "CompetitorInsight": {
+        "description": "Structured AI-generated insight about a competitor.\n\nContains comprehensive analysis of competitor including:\n- Company identification and positioning\n- Size and revenue estimates\n- Strengths, weaknesses, and market gaps",
+        "properties": {
+          "last_updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When insight was last generated",
+            "title": "Last Updated"
+          },
+          "market_gaps": {
+            "description": "Market gaps/opportunities (up to 5)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Market Gaps",
+            "type": "array"
+          },
+          "name": {
+            "description": "Competitor company name",
+            "title": "Name",
+            "type": "string"
+          },
+          "revenue_estimate": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated revenue range (e.g., '$5M-20M ARR')",
+            "title": "Revenue Estimate"
+          },
+          "size_estimate": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated company size (e.g., '50-200 employees')",
+            "title": "Size Estimate"
+          },
+          "strengths": {
+            "description": "Key strengths (up to 5)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Strengths",
+            "type": "array"
+          },
+          "tagline": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Company tagline/slogan",
+            "title": "Tagline"
+          },
+          "weaknesses": {
+            "description": "Key weaknesses (up to 5)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Weaknesses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CompetitorInsight",
+        "type": "object"
+      },
+      "CompetitorInsightResponse": {
+        "description": "Response from generating a single competitor insight.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "generation_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status: 'complete', 'cached', 'limited_data'",
+            "title": "Generation Status"
+          },
+          "insight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompetitorInsight"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Generated insight"
+          },
+          "success": {
+            "description": "Whether generation succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "CompetitorInsightResponse",
+        "type": "object"
+      },
+      "CompetitorInsightsListResponse": {
+        "description": "Response containing list of competitor insights with tier gating.\n\nTier limits:\n- Free: 1 visible insight\n- Starter: 3 visible insights\n- Pro: Unlimited insights",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "insights": {
+            "description": "List of competitor insights (tier-gated)",
+            "items": {
+              "$ref": "#/components/schemas/CompetitorInsight"
+            },
+            "title": "Insights",
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's current tier",
+            "title": "Tier"
+          },
+          "total_count": {
+            "default": 0,
+            "description": "Total number of cached insights",
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "upgrade_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upgrade prompt if limit reached",
+            "title": "Upgrade Prompt"
+          },
+          "visible_count": {
+            "default": 0,
+            "description": "Number of visible insights for tier",
+            "title": "Visible Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "CompetitorInsightsListResponse",
+        "type": "object"
+      },
       "CompetitorListResponse": {
         "description": "Response for competitor list.",
         "properties": {
@@ -5611,7 +5889,7 @@
         "type": "object"
       },
       "ContextResponse": {
-        "description": "Response model for context retrieval.\n\nAttributes:\n    exists: Whether user has saved context\n    context: Business context data (if exists)\n    updated_at: Last update timestamp (if exists)\n    benchmark_timestamps: When each benchmark metric was last set",
+        "description": "Response model for context retrieval.\n\nAttributes:\n    exists: Whether user has saved context\n    context: Business context data (if exists)\n    updated_at: Last update timestamp (if exists)\n    benchmark_timestamps: When each benchmark metric was last set\n    needs_competitor_refresh: Whether auto-detect should run for competitors\n    competitor_count: Current number of managed competitors",
         "examples": [
           {
             "context": {
@@ -5652,6 +5930,12 @@
             "description": "Timestamps for when each benchmark metric was last set",
             "title": "Benchmark Timestamps"
           },
+          "competitor_count": {
+            "default": 0,
+            "description": "Current number of managed competitors",
+            "title": "Competitor Count",
+            "type": "integer"
+          },
           "context": {
             "anyOf": [
               {
@@ -5666,6 +5950,12 @@
           "exists": {
             "description": "Whether user has saved context",
             "title": "Exists",
+            "type": "boolean"
+          },
+          "needs_competitor_refresh": {
+            "default": false,
+            "description": "Whether auto-detect should run for competitors",
+            "title": "Needs Competitor Refresh",
             "type": "boolean"
           },
           "updated_at": {
@@ -6278,6 +6568,129 @@
           }
         },
         "title": "CostCalculatorDefaults",
+        "type": "object"
+      },
+      "CostDrillDownItem": {
+        "description": "Single cost record in drill-down list.\n\nAttributes:\n    id: Cost record ID\n    user_id: User who incurred cost\n    email: User email (if available)\n    provider: LLM provider\n    model: Model name\n    amount_usd: Cost in USD\n    created_at: When cost was recorded (ISO 8601)",
+        "properties": {
+          "amount_usd": {
+            "description": "Cost in USD",
+            "title": "Amount Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "description": "When cost was recorded (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User email",
+            "title": "Email"
+          },
+          "id": {
+            "description": "Cost record ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "model": {
+            "description": "Model name",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "description": "LLM provider",
+            "title": "Provider",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "provider",
+          "model",
+          "amount_usd",
+          "created_at"
+        ],
+        "title": "CostDrillDownItem",
+        "type": "object"
+      },
+      "CostDrillDownResponse": {
+        "description": "Response for cost drill-down list.\n\nAttributes:\n    items: List of cost items\n    total: Total count matching filter\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page\n    period: Time period filter applied\n    total_cost_usd: Sum of costs in period",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of cost records",
+            "items": {
+              "$ref": "#/components/schemas/CostDrillDownItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_cost_usd": {
+            "description": "Sum of costs in period",
+            "title": "Total Cost Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "period",
+          "total_cost_usd"
+        ],
+        "title": "CostDrillDownResponse",
         "type": "object"
       },
       "CostSummaryResponse": {
@@ -7280,7 +7693,7 @@
         "type": "object"
       },
       "DatasetListResponse": {
-        "description": "Response model for listing datasets.\n\nAttributes:\n    datasets: List of datasets\n    total: Total count\n    limit: Page size\n    offset: Page offset",
+        "description": "Response model for listing datasets.\n\nAttributes:\n    datasets: List of datasets\n    total: Total count\n    limit: Page size\n    offset: Page offset\n    has_more: Whether more datasets exist beyond current page\n    next_offset: Offset for next page (None if no more pages)",
         "properties": {
           "datasets": {
             "description": "List of datasets",
@@ -7290,10 +7703,27 @@
             "title": "Datasets",
             "type": "array"
           },
+          "has_more": {
+            "description": "Whether more datasets exist beyond current page",
+            "title": "Has More",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Page size",
             "title": "Limit",
             "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page (None if no more)",
+            "title": "Next Offset"
           },
           "offset": {
             "description": "Page offset",
@@ -7310,7 +7740,8 @@
           "datasets",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "has_more"
         ],
         "title": "DatasetListResponse",
         "type": "object"
@@ -8029,6 +8460,45 @@
         "title": "E2EAuthResponse",
         "type": "object"
       },
+      "EmailEventCounts": {
+        "description": "Email event counts for rate calculation.",
+        "properties": {
+          "bounced_count": {
+            "title": "Bounced Count",
+            "type": "integer"
+          },
+          "clicked_count": {
+            "title": "Clicked Count",
+            "type": "integer"
+          },
+          "delivered_count": {
+            "title": "Delivered Count",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "opened_count": {
+            "title": "Opened Count",
+            "type": "integer"
+          },
+          "sent_count": {
+            "title": "Sent Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sent_count",
+          "delivered_count",
+          "opened_count",
+          "clicked_count",
+          "bounced_count",
+          "failed_count"
+        ],
+        "title": "EmailEventCounts",
+        "type": "object"
+      },
       "EmailPeriodCounts": {
         "description": "Counts for different time periods.",
         "properties": {
@@ -8088,6 +8558,30 @@
         "title": "EmailPreferencesResponse",
         "type": "object"
       },
+      "EmailRates": {
+        "description": "Email engagement rates.",
+        "properties": {
+          "click_rate": {
+            "title": "Click Rate",
+            "type": "number"
+          },
+          "failed_rate": {
+            "title": "Failed Rate",
+            "type": "number"
+          },
+          "open_rate": {
+            "title": "Open Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "open_rate",
+          "click_rate",
+          "failed_rate"
+        ],
+        "title": "EmailRates",
+        "type": "object"
+      },
       "EmailStatsResponse": {
         "description": "Email statistics response.",
         "properties": {
@@ -8101,6 +8595,19 @@
             "title": "By Type",
             "type": "object"
           },
+          "by_type_rates": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EmailRates"
+            },
+            "title": "By Type Rates",
+            "type": "object"
+          },
+          "event_counts": {
+            "$ref": "#/components/schemas/EmailEventCounts"
+          },
+          "rates": {
+            "$ref": "#/components/schemas/EmailRates"
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -8109,7 +8616,10 @@
         "required": [
           "total",
           "by_type",
-          "by_period"
+          "by_period",
+          "rates",
+          "event_counts",
+          "by_type_rates"
         ],
         "title": "EmailStatsResponse",
         "type": "object"
@@ -8651,7 +9161,7 @@
         "type": "object"
       },
       "ExtendedKPIsResponse": {
-        "description": "Response model for extended KPIs.\n\nAttributes:\n    mentor_sessions: Mentor session statistics\n    data_analyses: Dataset analysis statistics\n    projects: Project statistics by status\n    actions: Action statistics by status",
+        "description": "Response model for extended KPIs.\n\nAttributes:\n    mentor_sessions: Mentor session statistics\n    data_analyses: Dataset analysis statistics\n    projects: Project statistics by status\n    actions: Action statistics by status\n    meetings: Meeting/session statistics by status",
         "properties": {
           "actions": {
             "$ref": "#/components/schemas/ActionStats",
@@ -8660,6 +9170,10 @@
           "data_analyses": {
             "$ref": "#/components/schemas/DataAnalysisStats",
             "description": "Dataset analysis stats"
+          },
+          "meetings": {
+            "$ref": "#/components/schemas/MeetingStats",
+            "description": "Meeting stats by status"
           },
           "mentor_sessions": {
             "$ref": "#/components/schemas/MentorSessionStats",
@@ -8674,7 +9188,8 @@
           "mentor_sessions",
           "data_analyses",
           "projects",
-          "actions"
+          "actions",
+          "meetings"
         ],
         "title": "ExtendedKPIsResponse",
         "type": "object"
@@ -9663,6 +10178,138 @@
           "dependencies"
         ],
         "title": "GlobalGanttResponse",
+        "type": "object"
+      },
+      "GoalHistoryEntry": {
+        "description": "A single goal change in history.",
+        "properties": {
+          "changed_at": {
+            "description": "When this goal was set",
+            "format": "date-time",
+            "title": "Changed At",
+            "type": "string"
+          },
+          "goal_text": {
+            "description": "The goal text",
+            "title": "Goal Text",
+            "type": "string"
+          },
+          "previous_goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Previous goal before this change",
+            "title": "Previous Goal"
+          }
+        },
+        "required": [
+          "goal_text",
+          "changed_at"
+        ],
+        "title": "GoalHistoryEntry",
+        "type": "object"
+      },
+      "GoalHistoryResponse": {
+        "description": "Response for goal history endpoint.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of entries returned",
+            "title": "Count",
+            "type": "integer"
+          },
+          "entries": {
+            "description": "Goal history entries, newest first",
+            "items": {
+              "$ref": "#/components/schemas/GoalHistoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "title": "GoalHistoryResponse",
+        "type": "object"
+      },
+      "GoalProgressResponse": {
+        "description": "Response for goal progress tracking.\n\nReturns action completion stats for the last 30 days,\nuseful for showing progress toward goals on the dashboard.",
+        "properties": {
+          "completed_count": {
+            "default": 0,
+            "description": "Actions completed in period",
+            "title": "Completed Count",
+            "type": "integer"
+          },
+          "progress_percent": {
+            "description": "Percentage of actions completed in period",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Progress Percent",
+            "type": "integer"
+          },
+          "total_count": {
+            "default": 0,
+            "description": "Total active actions in period",
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "trend": {
+            "description": "Trend compared to previous period",
+            "enum": [
+              "up",
+              "down",
+              "stable"
+            ],
+            "title": "Trend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "progress_percent",
+          "trend"
+        ],
+        "title": "GoalProgressResponse",
+        "type": "object"
+      },
+      "GoalStalenessResponse": {
+        "description": "Response for goal staleness check.",
+        "properties": {
+          "days_since_change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Days since last goal change, or None if no history",
+            "title": "Days Since Change"
+          },
+          "last_goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current/last goal text",
+            "title": "Last Goal"
+          },
+          "should_prompt": {
+            "default": false,
+            "description": "Whether to show 'Review your goal?' prompt (>30 days)",
+            "title": "Should Prompt",
+            "type": "boolean"
+          }
+        },
+        "title": "GoalStalenessResponse",
         "type": "object"
       },
       "GroupBySpec": {
@@ -11248,6 +11895,211 @@
         "title": "LockUserResponse",
         "type": "object"
       },
+      "ManagedCompetitor": {
+        "description": "A user-managed competitor entry.\n\nStores competitor name, optional URL and notes, and when it was added.\nDistinct from CompetitorInsight which is AI-generated analysis.",
+        "properties": {
+          "added_at": {
+            "description": "When competitor was added",
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "name": {
+            "description": "Competitor company name",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User notes about the competitor",
+            "title": "Notes"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Competitor website URL",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "name",
+          "added_at"
+        ],
+        "title": "ManagedCompetitor",
+        "type": "object"
+      },
+      "ManagedCompetitorCreate": {
+        "description": "Request to add a new managed competitor.",
+        "properties": {
+          "name": {
+            "description": "Competitor company name",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User notes about the competitor",
+            "title": "Notes"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Competitor website URL",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ManagedCompetitorCreate",
+        "type": "object"
+      },
+      "ManagedCompetitorListResponse": {
+        "description": "Response for listing managed competitors.",
+        "properties": {
+          "competitors": {
+            "description": "List of user-managed competitors",
+            "items": {
+              "$ref": "#/components/schemas/ManagedCompetitor"
+            },
+            "title": "Competitors",
+            "type": "array"
+          },
+          "count": {
+            "default": 0,
+            "description": "Number of competitors",
+            "title": "Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "ManagedCompetitorListResponse",
+        "type": "object"
+      },
+      "ManagedCompetitorResponse": {
+        "description": "Response for single managed competitor operations.",
+        "properties": {
+          "competitor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedCompetitor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Competitor data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether operation succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "ManagedCompetitorResponse",
+        "type": "object"
+      },
+      "ManagedCompetitorUpdate": {
+        "description": "Request to update a managed competitor.",
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated user notes",
+            "title": "Notes"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated competitor website URL",
+            "title": "Url"
+          }
+        },
+        "title": "ManagedCompetitorUpdate",
+        "type": "object"
+      },
       "MarketTrend": {
         "description": "A market trend.",
         "properties": {
@@ -11325,6 +12177,75 @@
           "by_phase"
         ],
         "title": "MeetingCostResponse",
+        "type": "object"
+      },
+      "MeetingStats": {
+        "description": "Statistics for meetings/sessions by status.\n\nAttributes:\n    total_meetings: Total meetings across all users\n    created: Meetings with status 'created'\n    running: Currently running meetings\n    completed: Successfully completed meetings\n    failed: Failed meetings\n    killed: Killed meetings\n    deleted: Soft-deleted meetings\n    meetings_today: Meetings created today\n    meetings_this_week: Meetings in the last 7 days\n    meetings_this_month: Meetings in the last 30 days",
+        "properties": {
+          "completed": {
+            "default": 0,
+            "description": "Completed meetings",
+            "title": "Completed",
+            "type": "integer"
+          },
+          "created": {
+            "default": 0,
+            "description": "Created meetings",
+            "title": "Created",
+            "type": "integer"
+          },
+          "deleted": {
+            "default": 0,
+            "description": "Deleted meetings",
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "description": "Failed meetings",
+            "title": "Failed",
+            "type": "integer"
+          },
+          "killed": {
+            "default": 0,
+            "description": "Killed meetings",
+            "title": "Killed",
+            "type": "integer"
+          },
+          "meetings_this_month": {
+            "default": 0,
+            "description": "Meetings in last 30 days",
+            "title": "Meetings This Month",
+            "type": "integer"
+          },
+          "meetings_this_week": {
+            "default": 0,
+            "description": "Meetings in last 7 days",
+            "title": "Meetings This Week",
+            "type": "integer"
+          },
+          "meetings_today": {
+            "default": 0,
+            "description": "Meetings today",
+            "title": "Meetings Today",
+            "type": "integer"
+          },
+          "running": {
+            "default": 0,
+            "description": "Running meetings",
+            "title": "Running",
+            "type": "integer"
+          },
+          "total_meetings": {
+            "description": "Total meetings",
+            "title": "Total Meetings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_meetings"
+        ],
+        "title": "MeetingStats",
         "type": "object"
       },
       "MeetingTemplate": {
@@ -11859,6 +12780,17 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
           },
           "message_count": {
             "title": "Message Count",
@@ -13551,8 +14483,25 @@
         "type": "object"
       },
       "ProjectListResponse": {
-        "description": "Response model for listing projects.\n\nAttributes:\n    projects: List of projects\n    total: Total count\n    page: Current page\n    per_page: Items per page",
+        "description": "Response model for listing projects.\n\nAttributes:\n    projects: List of projects\n    total: Total count\n    page: Current page (1-indexed)\n    per_page: Items per page\n    has_more: Whether more projects exist beyond current page\n    next_offset: Offset for next page (None if no more pages)",
         "properties": {
+          "has_more": {
+            "description": "Whether more projects exist beyond current page",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page (None if no more)",
+            "title": "Next Offset"
+          },
           "page": {
             "description": "Current page",
             "title": "Page",
@@ -13581,7 +14530,8 @@
           "projects",
           "total",
           "page",
-          "per_page"
+          "per_page",
+          "has_more"
         ],
         "title": "ProjectListResponse",
         "type": "object"
@@ -13609,7 +14559,7 @@
         "type": "object"
       },
       "ProjectStats": {
-        "description": "Statistics for projects by status.\n\nAttributes:\n    total_projects: Total projects across all users\n    active: Active projects\n    paused: Paused projects\n    completed: Completed projects\n    archived: Archived projects",
+        "description": "Statistics for projects by status.\n\nAttributes:\n    total_projects: Total projects across all users\n    active: Active projects\n    paused: Paused projects\n    completed: Completed projects\n    archived: Archived projects\n    deleted: Soft-deleted projects",
         "properties": {
           "active": {
             "default": 0,
@@ -13627,6 +14577,12 @@
             "default": 0,
             "description": "Completed projects",
             "title": "Completed",
+            "type": "integer"
+          },
+          "deleted": {
+            "default": 0,
+            "description": "Deleted projects",
+            "title": "Deleted",
             "type": "integer"
           },
           "paused": {
@@ -15480,12 +16436,29 @@
         "type": "object"
       },
       "SessionListResponse": {
-        "description": "Response model for session list.\n\nAttributes:\n    sessions: List of session summaries\n    total: Total number of sessions\n    limit: Page size\n    offset: Page offset",
+        "description": "Response model for session list.\n\nAttributes:\n    sessions: List of session summaries\n    total: Total number of sessions\n    limit: Page size\n    offset: Page offset\n    has_more: Whether more sessions exist beyond current page\n    next_offset: Offset for next page (None if no more pages)",
         "properties": {
+          "has_more": {
+            "description": "Whether more sessions exist beyond current page",
+            "title": "Has More",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Page size",
             "title": "Limit",
             "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page (None if no more)",
+            "title": "Next Offset"
           },
           "offset": {
             "description": "Page offset",
@@ -15510,7 +16483,8 @@
           "sessions",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "has_more"
         ],
         "title": "SessionListResponse",
         "type": "object"
@@ -16872,6 +17846,18 @@
         "title": "TierOverrideResponse",
         "type": "object"
       },
+      "TimePeriod": {
+        "description": "Time period for drill-down filtering.",
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month",
+          "all"
+        ],
+        "title": "TimePeriod",
+        "type": "string"
+      },
       "TopUsersCostResponse": {
         "description": "Top users by cost (admin only, abuse detection).\n\nAttributes:\n    period_start: Period queried\n    users: List of users sorted by cost descending",
         "properties": {
@@ -17092,6 +18078,224 @@
         "title": "TrendDirection",
         "type": "string"
       },
+      "TrendInsight": {
+        "description": "Structured AI-generated insight from a market trend URL.\n\nContains actionable analysis of market trends including:\n- Key takeaway from the trend\n- Relevance to user's business\n- Recommended actions\n- Timeframe classification",
+        "properties": {
+          "actions": {
+            "description": "Recommended actions (2-3 items)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Actions",
+            "type": "array"
+          },
+          "analyzed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When insight was generated",
+            "title": "Analyzed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Confidence level of the analysis",
+            "title": "Confidence"
+          },
+          "key_takeaway": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single most important insight from this trend",
+            "title": "Key Takeaway"
+          },
+          "relevance": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this trend matters for the user's business",
+            "title": "Relevance"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "enum": [
+                  "immediate",
+                  "short_term",
+                  "long_term"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this trend is most relevant",
+            "title": "Timeframe"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article title",
+            "title": "Title"
+          },
+          "url": {
+            "description": "Original URL of the trend article",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "TrendInsight",
+        "type": "object"
+      },
+      "TrendInsightRequest": {
+        "description": "Request to analyze a single trend URL.",
+        "properties": {
+          "url": {
+            "description": "URL of the trend article to analyze",
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "TrendInsightRequest",
+        "type": "object"
+      },
+      "TrendInsightResponse": {
+        "description": "Response from analyzing a single trend URL.",
+        "properties": {
+          "analysis_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status: 'complete', 'cached', 'limited_data', 'error'",
+            "title": "Analysis Status"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "insight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrendInsight"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Generated insight"
+          },
+          "success": {
+            "description": "Whether analysis succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "TrendInsightResponse",
+        "type": "object"
+      },
+      "TrendInsightsListResponse": {
+        "description": "Response containing list of trend insights.\n\nRate limited to 3/min per user due to web fetching costs.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of cached insights",
+            "title": "Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "insights": {
+            "description": "List of trend insights",
+            "items": {
+              "$ref": "#/components/schemas/TrendInsight"
+            },
+            "title": "Insights",
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "TrendInsightsListResponse",
+        "type": "object"
+      },
       "TrendSpec": {
         "description": "Trend specification for time-series analysis.\n\nAttributes:\n    date_field: Column containing date/datetime values\n    value_field: Column to compute trends on\n    interval: Time interval for grouping\n    aggregate_function: How to aggregate values within intervals",
         "properties": {
@@ -17197,6 +18401,71 @@
         "title": "UnblockActionRequest",
         "type": "object"
       },
+      "UnblockPathsResponse": {
+        "description": "Response containing suggested paths to unblock an action.",
+        "properties": {
+          "action_id": {
+            "description": "UUID of the blocked action",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "suggestions": {
+            "description": "List of 3-5 suggestions to unblock",
+            "items": {
+              "$ref": "#/components/schemas/UnblockSuggestionModel"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action_id",
+          "suggestions"
+        ],
+        "title": "UnblockPathsResponse",
+        "type": "object"
+      },
+      "UnblockSuggestionModel": {
+        "description": "A single suggestion for unblocking a blocked action.",
+        "properties": {
+          "approach": {
+            "description": "The suggested approach to unblock",
+            "examples": [
+              "Break the task into smaller sub-tasks"
+            ],
+            "maxLength": 500,
+            "title": "Approach",
+            "type": "string"
+          },
+          "effort_level": {
+            "description": "Estimated effort level",
+            "examples": [
+              "low"
+            ],
+            "pattern": "^(low|medium|high)$",
+            "title": "Effort Level",
+            "type": "string"
+          },
+          "rationale": {
+            "description": "Why this approach might work",
+            "examples": [
+              "Large tasks often get blocked because they're overwhelming"
+            ],
+            "maxLength": 500,
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approach",
+          "rationale",
+          "effort_level"
+        ],
+        "title": "UnblockSuggestionModel",
+        "type": "object"
+      },
       "UpdateBudgetSettingsRequest": {
         "description": "Request to update user budget settings (admin only).\n\nAttributes:\n    monthly_cost_limit_cents: Monthly limit in cents (null = unlimited)\n    alert_threshold_pct: Percentage threshold for alerting\n    hard_limit_enabled: Whether to block when limit exceeded",
         "properties": {
@@ -17240,6 +18509,23 @@
           }
         },
         "title": "UpdateBudgetSettingsRequest",
+        "type": "object"
+      },
+      "UpdateConversationLabelRequest": {
+        "description": "Request model for updating conversation label.",
+        "properties": {
+          "label": {
+            "description": "New conversation label (1-100 characters)",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "UpdateConversationLabelRequest",
         "type": "object"
       },
       "UpdateFeatureFlagRequest": {
@@ -17995,6 +19281,105 @@
         "title": "UserCostsResponse",
         "type": "object"
       },
+      "UserDrillDownItem": {
+        "description": "Single user item in drill-down list.\n\nAttributes:\n    user_id: User identifier\n    email: User email\n    subscription_tier: Subscription tier\n    is_admin: Whether user is admin\n    created_at: When user was created (ISO 8601)",
+        "properties": {
+          "created_at": {
+            "description": "When user was created (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "description": "User email",
+            "title": "Email",
+            "type": "string"
+          },
+          "is_admin": {
+            "description": "Whether user is admin",
+            "title": "Is Admin",
+            "type": "boolean"
+          },
+          "subscription_tier": {
+            "description": "Subscription tier",
+            "title": "Subscription Tier",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "subscription_tier",
+          "is_admin",
+          "created_at"
+        ],
+        "title": "UserDrillDownItem",
+        "type": "object"
+      },
+      "UserDrillDownResponse": {
+        "description": "Response for user drill-down list.\n\nAttributes:\n    items: List of user items\n    total: Total count matching filter\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page\n    period: Time period filter applied",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of users",
+            "items": {
+              "$ref": "#/components/schemas/UserDrillDownItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "period"
+        ],
+        "title": "UserDrillDownResponse",
+        "type": "object"
+      },
       "UserInfo": {
         "description": "Information about a user.\n\nAttributes:\n    user_id: User identifier\n    email: User email address\n    auth_provider: Authentication provider (google, github, supertokens, etc.)\n    subscription_tier: Subscription tier (free, pro, enterprise)\n    is_admin: Whether user has admin privileges\n    is_locked: Whether account is locked\n    locked_at: When account was locked\n    lock_reason: Reason for locking\n    deleted_at: When account was soft deleted\n    total_meetings: Total number of meetings created\n    total_cost: Total cost across all meetings (USD)\n    last_meeting_at: When user's most recent meeting was created\n    last_meeting_id: ID of user's most recent meeting\n    created_at: When user account was created\n    updated_at: When user account was last updated",
         "examples": [
@@ -18186,8 +19571,25 @@
         "type": "object"
       },
       "UserListResponse": {
-        "description": "Response model for user list.\n\nAttributes:\n    total_count: Total number of users\n    users: List of user info\n    page: Current page number\n    per_page: Number of users per page",
+        "description": "Response model for user list.\n\nAttributes:\n    total_count: Total number of users\n    users: List of user info\n    page: Current page number\n    per_page: Number of users per page\n    has_more: Whether more users exist beyond current page\n    next_offset: Offset for next page (None if no more pages)",
         "properties": {
+          "has_more": {
+            "description": "Whether more users exist beyond current page",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page (None if no more)",
+            "title": "Next Offset"
+          },
           "page": {
             "description": "Current page number",
             "examples": [
@@ -18225,7 +19627,8 @@
           "total_count",
           "users",
           "page",
-          "per_page"
+          "per_page",
+          "has_more"
         ],
         "title": "UserListResponse",
         "type": "object"
@@ -18828,6 +20231,111 @@
         "title": "VolatilityLevel",
         "type": "string"
       },
+      "WaitlistDrillDownItem": {
+        "description": "Single waitlist entry in drill-down list.\n\nAttributes:\n    id: Entry ID\n    email: Email address\n    status: Status (pending, invited, converted)\n    source: Signup source\n    created_at: When added to waitlist (ISO 8601)",
+        "properties": {
+          "created_at": {
+            "description": "When added (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email address",
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "description": "Entry ID",
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Signup source",
+            "title": "Source"
+          },
+          "status": {
+            "description": "Status",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "status",
+          "created_at"
+        ],
+        "title": "WaitlistDrillDownItem",
+        "type": "object"
+      },
+      "WaitlistDrillDownResponse": {
+        "description": "Response for waitlist drill-down list.\n\nAttributes:\n    items: List of waitlist entries\n    total: Total count matching filter\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page\n    period: Time period filter applied",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of waitlist entries",
+            "items": {
+              "$ref": "#/components/schemas/WaitlistDrillDownItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "period"
+        ],
+        "title": "WaitlistDrillDownResponse",
+        "type": "object"
+      },
       "WaitlistEntry": {
         "description": "Response model for waitlist entry.\n\nAttributes:\n    id: Entry ID\n    email: Email address\n    status: Status (pending, invited, converted)\n    source: Where they signed up from\n    notes: Admin notes\n    created_at: When they joined the waitlist",
         "properties": {
@@ -18901,6 +20409,20 @@
         "title": "WaitlistRequest",
         "type": "object"
       },
+      "WebhookResponse": {
+        "description": "Response for webhook endpoint.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "WebhookResponse",
+        "type": "object"
+      },
       "WhitelistCheckResponse": {
         "description": "Response for whitelist/beta access check endpoints.",
         "properties": {
@@ -18914,6 +20436,117 @@
           "is_whitelisted"
         ],
         "title": "WhitelistCheckResponse",
+        "type": "object"
+      },
+      "WhitelistDrillDownItem": {
+        "description": "Single whitelist entry in drill-down list.\n\nAttributes:\n    id: Entry ID\n    email: Whitelisted email\n    added_by: Admin who added\n    notes: Optional notes\n    created_at: When added (ISO 8601)",
+        "properties": {
+          "added_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Admin who added",
+            "title": "Added By"
+          },
+          "created_at": {
+            "description": "When added (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email address",
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "description": "Entry ID",
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notes",
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "created_at"
+        ],
+        "title": "WhitelistDrillDownItem",
+        "type": "object"
+      },
+      "WhitelistDrillDownResponse": {
+        "description": "Response for whitelist drill-down list.\n\nAttributes:\n    items: List of whitelist entries\n    total: Total count matching filter\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page\n    period: Time period filter applied",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of whitelist entries",
+            "items": {
+              "$ref": "#/components/schemas/WhitelistDrillDownItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "period"
+        ],
+        "title": "WhitelistDrillDownResponse",
         "type": "object"
       },
       "WorkspaceBillingInfoResponse": {
@@ -22150,6 +23783,418 @@
           "admin",
           "admin",
           "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/drilldown/costs": {
+      "get": {
+        "description": "Get paginated list of cost records within the specified time period.",
+        "operationId": "get_costs_drilldown_api_admin_drilldown_costs_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "day",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostDrillDownResponse"
+                }
+              }
+            },
+            "description": "Costs retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List cost records with time filter",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/users": {
+      "get": {
+        "description": "Get paginated list of users registered within the specified time period.",
+        "operationId": "get_users_drilldown_api_admin_drilldown_users_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "day",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDrillDownResponse"
+                }
+              }
+            },
+            "description": "Users retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List users with time filter",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/waitlist": {
+      "get": {
+        "description": "Get paginated list of waitlist entries added within the specified time period.",
+        "operationId": "get_waitlist_drilldown_api_admin_drilldown_waitlist_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "day",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistDrillDownResponse"
+                }
+              }
+            },
+            "description": "Waitlist entries retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List waitlist entries with time filter",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/whitelist": {
+      "get": {
+        "description": "Get paginated list of whitelist entries added within the specified time period.",
+        "operationId": "get_whitelist_drilldown_api_admin_drilldown_whitelist_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "day",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitelistDrillDownResponse"
+                }
+              }
+            },
+            "description": "Whitelist entries retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List whitelist entries with time filter",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
         ]
       }
     },
@@ -29692,6 +31737,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ActionCompleteRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -30429,6 +32491,80 @@
           }
         },
         "summary": "Update action status",
+        "tags": [
+          "actions",
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/suggest-unblock": {
+      "post": {
+        "description": "Uses AI to generate 3-5 concrete suggestions for unblocking a stuck action.",
+        "operationId": "suggest_unblock_paths_api_v1_actions__action_id__suggest_unblock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnblockPathsResponse"
+                }
+              }
+            },
+            "description": "Suggestions generated successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Action is not blocked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Action not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Suggest ways to unblock a blocked action",
         "tags": [
           "actions",
           "actions"
@@ -32117,6 +34253,135 @@
         ]
       }
     },
+    "/api/v1/context/competitors/insights": {
+      "get": {
+        "description": "Retrieve all cached competitor insights for the user.\n\n    **Tier Gating:**\n    - Free: 1 visible insight\n    - Starter: 3 visible insights\n    - Pro: Unlimited insights\n\n    Returns `visible_count` and `total_count` to show users what they're missing.\n    Includes `upgrade_prompt` when tier limit is reached.",
+        "operationId": "list_competitor_insights_api_v1_context_competitors_insights_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorInsightsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List cached competitor insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/competitors/{name}/insights": {
+      "delete": {
+        "description": "Remove a cached competitor insight.\n\n    This frees up a slot for users on limited tiers.\n    The insight can be regenerated by calling the POST endpoint.",
+        "operationId": "delete_competitor_insight_api_v1_context_competitors__name__insights_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Delete Competitor Insight Api V1 Context Competitors  Name  Insights Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete cached competitor insight",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "post": {
+        "description": "Generate an AI-powered insight card for a specific competitor.\n\n    Uses Haiku for fast, cost-effective analysis (~$0.003/request).\n    Includes web search for fresh company data when available.\n\n    **Rate Limit:** 3 requests per minute per user (LLM cost control).\n\n    **Caching:** Results are cached in user context. Subsequent calls\n    for the same competitor return cached data unless forced refresh.",
+        "operationId": "generate_competitor_insight_api_v1_context_competitors__name__insights_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorInsightResponse"
+                }
+              }
+            },
+            "description": "Insight generated or retrieved from cache"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Analysis failed"
+          }
+        },
+        "summary": "Generate insight for a competitor",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/demo-questions": {
       "delete": {
         "description": "Clear the cached demo questions for the current user.\n\n    Use this when:\n    - User updates their business context significantly\n    - User wants fresh suggestions\n\n    Next call to GET /demo-questions will regenerate.",
@@ -32293,6 +34558,97 @@
         ]
       }
     },
+    "/api/v1/context/goal-history": {
+      "get": {
+        "description": "Retrieve the history of north star goal changes for the user.\n\n    Returns up to 10 most recent goal changes, newest first.\n    Each entry includes the goal text, when it was changed, and the previous goal.\n\n    **Use Cases:**\n    - Display goal evolution timeline in strategic context page\n    - Show users how their focus has shifted over time",
+        "operationId": "get_goal_history_endpoint_api_v1_context_goal_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get goal change history",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/goal-progress": {
+      "get": {
+        "description": "Get action completion stats for the last 30 days.\n\n    Returns:\n    - Progress percentage (completed / total active actions)\n    - Trend compared to previous 30-day period (up/down/stable)\n    - Completed and total counts\n\n    Useful for displaying goal progress on the dashboard.",
+        "operationId": "get_goal_progress_api_v1_context_goal_progress_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalProgressResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get goal progress metrics",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/goal-staleness": {
+      "get": {
+        "description": "Check if the user's north star goal needs review.\n\n    Returns:\n    - Days since the goal was last changed\n    - Whether to show a \"Review your goal?\" prompt (>30 days unchanged)\n    - The current/last goal text\n\n    **Use Cases:**\n    - Dashboard banner prompting goal review\n    - Strategic context page staleness indicator",
+        "operationId": "check_goal_staleness_api_v1_context_goal_staleness_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalStalenessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check goal staleness",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/insights": {
       "get": {
         "description": "Retrieve insights accumulated from user's meetings.\n\n    Currently includes:\n    - **Clarifications**: Q&A pairs from clarifying questions answered during meetings\n\n    These insights are automatically collected during meetings when users answer\n    clarifying questions. They help improve future meetings by providing\n    relevant context.\n\n    **Use Cases:**\n    - Display clarification history in settings\n    - Show what the system has learned about the user's business\n    - Allow users to review and potentially edit their responses",
@@ -32421,6 +34777,179 @@
           }
         },
         "summary": "Update a clarification insight",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/managed-competitors": {
+      "get": {
+        "description": "Retrieve the user's manually managed competitor list.\n\n    These are competitors the user has explicitly added, distinct from:\n    - Auto-detected competitors (from enrichment)\n    - Competitor insights (AI-generated analysis cards)\n\n    Returns competitors sorted by added_at (newest first).",
+        "operationId": "list_managed_competitors_api_v1_context_managed_competitors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCompetitorListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List user's managed competitors",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "post": {
+        "description": "Add a new competitor to the user's managed list.\n\n    Performs case-insensitive deduplication - if a competitor with\n    the same name (ignoring case) already exists, returns error.\n\n    **Use Cases:**\n    - User manually adds known competitor\n    - Capture competitor from external source",
+        "operationId": "add_managed_competitor_api_v1_context_managed_competitors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagedCompetitorCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCompetitorResponse"
+                }
+              }
+            },
+            "description": "Competitor added successfully"
+          },
+          "409": {
+            "description": "Competitor with this name already exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add a managed competitor",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/managed-competitors/{name}": {
+      "delete": {
+        "description": "Remove a competitor from the user's managed list.\n\n    Competitor is matched by name (case-insensitive).\n    This does not delete any associated competitor insights.",
+        "operationId": "remove_managed_competitor_api_v1_context_managed_competitors__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Remove Managed Competitor Api V1 Context Managed Competitors  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Competitor removed successfully"
+          },
+          "404": {
+            "description": "Competitor not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove a managed competitor",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "patch": {
+        "description": "Update the URL and/or notes for a managed competitor.\n\n    Competitor is matched by name (case-insensitive).\n    Only provided fields are updated - omitted fields remain unchanged.",
+        "operationId": "update_managed_competitor_api_v1_context_managed_competitors__name__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagedCompetitorUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCompetitorResponse"
+                }
+              }
+            },
+            "description": "Competitor updated successfully"
+          },
+          "404": {
+            "description": "Competitor not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a managed competitor",
         "tags": [
           "context",
           "context"
@@ -32588,6 +35117,138 @@
         ]
       }
     },
+    "/api/v1/context/trends/analyze": {
+      "post": {
+        "description": "Analyze a market trend URL and generate structured insights.\n\n    Uses Haiku for fast, cost-effective analysis (~$0.003/request).\n    Fetches URL content and extracts key takeaways, relevance to user's\n    business, and recommended actions.\n\n    **Rate Limit:** 3 requests per minute per user (web fetching cost control).\n\n    **Caching:** Results are cached in user context. Subsequent calls\n    for the same URL return cached data unless forced refresh.\n\n    **Supported content:** HTML pages. PDFs and other formats are not supported.",
+        "operationId": "analyze_trend_api_v1_context_trends_analyze_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrendInsightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendInsightResponse"
+                }
+              }
+            },
+            "description": "Insight generated or retrieved from cache"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Analysis failed"
+          }
+        },
+        "summary": "Analyze a trend URL for insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/insights": {
+      "get": {
+        "description": "Retrieve all cached trend insights for the user.\n\n    Returns insights sorted by analysis date (newest first).",
+        "operationId": "list_trend_insights_api_v1_context_trends_insights_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendInsightsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List cached trend insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/insights/{url_hash}": {
+      "delete": {
+        "description": "Remove a cached trend insight by URL hash.\n\n    The url_hash is a URL-safe base64 encoding of the URL.",
+        "operationId": "delete_trend_insight_api_v1_context_trends_insights__url_hash__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "url_hash",
+            "required": true,
+            "schema": {
+              "title": "Url Hash",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Delete Trend Insight Api V1 Context Trends Insights  Url Hash  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a cached trend insight",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/trends/refresh": {
       "post": {
         "description": "Fetch current market trends for the user's industry using Brave Search API.\n\n    Uses the industry from saved context or the request to search for\n    recent trends and news.\n\n    Returns a list of trends with sources.",
@@ -32632,6 +35293,59 @@
           }
         },
         "summary": "Refresh market trends",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/summary": {
+      "get": {
+        "description": "Get the AI-generated market trend summary for the user's industry.\n\n    Returns cached summary if available, with staleness indicator.\n    If summary is stale (>7 days) or industry has changed, `stale` will be true.\n    If user has no industry set, `needs_industry` will be true.\n\n    **Auto-refresh:** Frontend should call POST /refresh if stale=true.",
+        "operationId": "get_trend_summary_api_v1_context_trends_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Trend Summary Api V1 Context Trends Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get cached trend summary",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/summary/refresh": {
+      "post": {
+        "description": "Generate or refresh the AI-powered market trend summary.\n\n    Uses Brave Search + Claude Haiku to generate a structured summary:\n    - Executive summary of current market conditions\n    - Key trends (3-5 items)\n    - Opportunities (2-4 items)\n    - Threats/challenges (2-4 items)\n\n    **Rate Limit:** 1 refresh per hour per user.\n    **Cost:** ~$0.005 per generation.\n\n    Returns `rate_limited=true` if called too frequently.",
+        "operationId": "refresh_trend_summary_api_v1_context_trends_summary_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Refresh Trend Summary Api V1 Context Trends Summary Refresh Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Summary generated or rate limited"
+          },
+          "400": {
+            "description": "Industry not set"
+          }
+        },
+        "summary": "Refresh trend summary",
         "tags": [
           "context",
           "context"
@@ -33419,6 +36133,32 @@
         ]
       }
     },
+    "/api/v1/email/webhook": {
+      "post": {
+        "description": "Handle Resend webhook events.\n\nValidates signature using svix and updates email_log with event timestamps.\nIdempotent: ignores duplicate events or unknown resend_ids.\n\nEvent types handled:\n- email.delivered: Email successfully delivered\n- email.opened: Email opened by recipient\n- email.clicked: Link clicked in email\n- email.bounced: Email bounced (soft/hard)\n- email.delivery_failed: Email delivery failed",
+        "operationId": "resend_webhook_api_v1_email_webhook_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Invalid signature or payload"
+          }
+        },
+        "summary": "Resend Webhook",
+        "tags": [
+          "email",
+          "email"
+        ]
+      }
+    },
     "/api/v1/feedback": {
       "post": {
         "description": "Submit a feature request or problem report. Rate limited to 5/hour.",
@@ -34181,6 +36921,58 @@
           "mentor",
           "mentor"
         ]
+      },
+      "patch": {
+        "description": "Update a mentor conversation (currently supports label update)",
+        "operationId": "update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationLabelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorConversationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update mentor conversation",
+        "tags": [
+          "mentor",
+          "mentor"
+        ]
       }
     },
     "/api/v1/mentor/failure-patterns": {
@@ -34309,16 +37101,16 @@
     },
     "/api/v1/mentor/mentions/search": {
       "get": {
-        "description": "Search meetings, actions, or datasets for @mention autocomplete",
+        "description": "Search meetings, actions, datasets, or chats for @mention autocomplete",
         "operationId": "search_mentions_api_v1_mentor_mentions_search_get",
         "parameters": [
           {
-            "description": "Entity type: meeting, action, dataset",
+            "description": "Entity type: meeting, action, dataset, chat",
             "in": "query",
             "name": "type",
             "required": true,
             "schema": {
-              "description": "Entity type: meeting, action, dataset",
+              "description": "Entity type: meeting, action, dataset, chat",
               "title": "Type",
               "type": "string"
             }
@@ -34347,6 +37139,24 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Current conversation ID to exclude from results",
+            "in": "query",
+            "name": "conversation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Current conversation ID to exclude from results",
+              "title": "Conversation Id"
             }
           }
         ],
@@ -34949,7 +37759,14 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": {
-                    "type": "integer"
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
                   },
                   "title": "Response Get Unassigned Count Api V1 Projects Unassigned Count Get",
                   "type": "object"

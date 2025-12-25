@@ -123,7 +123,34 @@ class TestEmbeddingsSample:
             )
 
             assert response.status_code == 200
-            mock_samples.assert_called_once_with(embedding_type="contributions", limit=500)
+            mock_samples.assert_called_once_with(
+                embedding_type="contributions", limit=500, category=None
+            )
+
+    def test_get_sample_with_category_filter(self, client: TestClient, admin_headers: dict):
+        """Filters research embeddings by category."""
+        with (
+            patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
+            patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
+            patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
+            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
+            patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
+        ):
+            mock_redis_mgr.return_value.is_available = False
+            mock_stats.return_value = {"total_embeddings": 500}
+            mock_samples.return_value = []
+            mock_compute.return_value = []
+
+            response = client.get(
+                "/api/admin/embeddings/sample?category=saas_metrics",
+                headers=admin_headers,
+            )
+
+            assert response.status_code == 200
+            mock_samples.assert_called_once_with(
+                embedding_type="all", limit=500, category="saas_metrics"
+            )
 
     def test_get_sample_with_method_param(self, client: TestClient, admin_headers: dict):
         """Uses requested reduction method."""
@@ -211,3 +238,72 @@ class TestEmbeddingsSample:
             # Invalid limit (too high)
             response = client.get("/api/admin/embeddings/sample?limit=2000", headers=admin_headers)
             assert response.status_code == 422
+
+    def test_get_sample_returns_clusters(self, client: TestClient, admin_headers: dict):
+        """Returns cluster info when enough points."""
+        with (
+            patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
+            patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
+            patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
+            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.compute_clusters") as mock_clusters,
+            patch("backend.api.admin.embeddings.generate_cluster_labels") as mock_labels,
+            patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
+            patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
+        ):
+            mock_redis_mgr.return_value.is_available = False
+            mock_stats.return_value = {"total_embeddings": 100}
+            # Return 25 points to trigger clustering
+            mock_samples.return_value = [{"embedding": [0.1] * 1024}] * 25
+            mock_compute.return_value = [
+                {
+                    "x": float(i),
+                    "y": float(i),
+                    "type": "research",
+                    "preview": f"Test {i}",
+                    "metadata": {},
+                    "created_at": "2025-01-01",
+                }
+                for i in range(25)
+            ]
+            mock_clusters.return_value = ([0] * 15 + [1] * 10, [(0.0, 0.0), (10.0, 10.0)])
+            mock_labels.return_value = {0: "Cluster A", 1: "Cluster B"}
+
+            response = client.get("/api/admin/embeddings/sample", headers=admin_headers)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "clusters" in data
+            assert len(data["clusters"]) == 2
+            assert data["clusters"][0]["label"] == "Cluster A"
+            assert data["clusters"][0]["count"] == 15
+            assert data["clusters"][1]["label"] == "Cluster B"
+
+
+class TestEmbeddingsCategories:
+    """Tests for GET /api/admin/embeddings/categories."""
+
+    def test_get_categories_success(self, client: TestClient, admin_headers: dict):
+        """Returns research cache categories."""
+        with (
+            patch("backend.api.admin.embeddings.get_distinct_categories") as mock_cats,
+            patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
+            patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
+        ):
+            mock_cats.return_value = [
+                {"category": "saas_metrics", "count": 50},
+                {"category": "pricing", "count": 30},
+            ]
+
+            response = client.get("/api/admin/embeddings/categories", headers=admin_headers)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["categories"]) == 2
+            assert data["categories"][0]["category"] == "saas_metrics"
+            assert data["categories"][0]["count"] == 50
+
+    def test_get_categories_requires_admin(self, client: TestClient):
+        """Rejects non-admin requests."""
+        response = client.get("/api/admin/embeddings/categories")
+        assert response.status_code == 403

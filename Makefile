@@ -657,3 +657,16 @@ generate-types: openapi-export ## Generate TypeScript types from OpenAPI spec
 .PHONY: check-types-fresh
 check-types-fresh: ## Check if generated types are up-to-date with OpenAPI spec
 	@cd frontend && npm run check:types-fresh
+
+.PHONY: openapi-public
+openapi-public: openapi-export ## Generate filtered public OpenAPI spec (excludes admin endpoints)
+	@docker-compose run --rm bo1 python scripts/filter_openapi_spec.py openapi.json openapi-public.json
+	@echo "✓ Public OpenAPI spec generated at openapi-public.json"
+
+# =============================================================================
+# Datetime Linting Commands
+# =============================================================================
+
+.PHONY: lint-datetime
+lint-datetime: ## Lint for raw .isoformat() calls in API response code
+	@docker-compose run --rm bo1 python scripts/lint_datetime.py --base /app

@@ -1,0 +1,51 @@
+# Datetime isoformat() allowlist
+# Files listed here are exempt from the lint_datetime.py check.
+# Each entry should be migrated to Pydantic models over time.
+#
+# Format: path/to/file.py  # TODO: ticket or note
+#
+# To add a file: path relative to repo root, one per line
+# To remove: delete the line and fix the violations
+
+# High-volume API endpoints (migrate in P4)
+backend/api/actions.py  # TODO: P4 - 27 violations, needs ActionResponse model expansion
+backend/api/events.py  # TODO: P4 - 35 violations, SSE event dict building
+backend/api/projects.py  # TODO: P4 - 13 violations, _format_project() helper
+backend/api/sessions.py  # TODO: P4 - 5 violations, session detail responses
+
+# Admin endpoints (lower priority)
+backend/api/admin/costs.py  # TODO: P4 - 6 violations
+backend/api/admin/drilldown.py  # TODO: P4 - 1 violation - drill-down response
+backend/api/admin/cost_analytics.py  # TODO: P4 - 6 violations
+backend/api/admin/helpers.py  # TODO: P4 - 2 violations, admin formatting helper
+backend/api/admin/feature_flags.py  # TODO: P4 - 2 violations
+backend/api/admin/impersonation.py  # TODO: P4 - 2 violations
+backend/api/admin/templates.py  # TODO: P4 - 1 violation
+backend/api/admin/users.py  # TODO: P4 - 1 violation
+
+# Infrastructure/health (acceptable - internal use)
+backend/api/health.py  # 18 violations - health check dict building
+backend/api/health_history.py  # 1 violation - health history
+backend/api/status.py  # 2 violations - status page
+backend/api/llm_health_probe.py  # 1 violation - probe results
+
+# Context/business logic
+backend/api/context/routes.py  # TODO: P4 - 2 violations
+backend/api/context/services.py  # TODO: P4 - 1 violation
+backend/api/context/auto_detect.py  # TODO: P4 - 1 violation - auto-detect timing
+backend/api/business_metrics.py  # TODO: P4 - 3 violations
+backend/api/competitors.py  # TODO: P4 - 1 violation
+
+# Other endpoints
+backend/api/control.py  # TODO: P4 - 2 violations
+backend/api/event_publisher.py  # TODO: P4 - 2 violations (event metadata)
+backend/api/mentor.py  # TODO: P4 - 2 violations
+backend/api/oauth_session_manager.py  # TODO: P4 - 2 violations
+backend/api/tags.py  # TODO: P4 - 2 violations
+backend/api/user.py  # TODO: P4 - 1 violation
+backend/api/share.py  # TODO: P4 - 1 violation
+backend/api/feedback.py  # TODO: P4 - 1 violation
+
+# Middleware (acceptable - rate limit response headers)
+backend/api/middleware/rate_limit.py  # 1 violation - rate limit headers
+backend/api/middleware/tier_limits.py  # 1 violation - tier limit response

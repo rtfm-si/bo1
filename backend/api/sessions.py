@@ -48,6 +48,7 @@ from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors, raise_api_error
 from backend.api.utils.honeypot import validate_honeypot_fields
+from backend.api.utils.pagination import make_pagination_fields
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from backend.services.insight_staleness import get_stale_insights
@@ -743,9 +744,7 @@ async def list_sessions(
 
                 return SessionListResponse(
                     sessions=sessions,
-                    total=total,
-                    limit=limit,
-                    offset=offset,
+                    **make_pagination_fields(total, limit, offset),
                 )
 
             # FALLBACK: If Postgres failed or returned empty, try Redis
@@ -755,9 +754,7 @@ async def list_sessions(
                 # No data available from either source
                 return SessionListResponse(
                     sessions=[],
-                    total=0,
-                    limit=limit,
-                    offset=offset,
+                    **make_pagination_fields(0, limit, offset),
                 )
 
             # Get session IDs for this user only (uses Redis SET - O(1) lookup)
@@ -766,9 +763,7 @@ async def list_sessions(
             if not session_ids:
                 return SessionListResponse(
                     sessions=[],
-                    total=0,
-                    limit=limit,
-                    offset=offset,
+                    **make_pagination_fields(0, limit, offset),
                 )
 
             # Batch load metadata for all user sessions (single Redis pipeline)
@@ -828,9 +823,7 @@ async def list_sessions(
 
             return SessionListResponse(
                 sessions=paginated_sessions,
-                total=total_fallback,
-                limit=limit,
-                offset=offset,
+                **make_pagination_fields(total_fallback, limit, offset),
             )
 
         except Exception as e:

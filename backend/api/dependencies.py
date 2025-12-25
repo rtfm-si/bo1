@@ -9,13 +9,15 @@ Provides singleton instances of:
 
 Also provides reusable dependencies for:
 - Authentication + session verification (get_verified_session)
+- Admin session access (get_verified_session_admin)
+- Session metadata only (get_session_metadata)
 
 All singletons use @lru_cache for caching.
 """
 
 import os
 from functools import lru_cache
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict
 
 from anthropic import AsyncAnthropic
 from fastapi import Depends, HTTPException
@@ -26,10 +28,12 @@ from backend.api.constants import (
 )
 from backend.api.contribution_summarizer import ContributionSummarizer
 from backend.api.event_publisher import EventPublisher
+from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.auth import get_current_user
 from backend.api.session_cache import SessionMetadataCache
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.security import verify_session_ownership
+from backend.api.utils.validation import validate_session_id
 from bo1.config import get_settings
 from bo1.graph.execution import SessionManager
 from bo1.state.redis_manager import RedisManager
@@ -120,6 +124,134 @@ def get_session_metadata_cache() -> SessionMetadataCache:
         max_size=SESSION_METADATA_CACHE_MAX_SIZE,
         ttl_seconds=SESSION_METADATA_CACHE_TTL_SECONDS,
     )
+
+
+class SessionMetadataDict(TypedDict, total=False):
+    """Type definition for session metadata fields.
+
+    All fields are optional (total=False) since metadata may be partial
+    depending on session state and phase.
+    """
+
+    user_id: str
+    status: str
+    phase: str | None
+    started_at: str | None
+    cost: float | None
+    round_number: int | None
+    expert_count: int | None
+    contribution_count: int | None
+    focus_area_count: int | None
+    task_count: int | None
+    workspace_id: str | None
+
+
+async def get_session_metadata(
+    session_id: str,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> SessionMetadataDict:
+    """Load session metadata without authentication.
+
+    This dependency only loads session metadata from Redis cache.
+    No authentication or ownership checks are performed.
+    Use for public/internal endpoints that need session info without user context.
+
+    Args:
+        session_id: Session identifier from path parameter
+        redis_manager: Redis manager instance (injected)
+
+    Returns:
+        Session metadata dict
+
+    Raises:
+        HTTPException: 422 if session_id format invalid
+        HTTPException: 500 if Redis unavailable
+        HTTPException: 404 if session not found
+    """
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+
+    if not redis_manager.is_available:
+        raise HTTPException(
+            status_code=500,
+            detail="Redis unavailable - cannot access session",
+        )
+
+    # Use cache to reduce Redis lookups
+    cache = get_session_metadata_cache()
+    metadata = cache.get_or_load(
+        session_id,
+        lambda sid: redis_manager.load_metadata(sid),
+    )
+
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session not found: {session_id}",
+        )
+
+    return metadata
+
+
+# Type alias for session metadata dependency
+SessionMetadata = Annotated[SessionMetadataDict, Depends(get_session_metadata)]
+
+
+async def get_verified_session_admin(
+    session_id: str,
+    _admin: str = Depends(require_admin_any),
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> SessionMetadataDict:
+    """Admin access to session metadata (no ownership check).
+
+    This dependency combines:
+    1. Admin authentication (via require_admin_any)
+    2. Session ID validation
+    3. Session metadata loading (with in-memory cache)
+
+    No ownership check is performed - admins can access any session.
+
+    Args:
+        session_id: Session identifier from path parameter
+        _admin: Admin verification (injected, unused but required for auth)
+        redis_manager: Redis manager instance (injected)
+
+    Returns:
+        Session metadata dict
+
+    Raises:
+        HTTPException: 401/403 if not admin
+        HTTPException: 422 if session_id format invalid
+        HTTPException: 500 if Redis unavailable
+        HTTPException: 404 if session not found
+    """
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+
+    if not redis_manager.is_available:
+        raise HTTPException(
+            status_code=500,
+            detail="Redis unavailable - cannot access session",
+        )
+
+    # Use cache to reduce Redis lookups
+    cache = get_session_metadata_cache()
+    metadata = cache.get_or_load(
+        session_id,
+        lambda sid: redis_manager.load_metadata(sid),
+    )
+
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session not found: {session_id}",
+        )
+
+    return metadata
+
+
+# Type alias for admin session dependency
+VerifiedSessionAdmin = Annotated[SessionMetadataDict, Depends(get_verified_session_admin)]
 
 
 async def get_verified_session(

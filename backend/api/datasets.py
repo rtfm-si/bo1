@@ -44,6 +44,7 @@ from backend.api.models import (
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.pagination import make_pagination_fields
 from backend.services.antivirus import ClamAVError, ScanStatus, scan_upload
 from backend.services.chart_generator import ChartError, generate_chart_json, generate_chart_png
 from backend.services.conversation_repo import ConversationRepository
@@ -146,9 +147,7 @@ async def list_datasets(
 
     return DatasetListResponse(
         datasets=[_format_dataset_response(d) for d in datasets],
-        total=total,
-        limit=limit,
-        offset=offset,
+        **make_pagination_fields(total, limit, offset),
     )
 
 

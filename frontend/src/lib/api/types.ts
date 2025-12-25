@@ -40,6 +40,20 @@ export interface ActionDetailExtended extends ActionDetailResponse {
 	replanned_to_id?: string | null;
 	/** ID of action this was replanned from */
 	replanned_from_id?: string | null;
+	/** User reflection on lessons learned from this action */
+	lessons_learned?: string | null;
+	/** User reflection on what went well during this action */
+	went_well?: string | null;
+}
+
+/**
+ * Request body for completing an action with optional post-mortem
+ */
+export interface ActionCompleteRequest {
+	/** Reflection on lessons learned (max 500 chars) */
+	lessons_learned?: string | null;
+	/** Reflection on what went well (max 500 chars) */
+	went_well?: string | null;
 }
 export type ActionStatsTotals = components['schemas']['ActionStatsTotals'];
 export type DailyActionStat = components['schemas']['DailyActionStat'];
@@ -273,6 +287,8 @@ export type DependencyAddedResponse = components['schemas']['DependencyAddedResp
 export type DependencyRemovedResponse = components['schemas']['DependencyRemovedResponse'];
 export type ActionBlockedResponse = components['schemas']['ActionBlockedResponse'];
 export type ActionUnblockedResponse = components['schemas']['ActionUnblockedResponse'];
+export type UnblockSuggestion = components['schemas']['UnblockSuggestionModel'];
+export type UnblockPathsResponse = components['schemas']['UnblockPathsResponse'];
 export type AutogenSuggestion = components['schemas']['AutogenSuggestion'];
 export type AutogenSuggestionsResponse = components['schemas']['AutogenSuggestionsResponse'];
 export type AutogenCreateResponse = components['schemas']['AutogenCreateResponse'];
@@ -934,4 +950,136 @@ export interface DatasetProfile {
 	max_value: string | null;
 	mean_value: number | null;
 	sample_values: unknown[] | null;
+}
+
+// =============================================================================
+// Competitor Insight Types
+// =============================================================================
+
+/**
+ * AI-generated competitor insight card
+ */
+export interface CompetitorInsight {
+	name: string;
+	tagline: string | null;
+	size_estimate: string | null;
+	revenue_estimate: string | null;
+	strengths: string[];
+	weaknesses: string[];
+	market_gaps: string[];
+	last_updated: string | null;
+}
+
+/**
+ * Response from generating a competitor insight
+ */
+export interface CompetitorInsightResponse {
+	success: boolean;
+	insight: CompetitorInsight | null;
+	error?: string | null;
+	generation_status: 'complete' | 'cached' | 'limited_data' | 'error' | null;
+}
+
+/**
+ * Response from listing competitor insights (tier-gated)
+ */
+export interface CompetitorInsightsListResponse {
+	success: boolean;
+	insights: CompetitorInsight[];
+	visible_count: number;
+	total_count: number;
+	tier: string | null;
+	upgrade_prompt: string | null;
+	error?: string | null;
+}
+
+/**
+ * AI-generated trend insight from a market trend URL
+ */
+export interface TrendInsight {
+	url: string;
+	title: string | null;
+	key_takeaway: string | null;
+	relevance: string | null;
+	actions: string[];
+	timeframe: 'immediate' | 'short_term' | 'long_term' | null;
+	confidence: 'high' | 'medium' | 'low' | null;
+	analyzed_at: string | null;
+}
+
+/**
+ * Request to analyze a trend URL
+ */
+export interface TrendInsightRequest {
+	url: string;
+}
+
+/**
+ * Response from analyzing a trend URL
+ */
+export interface TrendInsightResponse {
+	success: boolean;
+	insight: TrendInsight | null;
+	error?: string | null;
+	analysis_status: 'complete' | 'cached' | 'limited_data' | 'error' | null;
+}
+
+/**
+ * Response from listing trend insights
+ */
+export interface TrendInsightsListResponse {
+	success: boolean;
+	insights: TrendInsight[];
+	count: number;
+	error?: string | null;
+}
+
+// =============================================================================
+// Managed Competitor Types (User-submitted competitor list)
+// =============================================================================
+
+/**
+ * A user-managed competitor entry
+ */
+export interface ManagedCompetitor {
+	name: string;
+	url: string | null;
+	notes: string | null;
+	added_at: string;
+}
+
+/**
+ * Request to add a new managed competitor
+ */
+export interface ManagedCompetitorCreate {
+	name: string;
+	url?: string | null;
+	notes?: string | null;
+}
+
+/**
+ * Request to update a managed competitor
+ */
+export interface ManagedCompetitorUpdate {
+	url?: string | null;
+	notes?: string | null;
+}
+
+/**
+ * Response from managed competitor operations
+ */
+export interface ManagedCompetitorResponse {
+	success: boolean;
+	competitor: ManagedCompetitor | null;
+	error?: string | null;
+}
+
+/**
+ * Response from listing managed competitors
+ */
+export interface ManagedCompetitorListResponse {
+	success: boolean;
+	competitors: ManagedCompetitor[];
+	count: number;
+	error?: string | null;
 }

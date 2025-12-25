@@ -902,15 +902,21 @@ class PromptBroker:
         raise RuntimeError("Validation loop exited unexpectedly")
 
 
-def get_model_for_phase(phase: str, round_number: int = 0) -> str:
-    """Select appropriate model tier for task based on phase and round number.
+def get_model_for_phase(phase: str, round_number: int = 0, session_id: str | None = None) -> str:
+    """Select appropriate model tier for task based on phase, round, and A/B test group.
 
     Uses 'fast' tier for supporting tasks and early rounds to reduce cost and latency,
     while using 'core' tier for critical synthesis and later rounds.
 
+    When A/B testing is enabled (HAIKU_AB_TEST_ENABLED=true), sessions are assigned
+    to test/control groups based on session_id hash:
+    - Control group: Uses HAIKU_ROUND_LIMIT (default: 2) for fast tier
+    - Test group: Uses HAIKU_AB_TEST_LIMIT (default: 3) for fast tier
+
     Args:
         phase: The deliberation phase
         round_number: The current round number (for contribution phase)
+        session_id: Session identifier for A/B test group assignment (optional)
 
     Returns:
         Model tier ('fast' or 'core') - provider-agnostic
@@ -924,14 +930,52 @@ def get_model_for_phase(phase: str, round_number: int = 0) -> str:
         'core'
         >>> get_model_for_phase("synthesis")
         'core'
+        >>> # With A/B test enabled:
+        >>> get_model_for_phase("contribution", round_number=3, session_id="test-session")
+        'fast'  # if session_id hashes to test group
     """
+    from bo1.constants import ModelSelectionConfig
+
     # Fast phases use 'fast' tier (cheaper model)
     if phase in ["convergence_check", "drift_check", "format_validation"]:
         return "fast"
 
-    # Early exploration rounds can use 'fast' tier (rounds 1-2)
-    if phase == "contribution" and round_number <= 2:
-        return "fast"
+    # Contribution phase: check round limit with A/B test support
+    if phase == "contribution":
+        # Determine round limit based on A/B test group
+        ab_group = ModelSelectionConfig.get_ab_group(session_id)
+
+        if ab_group == "test":
+            haiku_limit = ModelSelectionConfig.get_ab_test_limit()
+        else:
+            haiku_limit = ModelSelectionConfig.get_haiku_round_limit()
+
+        # Record model selection metrics
+        tier = "fast" if round_number <= haiku_limit else "core"
+
+        # Emit metric for analysis
+        try:
+            from backend.api.middleware.metrics import record_model_tier_selected
+
+            record_model_tier_selected(tier=tier, round_number=round_number, ab_group=ab_group)
+        except ImportError:
+            pass  # Metrics not available in all contexts
+
+        # Log for analysis (structured logging)
+        if session_id:
+            logger.debug(
+                "model_selection",
+                extra={
+                    "session_id": session_id[:8] if session_id else None,
+                    "phase": phase,
+                    "round": round_number,
+                    "ab_group": ab_group,
+                    "haiku_limit": haiku_limit,
+                    "tier": tier,
+                },
+            )
+
+        return tier
 
     # Everything else uses 'core' tier (critical synthesis, later rounds, voting)
     return "core"

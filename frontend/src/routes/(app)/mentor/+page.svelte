@@ -7,12 +7,33 @@
 	 */
 	import { page } from '$app/stores';
 	import MentorChat from '$lib/components/mentor/MentorChat.svelte';
+	import MentorChatHistory from '$lib/components/mentor/MentorChatHistory.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import type { MentorPersonaId } from '$lib/api/types';
 
 	// Read query params for pre-filling
 	const initialMessage = $page.url.searchParams.get('message') || undefined;
 	const initialPersona = $page.url.searchParams.get('persona') as MentorPersonaId | undefined;
+
+	// Conversation state
+	let selectedConversationId = $state<string | null>(null);
+	let historyComponent: { refresh: () => void } | undefined;
+
+	function handleSelectConversation(id: string) {
+		selectedConversationId = id;
+	}
+
+	function handleNewConversation() {
+		selectedConversationId = null;
+	}
+
+	function handleConversationChange(id: string | null) {
+		// When a new conversation is created, refresh the history
+		if (id) {
+			selectedConversationId = id;
+			historyComponent?.refresh();
+		}
+	}
 </script>
 
 <svelte:head>
@@ -23,7 +44,7 @@
 	/>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 	<!-- Breadcrumb -->
 	<div class="mb-6">
 		<Breadcrumb
@@ -44,8 +65,30 @@
 		</p>
 	</div>
 
-	<!-- Chat Interface -->
-	<MentorChat {initialMessage} {initialPersona} />
+	<!-- Main Layout: History Sidebar + Chat -->
+	<div class="flex gap-6">
+		<!-- History Sidebar (hidden on mobile) -->
+		<aside class="hidden lg:block w-64 flex-shrink-0">
+			<div class="h-[600px] bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+				<MentorChatHistory
+					bind:this={historyComponent}
+					selectedId={selectedConversationId}
+					onSelect={handleSelectConversation}
+					onNew={handleNewConversation}
+				/>
+			</div>
+		</aside>
+
+		<!-- Chat Interface -->
+		<div class="flex-1 min-w-0">
+			<MentorChat
+				{initialMessage}
+				{initialPersona}
+				loadConversationId={selectedConversationId}
+				onConversationChange={handleConversationChange}
+			/>
+		</div>
+	</div>
 
 	<!-- Tips -->
 	<div class="mt-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">

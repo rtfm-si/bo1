@@ -39,6 +39,7 @@ from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.pagination import make_page_pagination_fields
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,11 +100,14 @@ async def list_users(
     logger.info(
         f"Admin: Listed {len(users)} users (page {page}, per_page {per_page}, total {total_count})"
     )
+    pagination = make_page_pagination_fields(total_count, page, per_page)
     return UserListResponse(
         total_count=total_count,
         users=users,
         page=page,
         per_page=per_page,
+        has_more=pagination["has_more"],
+        next_offset=pagination["next_offset"],
     )
 
 

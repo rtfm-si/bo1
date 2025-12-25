@@ -362,7 +362,7 @@ class RateLimits:
     """Control endpoints (start/kill deliberation)"""
 
     # Admin tier limits (much higher to allow dashboard page loads)
-    ADMIN = "300/minute"
+    ADMIN = "600/minute"
     """Admin endpoints (dashboards fire multiple requests on page load)"""
 
     # Public unauthenticated endpoints (CSRF-exempt, need extra protection)
@@ -1268,6 +1268,79 @@ class StatementTimeoutConfig:
                 "DB_INTERACTIVE_TIMEOUT_MS", str(StatementTimeoutConfig.INTERACTIVE_TIMEOUT_MS)
             )
         )
+
+
+class ModelSelectionConfig:
+    """Model selection and A/B testing configuration.
+
+    Controls which model tier is used for different rounds:
+    - HAIKU_ROUND_LIMIT: Default round limit for using fast tier (default: 2)
+    - When A/B testing enabled, sessions are randomly assigned to test/control groups
+    """
+
+    HAIKU_ROUND_LIMIT = 2
+    """Default round limit for using fast tier (rounds 1-2 use Haiku)"""
+
+    AB_TEST_LIMIT = 3
+    """Test group round limit - extends fast tier to round 3"""
+
+    AB_TEST_PERCENTAGE = 50
+    """Percentage of sessions assigned to test group (0-100)"""
+
+    @staticmethod
+    def get_haiku_round_limit() -> int:
+        """Get haiku round limit from env or default."""
+        import os
+
+        return int(os.getenv("HAIKU_ROUND_LIMIT", str(ModelSelectionConfig.HAIKU_ROUND_LIMIT)))
+
+    @staticmethod
+    def is_ab_test_enabled() -> bool:
+        """Check if A/B testing is enabled via env var."""
+        import os
+
+        return os.getenv("HAIKU_AB_TEST_ENABLED", "false").lower() == "true"
+
+    @staticmethod
+    def get_ab_test_limit() -> int:
+        """Get A/B test round limit from env or default."""
+        import os
+
+        return int(os.getenv("HAIKU_AB_TEST_LIMIT", str(ModelSelectionConfig.AB_TEST_LIMIT)))
+
+    @staticmethod
+    def get_ab_test_percentage() -> int:
+        """Get A/B test percentage from env or default."""
+        import os
+
+        return int(
+            os.getenv("HAIKU_AB_TEST_PERCENTAGE", str(ModelSelectionConfig.AB_TEST_PERCENTAGE))
+        )
+
+    @staticmethod
+    def get_ab_group(session_id: str | None) -> str:
+        """Determine A/B test group for a session.
+
+        Uses deterministic hash of session_id to ensure consistent group assignment.
+
+        Args:
+            session_id: Session identifier (if None, returns "none")
+
+        Returns:
+            "test", "control", or "none" (if A/B test disabled or no session_id)
+        """
+        if not ModelSelectionConfig.is_ab_test_enabled() or not session_id:
+            return "none"
+
+        # Deterministic hash-based assignment
+        import hashlib
+
+        hash_value = int(hashlib.sha256(session_id.encode()).hexdigest(), 16)
+        percentage = hash_value % 100
+
+        if percentage < ModelSelectionConfig.get_ab_test_percentage():
+            return "test"
+        return "control"
 
 
 class CostAnomalyConfig:

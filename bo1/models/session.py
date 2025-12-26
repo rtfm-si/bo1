@@ -132,4 +132,6 @@ class Session(BaseModel):
             failure_acknowledged_at=row.get("failure_acknowledged_at"),
             # Meeting template
             template_id=row.get("template_id"),
+            # A/B experiment
+            persona_count_variant=row.get("persona_count_variant"),
         )

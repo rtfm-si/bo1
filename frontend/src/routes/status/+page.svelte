@@ -17,12 +17,16 @@
 
 	let trafficStats: TrafficStats | null = $state(null);
 	let trafficError: string | null = $state(null);
+	let trafficNotAvailable = $state(false);
 
 	onMount(async () => {
 		try {
 			const res = await fetch('/api/status/traffic');
 			if (res.ok) {
 				trafficStats = await res.json();
+			} else if (res.status === 404) {
+				// Endpoint not implemented yet - show graceful message
+				trafficNotAvailable = true;
 			} else {
 				trafficError = 'Unable to load traffic stats';
 			}
@@ -91,7 +95,8 @@
 								{trafficStats?.status === 'green' ? 'bg-green-100 dark:bg-green-900/30' : ''}
 								{trafficStats?.status === 'amber' ? 'bg-amber-100 dark:bg-amber-900/30' : ''}
 								{trafficStats?.status === 'red' ? 'bg-red-100 dark:bg-red-900/30' : ''}
-								{!trafficStats ? 'bg-neutral-100 dark:bg-neutral-700' : ''}
+								{!trafficStats && !trafficNotAvailable ? 'bg-neutral-100 dark:bg-neutral-700' : ''}
+								{trafficNotAvailable ? 'bg-neutral-100 dark:bg-neutral-700' : ''}
 							">
 								{#if trafficStats?.status === 'green'}
 									<svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,6 +109,10 @@
 								{:else if trafficStats?.status === 'red'}
 									<svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								{:else if trafficNotAvailable}
+									<svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
 									</svg>
 								{:else}
 									<svg class="w-6 h-6 text-neutral-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,6 +127,8 @@
 								<p class="text-sm text-neutral-600 dark:text-neutral-400">
 									{#if trafficStats}
 										{trafficStats.message} &middot; {trafficStats.requests_this_hour} requests this hour
+									{:else if trafficNotAvailable}
+										<span class="text-neutral-500 dark:text-neutral-400">Traffic monitoring coming soon</span>
 									{:else if trafficError}
 										{trafficError}
 									{:else}

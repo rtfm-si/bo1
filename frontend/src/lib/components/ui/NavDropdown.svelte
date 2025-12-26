@@ -110,7 +110,8 @@
 		<!-- svelte-ignore a11y_interactive_supports_focus -->
 		<div
 			id="{label.toLowerCase()}-menu"
-			class="absolute left-0 top-full mt-1 min-w-[160px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg py-1 z-50"
+			class="absolute left-0 top-full mt-1 min-w-[160px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg py-1"
+			style="z-index: 1000;"
 			role="menu"
 			aria-labelledby="{label.toLowerCase()}-menu-button"
 			onmouseenter={openDropdown}

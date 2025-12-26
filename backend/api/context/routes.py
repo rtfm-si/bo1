@@ -176,8 +176,12 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
     # Parse benchmark timestamps from raw data
     benchmark_timestamps = context_data.get("benchmark_timestamps")
 
-    # Get auto-detect status for competitor refresh indicator
-    auto_detect_status = get_auto_detect_status(user_id)
+    # Get auto-detect status for competitor refresh indicator (non-critical)
+    try:
+        auto_detect_status = get_auto_detect_status(user_id)
+    except Exception as e:
+        logger.warning(f"Failed to get auto-detect status for user {user_id}: {e}")
+        auto_detect_status = {}
 
     return ContextResponse(
         exists=True,
@@ -496,10 +500,21 @@ async def check_refresh_needed(
             if p.get("refresh_reason") == "action_affected" and p.get("field_name"):
                 action_affected_fields.append(p["field_name"])
 
-    stale_result = get_stale_metrics_for_session(
-        user_id=user_id,
-        action_affected_fields=action_affected_fields if action_affected_fields else None,
-    )
+    # Get stale metrics (non-critical - return empty if fails)
+    try:
+        stale_result = get_stale_metrics_for_session(
+            user_id=user_id,
+            action_affected_fields=action_affected_fields if action_affected_fields else None,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to get stale metrics for user {user_id}: {e}")
+        from backend.services.insight_staleness import StaleMetricsResult
+
+        stale_result = StaleMetricsResult(
+            has_stale_metrics=False,
+            stale_metrics=[],
+            total_metrics_checked=0,
+        )
 
     # Build stale metrics summary for frontend
     stale_summaries: list[StaleFieldSummary] = []

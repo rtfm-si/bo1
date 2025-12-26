@@ -401,5 +401,5 @@ class TestMainFunction:
                     with patch("json.dump"):
                         # Just verify no exceptions
                         pass
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # Expected in some mock scenarios

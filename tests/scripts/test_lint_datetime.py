@@ -213,7 +213,7 @@ class TestIntegration:
         import subprocess
 
         result = subprocess.run(
-            ["python", "scripts/lint_datetime.py", "--base", ".", "--quiet"],
+            [sys.executable, "scripts/lint_datetime.py", "--base", ".", "--quiet"],
             capture_output=True,
             text=True,
         )

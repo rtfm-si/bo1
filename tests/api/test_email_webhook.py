@@ -64,7 +64,7 @@ def mock_settings_with_secret():
     """Mock settings with webhook secret."""
     with patch("backend.api.email.get_settings") as mock:
         settings = MagicMock()
-        settings.resend_webhook_secret = "whsec_test_secret_key_12345"
+        settings.resend_webhook_secret = "whsec_test_secret_key_12345"  # noqa: S105
         mock.return_value = settings
         yield settings
 

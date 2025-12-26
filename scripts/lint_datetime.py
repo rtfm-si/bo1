@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-AST-based linter to detect raw .isoformat() calls in API response code.
+"""AST-based linter to detect raw .isoformat() calls in API response code.
 
 This script enforces that all datetime fields use Pydantic model serialization
 rather than manual .isoformat() calls in dict literals or return statements.
@@ -47,6 +46,7 @@ class IsoformatVisitor(ast.NodeVisitor):
     """AST visitor that detects .isoformat() in dict literals and returns."""
 
     def __init__(self, file_path: Path) -> None:
+        """Initialize visitor with file path for violation reporting."""
         self.file_path = file_path
         self.violations: list[Violation] = []
         self._in_return = False

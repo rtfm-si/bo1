@@ -86,8 +86,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 result = await summarize_action_update(
@@ -109,8 +109,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 await summarize_action_update(
@@ -132,8 +132,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 await summarize_action_update(
@@ -151,8 +151,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(side_effect=Exception("API error"))
 
                 original = "my original messy content here"
@@ -170,8 +170,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 original = "my original content that was not summarized"
@@ -189,8 +189,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 original = "my original content for this test"
@@ -208,8 +208,8 @@ class TestSummarizeActionUpdate:
         with patch("backend.services.action_update_summarizer.get_settings") as mock_settings:
             mock_settings.return_value.action_update_summarizer_enabled = True
 
-            with patch("backend.services.action_update_summarizer.PromptBroker") as MockBroker:
-                broker_instance = MockBroker.return_value
+            with patch("backend.services.action_update_summarizer.PromptBroker") as mock_broker:
+                broker_instance = mock_broker.return_value
                 broker_instance.send_prompt = AsyncMock(return_value=mock_response)
 
                 original = "short original content"  # ~21 chars

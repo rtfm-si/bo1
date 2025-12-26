@@ -66,6 +66,7 @@ class MergeAnalysis:
 
     @property
     def has_issues(self) -> bool:
+        """Return True if any conflict has error severity."""
         return any(c.severity == "error" for c in self.conflicts)
 
 

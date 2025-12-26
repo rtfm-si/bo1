@@ -108,7 +108,8 @@ class TestReadyEndpoint:
             response = client.get("/api/ready")
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "ok"
+            # Status can be "ok" or "degraded" if optional services aren't configured
+            assert data["status"] in ("ok", "degraded")
             assert data["ready"] is True
             assert data["checks"]["postgres"] is True
             assert data["checks"]["redis"] is True

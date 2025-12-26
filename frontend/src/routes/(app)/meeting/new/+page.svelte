@@ -6,6 +6,7 @@
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
+	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
 	import { AlertTriangle, X, Clock } from 'lucide-svelte';
@@ -258,6 +259,9 @@
 
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Context Refresh Banner -->
+		<ContextRefreshBanner />
+
 		<!-- Meeting Cap Warning Banner -->
 		{#if capStatus?.exceeded}
 			<div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">

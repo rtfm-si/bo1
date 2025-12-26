@@ -3561,6 +3561,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ratings/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get rating metrics
+         * @description Get aggregated rating metrics (admin only).
+         */
+        get: operations["get_rating_metrics_api_v1_admin_ratings_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ratings/negative": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get negative ratings
+         * @description Get recent thumbs-down ratings for triage (admin only).
+         */
+        get: operations["get_negative_ratings_api_v1_admin_ratings_negative_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ratings/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get rating trend
+         * @description Get daily rating trend data (admin only).
+         */
+        get: operations["get_rating_trend_api_v1_admin_ratings_trend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analysis/ask": {
         parameters: {
             query?: never;
@@ -4867,6 +4927,10 @@ export interface paths {
          *         If summary is stale (>7 days) or industry has changed, `stale` will be true.
          *         If user has no industry set, `needs_industry` will be true.
          *
+         *         **Refresh gating for "Now" view:**
+         *         - Free tier: can only refresh if last refresh >28 days
+         *         - Paid tiers (starter/pro/enterprise): can refresh anytime (1hr rate limit still applies)
+         *
          *         **Auto-refresh:** Frontend should call POST /refresh if stale=true.
          */
         get: operations["get_trend_summary_api_v1_context_trends_summary_get"];
@@ -4897,10 +4961,15 @@ export interface paths {
          *         - Opportunities (2-4 items)
          *         - Threats/challenges (2-4 items)
          *
-         *         **Rate Limit:** 1 refresh per hour per user.
+         *         **Rate Limits:**
+         *         - All tiers: 1 refresh per hour (short-term rate limit)
+         *         - Free tier: can only refresh if last refresh was >28 days ago
+         *         - Paid tiers (starter/pro/enterprise): 1hr rate limit only
+         *
          *         **Cost:** ~$0.005 per generation.
          *
-         *         Returns `rate_limited=true` if called too frequently.
+         *         Returns 429 if free tier user tries to refresh within 28 days.
+         *         Returns `rate_limited=true` if called within 1 hour of last refresh.
          */
         post: operations["refresh_trend_summary_api_v1_context_trends_summary_refresh_post"];
         delete?: never;
@@ -6203,6 +6272,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit rating
+         * @description Submit a thumbs up (+1) or thumbs down (-1) rating for a meeting or action.
+         */
+        post: operations["submit_rating_api_v1_ratings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ratings/{entity_type}/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user's rating
+         * @description Get the current user's rating for a specific entity.
+         */
+        get: operations["get_rating_api_v1_ratings__entity_type___entity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -7368,15 +7477,35 @@ export interface paths {
         };
         /**
          * Get consent status
-         * @description Check if user has consented to current T&C version, with full consent history.
+         * @description Check if user has consented to all required policies, with full consent history.
          */
         get: operations["get_consent_status_api_v1_user_terms_consent_get"];
         put?: never;
         /**
          * Record consent
-         * @description Record user's consent to a specific T&C version.
+         * @description Record user's consent to a specific policy version.
          */
         post: operations["record_consent_api_v1_user_terms_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/terms-consent/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record multiple consents
+         * @description Record user's consent to multiple policies at once (T&C, GDPR, Privacy).
+         */
+        post: operations["record_multi_consent_api_v1_user_terms_consent_batch_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12149,8 +12278,13 @@ export interface components {
              */
             consented_at: string;
             /**
+             * Policy Label
+             * @description Display name (e.g., 'Terms & Conditions')
+             */
+            policy_label: string;
+            /**
              * Policy Type
-             * @description Type of policy (e.g., 'Terms & Conditions')
+             * @description Policy type code ('tc', 'gdpr', 'privacy')
              */
             policy_type: string;
             /**
@@ -12178,6 +12312,8 @@ export interface components {
              * @default Consent recorded successfully
              */
             message: string;
+            /** Policy Type */
+            policy_type: string;
             /** Terms Version Id */
             terms_version_id: string;
         };
@@ -12186,6 +12322,12 @@ export interface components {
          * @description Request model for recording consent.
          */
         ConsentRequest: {
+            /**
+             * Policy Type
+             * @description Policy type: 'tc', 'gdpr', or 'privacy'
+             * @default tc
+             */
+            policy_type: string;
             /**
              * Terms Version Id
              * @description UUID of T&C version being accepted
@@ -12208,8 +12350,21 @@ export interface components {
             consents?: components["schemas"]["ConsentHistoryItem"][];
             /** Current Version */
             current_version?: string | null;
-            /** Has Consented */
+            /**
+             * Has Consented
+             * @description True if all required policies consented
+             */
             has_consented: boolean;
+            /**
+             * Missing Policies
+             * @description Policy types still needing consent
+             */
+            missing_policies?: string[];
+            /**
+             * Policies
+             * @description Status of each policy type
+             */
+            policies?: components["schemas"]["PolicyConsentStatus"][];
         };
         /**
          * ContextChoiceRequest
@@ -17396,6 +17551,106 @@ export interface components {
             templates: components["schemas"]["MetricTemplate"][];
         };
         /**
+         * MultiConsentRequest
+         * @description Request model for recording multiple policy consents at once.
+         */
+        MultiConsentRequest: {
+            /**
+             * Policy Types
+             * @description List of policy types to consent to (e.g., ['tc', 'gdpr', 'privacy'])
+             */
+            policy_types: string[];
+            /**
+             * Terms Version Id
+             * @description UUID of T&C version
+             */
+            terms_version_id: string;
+        };
+        /**
+         * MultiConsentResponse
+         * @description Response model for multiple consent records.
+         */
+        MultiConsentResponse: {
+            /** Consents */
+            consents: components["schemas"]["ConsentRecordResponse"][];
+            /**
+             * Message
+             * @default All consents recorded successfully
+             */
+            message: string;
+        };
+        /**
+         * NegativeRatingItem
+         * @description A negative rating with context for admin triage.
+         *
+         *     Attributes:
+         *         id: Rating UUID
+         *         user_id: User who rated
+         *         user_email: User's email
+         *         entity_type: Type of entity
+         *         entity_id: Entity UUID
+         *         entity_title: Title/name of the entity
+         *         comment: Optional comment
+         *         created_at: When rated
+         */
+        NegativeRatingItem: {
+            /**
+             * Comment
+             * @description Comment
+             */
+            comment?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Timestamp
+             */
+            created_at: string;
+            /**
+             * Entity Id
+             * @description Entity UUID
+             */
+            entity_id: string;
+            /**
+             * Entity Title
+             * @description Entity title
+             */
+            entity_title?: string | null;
+            /**
+             * Entity Type
+             * @description Entity type
+             */
+            entity_type: string;
+            /**
+             * Id
+             * @description Rating UUID
+             */
+            id: string;
+            /**
+             * User Email
+             * @description User email
+             */
+            user_email?: string | null;
+            /**
+             * User Id
+             * @description User ID
+             */
+            user_id: string;
+        };
+        /**
+         * NegativeRatingsResponse
+         * @description Response model for negative ratings list.
+         *
+         *     Attributes:
+         *         items: List of negative ratings
+         */
+        NegativeRatingsResponse: {
+            /**
+             * Items
+             * @description Negative ratings
+             */
+            items: components["schemas"]["NegativeRatingItem"][];
+        };
+        /**
          * NotFoundErrorResponse
          * @description Error response for 404 Not Found.
          *
@@ -17843,6 +18098,24 @@ export interface components {
              * @description Subscription tier: free, starter, pro, enterprise
              */
             tier: string;
+        };
+        /**
+         * PolicyConsentStatus
+         * @description Consent status for a single policy.
+         */
+        PolicyConsentStatus: {
+            /** Consented At */
+            consented_at?: string | null;
+            /** Has Consented */
+            has_consented: boolean;
+            /** Policy Label */
+            policy_label: string;
+            /** Policy Type */
+            policy_type: string;
+            /** Policy Url */
+            policy_url: string;
+            /** Version */
+            version?: string | null;
         };
         /**
          * PoolHealthResponse
@@ -18754,6 +19027,169 @@ export interface components {
              * @example 60
              */
             retry_after: number;
+        };
+        /**
+         * RatingCreate
+         * @description Request model for submitting a rating.
+         *
+         *     Attributes:
+         *         entity_type: Type of entity being rated ('meeting' or 'action')
+         *         entity_id: UUID of the entity
+         *         rating: -1 (thumbs down) or 1 (thumbs up)
+         *         comment: Optional comment explaining the rating
+         */
+        RatingCreate: {
+            /**
+             * Comment
+             * @description Optional comment explaining the rating
+             */
+            comment?: string | null;
+            /**
+             * Entity Id
+             * @description UUID of the entity being rated
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @description Type of entity being rated ('meeting' or 'action')
+             */
+            entity_type: string;
+            /**
+             * Rating
+             * @description Rating value: -1 (thumbs down) or 1 (thumbs up)
+             */
+            rating: number;
+        };
+        /**
+         * RatingMetrics
+         * @description Aggregated rating metrics.
+         *
+         *     Attributes:
+         *         period_days: Number of days in the period
+         *         total: Total ratings in period
+         *         thumbs_up: Count of positive ratings
+         *         thumbs_down: Count of negative ratings
+         *         thumbs_up_pct: Percentage of positive ratings
+         *         by_type: Breakdown by entity type
+         */
+        RatingMetrics: {
+            /**
+             * By Type
+             * @description Breakdown by entity type
+             */
+            by_type: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /**
+             * Period Days
+             * @description Days in period
+             */
+            period_days: number;
+            /**
+             * Thumbs Down
+             * @description Negative ratings count
+             */
+            thumbs_down: number;
+            /**
+             * Thumbs Up
+             * @description Positive ratings count
+             */
+            thumbs_up: number;
+            /**
+             * Thumbs Up Pct
+             * @description Positive rating percentage
+             */
+            thumbs_up_pct: number;
+            /**
+             * Total
+             * @description Total ratings
+             */
+            total: number;
+        };
+        /**
+         * RatingResponse
+         * @description Response model for a rating.
+         *
+         *     Attributes:
+         *         id: Rating UUID
+         *         user_id: User who submitted the rating
+         *         entity_type: Type of entity rated
+         *         entity_id: UUID of the rated entity
+         *         rating: Rating value (-1 or 1)
+         *         comment: Optional comment
+         *         created_at: When the rating was created/updated
+         */
+        RatingResponse: {
+            /**
+             * Comment
+             * @description Optional comment
+             */
+            comment?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Entity Id
+             * @description Entity UUID
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @description Entity type
+             */
+            entity_type: string;
+            /**
+             * Id
+             * @description Rating UUID
+             */
+            id: string;
+            /**
+             * Rating
+             * @description Rating value (-1 or 1)
+             */
+            rating: number;
+            /**
+             * User Id
+             * @description User ID
+             */
+            user_id: string;
+        };
+        /**
+         * RatingTrendItem
+         * @description Daily rating trend data point.
+         *
+         *     Attributes:
+         *         date: Date (ISO format)
+         *         up: Thumbs up count
+         *         down: Thumbs down count
+         *         total: Total ratings
+         */
+        RatingTrendItem: {
+            /**
+             * Date
+             * @description Date (ISO format)
+             */
+            date: string;
+            /**
+             * Down
+             * @description Thumbs down count
+             */
+            down: number;
+            /**
+             * Total
+             * @description Total ratings
+             */
+            total: number;
+            /**
+             * Up
+             * @description Thumbs up count
+             */
+            up: number;
         };
         /**
          * ReadinessResponse
@@ -21248,6 +21684,32 @@ export interface components {
              * @description Market trends
              */
             trends?: components["schemas"]["MarketTrend"][];
+        };
+        /**
+         * UnassignedCountResponse
+         * @description Response model for unassigned actions count.
+         *
+         *     Attributes:
+         *         unassigned_count: Number of actions not assigned to any project
+         *         min_required: Minimum actions required for autogeneration
+         *         can_autogenerate: Whether autogen is available
+         */
+        UnassignedCountResponse: {
+            /**
+             * Can Autogenerate
+             * @description Whether autogen threshold is met
+             */
+            can_autogenerate: boolean;
+            /**
+             * Min Required
+             * @description Minimum actions for autogeneration
+             */
+            min_required: number;
+            /**
+             * Unassigned Count
+             * @description Actions without project assignment
+             */
+            unassigned_count: number;
         };
         /**
          * UnblockActionRequest
@@ -31713,6 +32175,129 @@ export interface operations {
             };
         };
     };
+    get_rating_metrics_api_v1_admin_ratings_metrics_get: {
+        parameters: {
+            query?: {
+                /** @description Period in days */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metrics returned successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingMetrics"];
+                };
+            };
+            /** @description Not authorized */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_negative_ratings_api_v1_admin_ratings_negative_get: {
+        parameters: {
+            query?: {
+                /** @description Max items to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Negative ratings returned successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NegativeRatingsResponse"];
+                };
+            };
+            /** @description Not authorized */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rating_trend_api_v1_admin_ratings_trend_get: {
+        parameters: {
+            query?: {
+                /** @description Period in days */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trend data returned successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingTrendItem"][];
+                };
+            };
+            /** @description Not authorized */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ask_analysis_api_v1_analysis_ask_post: {
         parameters: {
             query?: never;
@@ -33605,6 +34190,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Free tier refresh blocked (28-day limit) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     get_context_with_trends_api_v1_context_with_trends_get: {
@@ -35225,9 +35817,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: number | boolean;
-                    };
+                    "application/json": components["schemas"]["UnassignedCountResponse"];
                 };
             };
         };
@@ -35646,6 +36236,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_rating_api_v1_ratings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingCreate"];
+            };
+        };
+        responses: {
+            /** @description Rating submitted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rating_api_v1_ratings__entity_type___entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_type: string;
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rating found (or null if not rated) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingResponse"] | null;
+                };
+            };
+            /** @description Invalid entity_type */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -38776,6 +39449,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_multi_consent_api_v1_user_terms_consent_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MultiConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MultiConsentResponse"];
                 };
             };
             /** @description Validation Error */

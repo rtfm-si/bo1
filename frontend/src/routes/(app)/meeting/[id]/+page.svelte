@@ -15,7 +15,7 @@
 	import ContributionRound from '$lib/components/events/ContributionRound.svelte';
 
 	// Import UI components
-	import { RelativeTimestamp, DecisionMetrics, Button } from '$lib/components/ui';
+	import { RelativeTimestamp, DecisionMetrics, Button, RatingPrompt } from '$lib/components/ui';
 	import AiDisclaimer from '$lib/components/ui/AiDisclaimer.svelte';
 	import { EventCardSkeleton } from '$lib/components/ui/skeletons';
 	import { ActivityStatus } from '$lib/components/ui/loading';
@@ -1124,7 +1124,7 @@
 					</div>
 
 					{#if session.status === 'completed'}
-						<div class="flex flex-col gap-2">
+						<div class="flex flex-col gap-3">
 							<Button variant="brand" size="lg" class="w-full" onclick={exportPDF} disabled={isExporting}>
 								{#snippet children()}
 									<Download size={18} />
@@ -1142,6 +1142,15 @@
 									/>
 								</div>
 							{/if}
+
+							<!-- Meeting Rating Prompt -->
+							<div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+								<RatingPrompt
+									entityType="meeting"
+									entityId={sessionId}
+									prompt="How was this meeting?"
+								/>
+							</div>
 						</div>
 					{/if}
 				{/if}

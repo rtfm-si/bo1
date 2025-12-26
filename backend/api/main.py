@@ -68,6 +68,7 @@ from backend.api import (  # noqa: E402
     onboarding,
     page_analytics,
     projects,
+    ratings,
     sessions,
     share,
     status,
@@ -573,6 +574,8 @@ app.include_router(client_errors.router, prefix="/api", tags=["client-errors"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(email.router, prefix="/api", tags=["email"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
+app.include_router(ratings.router, prefix="/api", tags=["ratings"])
+app.include_router(ratings.admin_router, prefix="/api", tags=["admin"])
 app.include_router(user.router, prefix="/api", tags=["user"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])

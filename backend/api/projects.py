@@ -40,6 +40,7 @@ from backend.api.models import (
     ProjectStatusUpdate,
     ProjectUpdate,
     SessionResponse,
+    UnassignedCountResponse,
 )
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.pagination import make_page_pagination_fields
@@ -800,13 +801,14 @@ async def create_from_autogen(
 
 @router.get(
     "/unassigned-count",
+    response_model=UnassignedCountResponse,
     summary="Get unassigned actions count",
     description="Get the count of actions not assigned to any project",
 )
 @handle_api_errors("get unassigned count")
 async def get_unassigned_count(
     user: dict = Depends(get_current_user),
-) -> dict[str, int | bool]:
+) -> UnassignedCountResponse:
     """Get count of unassigned actions."""
     from backend.services.project_autogen import (
         MIN_ACTIONS_FOR_AUTOGEN,
@@ -816,11 +818,11 @@ async def get_unassigned_count(
     user_id = user["user_id"]
     count = get_unassigned_action_count(user_id)
 
-    return {
-        "unassigned_count": count,
-        "min_required": MIN_ACTIONS_FOR_AUTOGEN,
-        "can_autogenerate": count >= MIN_ACTIONS_FOR_AUTOGEN,
-    }
+    return UnassignedCountResponse(
+        unassigned_count=count,
+        min_required=MIN_ACTIONS_FOR_AUTOGEN,
+        can_autogenerate=count >= MIN_ACTIONS_FOR_AUTOGEN,
+    )
 
 
 # =========================================================================

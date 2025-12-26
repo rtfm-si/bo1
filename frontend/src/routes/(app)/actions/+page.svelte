@@ -9,10 +9,10 @@
 	 * - Click-through to action details
 	 */
 	import { onMount, tick } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
-	import { startActionsPageTour, injectTourStyles } from '$lib/tour/onboarding-tour';
+	import { startActionsPageTour, injectTourStyles, destroyActiveTour } from '$lib/tour/onboarding-tour';
 	import type {
 		AllActionsResponse,
 		TaskWithSessionContext,
@@ -28,6 +28,11 @@
 	import KanbanBoard from '$lib/components/actions/KanbanBoard.svelte';
 	import { getDueDateStatus } from '$lib/utils/due-dates';
 	import { toast } from '$lib/stores/toast';
+
+	// Cleanup tour popup on navigation to prevent persistence
+	beforeNavigate(() => {
+		destroyActiveTour();
+	});
 
 	// Filter state
 	let selectedMeetingId = $state<string | null>(null);

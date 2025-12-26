@@ -1,6 +1,9 @@
 """Tests for managed competitors API endpoints."""
 
 from datetime import UTC, datetime
+from unittest.mock import patch
+
+import pytest
 
 from backend.api.context.models import (
     ManagedCompetitor,
@@ -9,6 +12,7 @@ from backend.api.context.models import (
     ManagedCompetitorResponse,
     ManagedCompetitorUpdate,
 )
+from bo1.state.pool_degradation import PoolExhaustionError
 
 
 class TestManagedCompetitorModels:
@@ -152,7 +156,6 @@ class TestManagedCompetitorRepository:
 
     def test_get_managed_competitors_empty(self):
         """Test getting competitors when none exist."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -164,7 +167,6 @@ class TestManagedCompetitorRepository:
 
     def test_get_managed_competitors_with_data(self):
         """Test getting competitors when data exists."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -195,7 +197,6 @@ class TestManagedCompetitorRepository:
 
     def test_add_managed_competitor_new(self):
         """Test adding a new competitor."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -223,7 +224,6 @@ class TestManagedCompetitorRepository:
 
     def test_add_managed_competitor_duplicate(self):
         """Test adding a duplicate competitor (case-insensitive)."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -248,7 +248,6 @@ class TestManagedCompetitorRepository:
 
     def test_update_managed_competitor(self):
         """Test updating an existing competitor."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -276,7 +275,6 @@ class TestManagedCompetitorRepository:
 
     def test_update_managed_competitor_not_found(self):
         """Test updating a non-existent competitor."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -297,7 +295,6 @@ class TestManagedCompetitorRepository:
 
     def test_remove_managed_competitor(self):
         """Test removing an existing competitor."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -328,7 +325,6 @@ class TestManagedCompetitorRepository:
 
     def test_remove_managed_competitor_not_found(self):
         """Test removing a non-existent competitor."""
-        from unittest.mock import patch
 
         from bo1.state.repositories.user_repository import UserRepository
 
@@ -342,3 +338,80 @@ class TestManagedCompetitorRepository:
 
                 assert result is False
                 mock_save.assert_not_called()
+
+
+class TestManagedCompetitorsErrorHandling:
+    """Tests for error handling in managed competitors endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_pool_exhaustion_returns_503(self):
+        """Test that pool exhaustion error returns 503 with Retry-After header."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import handle_api_errors
+
+        @handle_api_errors("test operation")
+        async def test_endpoint():
+            raise PoolExhaustionError(
+                message="Database pool exhausted",
+                queue_depth=5,
+                wait_estimate=10.0,
+            )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await test_endpoint()
+
+        assert exc_info.value.status_code == 503
+        assert "service_unavailable" in exc_info.value.detail["error_code"]
+        assert "Retry-After" in exc_info.value.headers
+
+    @pytest.mark.asyncio
+    async def test_handle_api_errors_preserves_http_exception(self):
+        """Test that HTTPException passes through unchanged."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import handle_api_errors
+
+        @handle_api_errors("test operation")
+        async def test_endpoint():
+            raise HTTPException(status_code=404, detail="Not found")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await test_endpoint()
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Not found"
+
+    @pytest.mark.asyncio
+    async def test_handle_api_errors_value_error_returns_400(self):
+        """Test that ValueError returns 400."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import handle_api_errors
+
+        @handle_api_errors("test operation")
+        async def test_endpoint():
+            raise ValueError("Invalid input")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await test_endpoint()
+
+        assert exc_info.value.status_code == 400
+        assert "validation_error" in exc_info.value.detail["error_code"]
+
+    @pytest.mark.asyncio
+    async def test_handle_api_errors_generic_exception_returns_500(self):
+        """Test that generic Exception returns 500."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import handle_api_errors
+
+        @handle_api_errors("test operation")
+        async def test_endpoint():
+            raise RuntimeError("Something went wrong")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await test_endpoint()
+
+        assert exc_info.value.status_code == 500
+        assert "internal_error" in exc_info.value.detail["error_code"]

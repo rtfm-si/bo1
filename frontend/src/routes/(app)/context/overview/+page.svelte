@@ -10,6 +10,7 @@
 	import Input from '$lib/components/ui/Input.svelte';
 	import Dropdown, { type DropdownItem } from '$lib/components/ui/Dropdown.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import { trackEvent, AnalyticsEvents, trackContextEnriched } from '$lib/utils/analytics';
 
 	// Form state
@@ -266,6 +267,9 @@
 	</div>
 {:else}
 	<div class="space-y-6">
+		<!-- Context Refresh Banner -->
+		<ContextRefreshBanner />
+
 		<!-- Alerts -->
 		{#if saveSuccess}
 			<Alert variant="success">

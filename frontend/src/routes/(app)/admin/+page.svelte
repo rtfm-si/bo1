@@ -619,6 +619,23 @@
 				<span class="text-sm text-info-600 dark:text-info-400">View feedback →</span>
 			</a>
 
+			<!-- User Ratings Card -->
+			<a
+				href="/admin/ratings"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-success-300 dark:hover:border-success-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-success-100 dark:bg-success-900/30 rounded-lg">
+						<TrendingUp class="w-6 h-6 text-success-600 dark:text-success-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">User Ratings</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Meeting & action satisfaction</p>
+					</div>
+				</div>
+				<span class="text-sm text-success-600 dark:text-success-400">View ratings →</span>
+			</a>
+
 			<!-- Blog Management Card -->
 			<a
 				href="/admin/blog"

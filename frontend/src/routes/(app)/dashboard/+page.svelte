@@ -22,12 +22,14 @@
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
-	import { startOnboardingTour, injectTourStyles, cleanupTour, setTourNavigationCallbacks } from '$lib/tour/onboarding-tour';
+	import { startOnboardingTour, injectTourStyles, cleanupTour, destroyActiveTour, setTourNavigationCallbacks } from '$lib/tour/onboarding-tour';
 	import tourStore, { checkOnboardingStatus, setTourActive, completeTour, handleNavigationDuringTour, setTourPage, allowTourNavigation } from '$lib/stores/tour';
 	import { toast } from '$lib/stores/toast';
 
-	// Navigation lock during tour
+	// Navigation lock during tour + cleanup on navigation
 	beforeNavigate(({ cancel }) => {
+		// Destroy any active tour popup to prevent persistence
+		destroyActiveTour();
 		if (handleNavigationDuringTour()) {
 			cancel();
 		}

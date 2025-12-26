@@ -232,12 +232,29 @@ async def update_context(
     context_dict = sanitize_context_values(context_dict)
 
     # Update benchmark timestamps for changed metrics
-    context_dict["benchmark_timestamps"] = update_benchmark_timestamps(
-        context_dict, existing_context
-    )
+    new_timestamps = update_benchmark_timestamps(context_dict, existing_context)
+    context_dict["benchmark_timestamps"] = new_timestamps
 
     # Append to benchmark history for trend tracking
     context_dict["benchmark_history"] = append_benchmark_history(context_dict, existing_context)
+
+    # Clean up action metric triggers for updated metrics
+    old_timestamps = existing_context.get("benchmark_timestamps", {}) if existing_context else {}
+    updated_metrics = [
+        field for field in new_timestamps if new_timestamps.get(field) != old_timestamps.get(field)
+    ]
+    if updated_metrics and existing_context:
+        existing_triggers = existing_context.get("action_metric_triggers", [])
+        if existing_triggers:
+            # Remove triggers for metrics that were just updated
+            context_dict["action_metric_triggers"] = [
+                t for t in existing_triggers if t.get("metric_field") not in updated_metrics
+            ]
+            removed_count = len(existing_triggers) - len(
+                context_dict.get("action_metric_triggers", [])
+            )
+            if removed_count > 0:
+                logger.debug(f"Removed {removed_count} action triggers for updated metrics")
 
     # Save to database
     user_repository.save_context(user_id, context_dict)
@@ -1584,9 +1601,17 @@ async def list_managed_competitors(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ManagedCompetitorListResponse:
     """List user's managed competitors."""
+    import time
+
     user_id = extract_user_id(user)
 
+    start_time = time.monotonic()
+    logger.debug(f"[MANAGED_COMPETITORS] Fetching for user {user_id[:8]}...")
     competitors_data = user_repository.get_managed_competitors(user_id)
+    elapsed_ms = (time.monotonic() - start_time) * 1000
+    logger.debug(
+        f"[MANAGED_COMPETITORS] Fetched {len(competitors_data)} competitors in {elapsed_ms:.1f}ms"
+    )
 
     # Convert to models and sort by added_at (newest first)
     competitors = []
@@ -2077,6 +2102,10 @@ TREND_SUMMARY_STALENESS_DAYS = 7
     If summary is stale (>7 days) or industry has changed, `stale` will be true.
     If user has no industry set, `needs_industry` will be true.
 
+    **Refresh gating for "Now" view:**
+    - Free tier: can only refresh if last refresh >28 days
+    - Paid tiers (starter/pro/enterprise): can refresh anytime (1hr rate limit still applies)
+
     **Auto-refresh:** Frontend should call POST /refresh if stale=true.
     """,
 )
@@ -2084,12 +2113,13 @@ TREND_SUMMARY_STALENESS_DAYS = 7
 async def get_trend_summary(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get cached trend summary with staleness check."""
+    """Get cached trend summary with staleness check and refresh gating."""
     from datetime import timedelta
 
     from backend.api.context.models import TrendSummary, TrendSummaryResponse
 
     user_id = extract_user_id(user)
+    tier = user.get("subscription_tier", "free")
 
     # Load user context
     context_data = user_repository.get_context(user_id)
@@ -2119,17 +2149,20 @@ async def get_trend_summary(
             summary=None,
             stale=True,  # No summary = stale
             needs_industry=False,
+            can_refresh_now=True,  # Allow initial generation
         ).model_dump()
 
     # Check staleness
     generated_at_str = summary_data.get("generated_at")
     summary_industry = summary_data.get("industry", "")
     is_stale = True
+    days_since_generation = 0
 
     if generated_at_str:
         try:
             generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
             age = datetime.now(UTC) - generated_at
+            days_since_generation = age.days
             # Stale if >7 days old OR industry changed
             is_stale = (
                 age > timedelta(days=TREND_SUMMARY_STALENESS_DAYS)
@@ -2138,6 +2171,18 @@ async def get_trend_summary(
         except Exception as e:
             logger.warning(f"Failed to parse generated_at: {e}")
             is_stale = True
+
+    # Determine if refresh is allowed (for "Now" view)
+    # Free tier: only if >28 days since last generation
+    # Paid tiers: always allowed (1hr rate limit handled in POST endpoint)
+    can_refresh_now = True
+    refresh_blocked_reason = None
+    refresh_threshold_days = 28
+
+    if tier == "free" and days_since_generation < refresh_threshold_days:
+        can_refresh_now = False
+        days_remaining = refresh_threshold_days - days_since_generation
+        refresh_blocked_reason = f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}. Upgrade to refresh anytime."
 
     # Build response
     try:
@@ -2156,6 +2201,8 @@ async def get_trend_summary(
             summary=summary,
             stale=is_stale,
             needs_industry=False,
+            can_refresh_now=can_refresh_now,
+            refresh_blocked_reason=refresh_blocked_reason,
         ).model_dump()
     except Exception as e:
         logger.warning(f"Failed to parse trend summary: {e}")
@@ -2179,14 +2226,20 @@ async def get_trend_summary(
     - Opportunities (2-4 items)
     - Threats/challenges (2-4 items)
 
-    **Rate Limit:** 1 refresh per hour per user.
+    **Rate Limits:**
+    - All tiers: 1 refresh per hour (short-term rate limit)
+    - Free tier: can only refresh if last refresh was >28 days ago
+    - Paid tiers (starter/pro/enterprise): 1hr rate limit only
+
     **Cost:** ~$0.005 per generation.
 
-    Returns `rate_limited=true` if called too frequently.
+    Returns 429 if free tier user tries to refresh within 28 days.
+    Returns `rate_limited=true` if called within 1 hour of last refresh.
     """,
     responses={
         200: {"description": "Summary generated or rate limited"},
         400: {"description": "Industry not set"},
+        429: {"description": "Free tier refresh blocked (28-day limit)"},
     },
 )
 @handle_api_errors("refresh trend summary")
@@ -2200,6 +2253,7 @@ async def refresh_trend_summary(
     from backend.services.trend_summary_generator import get_trend_summary_generator
 
     user_id = extract_user_id(user)
+    tier = user.get("subscription_tier", "free")
 
     # Load user context
     context_data = user_repository.get_context(user_id)
@@ -2214,13 +2268,30 @@ async def refresh_trend_summary(
             detail="Industry is required. Set your industry in Business Context settings first.",
         )
 
-    # Check rate limit (1 per hour)
+    # Check rate limits
     summary_data = context_data.get("trend_summary", {})
     generated_at_str = summary_data.get("generated_at")
     if generated_at_str:
         try:
             generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
             time_since = datetime.now(UTC) - generated_at
+            days_since = time_since.days
+
+            # Free tier: 28-day minimum between refreshes
+            refresh_threshold_days = 28
+            if tier == "free" and days_since < refresh_threshold_days:
+                days_remaining = refresh_threshold_days - days_since
+                logger.info(
+                    f"Trend summary refresh blocked for free user {user_id} "
+                    f"({days_remaining} days remaining until refresh allowed)"
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}. "
+                    f"Upgrade to refresh anytime.",
+                )
+
+            # All tiers: 1-hour rate limit
             if time_since < timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS):
                 minutes_remaining = int(
                     (timedelta(hours=TREND_SUMMARY_REFRESH_COOLDOWN_HOURS) - time_since).seconds
@@ -2236,6 +2307,8 @@ async def refresh_trend_summary(
                     error=f"Please wait {minutes_remaining} minutes before refreshing again",
                     rate_limited=True,
                 ).model_dump()
+        except HTTPException:
+            raise
         except Exception as e:
             logger.warning(f"Failed to check rate limit: {e}")
             # Continue with refresh if we can't parse the date
@@ -2351,7 +2424,7 @@ async def get_trend_forecast(
     # Tier gating check
     if timeframe not in available_timeframes:
         upgrade_msg = {
-            "12m": "Upgrade to Starter or higher to access 12-month forecasts.",
+            "12m": "Upgrade to Pro to access 12-month forecasts.",
             "24m": "Upgrade to Pro or Enterprise to access 24-month forecasts.",
         }.get(timeframe, "Upgrade to access this timeframe.")
 
@@ -2479,7 +2552,7 @@ async def refresh_trend_forecast(
     # Tier gating check
     if timeframe not in available_timeframes:
         upgrade_msg = {
-            "12m": "Upgrade to Starter or higher to access 12-month forecasts.",
+            "12m": "Upgrade to Pro to access 12-month forecasts.",
             "24m": "Upgrade to Pro or Enterprise to access 24-month forecasts.",
         }.get(timeframe, "Upgrade to access this timeframe.")
 
@@ -2580,8 +2653,8 @@ async def refresh_trend_forecast(
 # Goal History Endpoints (North Star Goal Tracking)
 # =============================================================================
 
-# Staleness threshold: prompt user to review goal after 30 days
-GOAL_STALENESS_THRESHOLD_DAYS = 30
+# Staleness threshold: prompt user to review goal after 180 days (strategic position)
+GOAL_STALENESS_THRESHOLD_DAYS = 180
 
 
 @router.get(

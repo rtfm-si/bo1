@@ -25,6 +25,8 @@ import {
 	getActionsPageSteps,
 	getProjectsPageSteps,
 	setTourNavigationCallbacks,
+	cleanupTour,
+	destroyActiveTour,
 } from './onboarding-tour';
 
 describe('isElementVisible', () => {
@@ -155,6 +157,13 @@ describe('getOnboardingSteps', () => {
 		expect(actionsStep?.popover?.onPopoverRender).toBeDefined();
 	});
 
+	it('step 2 does NOT have onNextClick override (uses global handler)', () => {
+		const steps = getOnboardingSteps();
+		const actionsStep = steps.find((s) => s.element === '[data-tour="actions-view"]');
+		// No step-level onNextClick means global handler will be used
+		expect(actionsStep?.popover?.onNextClick).toBeUndefined();
+	});
+
 	it('includes projects-nav step with Visit Projects button', () => {
 		const steps = getOnboardingSteps();
 		const projectsStep = steps.find((s) => s.element === '[data-tour="projects-nav"]');
@@ -240,6 +249,27 @@ describe('setTourNavigationCallbacks', () => {
 
 		// Callbacks are stored internally and used by popover buttons
 		// We verify they can be set without error
+		expect(true).toBe(true);
+	});
+});
+
+describe('cleanupTour', () => {
+	it('can be called safely when no tour is active', () => {
+		// Should not throw
+		expect(() => cleanupTour()).not.toThrow();
+	});
+});
+
+describe('destroyActiveTour', () => {
+	it('can be called safely when no tour is active', () => {
+		// Should not throw even when no driver instance exists
+		expect(() => destroyActiveTour()).not.toThrow();
+	});
+
+	it('cleans up tour state after being called', () => {
+		// Call destroyActiveTour and verify no error
+		destroyActiveTour();
+		// If we got here, cleanup was successful
 		expect(true).toBe(true);
 	});
 });

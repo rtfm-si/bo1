@@ -10,6 +10,7 @@ Provides:
 """
 
 import asyncio
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -461,8 +462,8 @@ async def enrich_competitor(
                 enriched.get("funding_info"),
                 enriched.get("employee_count"),
                 enriched.get("recent_news"),
-                previous_snapshot,
-                changes if changes else None,
+                json.dumps(previous_snapshot),
+                json.dumps(changes) if changes else None,
                 str(competitor_id),
             ),
             fetch="one",

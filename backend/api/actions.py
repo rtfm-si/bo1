@@ -9,7 +9,7 @@ Provides:
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import redis
@@ -953,33 +953,44 @@ async def complete_action(
     except Exception as e:
         logger.debug(f"Project auto-generation failed (non-blocking): {e}")
 
-    # Flag volatile metrics as action-affected for context refresh prompt
+    # Create 28-day delayed metric refresh triggers based on action content
     try:
+        from backend.services.insight_staleness import (
+            create_action_metric_triggers,
+            extract_metrics_from_action,
+        )
         from bo1.state.repositories import user_repository
 
-        context_data = user_repository.get_context(user_id)
-        if context_data:
-            pending = context_data.get("pending_updates", [])
-            # Flag volatile metrics: revenue, customers, growth_rate
-            volatile_fields = ["revenue", "customers", "growth_rate"]
-            for field in volatile_fields:
-                if context_data.get(field):  # Only flag if field has a value
-                    # Add to pending updates with action_affected flag
-                    pending.append(
-                        {
-                            "field_name": field,
-                            "refresh_reason": "action_affected",
-                            "action_id": action_id,
-                            "flagged_at": datetime.now().isoformat(),
-                        }
+        # Extract affected metrics from action title/description
+        affected_metrics = extract_metrics_from_action(
+            action.get("title", ""),
+            action.get("description"),
+        )
+
+        if affected_metrics:
+            context_data = user_repository.get_context(user_id)
+            if context_data:
+                # Only create triggers for metrics user has set
+                valid_metrics = [m for m in affected_metrics if context_data.get(m)]
+                if valid_metrics:
+                    # Create triggers for 28 days from now
+                    completed_at = datetime.now(UTC)
+                    new_triggers = create_action_metric_triggers(
+                        action_id=action_id,
+                        action_title=action.get("title", ""),
+                        completed_at=completed_at,
+                        affected_metrics=valid_metrics,
                     )
-            context_data["pending_updates"] = pending
-            user_repository.save_context(user_id, context_data)
-            logger.debug(
-                f"Flagged {len(volatile_fields)} metrics as action-affected for user {user_id}"
-            )
+
+                    # Append to existing triggers
+                    existing_triggers = context_data.get("action_metric_triggers", [])
+                    context_data["action_metric_triggers"] = existing_triggers + new_triggers
+                    user_repository.save_context(user_id, context_data)
+                    logger.info(
+                        f"Created {len(new_triggers)} delayed metric triggers for action {action_id}"
+                    )
     except Exception as e:
-        logger.debug(f"Action-affected flagging failed (non-blocking): {e}")
+        logger.debug(f"Action metric trigger creation failed (non-blocking): {e}")
 
     project_info = None
     if generated_project:

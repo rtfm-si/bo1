@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from backend.services.trend_summary_generator import (
@@ -14,6 +15,7 @@ from backend.services.trend_summary_generator import (
     build_trend_summary_prompt,
     get_available_timeframes,
     get_trend_summary_generator,
+    strip_html_to_text,
 )
 
 
@@ -248,12 +250,13 @@ class TestTrendSummaryGenerator:
     @pytest.mark.asyncio
     async def test_brave_search_no_api_key(self, generator):
         """Test Brave Search returns empty when no API key."""
-        with patch("backend.services.trend_summary_generator.get_settings") as mock_settings:
-            mock_settings.return_value.brave_api_key = None
+        mock_settings = MagicMock()
+        mock_settings.brave_api_key = None
+        generator._settings = mock_settings
 
-            results = await generator._brave_search("Technology")
+        results = await generator._brave_search("Technology")
 
-            assert results == []
+        assert results == []
 
     @pytest.mark.asyncio
     async def test_brave_search_circuit_breaker_open(self, generator):
@@ -392,11 +395,11 @@ class TestTierGating:
         available = get_available_timeframes("free")
         assert available == ["3m"]
 
-    def test_starter_tier_has_3m_and_12m(self):
-        """Test that starter tier has 3m and 12m access."""
+    def test_starter_tier_has_3m_only(self):
+        """Test that starter tier only has 3m access (12m/24m require pro)."""
         available = get_available_timeframes("starter")
-        assert "3m" in available
-        assert "12m" in available
+        assert available == ["3m"]
+        assert "12m" not in available
         assert "24m" not in available
 
     def test_pro_tier_has_all_timeframes(self):
@@ -461,3 +464,329 @@ class TestTrendSummaryResultWithTimeframe:
 
         data = result.to_dict()
         assert data["available_timeframes"] == ["3m"]
+
+
+class TestStripHtmlToText:
+    """Tests for HTML-to-text conversion."""
+
+    def test_strips_basic_tags(self):
+        """Test stripping basic HTML tags."""
+        html = "<p>Hello <strong>world</strong></p>"
+        text = strip_html_to_text(html)
+        assert "Hello" in text
+        assert "world" in text
+        assert "<p>" not in text
+        assert "<strong>" not in text
+
+    def test_removes_script_tags(self):
+        """Test script tags are removed completely."""
+        html = "<p>Before</p><script>alert('xss')</script><p>After</p>"
+        text = strip_html_to_text(html)
+        assert "Before" in text
+        assert "After" in text
+        assert "alert" not in text
+        assert "script" not in text
+
+    def test_removes_style_tags(self):
+        """Test style tags are removed completely."""
+        html = "<p>Content</p><style>.foo{color:red}</style>"
+        text = strip_html_to_text(html)
+        assert "Content" in text
+        assert ".foo" not in text
+        assert "color" not in text
+
+    def test_decodes_html_entities(self):
+        """Test HTML entities are decoded."""
+        html = "<p>Price: &pound;50 &amp; &lt;more&gt;</p>"
+        text = strip_html_to_text(html)
+        assert "£" in text
+        assert "&" in text
+        assert "<more>" in text
+
+    def test_normalizes_whitespace(self):
+        """Test multiple spaces are collapsed."""
+        html = "<p>Word1     Word2</p>"
+        text = strip_html_to_text(html)
+        assert "Word1 Word2" in text
+
+    def test_respects_max_chars(self):
+        """Test content is truncated to max_chars."""
+        html = "<p>" + "A" * 1000 + "</p>"
+        text = strip_html_to_text(html, max_chars=100)
+        assert len(text) <= 100
+
+    def test_handles_empty_input(self):
+        """Test empty input returns empty string."""
+        assert strip_html_to_text("") == ""
+        assert strip_html_to_text(None) == ""
+
+
+class TestBuildTrendSummaryPromptWithContent:
+    """Tests for prompt building with extracted content."""
+
+    def test_includes_content_when_present(self):
+        """Test that extracted content is included in prompt."""
+        industry = "SaaS"
+        results = [
+            {
+                "title": "SaaS Trends",
+                "url": "https://example.com",
+                "snippet": "Brief snippet",
+                "content": "Full article content about SaaS trends and market analysis.",
+            }
+        ]
+
+        prompt = build_trend_summary_prompt(industry, results)
+
+        assert "Article Content:" in prompt
+        assert "Full article content" in prompt
+
+    def test_truncates_long_content(self):
+        """Test that content longer than 1500 chars is truncated."""
+        long_content = "A" * 2000
+        results = [
+            {
+                "title": "Test",
+                "url": "https://x.com",
+                "snippet": "Snippet",
+                "content": long_content,
+            }
+        ]
+
+        prompt = build_trend_summary_prompt("Tech", results)
+
+        # Should include truncated content with ellipsis
+        assert "A" * 100 in prompt  # Has some A's
+        assert "..." in prompt  # Has truncation indicator
+        # Original 2000 chars shouldn't all be there
+        assert long_content not in prompt
+
+    def test_works_without_content(self):
+        """Test prompt works when content is missing."""
+        results = [{"title": "Test", "url": "https://x.com", "snippet": "Just snippet"}]
+
+        prompt = build_trend_summary_prompt("Tech", results)
+
+        assert "Just snippet" in prompt
+        assert "Article Content:" not in prompt
+
+
+class TestFetchUrlContent:
+    """Tests for URL content fetching."""
+
+    @pytest.fixture
+    def generator(self):
+        """Create generator instance."""
+        return TrendSummaryGenerator()
+
+    @pytest.mark.asyncio
+    async def test_fetches_html_content(self, generator):
+        """Test fetching and extracting HTML content."""
+        # Content must be >100 chars to pass the minimum viable content check
+        html_response = (
+            "<html><body><p>Test article content here with enough text to pass the "
+            "minimum content length check which requires at least 100 characters.</p></body></html>"
+        )
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = MagicMock()
+            mock_response.text = html_response
+            mock_response.headers = {"content-type": "text/html; charset=utf-8"}
+            mock_response.raise_for_status = MagicMock()
+
+            mock_async_client = MagicMock()
+            mock_async_client.get = AsyncMock(return_value=mock_response)
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock()
+            mock_client.return_value = mock_async_client
+
+            content = await generator._fetch_url_content("https://example.com/article")
+
+            assert content is not None
+            assert "Test article content" in content
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_timeout(self, generator):
+        """Test returns None on timeout."""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_async_client = MagicMock()
+            mock_async_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock()
+            mock_client.return_value = mock_async_client
+
+            content = await generator._fetch_url_content("https://example.com/slow")
+
+            assert content is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_error(self, generator):
+        """Test returns None on HTTP error."""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = MagicMock()
+            mock_response.status_code = 404
+
+            mock_async_client = MagicMock()
+            mock_async_client.get = AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Not found", request=MagicMock(), response=mock_response
+                )
+            )
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock()
+            mock_client.return_value = mock_async_client
+
+            content = await generator._fetch_url_content("https://example.com/missing")
+
+            assert content is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_non_html(self, generator):
+        """Test returns None for non-HTML content types."""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = MagicMock()
+            mock_response.text = "binary data"
+            mock_response.headers = {"content-type": "application/pdf"}
+            mock_response.raise_for_status = MagicMock()
+
+            mock_async_client = MagicMock()
+            mock_async_client.get = AsyncMock(return_value=mock_response)
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock()
+            mock_client.return_value = mock_async_client
+
+            content = await generator._fetch_url_content("https://example.com/file.pdf")
+
+            assert content is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_short_content(self, generator):
+        """Test returns None when extracted content is too short."""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = MagicMock()
+            mock_response.text = "<html><body>Hi</body></html>"  # Very short
+            mock_response.headers = {"content-type": "text/html"}
+            mock_response.raise_for_status = MagicMock()
+
+            mock_async_client = MagicMock()
+            mock_async_client.get = AsyncMock(return_value=mock_response)
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock()
+            mock_client.return_value = mock_async_client
+
+            content = await generator._fetch_url_content("https://example.com/tiny")
+
+            assert content is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_empty_url(self, generator):
+        """Test returns None for empty URL."""
+        content = await generator._fetch_url_content("")
+        assert content is None
+
+        content = await generator._fetch_url_content(None)
+        assert content is None
+
+
+class TestEnrichSearchResults:
+    """Tests for batch content enrichment."""
+
+    @pytest.fixture
+    def generator(self):
+        """Create generator instance."""
+        return TrendSummaryGenerator()
+
+    @pytest.mark.asyncio
+    async def test_enriches_top_results(self, generator):
+        """Test enriches top N results with content."""
+        results = [
+            {"title": "Article 1", "url": "https://a.com", "snippet": "S1"},
+            {"title": "Article 2", "url": "https://b.com", "snippet": "S2"},
+            {"title": "Article 3", "url": "https://c.com", "snippet": "S3"},
+            {"title": "Article 4", "url": "https://d.com", "snippet": "S4"},
+        ]
+
+        with patch.object(
+            generator,
+            "_fetch_url_content",
+            new_callable=AsyncMock,
+            side_effect=["Content A", "Content B", "Content C"],
+        ):
+            enriched, count = await generator._enrich_search_results(results)
+
+            assert count == 3
+            assert enriched[0].get("content") == "Content A"
+            assert enriched[1].get("content") == "Content B"
+            assert enriched[2].get("content") == "Content C"
+            # 4th result not fetched (limit is 3)
+            assert enriched[3].get("content") is None
+
+    @pytest.mark.asyncio
+    async def test_handles_partial_failures(self, generator):
+        """Test handles some URLs failing."""
+        results = [
+            {"title": "Article 1", "url": "https://a.com", "snippet": "S1"},
+            {"title": "Article 2", "url": "https://b.com", "snippet": "S2"},
+            {"title": "Article 3", "url": "https://c.com", "snippet": "S3"},
+        ]
+
+        with patch.object(
+            generator,
+            "_fetch_url_content",
+            new_callable=AsyncMock,
+            side_effect=["Content A", None, "Content C"],  # Middle one fails
+        ):
+            enriched, count = await generator._enrich_search_results(results)
+
+            assert count == 2  # Only 2 succeeded
+            assert enriched[0].get("content") == "Content A"
+            assert enriched[1].get("content") is None
+            assert enriched[2].get("content") == "Content C"
+
+    @pytest.mark.asyncio
+    async def test_handles_empty_results(self, generator):
+        """Test handles empty results list."""
+        enriched, count = await generator._enrich_search_results([])
+
+        assert enriched == []
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_handles_missing_urls(self, generator):
+        """Test handles results without URLs."""
+        results = [
+            {"title": "Article 1", "snippet": "S1"},  # No URL
+            {"title": "Article 2", "url": "", "snippet": "S2"},  # Empty URL
+        ]
+
+        enriched, count = await generator._enrich_search_results(results)
+
+        assert count == 0
+
+
+class TestTrendSummaryResultSourcesEnriched:
+    """Tests for sources_enriched field."""
+
+    def test_to_dict_includes_sources_enriched(self):
+        """Test that to_dict includes sources_enriched."""
+        result = TrendSummaryResult(
+            summary="Test",
+            key_trends=["T1"],
+            opportunities=["O1"],
+            threats=["T1"],
+            industry="Tech",
+            sources_enriched=2,
+            status="complete",
+        )
+
+        data = result.to_dict()
+
+        assert "sources_enriched" in data
+        assert data["sources_enriched"] == 2
+
+    def test_default_sources_enriched_is_zero(self):
+        """Test default sources_enriched is 0."""
+        result = TrendSummaryResult(status="complete")
+
+        assert result.sources_enriched == 0
+        assert result.to_dict()["sources_enriched"] == 0

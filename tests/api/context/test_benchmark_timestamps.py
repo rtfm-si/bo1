@@ -154,6 +154,17 @@ class TestBenchmarkMetricFields:
             "mau_bucket",
             "revenue_stage",
             "traffic_range",
+            # Extended metrics (z25 migration)
+            "dau",
+            "mau",
+            "dau_mau_ratio",
+            "arpu",
+            "arr_growth_rate",
+            "grr",
+            "active_churn",
+            "revenue_churn",
+            "nps",
+            "quick_ratio",
         }
         assert expected == BENCHMARK_METRIC_FIELDS
 

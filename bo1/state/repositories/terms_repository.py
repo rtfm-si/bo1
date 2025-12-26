@@ -144,6 +144,7 @@ class TermsRepository(BaseRepository):
         user_id: str,
         version_id: UUID | str,
         ip_address: str | None = None,
+        policy_type: str = "tc",
     ) -> dict[str, Any]:
         """Record a user's consent to a T&C version.
 
@@ -151,46 +152,51 @@ class TermsRepository(BaseRepository):
             user_id: User ID.
             version_id: T&C version ID.
             ip_address: User's IP address (optional).
+            policy_type: Type of policy ('tc', 'gdpr', 'privacy').
 
         Returns:
             Created consent record.
         """
         query = """
-            INSERT INTO terms_consents (user_id, terms_version_id, ip_address)
-            VALUES (%s, %s, %s)
-            RETURNING id, user_id, terms_version_id, consented_at, ip_address
+            INSERT INTO terms_consents (user_id, terms_version_id, ip_address, policy_type)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, user_id, terms_version_id, consented_at, ip_address, policy_type
         """
         return self._execute_returning(
             query,
-            (user_id, str(version_id), ip_address),
+            (user_id, str(version_id), ip_address, policy_type),
             user_id=user_id,
         )
 
-    def get_user_latest_consent(self, user_id: str) -> dict[str, Any] | None:
-        """Get a user's most recent consent record.
+    def get_user_latest_consent(
+        self, user_id: str, policy_type: str = "tc"
+    ) -> dict[str, Any] | None:
+        """Get a user's most recent consent record for a policy type.
 
         Args:
             user_id: User ID.
+            policy_type: Type of policy ('tc', 'gdpr', 'privacy').
 
         Returns:
             Latest consent dict with version info, or None.
         """
         query = """
             SELECT tc.id, tc.user_id, tc.terms_version_id, tc.consented_at, tc.ip_address,
-                   tv.version as terms_version, tv.published_at as terms_published_at
+                   tc.policy_type, tv.version as terms_version, tv.published_at as terms_published_at
             FROM terms_consents tc
             JOIN terms_versions tv ON tc.terms_version_id = tv.id
-            WHERE tc.user_id = %s
+            WHERE tc.user_id = %s AND tc.policy_type = %s
             ORDER BY tc.consented_at DESC
             LIMIT 1
         """
-        return self._execute_one(query, (user_id,), user_id=user_id)
+        return self._execute_one(query, (user_id, policy_type), user_id=user_id)
 
-    def has_user_consented_to_current(self, user_id: str) -> bool:
+    def has_user_consented_to_current(self, user_id: str, policy_type: str = "tc") -> bool:
         """Check if user has consented to the current active T&C version.
 
         Args:
             user_id: User ID.
+            policy_type: Type of policy ('tc', 'gdpr', 'privacy').
 
         Returns:
             True if user has consented to current active version, False otherwise.
@@ -199,10 +205,10 @@ class TermsRepository(BaseRepository):
             SELECT EXISTS(
                 SELECT 1 FROM terms_consents tc
                 JOIN terms_versions tv ON tc.terms_version_id = tv.id
-                WHERE tc.user_id = %s AND tv.is_active = true
+                WHERE tc.user_id = %s AND tv.is_active = true AND tc.policy_type = %s
             ) as has_consented
         """
-        result = self._execute_one(query, (user_id,), user_id=user_id)
+        result = self._execute_one(query, (user_id, policy_type), user_id=user_id)
         return bool(result and result.get("has_consented"))
 
     def get_user_consents(self, user_id: str) -> list[dict[str, Any]]:
@@ -216,13 +222,59 @@ class TermsRepository(BaseRepository):
         """
         query = """
             SELECT tc.id, tc.user_id, tc.terms_version_id, tc.consented_at, tc.ip_address,
-                   tv.version as terms_version, tv.published_at as terms_published_at
+                   tc.policy_type, tv.version as terms_version, tv.published_at as terms_published_at
             FROM terms_consents tc
             JOIN terms_versions tv ON tc.terms_version_id = tv.id
             WHERE tc.user_id = %s
             ORDER BY tc.consented_at DESC
         """
         return self._execute_query(query, (user_id,), user_id=user_id)
+
+    def has_user_consented_all_policies(self, user_id: str) -> bool:
+        """Check if user has consented to all required policies (T&C, GDPR, Privacy).
+
+        Args:
+            user_id: User ID.
+
+        Returns:
+            True if user has valid consents for all required policies.
+        """
+        required_policies = ["tc", "gdpr", "privacy"]
+        for policy in required_policies:
+            if not self.has_user_consented_to_current(user_id, policy):
+                return False
+        return True
+
+    def get_user_all_policy_consents(self, user_id: str) -> dict[str, dict[str, Any] | None]:
+        """Get user's latest consent for each policy type.
+
+        Args:
+            user_id: User ID.
+
+        Returns:
+            Dict keyed by policy_type ('tc', 'gdpr', 'privacy') with consent or None.
+        """
+        policy_types = ["tc", "gdpr", "privacy"]
+        result = {}
+        for policy in policy_types:
+            result[policy] = self.get_user_latest_consent(user_id, policy)
+        return result
+
+    def get_missing_policies(self, user_id: str) -> list[str]:
+        """Get list of required policies the user has not consented to.
+
+        Args:
+            user_id: User ID.
+
+        Returns:
+            List of policy types missing consent (e.g., ['gdpr', 'privacy']).
+        """
+        required_policies = ["tc", "gdpr", "privacy"]
+        missing = []
+        for policy in required_policies:
+            if not self.has_user_consented_to_current(user_id, policy):
+                missing.append(policy)
+        return missing
 
     def get_all_consents(
         self,
@@ -252,7 +304,7 @@ class TermsRepository(BaseRepository):
         # Get paginated records with user email
         query = f"""
             SELECT tc.id, tc.user_id, tc.terms_version_id, tc.consented_at, tc.ip_address,
-                   tv.version as terms_version, u.email
+                   tc.policy_type, tv.version as terms_version, u.email
             FROM terms_consents tc
             JOIN terms_versions tv ON tc.terms_version_id = tv.id
             LEFT JOIN users u ON tc.user_id = u.id

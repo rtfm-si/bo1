@@ -12,6 +12,7 @@
 import { driver, type DriveStep, type Config, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { apiClient } from '$lib/api/client';
+import { skipTour, clearTourPage } from '$lib/stores/tour';
 
 /**
  * Check if an element exists and is visible in the DOM
@@ -47,7 +48,7 @@ const driverConfig: Config = {
 	animate: true,
 	showProgress: true,
 	showButtons: ['next', 'previous', 'close'],
-	allowClose: false, // Prevent clicking overlay from dismissing tour
+	allowClose: true, // Allow X button and overlay click to dismiss
 	overlayColor: 'rgba(0, 0, 0, 0.7)',
 	stagePadding: 8,
 	stageRadius: 8,
@@ -98,9 +99,6 @@ export function getOnboardingSteps(): DriveStep[] {
 					'After each meeting, actions are extracted and organized here. Use Kanban or Gantt views to manage progress.<br><br><strong>Want to explore?</strong> Click "Visit Actions" to see the Kanban board.',
 				side: 'bottom',
 				align: 'start',
-				onNextClick: () => {
-					// Continue to next step
-				},
 				onPopoverRender: (popover) => {
 					// Add custom button to visit Actions page
 					const footer = popover.footerButtons;
@@ -110,6 +108,8 @@ export function getOnboardingSteps(): DriveStep[] {
 					visitBtn.onclick = () => {
 						if (navigationCallbacks.onNavigateToActions) {
 							navigationCallbacks.onNavigateToActions();
+						} else {
+							console.warn('Tour: onNavigateToActions callback not set');
 						}
 					};
 					footer.appendChild(visitBtn);
@@ -143,6 +143,8 @@ export function getOnboardingSteps(): DriveStep[] {
 					visitBtn.onclick = () => {
 						if (navigationCallbacks.onNavigateToProjects) {
 							navigationCallbacks.onNavigateToProjects();
+						} else {
+							console.warn('Tour: onNavigateToProjects callback not set');
 						}
 					};
 					footer.appendChild(visitBtn);
@@ -262,6 +264,18 @@ export function cleanupTour(): void {
 }
 
 /**
+ * Destroy active tour driver and cleanup
+ * Call this when navigating away to prevent popup persistence
+ */
+export function destroyActiveTour(): void {
+	if (currentTourDriver) {
+		currentTourDriver.destroy();
+		currentTourDriver = null;
+	}
+	cleanupTour();
+}
+
+/**
  * Start the onboarding tour
  */
 export async function startOnboardingTour(onComplete?: () => void): Promise<void> {
@@ -287,11 +301,19 @@ export async function startOnboardingTour(onComplete?: () => void): Promise<void
 				setTimeout(() => tourDriver.moveNext(), 100);
 			}
 		},
+		onCloseClick: () => {
+			// User clicked X button or overlay - skip tour
+			cleanupTour();
+			clearTourPage();
+			skipTour();
+			onComplete?.();
+			tourDriver.destroy();
+		},
 		onDestroyStarted: async () => {
 			// Cleanup navigation lock
 			cleanupTour();
 
-			// Mark tour as complete when user finishes or closes
+			// Mark tour as complete when user finishes (reaches end)
 			try {
 				await apiClient.completeTour();
 			} catch (err) {
@@ -339,8 +361,16 @@ export async function startActionsPageTour(onComplete?: () => void): Promise<voi
 				setTimeout(() => tourDriver.moveNext(), 100);
 			}
 		},
+		onCloseClick: () => {
+			cleanupTour();
+			clearTourPage();
+			skipTour();
+			onComplete?.();
+			tourDriver.destroy();
+		},
 		onDestroyStarted: () => {
 			cleanupTour();
+			clearTourPage();
 			onComplete?.();
 			tourDriver.destroy();
 		},
@@ -372,8 +402,16 @@ export async function startProjectsPageTour(onComplete?: () => void): Promise<vo
 				setTimeout(() => tourDriver.moveNext(), 100);
 			}
 		},
+		onCloseClick: () => {
+			cleanupTour();
+			clearTourPage();
+			skipTour();
+			onComplete?.();
+			tourDriver.destroy();
+		},
 		onDestroyStarted: () => {
 			cleanupTour();
+			clearTourPage();
 			onComplete?.();
 			tourDriver.destroy();
 		},

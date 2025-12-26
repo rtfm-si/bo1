@@ -193,6 +193,8 @@ class UserRepository(BaseRepository):
         "managed_competitors",
         # Trend insights (AI-generated from URLs)
         "trend_insights",
+        # Action-triggered metric staleness (28-day delay)
+        "action_metric_triggers",
     ]
 
     @classmethod
@@ -235,6 +237,11 @@ class UserRepository(BaseRepository):
         Returns:
             Dictionary with all context fields or None if not found
         """
+        import time
+
+        start_time = time.monotonic()
+        cache_result = "miss"
+
         # Try Redis cache first
         try:
             from backend.api.dependencies import get_redis_manager
@@ -244,12 +251,17 @@ class UserRepository(BaseRepository):
 
             if cached is not None:
                 # Cache hit - emit metric
+                cache_result = "hit"
                 try:
                     from backend.api.metrics import prom_metrics
 
                     prom_metrics.user_context_cache_total.labels(result="hit").inc()
                 except ImportError:
                     pass
+                elapsed_ms = (time.monotonic() - start_time) * 1000
+                logger.debug(
+                    f"[CONTEXT_CACHE] Cache hit for {user_id[:8]}... in {elapsed_ms:.1f}ms"
+                )
                 return cached
 
             # Cache miss - emit metric
@@ -262,18 +274,37 @@ class UserRepository(BaseRepository):
 
         except Exception as e:
             # Redis error - fall back to DB (don't fail request)
-            logger.warning(f"[CONTEXT_CACHE] Redis error for {user_id}, falling back to DB: {e}")
+            cache_result = "error"
+            logger.warning(
+                f"[CONTEXT_CACHE] Redis error for {user_id[:8]}..., falling back to DB: {e}"
+            )
 
         # Build SELECT with all fields
         fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
-        context = self._execute_one(
-            f"""
-            SELECT {fields}
-            FROM user_context
-            WHERE user_id = %s
-            """,
-            (user_id,),
-            user_id=user_id,  # Enable RLS policy
+        db_start = time.monotonic()
+        try:
+            context = self._execute_one(
+                f"""
+                SELECT {fields}
+                FROM user_context
+                WHERE user_id = %s
+                """,
+                (user_id,),
+                user_id=user_id,  # Enable RLS policy
+            )
+        except Exception as e:
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+            logger.error(
+                f"[CONTEXT_CACHE] DB error for {user_id[:8]}... after {elapsed_ms:.1f}ms "
+                f"(cache={cache_result}): {type(e).__name__}: {e}"
+            )
+            raise
+
+        db_elapsed_ms = (time.monotonic() - db_start) * 1000
+        total_elapsed_ms = (time.monotonic() - start_time) * 1000
+        logger.debug(
+            f"[CONTEXT_CACHE] DB query for {user_id[:8]}... "
+            f"took {db_elapsed_ms:.1f}ms (total={total_elapsed_ms:.1f}ms, cache={cache_result})"
         )
 
         # Cache result on miss (if we got data)
@@ -284,7 +315,7 @@ class UserRepository(BaseRepository):
                 redis_manager = get_redis_manager()
                 redis_manager.cache_context(user_id, context)
             except Exception as e:
-                logger.debug(f"[CONTEXT_CACHE] Failed to cache context for {user_id}: {e}")
+                logger.debug(f"[CONTEXT_CACHE] Failed to cache context for {user_id[:8]}...: {e}")
 
         return context
 
@@ -343,6 +374,7 @@ class UserRepository(BaseRepository):
             "competitor_insights",
             "managed_competitors",
             "trend_insights",
+            "action_metric_triggers",
         }
 
         values = []

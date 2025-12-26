@@ -80,10 +80,12 @@ class TestConsentRecordResponse:
         response = ConsentRecordResponse(
             id=str(uuid4()),
             terms_version_id=str(uuid4()),
+            policy_type="tc",
             consented_at="2025-12-26T10:00:00Z",
             message="Consent recorded successfully",
         )
         assert response.message == "Consent recorded successfully"
+        assert response.policy_type == "tc"
 
 
 class TestGetCurrentTermsEndpoint:
@@ -171,24 +173,36 @@ class TestGetConsentStatusEndpoint:
         """Endpoint should return consent status for consented user."""
         from backend.api.terms import get_consent_status
 
+        # Mock all policy consents
+        all_policy_consents = {
+            "tc": {**mock_consent, "policy_type": "tc"},
+            "gdpr": {**mock_consent, "policy_type": "gdpr"},
+            "privacy": {**mock_consent, "policy_type": "privacy"},
+        }
+
         with (
             patch(
                 "backend.api.terms.terms_repository.get_active_version",
                 return_value=mock_active_version,
             ),
             patch(
-                "backend.api.terms.terms_repository.has_user_consented_to_current",
-                return_value=True,
+                "backend.api.terms.terms_repository.get_user_all_policy_consents",
+                return_value=all_policy_consents,
             ),
             patch(
-                "backend.api.terms.terms_repository.get_user_latest_consent",
-                return_value=mock_consent,
+                "backend.api.terms.terms_repository.get_missing_policies",
+                return_value=[],  # All consented
+            ),
+            patch(
+                "backend.api.terms.terms_repository.get_user_consents",
+                return_value=[{**mock_consent, "policy_type": "tc"}],
             ),
         ):
             response = await get_consent_status(user=mock_user)
 
         assert response.has_consented is True
         assert response.current_version == "1.0"
+        assert response.missing_policies == []
 
     @pytest.mark.asyncio
     async def test_returns_not_consented_status(self, mock_user, mock_active_version):
@@ -201,17 +215,22 @@ class TestGetConsentStatusEndpoint:
                 return_value=mock_active_version,
             ),
             patch(
-                "backend.api.terms.terms_repository.has_user_consented_to_current",
-                return_value=False,
+                "backend.api.terms.terms_repository.get_user_all_policy_consents",
+                return_value={"tc": None, "gdpr": None, "privacy": None},
             ),
             patch(
-                "backend.api.terms.terms_repository.get_user_latest_consent",
-                return_value=None,
+                "backend.api.terms.terms_repository.get_missing_policies",
+                return_value=["tc", "gdpr", "privacy"],  # All missing
+            ),
+            patch(
+                "backend.api.terms.terms_repository.get_user_consents",
+                return_value=[],
             ),
         ):
             response = await get_consent_status(user=mock_user)
 
         assert response.has_consented is False
+        assert "tc" in response.missing_policies
 
     @pytest.mark.asyncio
     async def test_returns_consented_when_no_active_version(self, mock_user):
@@ -265,6 +284,7 @@ class TestRecordConsentEndpoint:
             "terms_version_id": mock_version["id"],
             "consented_at": datetime.now(UTC),
             "ip_address": "192.168.1.1",
+            "policy_type": "tc",
         }
 
     @pytest.mark.asyncio

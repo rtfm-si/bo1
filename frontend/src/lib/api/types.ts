@@ -1083,3 +1083,66 @@ export interface ManagedCompetitorListResponse {
 	count: number;
 	error?: string | null;
 }
+
+// =============================================================================
+// User Ratings (Thumbs Up/Down)
+// =============================================================================
+
+/**
+ * Rating response from API
+ */
+export interface RatingResponse {
+	id: string;
+	user_id: string;
+	entity_type: 'meeting' | 'action';
+	entity_id: string;
+	rating: number;
+	comment?: string | null;
+	created_at: string;
+}
+
+/**
+ * Rating metrics for admin dashboard
+ */
+export interface RatingMetricsResponse {
+	period_days: number;
+	total: number;
+	thumbs_up: number;
+	thumbs_down: number;
+	thumbs_up_pct: number;
+	by_type: {
+		meeting: { up: number; down: number };
+		action: { up: number; down: number };
+	};
+}
+
+/**
+ * Daily rating trend data point
+ */
+export interface RatingTrendItem {
+	date: string;
+	up: number;
+	down: number;
+	total: number;
+}
+
+/**
+ * Negative rating item for admin triage
+ */
+export interface NegativeRatingItem {
+	id: string;
+	user_id: string;
+	user_email?: string | null;
+	entity_type: 'meeting' | 'action';
+	entity_id: string;
+	entity_title?: string | null;
+	comment?: string | null;
+	created_at: string;
+}
+
+/**
+ * Response containing negative ratings list
+ */
+export interface NegativeRatingsResponse {
+	items: NegativeRatingItem[];
+}

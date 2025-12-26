@@ -282,9 +282,10 @@ def get_stale_metrics_for_session(
     """Get metrics that are stale and need refreshing before a meeting.
 
     Considers:
-    1. Age-based staleness (per volatility level threshold)
-    2. Action-affected metrics (fields related to completed actions)
-    3. Volatility classification (higher volatility = shorter threshold)
+    1. Delayed action triggers (28 days after action completion - highest priority)
+    2. Action-affected metrics (fields related to recently completed actions)
+    3. Age-based staleness (per volatility level threshold)
+    4. Volatility classification (higher volatility = shorter threshold)
 
     Args:
         user_id: User ID to check metrics for
@@ -308,6 +309,9 @@ def get_stale_metrics_for_session(
     now = datetime.now(UTC)
     stale_metrics: list[StaleMetric] = []
     metrics_checked = 0
+
+    # Get matured action triggers (28-day delayed staleness)
+    matured_triggers = _get_matured_trigger_fields(context_data)
 
     # Check each refreshable metric
     for field_name in REFRESHABLE_METRICS:
@@ -334,7 +338,24 @@ def get_stale_metrics_for_session(
             except (ValueError, AttributeError, IndexError):
                 pass
 
-        # Check for action-affected staleness first (highest priority)
+        # Check for matured action triggers (highest priority)
+        trigger_info = matured_triggers.get(field_name)
+        if trigger_info:
+            stale_metrics.append(
+                StaleMetric(
+                    field_name=field_name,
+                    current_value=current_value,
+                    updated_at=updated_at,
+                    days_since_update=(now - updated_at).days if updated_at else 999,
+                    reason=StalenessReason.ACTION_AFFECTED,
+                    volatility=volatility,
+                    threshold_days=threshold_days,
+                    action_id=trigger_info.get("action_id"),
+                )
+            )
+            continue
+
+        # Check for action-affected staleness (immediate)
         if action_affected_fields and field_name in action_affected_fields:
             stale_metrics.append(
                 StaleMetric(
@@ -402,12 +423,100 @@ def get_stale_metrics_for_session(
     )
 
 
+def _get_matured_trigger_fields(context_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Get matured action triggers as field -> trigger info mapping.
+
+    Args:
+        context_data: User context data
+
+    Returns:
+        Dict mapping field_name to trigger info (action_id, action_title)
+    """
+    triggers = context_data.get("action_metric_triggers", [])
+    if not triggers:
+        return {}
+
+    benchmark_timestamps = context_data.get("benchmark_timestamps", {})
+    now = datetime.now(UTC)
+    matured: dict[str, dict[str, Any]] = {}
+
+    for trigger in triggers:
+        try:
+            trigger_at = datetime.fromisoformat(
+                trigger.get("trigger_at", "").replace("Z", "+00:00")
+            )
+            completed_at = datetime.fromisoformat(
+                trigger.get("completed_at", "").replace("Z", "+00:00")
+            )
+        except (ValueError, AttributeError):
+            continue
+
+        # Check if trigger has matured
+        if trigger_at > now:
+            continue
+
+        metric_field = trigger.get("metric_field")
+        if not metric_field:
+            continue
+
+        # Check if metric was updated after action completed
+        metric_ts_str = benchmark_timestamps.get(metric_field)
+        if metric_ts_str:
+            try:
+                metric_updated = datetime.fromisoformat(metric_ts_str.replace("Z", "+00:00"))
+                if metric_updated > completed_at:
+                    continue
+            except (ValueError, AttributeError):
+                pass
+
+        # First matured trigger wins for each field
+        if metric_field not in matured:
+            matured[metric_field] = {
+                "action_id": trigger.get("action_id"),
+                "action_title": trigger.get("action_title"),
+            }
+
+    return matured
+
+
 # =============================================================================
 # Benchmark Staleness (for Monthly Check-ins)
 # =============================================================================
 
 # Benchmark-specific threshold: 30 days for monthly check-ins
 BENCHMARK_STALENESS_DAYS = 30
+
+# Action-triggered staleness delay (28 days after action completion)
+ACTION_TRIGGER_DELAY_DAYS = 28
+
+# Keyword mapping for extracting affected metrics from action titles/descriptions
+# Maps to actual context fields in REFRESHABLE_METRICS
+METRIC_KEYWORDS: dict[str, list[str]] = {
+    "revenue": ["revenue", "mrr", "arr", "sales", "income", "earnings", "pricing"],
+    "customers": [
+        "customer",
+        "clients",
+        "users",
+        "subscribers",
+        "signups",
+        "churn",
+        "retention",
+        "attrition",
+    ],
+    "growth_rate": ["growth", "grow", "expand", "scale", "scaling"],
+    "team_size": ["team", "hire", "hiring", "recruit", "headcount", "staff", "employee"],
+    # Extended metrics (z25 migration)
+    "dau": ["dau", "daily active", "daily users", "daily engagement"],
+    "mau": ["mau", "monthly active", "monthly users"],
+    "dau_mau_ratio": ["stickiness", "dau/mau", "engagement ratio"],
+    "arpu": ["arpu", "revenue per user", "monetization"],
+    "arr_growth_rate": ["arr growth", "annual growth", "yoy growth"],
+    "grr": ["grr", "gross retention", "logo retention"],
+    "active_churn": ["churn", "customer churn", "logo churn", "attrition"],
+    "revenue_churn": ["revenue churn", "mrr churn", "dollar churn"],
+    "nps": ["nps", "net promoter", "satisfaction", "recommend"],
+    "quick_ratio": ["quick ratio", "saas ratio", "growth efficiency"],
+}
 
 
 class StaleBenchmark(BaseModel):
@@ -437,6 +546,17 @@ BENCHMARK_FIELDS = {
     "mau_bucket",
     "revenue_stage",
     "traffic_range",
+    # Extended metrics (z25 migration)
+    "dau",
+    "mau",
+    "dau_mau_ratio",
+    "arpu",
+    "arr_growth_rate",
+    "grr",
+    "active_churn",
+    "revenue_churn",
+    "nps",
+    "quick_ratio",
 }
 
 # Human-friendly display names
@@ -448,6 +568,17 @@ BENCHMARK_DISPLAY_NAMES = {
     "mau_bucket": "Monthly active users",
     "revenue_stage": "Revenue stage",
     "traffic_range": "Traffic range",
+    # Extended metrics (z25 migration)
+    "dau": "Daily active users",
+    "mau": "Monthly active users",
+    "dau_mau_ratio": "DAU/MAU ratio",
+    "arpu": "Average revenue per user",
+    "arr_growth_rate": "ARR growth rate",
+    "grr": "Gross revenue retention",
+    "active_churn": "Customer churn rate",
+    "revenue_churn": "Revenue churn rate",
+    "nps": "Net Promoter Score",
+    "quick_ratio": "SaaS quick ratio",
 }
 
 
@@ -536,3 +667,190 @@ def get_stale_benchmarks(
         stale_benchmarks=stale_benchmarks,
         total_benchmarks_checked=benchmarks_checked,
     )
+
+
+# =============================================================================
+# Action-Triggered Metric Staleness (28-day delay)
+# =============================================================================
+
+
+class ActionMetricTrigger(BaseModel):
+    """Trigger for delayed metric staleness after action completion."""
+
+    action_id: str
+    action_title: str
+    metric_field: str
+    completed_at: datetime
+    trigger_at: datetime
+
+
+def extract_metrics_from_action(title: str, description: str | None = None) -> list[str]:
+    """Extract affected metric fields from action title and description.
+
+    Uses keyword matching to identify which metrics an action might affect.
+
+    Args:
+        title: Action title
+        description: Optional action description
+
+    Returns:
+        List of metric field names that the action targets
+    """
+    text = f"{title} {description or ''}".lower()
+    affected_metrics: list[str] = []
+
+    for metric_field, keywords in METRIC_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            affected_metrics.append(metric_field)
+
+    return affected_metrics
+
+
+def create_action_metric_triggers(
+    action_id: str,
+    action_title: str,
+    completed_at: datetime,
+    affected_metrics: list[str],
+) -> list[dict[str, Any]]:
+    """Create trigger entries for affected metrics.
+
+    Args:
+        action_id: Completed action ID
+        action_title: Action title for display
+        completed_at: When the action was completed
+        affected_metrics: List of metric fields to trigger
+
+    Returns:
+        List of trigger dicts ready for storage
+    """
+    trigger_at = completed_at + timedelta(days=ACTION_TRIGGER_DELAY_DAYS)
+
+    return [
+        {
+            "action_id": action_id,
+            "action_title": action_title,
+            "metric_field": metric,
+            "completed_at": completed_at.isoformat(),
+            "trigger_at": trigger_at.isoformat(),
+        }
+        for metric in affected_metrics
+    ]
+
+
+def get_matured_action_triggers(user_id: str) -> list[ActionMetricTrigger]:
+    """Get action triggers that have matured (trigger_at <= now).
+
+    Only returns triggers for metrics that haven't been updated since the action completed.
+
+    Args:
+        user_id: User ID to check triggers for
+
+    Returns:
+        List of matured ActionMetricTrigger objects
+    """
+    context_data = user_repository.get_context(user_id)
+
+    if not context_data:
+        return []
+
+    triggers = context_data.get("action_metric_triggers", [])
+    if not triggers:
+        return []
+
+    benchmark_timestamps = context_data.get("benchmark_timestamps", {})
+    now = datetime.now(UTC)
+    matured: list[ActionMetricTrigger] = []
+
+    for trigger in triggers:
+        try:
+            trigger_at = datetime.fromisoformat(
+                trigger.get("trigger_at", "").replace("Z", "+00:00")
+            )
+            completed_at = datetime.fromisoformat(
+                trigger.get("completed_at", "").replace("Z", "+00:00")
+            )
+        except (ValueError, AttributeError):
+            continue
+
+        # Check if trigger has matured
+        if trigger_at > now:
+            continue
+
+        metric_field = trigger.get("metric_field")
+        if not metric_field:
+            continue
+
+        # Check if metric was updated after action completed (user already refreshed)
+        metric_ts_str = benchmark_timestamps.get(metric_field)
+        if metric_ts_str:
+            try:
+                metric_updated = datetime.fromisoformat(metric_ts_str.replace("Z", "+00:00"))
+                if metric_updated > completed_at:
+                    # Metric was refreshed since action completed - skip
+                    continue
+            except (ValueError, AttributeError):
+                pass
+
+        matured.append(
+            ActionMetricTrigger(
+                action_id=trigger.get("action_id", ""),
+                action_title=trigger.get("action_title", ""),
+                metric_field=metric_field,
+                completed_at=completed_at,
+                trigger_at=trigger_at,
+            )
+        )
+
+    logger.debug(f"Found {len(matured)} matured action triggers for user {user_id}")
+    return matured
+
+
+def remove_action_triggers(
+    user_id: str,
+    metric_field: str | None = None,
+    action_id: str | None = None,
+) -> int:
+    """Remove action triggers from user context.
+
+    Can filter by metric_field, action_id, or both.
+
+    Args:
+        user_id: User ID
+        metric_field: Remove triggers for this metric (optional)
+        action_id: Remove triggers for this action (optional)
+
+    Returns:
+        Number of triggers removed
+    """
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return 0
+
+    triggers = context_data.get("action_metric_triggers", [])
+    if not triggers:
+        return 0
+
+    original_count = len(triggers)
+
+    def should_keep(t: dict[str, Any]) -> bool:
+        if metric_field and t.get("metric_field") == metric_field:
+            return False
+        if action_id and t.get("action_id") == action_id:
+            return False
+        if metric_field is None and action_id is None:
+            return False  # Remove all if no filter
+        return True
+
+    # Only filter if we have a filter
+    if metric_field or action_id:
+        triggers = [t for t in triggers if should_keep(t)]
+    else:
+        return 0  # No filter = no removal
+
+    removed = original_count - len(triggers)
+    if removed > 0:
+        context_data["action_metric_triggers"] = triggers
+        user_repository.save_context(user_id, context_data)
+        logger.info(f"Removed {removed} action triggers for user {user_id}")
+
+    return removed

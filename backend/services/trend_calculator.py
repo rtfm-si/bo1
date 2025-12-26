@@ -37,9 +37,29 @@ STALENESS_THRESHOLDS = {
 }
 
 # Fields that are inherently more volatile
-INHERENTLY_VOLATILE_FIELDS = {"revenue", "customers", "growth_rate"}
-INHERENTLY_MODERATE_FIELDS = {"team_size", "mau_bucket", "competitors"}
-INHERENTLY_STABLE_FIELDS = {"industry", "business_stage", "primary_objective"}
+INHERENTLY_VOLATILE_FIELDS = {
+    "revenue",
+    "customers",
+    "growth_rate",
+    # Extended volatile metrics (z25 migration)
+    "dau",
+    "mau",
+    "arpu",
+    "arr_growth_rate",
+    "revenue_churn",
+    "quick_ratio",
+}
+INHERENTLY_MODERATE_FIELDS = {
+    "team_size",
+    "mau_bucket",
+    "competitors",
+    # Extended moderate metrics (z25 migration)
+    "dau_mau_ratio",
+    "grr",
+    "active_churn",
+    "nps",
+}
+INHERENTLY_STABLE_FIELDS = {"industry", "business_stage", "primary_objective", "north_star_goal"}
 
 
 # Fields where higher is better
@@ -49,10 +69,22 @@ POSITIVE_DIRECTION_FIELDS = {
     "growth_rate",
     "mau_bucket",
     "team_size",
+    # Extended positive metrics (z25 migration)
+    "dau",
+    "mau",
+    "dau_mau_ratio",
+    "arpu",
+    "arr_growth_rate",
+    "grr",
+    "nps",
+    "quick_ratio",
 }
 
-# Fields where lower is better (currently none but could expand)
-NEGATIVE_DIRECTION_FIELDS: set[str] = set()
+# Fields where lower is better
+NEGATIVE_DIRECTION_FIELDS = {
+    "active_churn",
+    "revenue_churn",
+}
 
 
 def extract_numeric_value(value: Any) -> float | None:

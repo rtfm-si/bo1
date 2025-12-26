@@ -92,10 +92,10 @@ class TestGetGoalStalenessEndpointLogic:
         assert response.last_goal is None
 
     def test_staleness_threshold_constant(self):
-        """Staleness threshold should be 30 days."""
+        """Staleness threshold should be 180 days for strategic position."""
         from backend.api.context.routes import GOAL_STALENESS_THRESHOLD_DAYS
 
-        assert GOAL_STALENESS_THRESHOLD_DAYS == 30
+        assert GOAL_STALENESS_THRESHOLD_DAYS == 180
 
 
 class TestGoalHistoryModels:

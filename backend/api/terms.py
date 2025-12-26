@@ -35,19 +35,45 @@ class TermsVersionResponse(BaseModel):
 class ConsentHistoryItem(BaseModel):
     """Individual consent record in history."""
 
-    policy_type: str = Field(..., description="Type of policy (e.g., 'Terms & Conditions')")
+    policy_type: str = Field(..., description="Policy type code ('tc', 'gdpr', 'privacy')")
+    policy_label: str = Field(..., description="Display name (e.g., 'Terms & Conditions')")
     version: str = Field(..., description="Version number consented to")
     consented_at: str = Field(..., description="ISO timestamp of consent")
     policy_url: str = Field(..., description="URL to policy page")
 
 
+# Policy type configuration
+POLICY_CONFIG = {
+    "tc": {"label": "Terms & Conditions", "url": "/legal/terms"},
+    "gdpr": {"label": "GDPR Data Processing", "url": "/legal/privacy#gdpr"},
+    "privacy": {"label": "Privacy Policy", "url": "/legal/privacy"},
+}
+
+
+class PolicyConsentStatus(BaseModel):
+    """Consent status for a single policy."""
+
+    policy_type: str
+    policy_label: str
+    policy_url: str
+    has_consented: bool
+    version: str | None = None
+    consented_at: str | None = None
+
+
 class ConsentStatusResponse(BaseModel):
     """Response model for consent status check."""
 
-    has_consented: bool
+    has_consented: bool = Field(..., description="True if all required policies consented")
+    missing_policies: list[str] = Field(
+        default_factory=list, description="Policy types still needing consent"
+    )
     current_version: str | None = None
     consented_version: str | None = None
     consented_at: str | None = None
+    policies: list[PolicyConsentStatus] = Field(
+        default_factory=list, description="Status of each policy type"
+    )
     consents: list[ConsentHistoryItem] = Field(
         default_factory=list, description="Full consent history"
     )
@@ -58,6 +84,7 @@ class ConsentRecordResponse(BaseModel):
 
     id: str
     terms_version_id: str
+    policy_type: str
     consented_at: str
     message: str = "Consent recorded successfully"
 
@@ -66,6 +93,23 @@ class ConsentRequest(BaseModel):
     """Request model for recording consent."""
 
     terms_version_id: str = Field(..., description="UUID of T&C version being accepted")
+    policy_type: str = Field(default="tc", description="Policy type: 'tc', 'gdpr', or 'privacy'")
+
+
+class MultiConsentRequest(BaseModel):
+    """Request model for recording multiple policy consents at once."""
+
+    terms_version_id: str = Field(..., description="UUID of T&C version")
+    policy_types: list[str] = Field(
+        ..., description="List of policy types to consent to (e.g., ['tc', 'gdpr', 'privacy'])"
+    )
+
+
+class MultiConsentResponse(BaseModel):
+    """Response model for multiple consent records."""
+
+    consents: list[ConsentRecordResponse]
+    message: str = "All consents recorded successfully"
 
 
 # --- Routers ---
@@ -103,13 +147,13 @@ async def get_current_terms() -> TermsVersionResponse:
     "/terms-consent",
     response_model=ConsentStatusResponse,
     summary="Get consent status",
-    description="Check if user has consented to current T&C version, with full consent history.",
+    description="Check if user has consented to all required policies, with full consent history.",
 )
 @handle_api_errors("get consent status")
 async def get_consent_status(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ConsentStatusResponse:
-    """Check user's consent status for current T&C version."""
+    """Check user's consent status for all required policies."""
     user_id = user["user_id"]
 
     # Get current active version
@@ -118,31 +162,53 @@ async def get_consent_status(
         return ConsentStatusResponse(
             has_consented=True,  # No T&C to consent to
             current_version=None,
+            policies=[],
+            consents=[],
         )
 
-    # Check if user has consented
-    has_consented = terms_repository.has_user_consented_to_current(user_id)
+    # Check all policies
+    all_policy_consents = terms_repository.get_user_all_policy_consents(user_id)
+    missing_policies = terms_repository.get_missing_policies(user_id)
+    has_all_consented = len(missing_policies) == 0
 
-    # Get latest consent info if exists
-    latest_consent = terms_repository.get_user_latest_consent(user_id)
+    # Build per-policy status
+    policies = []
+    for policy_type, config in POLICY_CONFIG.items():
+        consent = all_policy_consents.get(policy_type)
+        policies.append(
+            PolicyConsentStatus(
+                policy_type=policy_type,
+                policy_label=config["label"],
+                policy_url=config["url"],
+                has_consented=consent is not None,
+                version=consent["terms_version"] if consent else None,
+                consented_at=consent["consented_at"].isoformat() if consent else None,
+            )
+        )
+
+    # Get latest T&C consent for backwards compat
+    latest_tc_consent = all_policy_consents.get("tc")
 
     # Get full consent history
     all_consents = terms_repository.get_user_consents(user_id)
     consent_history = [
         ConsentHistoryItem(
-            policy_type="Terms & Conditions",
+            policy_type=c.get("policy_type", "tc"),
+            policy_label=POLICY_CONFIG.get(c.get("policy_type", "tc"), {}).get("label", "Unknown"),
             version=c["terms_version"],
             consented_at=c["consented_at"].isoformat(),
-            policy_url="/legal/terms",
+            policy_url=POLICY_CONFIG.get(c.get("policy_type", "tc"), {}).get("url", "/legal/terms"),
         )
         for c in all_consents
     ]
 
     return ConsentStatusResponse(
-        has_consented=has_consented,
+        has_consented=has_all_consented,
+        missing_policies=missing_policies,
         current_version=current_version["version"],
-        consented_version=latest_consent["terms_version"] if latest_consent else None,
-        consented_at=latest_consent["consented_at"].isoformat() if latest_consent else None,
+        consented_version=latest_tc_consent["terms_version"] if latest_tc_consent else None,
+        consented_at=latest_tc_consent["consented_at"].isoformat() if latest_tc_consent else None,
+        policies=policies,
         consents=consent_history,
     )
 
@@ -151,7 +217,7 @@ async def get_consent_status(
     "/terms-consent",
     response_model=ConsentRecordResponse,
     summary="Record consent",
-    description="Record user's consent to a specific T&C version.",
+    description="Record user's consent to a specific policy version.",
 )
 @handle_api_errors("record consent")
 async def record_consent(
@@ -159,8 +225,18 @@ async def record_consent(
     body: ConsentRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ConsentRecordResponse:
-    """Record user's consent to T&C version."""
+    """Record user's consent to a policy version."""
     user_id = user["user_id"]
+
+    # Validate policy type
+    if body.policy_type not in POLICY_CONFIG:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_policy_type",
+                "message": f"Invalid policy type: {body.policy_type}. Must be one of: tc, gdpr, privacy",
+            },
+        )
 
     # Validate version exists
     version = terms_repository.get_version_by_id(body.terms_version_id)
@@ -180,12 +256,80 @@ async def record_consent(
         user_id=user_id,
         version_id=body.terms_version_id,
         ip_address=ip_address,
+        policy_type=body.policy_type,
     )
 
-    logger.info(f"T&C consent recorded: user={user_id} version={version['version']}")
+    logger.info(
+        f"Consent recorded: user={user_id} policy={body.policy_type} version={version['version']}"
+    )
 
     return ConsentRecordResponse(
         id=str(consent["id"]),
         terms_version_id=str(consent["terms_version_id"]),
+        policy_type=consent["policy_type"],
         consented_at=consent["consented_at"].isoformat(),
     )
+
+
+@user_terms_router.post(
+    "/terms-consent/batch",
+    response_model=MultiConsentResponse,
+    summary="Record multiple consents",
+    description="Record user's consent to multiple policies at once (T&C, GDPR, Privacy).",
+)
+@handle_api_errors("record multi consent")
+async def record_multi_consent(
+    request: Request,
+    body: MultiConsentRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MultiConsentResponse:
+    """Record user's consent to multiple policies at once."""
+    user_id = user["user_id"]
+
+    # Validate all policy types
+    for pt in body.policy_types:
+        if pt not in POLICY_CONFIG:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_policy_type",
+                    "message": f"Invalid policy type: {pt}. Must be one of: tc, gdpr, privacy",
+                },
+            )
+
+    # Validate version exists
+    version = terms_repository.get_version_by_id(body.terms_version_id)
+    if not version:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": "T&C version not found"},
+        )
+
+    # Get client IP
+    ip_address = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    if not ip_address:
+        ip_address = request.client.host if request.client else None
+
+    # Record all consents
+    recorded = []
+    for policy_type in body.policy_types:
+        consent = terms_repository.create_consent(
+            user_id=user_id,
+            version_id=body.terms_version_id,
+            ip_address=ip_address,
+            policy_type=policy_type,
+        )
+        recorded.append(
+            ConsentRecordResponse(
+                id=str(consent["id"]),
+                terms_version_id=str(consent["terms_version_id"]),
+                policy_type=consent["policy_type"],
+                consented_at=consent["consented_at"].isoformat(),
+            )
+        )
+
+    logger.info(
+        f"Multi-consent recorded: user={user_id} policies={body.policy_types} version={version['version']}"
+    )
+
+    return MultiConsentResponse(consents=recorded)

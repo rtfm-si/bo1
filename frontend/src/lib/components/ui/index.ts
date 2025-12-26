@@ -42,6 +42,9 @@ export { default as SynthesisProgress } from './SynthesisProgress.svelte';
 export { default as LazyRender } from './LazyRender.svelte';
 export { default as VirtualizedList } from './VirtualizedList.svelte';
 
+// Feedback components
+export { default as RatingPrompt } from './RatingPrompt.svelte';
+
 // Type exports for TypeScript consumers
 export type { DropdownItem } from './Dropdown.svelte';
 export type { Tab } from './Tabs.svelte';

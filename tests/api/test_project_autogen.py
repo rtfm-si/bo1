@@ -112,6 +112,18 @@ class TestGetUnassignedActionCount:
             # Verify db_session called with user_id for RLS context
             mock_db.assert_called_once_with(user_id="user-abc-123")
 
+    def test_returns_zero_on_db_error(self):
+        """Should return 0 and log error when database fails."""
+        with patch("backend.services.project_autogen.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(
+                side_effect=Exception("DB connection failed")
+            )
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            count = get_unassigned_action_count("user123")
+
+            assert count == 0
+
 
 class TestGetAutogenSuggestions:
     """Tests for get_autogen_suggestions function."""
@@ -377,6 +389,51 @@ class TestAutogenAPIEndpoints:
         assert "/v1/projects/autogenerate-suggestions" in paths
         assert "/v1/projects/autogenerate" in paths
         assert "/v1/projects/unassigned-count" in paths
+
+    def test_unassigned_count_endpoint_has_response_model(self):
+        """Verify unassigned-count endpoint has response_model defined."""
+        from backend.api.models import UnassignedCountResponse
+        from backend.api.projects import router
+
+        for route in router.routes:
+            if route.path == "/v1/projects/unassigned-count":
+                assert route.response_model == UnassignedCountResponse
+                break
+        else:
+            pytest.fail("unassigned-count endpoint not found")
+
+
+class TestUnassignedCountResponse:
+    """Tests for UnassignedCountResponse model."""
+
+    def test_response_model_validation(self):
+        """Verify UnassignedCountResponse validates correctly."""
+        from backend.api.models import UnassignedCountResponse
+
+        response = UnassignedCountResponse(
+            unassigned_count=5,
+            min_required=3,
+            can_autogenerate=True,
+        )
+        assert response.unassigned_count == 5
+        assert response.min_required == 3
+        assert response.can_autogenerate is True
+
+    def test_response_model_serialization(self):
+        """Verify response model serializes to expected JSON structure."""
+        from backend.api.models import UnassignedCountResponse
+
+        response = UnassignedCountResponse(
+            unassigned_count=2,
+            min_required=3,
+            can_autogenerate=False,
+        )
+        data = response.model_dump()
+        assert data == {
+            "unassigned_count": 2,
+            "min_required": 3,
+            "can_autogenerate": False,
+        }
 
 
 class TestMinActionsThreshold:

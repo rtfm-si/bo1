@@ -1029,6 +1029,14 @@ class TrendSummaryResponse(BaseModel):
         description="True if user has no industry set",
     )
     error: str | None = Field(None, description="Error message if failed")
+    can_refresh_now: bool = Field(
+        True,
+        description="Whether refresh is allowed (free tier: only if >28 days old)",
+    )
+    refresh_blocked_reason: str | None = Field(
+        None,
+        description="Reason refresh is blocked (e.g., 'Refresh available in X days')",
+    )
 
 
 class TrendSummaryRefreshResponse(BaseModel):
@@ -1106,3 +1114,32 @@ class GoalStalenessResponse(BaseModel):
         description="Whether to show 'Review your goal?' prompt (>30 days)",
     )
     last_goal: str | None = Field(None, description="Current/last goal text")
+
+
+# =============================================================================
+# Action Metric Trigger Models (28-day delayed staleness)
+# =============================================================================
+
+
+class ActionMetricTrigger(BaseModel):
+    """Trigger for delayed metric staleness after action completion.
+
+    When an action completes that targets a metric (e.g., "reduce churn"),
+    we store a trigger that fires 28 days later to prompt metric refresh.
+    """
+
+    action_id: str = Field(..., description="ID of the completed action")
+    action_title: str = Field(..., description="Title of the action for display")
+    metric_field: str = Field(..., description="Context field to refresh (e.g., 'churn')")
+    completed_at: datetime = Field(..., description="When the action was completed")
+    trigger_at: datetime = Field(..., description="When to trigger staleness (completed_at + 28d)")
+
+
+class ActionMetricTriggersResponse(BaseModel):
+    """Response for listing action metric triggers."""
+
+    triggers: list[ActionMetricTrigger] = Field(
+        default_factory=list,
+        description="Active triggers pending for metric refresh",
+    )
+    count: int = Field(0, description="Number of active triggers")

@@ -4,12 +4,18 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from backend.services.insight_staleness import (
+    ACTION_TRIGGER_DELAY_DAYS,
+    METRIC_KEYWORDS,
     StaleInsight,
     StaleMetric,
     StalenessReason,
+    create_action_metric_triggers,
+    extract_metrics_from_action,
     format_insights_for_context,
+    get_matured_action_triggers,
     get_stale_insights,
     get_stale_metrics_for_session,
+    remove_action_triggers,
 )
 
 
@@ -501,3 +507,357 @@ class TestStaleMetricModel:
         )
 
         assert sm.action_id == "action_123"
+
+
+# =============================================================================
+# Action Metric Trigger Tests
+# =============================================================================
+
+
+class TestExtractMetricsFromAction:
+    """Tests for extract_metrics_from_action function."""
+
+    def test_extracts_churn_keywords(self):
+        """Extracts churn-related metrics from action title (maps to customers)."""
+        result = extract_metrics_from_action("Reduce customer churn by 5%")
+        assert "customers" in result
+
+        result = extract_metrics_from_action("Improve retention rates")
+        assert "customers" in result
+
+    def test_extracts_revenue_keywords(self):
+        """Extracts revenue-related metrics from action title."""
+        result = extract_metrics_from_action("Increase monthly revenue")
+        assert "revenue" in result
+
+        result = extract_metrics_from_action("Boost MRR to $50k")
+        assert "revenue" in result
+
+        result = extract_metrics_from_action("Improve sales conversion")
+        assert "revenue" in result
+
+    def test_extracts_customers_keywords(self):
+        """Extracts customer-related metrics from action title."""
+        result = extract_metrics_from_action("Acquire 100 new customers")
+        assert "customers" in result
+
+        result = extract_metrics_from_action("Increase signups from landing page")
+        assert "customers" in result
+
+    def test_extracts_growth_keywords(self):
+        """Extracts growth-related metrics from action title."""
+        result = extract_metrics_from_action("Scale to new markets")
+        assert "growth_rate" in result
+
+        result = extract_metrics_from_action("Grow user base")
+        assert "growth_rate" in result
+
+    def test_extracts_team_keywords(self):
+        """Extracts team-related metrics from action title."""
+        result = extract_metrics_from_action("Hire 3 new engineers")
+        assert "team_size" in result
+
+        result = extract_metrics_from_action("Recruit marketing lead")
+        assert "team_size" in result
+
+    def test_extracts_multiple_metrics(self):
+        """Extracts multiple metrics when action mentions several."""
+        result = extract_metrics_from_action(
+            "Hire sales team to grow revenue and acquire customers"
+        )
+        assert "team_size" in result
+        assert "revenue" in result
+        assert "customers" in result
+        assert "growth_rate" in result
+
+    def test_uses_description_too(self):
+        """Also searches in description field."""
+        result = extract_metrics_from_action(
+            "Expand operations", description="Focus on reducing churn and increasing retention"
+        )
+        assert "customers" in result  # churn/retention maps to customers
+
+    def test_returns_empty_for_unrelated_action(self):
+        """Returns empty list for actions not targeting metrics."""
+        result = extract_metrics_from_action("Update documentation")
+        assert result == []
+
+        result = extract_metrics_from_action("Fix bug in login page")
+        assert result == []
+
+    def test_case_insensitive(self):
+        """Keyword matching is case insensitive."""
+        result = extract_metrics_from_action("REDUCE CHURN")
+        assert "customers" in result  # churn maps to customers
+
+        result = extract_metrics_from_action("Increase REVENUE")
+        assert "revenue" in result
+
+
+class TestCreateActionMetricTriggers:
+    """Tests for create_action_metric_triggers function."""
+
+    def test_creates_trigger_with_28_day_delay(self):
+        """Creates triggers with correct 28-day delay."""
+        completed_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+        triggers = create_action_metric_triggers(
+            action_id="action_123",
+            action_title="Reduce churn",
+            completed_at=completed_at,
+            affected_metrics=["churn"],
+        )
+
+        assert len(triggers) == 1
+        assert triggers[0]["action_id"] == "action_123"
+        assert triggers[0]["action_title"] == "Reduce churn"
+        assert triggers[0]["metric_field"] == "churn"
+
+        # Verify 28-day delay
+        trigger_at = datetime.fromisoformat(triggers[0]["trigger_at"])
+        expected_trigger = completed_at + timedelta(days=ACTION_TRIGGER_DELAY_DAYS)
+        assert trigger_at == expected_trigger
+
+    def test_creates_multiple_triggers(self):
+        """Creates triggers for all affected metrics."""
+        completed_at = datetime.now(UTC)
+
+        triggers = create_action_metric_triggers(
+            action_id="action_456",
+            action_title="Growth initiative",
+            completed_at=completed_at,
+            affected_metrics=["revenue", "customers", "growth_rate"],
+        )
+
+        assert len(triggers) == 3
+        fields = {t["metric_field"] for t in triggers}
+        assert fields == {"revenue", "customers", "growth_rate"}
+
+    def test_empty_metrics_returns_empty(self):
+        """Returns empty list when no metrics affected."""
+        triggers = create_action_metric_triggers(
+            action_id="action_789",
+            action_title="Update docs",
+            completed_at=datetime.now(UTC),
+            affected_metrics=[],
+        )
+
+        assert triggers == []
+
+
+class TestGetMaturedActionTriggers:
+    """Tests for get_matured_action_triggers function."""
+
+    def test_returns_empty_when_no_context(self):
+        """Returns empty list when user has no context."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = None
+
+            result = get_matured_action_triggers("user_123")
+
+            assert result == []
+
+    def test_returns_empty_when_no_triggers(self):
+        """Returns empty list when no triggers exist."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {"revenue": "$50k"}
+
+            result = get_matured_action_triggers("user_123")
+
+            assert result == []
+
+    def test_returns_matured_triggers(self):
+        """Returns triggers that have matured (trigger_at <= now)."""
+        past_trigger = datetime.now(UTC) - timedelta(days=1)
+        past_completed = datetime.now(UTC) - timedelta(days=29)
+
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "revenue": "$50k",
+                "benchmark_timestamps": {},
+                "action_metric_triggers": [
+                    {
+                        "action_id": "action_123",
+                        "action_title": "Boost revenue",
+                        "metric_field": "revenue",
+                        "completed_at": past_completed.isoformat(),
+                        "trigger_at": past_trigger.isoformat(),
+                    }
+                ],
+            }
+
+            result = get_matured_action_triggers("user_123")
+
+            assert len(result) == 1
+            assert result[0].action_id == "action_123"
+            assert result[0].metric_field == "revenue"
+
+    def test_excludes_future_triggers(self):
+        """Excludes triggers that haven't matured yet."""
+        future_trigger = datetime.now(UTC) + timedelta(days=10)
+        past_completed = datetime.now(UTC)
+
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "revenue": "$50k",
+                "action_metric_triggers": [
+                    {
+                        "action_id": "action_123",
+                        "action_title": "Boost revenue",
+                        "metric_field": "revenue",
+                        "completed_at": past_completed.isoformat(),
+                        "trigger_at": future_trigger.isoformat(),
+                    }
+                ],
+            }
+
+            result = get_matured_action_triggers("user_123")
+
+            assert result == []
+
+    def test_excludes_triggers_for_updated_metrics(self):
+        """Excludes triggers for metrics updated after action completed."""
+        past_trigger = datetime.now(UTC) - timedelta(days=1)
+        past_completed = datetime.now(UTC) - timedelta(days=29)
+        metric_updated = datetime.now(UTC) - timedelta(days=5)  # After completion
+
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "revenue": "$60k",
+                "benchmark_timestamps": {"revenue": metric_updated.isoformat()},
+                "action_metric_triggers": [
+                    {
+                        "action_id": "action_123",
+                        "action_title": "Boost revenue",
+                        "metric_field": "revenue",
+                        "completed_at": past_completed.isoformat(),
+                        "trigger_at": past_trigger.isoformat(),
+                    }
+                ],
+            }
+
+            result = get_matured_action_triggers("user_123")
+
+            assert result == []
+
+
+class TestRemoveActionTriggers:
+    """Tests for remove_action_triggers function."""
+
+    def test_removes_triggers_by_metric_field(self):
+        """Removes triggers matching the specified metric field."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "action_metric_triggers": [
+                    {"action_id": "a1", "metric_field": "revenue"},
+                    {"action_id": "a2", "metric_field": "churn"},
+                    {"action_id": "a3", "metric_field": "revenue"},
+                ]
+            }
+
+            removed = remove_action_triggers("user_123", metric_field="revenue")
+
+            assert removed == 2
+            # Verify save was called with filtered triggers
+            save_call = mock_repo.save_context.call_args
+            saved_triggers = save_call[0][1]["action_metric_triggers"]
+            assert len(saved_triggers) == 1
+            assert saved_triggers[0]["metric_field"] == "churn"
+
+    def test_removes_triggers_by_action_id(self):
+        """Removes triggers matching the specified action ID."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "action_metric_triggers": [
+                    {"action_id": "a1", "metric_field": "revenue"},
+                    {"action_id": "a1", "metric_field": "churn"},
+                    {"action_id": "a2", "metric_field": "revenue"},
+                ]
+            }
+
+            removed = remove_action_triggers("user_123", action_id="a1")
+
+            assert removed == 2
+            save_call = mock_repo.save_context.call_args
+            saved_triggers = save_call[0][1]["action_metric_triggers"]
+            assert len(saved_triggers) == 1
+            assert saved_triggers[0]["action_id"] == "a2"
+
+    def test_returns_zero_when_no_context(self):
+        """Returns 0 when user has no context."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = None
+
+            removed = remove_action_triggers("user_123", metric_field="revenue")
+
+            assert removed == 0
+
+    def test_returns_zero_when_no_triggers(self):
+        """Returns 0 when no triggers exist."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {"revenue": "$50k"}
+
+            removed = remove_action_triggers("user_123", metric_field="revenue")
+
+            assert removed == 0
+
+    def test_returns_zero_when_no_filter(self):
+        """Returns 0 when no filter is provided."""
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "action_metric_triggers": [
+                    {"action_id": "a1", "metric_field": "revenue"},
+                ]
+            }
+
+            removed = remove_action_triggers("user_123")
+
+            assert removed == 0
+
+
+class TestDelayedTriggerIntegration:
+    """Integration tests for delayed triggers in staleness detection."""
+
+    def test_matured_triggers_appear_in_stale_metrics(self):
+        """Matured triggers should cause metrics to appear in stale list."""
+        past_trigger = datetime.now(UTC) - timedelta(days=1)
+        past_completed = datetime.now(UTC) - timedelta(days=29)
+
+        with patch("backend.services.insight_staleness.user_repository") as mock_repo:
+            mock_repo.get_context.return_value = {
+                "revenue": "$50k",
+                "benchmark_timestamps": {},
+                "context_metric_history": {},
+                "action_metric_triggers": [
+                    {
+                        "action_id": "action_123",
+                        "action_title": "Boost revenue",
+                        "metric_field": "revenue",
+                        "completed_at": past_completed.isoformat(),
+                        "trigger_at": past_trigger.isoformat(),
+                    }
+                ],
+            }
+
+            result = get_stale_metrics_for_session("user_123")
+
+            assert result.has_stale_metrics is True
+            revenue_metric = next(
+                (m for m in result.stale_metrics if m.field_name == "revenue"), None
+            )
+            assert revenue_metric is not None
+            assert revenue_metric.reason == StalenessReason.ACTION_AFFECTED
+            assert revenue_metric.action_id == "action_123"
+
+    def test_trigger_delay_constant(self):
+        """Verify the trigger delay constant is 28 days."""
+        assert ACTION_TRIGGER_DELAY_DAYS == 28
+
+    def test_metric_keywords_coverage(self):
+        """Verify all expected metric keywords are defined."""
+        assert "revenue" in METRIC_KEYWORDS
+        assert "customers" in METRIC_KEYWORDS
+        assert "growth_rate" in METRIC_KEYWORDS
+        assert "team_size" in METRIC_KEYWORDS
+        # churn maps to customers, not a separate field
+        assert "churn" in METRIC_KEYWORDS["customers"]

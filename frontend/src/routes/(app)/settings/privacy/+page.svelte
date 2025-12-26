@@ -236,43 +236,42 @@
 
 			<div class="space-y-4">
 				{#if consentHistory.length > 0}
-					{@const latestConsent = consentHistory[0]}
-					<div class="flex items-start justify-between">
-						<div>
-							<p class="font-medium text-slate-900 dark:text-white">Terms & Conditions</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
-								Version {latestConsent.version} · Accepted on {new Date(
-									latestConsent.consented_at
-								).toLocaleDateString()}
-							</p>
+					{@const policyGroups = consentHistory.reduce(
+						(acc, c) => {
+							const key = c.policy_type || 'tc';
+							if (!acc[key] || new Date(c.consented_at) > new Date(acc[key].consented_at)) {
+								acc[key] = c;
+							}
+							return acc;
+						},
+						{} as Record<string, (typeof consentHistory)[0]>
+					)}
+
+					{#each Object.entries(policyGroups) as [policyType, consent]}
+						<div class="flex items-start justify-between">
+							<div>
+								<p class="font-medium text-slate-900 dark:text-white">
+									{consent.policy_label || 'Terms & Conditions'}
+								</p>
+								<p class="text-sm text-slate-500 dark:text-slate-400">
+									Version {consent.version} · Accepted on {new Date(
+										consent.consented_at
+									).toLocaleDateString()}
+								</p>
+							</div>
+							<a
+								href={consent.policy_url || '/legal/terms'}
+								class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
+							>
+								View
+							</a>
 						</div>
-						<a
-							href="/legal/terms"
-							class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
-						>
-							View
-						</a>
-					</div>
+					{/each}
 				{:else}
 					<p class="text-sm text-slate-500 dark:text-slate-400 italic">
 						No consent records found.
 					</p>
 				{/if}
-
-				<div class="flex items-start justify-between">
-					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Privacy Policy</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
-							View our privacy practices and your data rights
-						</p>
-					</div>
-					<a
-						href="/legal/privacy"
-						class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
-					>
-						View
-					</a>
-				</div>
 			</div>
 		</div>
 

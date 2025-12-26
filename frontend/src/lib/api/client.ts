@@ -165,7 +165,12 @@ import type {
 	ManagedCompetitorCreate,
 	ManagedCompetitorUpdate,
 	ManagedCompetitorResponse,
-	ManagedCompetitorListResponse
+	ManagedCompetitorListResponse,
+	// Rating types
+	RatingResponse,
+	RatingMetricsResponse,
+	RatingTrendItem,
+	NegativeRatingsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -212,23 +217,41 @@ export interface TermsVersionResponse {
 
 export interface ConsentHistoryItem {
 	policy_type: string;
+	policy_label: string;
 	version: string;
 	consented_at: string;
 	policy_url: string;
 }
 
+export interface PolicyConsentStatus {
+	policy_type: string;
+	policy_label: string;
+	policy_url: string;
+	has_consented: boolean;
+	version: string | null;
+	consented_at: string | null;
+}
+
 export interface ConsentStatusResponse {
 	has_consented: boolean;
+	missing_policies: string[];
 	current_version: string | null;
 	consented_version: string | null;
 	consented_at: string | null;
+	policies: PolicyConsentStatus[];
 	consents: ConsentHistoryItem[];
 }
 
 export interface ConsentRecordResponse {
 	id: string;
 	terms_version_id: string;
+	policy_type: string;
 	consented_at: string;
+	message: string;
+}
+
+export interface MultiConsentResponse {
+	consents: ConsentRecordResponse[];
 	message: string;
 }
 
@@ -2985,11 +3008,28 @@ export class ApiClient {
 	}
 
 	/**
-	 * Record user's consent to T&C version
+	 * Record user's consent to a single policy
 	 */
-	async recordTermsConsent(termsVersionId: string): Promise<ConsentRecordResponse> {
+	async recordTermsConsent(
+		termsVersionId: string,
+		policyType: string = 'tc'
+	): Promise<ConsentRecordResponse> {
 		return this.post<ConsentRecordResponse>('/api/v1/user/terms-consent', {
 			terms_version_id: termsVersionId,
+			policy_type: policyType,
+		});
+	}
+
+	/**
+	 * Record user's consent to multiple policies at once
+	 */
+	async recordMultiConsent(
+		termsVersionId: string,
+		policyTypes: string[]
+	): Promise<MultiConsentResponse> {
+		return this.post<MultiConsentResponse>('/api/v1/user/terms-consent/batch', {
+			terms_version_id: termsVersionId,
+			policy_types: policyTypes,
 		});
 	}
 
@@ -3033,6 +3073,53 @@ export class ApiClient {
 	 */
 	async publishTermsVersion(versionId: string): Promise<TermsVersionItem> {
 		return this.post<TermsVersionItem>(`/api/admin/terms/versions/${versionId}/publish`, {});
+	}
+
+	// ============================================================================
+	// User Ratings (Thumbs Up/Down)
+	// ============================================================================
+
+	/**
+	 * Submit a rating for a meeting or action
+	 */
+	async submitRating(data: {
+		entity_type: 'meeting' | 'action';
+		entity_id: string;
+		rating: number;
+		comment?: string;
+	}): Promise<RatingResponse> {
+		return this.post<RatingResponse>('/api/v1/ratings', data);
+	}
+
+	/**
+	 * Get the current user's rating for an entity
+	 */
+	async getRating(
+		entityType: 'meeting' | 'action',
+		entityId: string
+	): Promise<RatingResponse | null> {
+		return this.fetch<RatingResponse | null>(`/api/v1/ratings/${entityType}/${entityId}`);
+	}
+
+	/**
+	 * Get rating metrics (admin only)
+	 */
+	async getRatingMetrics(days: number = 30): Promise<RatingMetricsResponse> {
+		return this.fetch<RatingMetricsResponse>(`/api/v1/admin/ratings/metrics?days=${days}`);
+	}
+
+	/**
+	 * Get rating trend data (admin only)
+	 */
+	async getRatingTrend(days: number = 7): Promise<RatingTrendItem[]> {
+		return this.fetch<RatingTrendItem[]>(`/api/v1/admin/ratings/trend?days=${days}`);
+	}
+
+	/**
+	 * Get recent negative ratings (admin only)
+	 */
+	async getNegativeRatings(limit: number = 10): Promise<NegativeRatingsResponse> {
+		return this.fetch<NegativeRatingsResponse>(`/api/v1/admin/ratings/negative?limit=${limit}`);
 	}
 }
 

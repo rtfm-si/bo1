@@ -6290,8 +6290,13 @@
             "title": "Consented At",
             "type": "string"
           },
+          "policy_label": {
+            "description": "Display name (e.g., 'Terms & Conditions')",
+            "title": "Policy Label",
+            "type": "string"
+          },
           "policy_type": {
-            "description": "Type of policy (e.g., 'Terms & Conditions')",
+            "description": "Policy type code ('tc', 'gdpr', 'privacy')",
             "title": "Policy Type",
             "type": "string"
           },
@@ -6308,6 +6313,7 @@
         },
         "required": [
           "policy_type",
+          "policy_label",
           "version",
           "consented_at",
           "policy_url"
@@ -6331,6 +6337,10 @@
             "title": "Message",
             "type": "string"
           },
+          "policy_type": {
+            "title": "Policy Type",
+            "type": "string"
+          },
           "terms_version_id": {
             "title": "Terms Version Id",
             "type": "string"
@@ -6339,6 +6349,7 @@
         "required": [
           "id",
           "terms_version_id",
+          "policy_type",
           "consented_at"
         ],
         "title": "ConsentRecordResponse",
@@ -6347,6 +6358,12 @@
       "ConsentRequest": {
         "description": "Request model for recording consent.",
         "properties": {
+          "policy_type": {
+            "default": "tc",
+            "description": "Policy type: 'tc', 'gdpr', or 'privacy'",
+            "title": "Policy Type",
+            "type": "string"
+          },
           "terms_version_id": {
             "description": "UUID of T&C version being accepted",
             "title": "Terms Version Id",
@@ -6404,8 +6421,25 @@
             "title": "Current Version"
           },
           "has_consented": {
+            "description": "True if all required policies consented",
             "title": "Has Consented",
             "type": "boolean"
+          },
+          "missing_policies": {
+            "description": "Policy types still needing consent",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Policies",
+            "type": "array"
+          },
+          "policies": {
+            "description": "Status of each policy type",
+            "items": {
+              "$ref": "#/components/schemas/PolicyConsentStatus"
+            },
+            "title": "Policies",
+            "type": "array"
           }
         },
         "required": [
@@ -14083,6 +14117,146 @@
         "title": "MetricsResponse",
         "type": "object"
       },
+      "MultiConsentRequest": {
+        "description": "Request model for recording multiple policy consents at once.",
+        "properties": {
+          "policy_types": {
+            "description": "List of policy types to consent to (e.g., ['tc', 'gdpr', 'privacy'])",
+            "items": {
+              "type": "string"
+            },
+            "title": "Policy Types",
+            "type": "array"
+          },
+          "terms_version_id": {
+            "description": "UUID of T&C version",
+            "title": "Terms Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terms_version_id",
+          "policy_types"
+        ],
+        "title": "MultiConsentRequest",
+        "type": "object"
+      },
+      "MultiConsentResponse": {
+        "description": "Response model for multiple consent records.",
+        "properties": {
+          "consents": {
+            "items": {
+              "$ref": "#/components/schemas/ConsentRecordResponse"
+            },
+            "title": "Consents",
+            "type": "array"
+          },
+          "message": {
+            "default": "All consents recorded successfully",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consents"
+        ],
+        "title": "MultiConsentResponse",
+        "type": "object"
+      },
+      "NegativeRatingItem": {
+        "description": "A negative rating with context for admin triage.\n\nAttributes:\n    id: Rating UUID\n    user_id: User who rated\n    user_email: User's email\n    entity_type: Type of entity\n    entity_id: Entity UUID\n    entity_title: Title/name of the entity\n    comment: Optional comment\n    created_at: When rated",
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Comment",
+            "title": "Comment"
+          },
+          "created_at": {
+            "description": "Timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "description": "Entity UUID",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Entity title",
+            "title": "Entity Title"
+          },
+          "entity_type": {
+            "description": "Entity type",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "description": "Rating UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "user_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User email",
+            "title": "User Email"
+          },
+          "user_id": {
+            "description": "User ID",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "entity_type",
+          "entity_id",
+          "created_at"
+        ],
+        "title": "NegativeRatingItem",
+        "type": "object"
+      },
+      "NegativeRatingsResponse": {
+        "description": "Response model for negative ratings list.\n\nAttributes:\n    items: List of negative ratings",
+        "properties": {
+          "items": {
+            "description": "Negative ratings",
+            "items": {
+              "$ref": "#/components/schemas/NegativeRatingItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "NegativeRatingsResponse",
+        "type": "object"
+      },
       "NotFoundErrorResponse": {
         "description": "Error response for 404 Not Found.\n\nUsed when a requested resource doesn't exist.",
         "examples": [
@@ -14801,6 +14975,57 @@
           "price_monthly"
         ],
         "title": "PlanDetails",
+        "type": "object"
+      },
+      "PolicyConsentStatus": {
+        "description": "Consent status for a single policy.",
+        "properties": {
+          "consented_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented At"
+          },
+          "has_consented": {
+            "title": "Has Consented",
+            "type": "boolean"
+          },
+          "policy_label": {
+            "title": "Policy Label",
+            "type": "string"
+          },
+          "policy_type": {
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "policy_url": {
+            "title": "Policy Url",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "policy_type",
+          "policy_label",
+          "policy_url",
+          "has_consented"
+        ],
+        "title": "PolicyConsentStatus",
         "type": "object"
       },
       "PoolHealthResponse": {
@@ -16047,6 +16272,191 @@
           "retry_after"
         ],
         "title": "RateLimitResponse",
+        "type": "object"
+      },
+      "RatingCreate": {
+        "description": "Request model for submitting a rating.\n\nAttributes:\n    entity_type: Type of entity being rated ('meeting' or 'action')\n    entity_id: UUID of the entity\n    rating: -1 (thumbs down) or 1 (thumbs up)\n    comment: Optional comment explaining the rating",
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional comment explaining the rating",
+            "title": "Comment"
+          },
+          "entity_id": {
+            "description": "UUID of the entity being rated",
+            "minLength": 1,
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "description": "Type of entity being rated ('meeting' or 'action')",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "rating": {
+            "description": "Rating value: -1 (thumbs down) or 1 (thumbs up)",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "rating"
+        ],
+        "title": "RatingCreate",
+        "type": "object"
+      },
+      "RatingMetrics": {
+        "description": "Aggregated rating metrics.\n\nAttributes:\n    period_days: Number of days in the period\n    total: Total ratings in period\n    thumbs_up: Count of positive ratings\n    thumbs_down: Count of negative ratings\n    thumbs_up_pct: Percentage of positive ratings\n    by_type: Breakdown by entity type",
+        "properties": {
+          "by_type": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "description": "Breakdown by entity type",
+            "title": "By Type",
+            "type": "object"
+          },
+          "period_days": {
+            "description": "Days in period",
+            "title": "Period Days",
+            "type": "integer"
+          },
+          "thumbs_down": {
+            "description": "Negative ratings count",
+            "title": "Thumbs Down",
+            "type": "integer"
+          },
+          "thumbs_up": {
+            "description": "Positive ratings count",
+            "title": "Thumbs Up",
+            "type": "integer"
+          },
+          "thumbs_up_pct": {
+            "description": "Positive rating percentage",
+            "title": "Thumbs Up Pct",
+            "type": "number"
+          },
+          "total": {
+            "description": "Total ratings",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period_days",
+          "total",
+          "thumbs_up",
+          "thumbs_down",
+          "thumbs_up_pct",
+          "by_type"
+        ],
+        "title": "RatingMetrics",
+        "type": "object"
+      },
+      "RatingResponse": {
+        "description": "Response model for a rating.\n\nAttributes:\n    id: Rating UUID\n    user_id: User who submitted the rating\n    entity_type: Type of entity rated\n    entity_id: UUID of the rated entity\n    rating: Rating value (-1 or 1)\n    comment: Optional comment\n    created_at: When the rating was created/updated",
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional comment",
+            "title": "Comment"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "description": "Entity UUID",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "description": "Entity type",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "description": "Rating UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "rating": {
+            "description": "Rating value (-1 or 1)",
+            "title": "Rating",
+            "type": "integer"
+          },
+          "user_id": {
+            "description": "User ID",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "entity_type",
+          "entity_id",
+          "rating",
+          "created_at"
+        ],
+        "title": "RatingResponse",
+        "type": "object"
+      },
+      "RatingTrendItem": {
+        "description": "Daily rating trend data point.\n\nAttributes:\n    date: Date (ISO format)\n    up: Thumbs up count\n    down: Thumbs down count\n    total: Total ratings",
+        "properties": {
+          "date": {
+            "description": "Date (ISO format)",
+            "title": "Date",
+            "type": "string"
+          },
+          "down": {
+            "description": "Thumbs down count",
+            "title": "Down",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total ratings",
+            "title": "Total",
+            "type": "integer"
+          },
+          "up": {
+            "description": "Thumbs up count",
+            "title": "Up",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "up",
+          "down",
+          "total"
+        ],
+        "title": "RatingTrendItem",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -19614,6 +20024,33 @@
           "success"
         ],
         "title": "TrendsRefreshResponse",
+        "type": "object"
+      },
+      "UnassignedCountResponse": {
+        "description": "Response model for unassigned actions count.\n\nAttributes:\n    unassigned_count: Number of actions not assigned to any project\n    min_required: Minimum actions required for autogeneration\n    can_autogenerate: Whether autogen is available",
+        "properties": {
+          "can_autogenerate": {
+            "description": "Whether autogen threshold is met",
+            "title": "Can Autogenerate",
+            "type": "boolean"
+          },
+          "min_required": {
+            "description": "Minimum actions for autogeneration",
+            "title": "Min Required",
+            "type": "integer"
+          },
+          "unassigned_count": {
+            "description": "Actions without project assignment",
+            "title": "Unassigned Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unassigned_count",
+          "min_required",
+          "can_autogenerate"
+        ],
+        "title": "UnassignedCountResponse",
         "type": "object"
       },
       "UnblockActionRequest": {
@@ -35399,6 +35836,187 @@
         ]
       }
     },
+    "/api/v1/admin/ratings/metrics": {
+      "get": {
+        "description": "Get aggregated rating metrics (admin only).",
+        "operationId": "get_rating_metrics_api_v1_admin_ratings_metrics_get",
+        "parameters": [
+          {
+            "description": "Period in days",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Period in days",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingMetrics"
+                }
+              }
+            },
+            "description": "Metrics returned successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not authorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get rating metrics",
+        "tags": [
+          "admin",
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/ratings/negative": {
+      "get": {
+        "description": "Get recent thumbs-down ratings for triage (admin only).",
+        "operationId": "get_negative_ratings_api_v1_admin_ratings_negative_get",
+        "parameters": [
+          {
+            "description": "Max items to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Max items to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NegativeRatingsResponse"
+                }
+              }
+            },
+            "description": "Negative ratings returned successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not authorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get negative ratings",
+        "tags": [
+          "admin",
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/ratings/trend": {
+      "get": {
+        "description": "Get daily rating trend data (admin only).",
+        "operationId": "get_rating_trend_api_v1_admin_ratings_trend_get",
+        "parameters": [
+          {
+            "description": "Period in days",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Period in days",
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RatingTrendItem"
+                  },
+                  "title": "Response Get Rating Trend Api V1 Admin Ratings Trend Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Trend data returned successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not authorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get rating trend",
+        "tags": [
+          "admin",
+          "admin"
+        ]
+      }
+    },
     "/api/v1/analysis/ask": {
       "post": {
         "description": "Ask questions about datasets or get general data analysis guidance (SSE streaming)",
@@ -37892,7 +38510,7 @@
     },
     "/api/v1/context/trends/summary": {
       "get": {
-        "description": "Get the AI-generated market trend summary for the user's industry.\n\n    Returns cached summary if available, with staleness indicator.\n    If summary is stale (>7 days) or industry has changed, `stale` will be true.\n    If user has no industry set, `needs_industry` will be true.\n\n    **Auto-refresh:** Frontend should call POST /refresh if stale=true.",
+        "description": "Get the AI-generated market trend summary for the user's industry.\n\n    Returns cached summary if available, with staleness indicator.\n    If summary is stale (>7 days) or industry has changed, `stale` will be true.\n    If user has no industry set, `needs_industry` will be true.\n\n    **Refresh gating for \"Now\" view:**\n    - Free tier: can only refresh if last refresh >28 days\n    - Paid tiers (starter/pro/enterprise): can refresh anytime (1hr rate limit still applies)\n\n    **Auto-refresh:** Frontend should call POST /refresh if stale=true.",
         "operationId": "get_trend_summary_api_v1_context_trends_summary_get",
         "responses": {
           "200": {
@@ -37917,7 +38535,7 @@
     },
     "/api/v1/context/trends/summary/refresh": {
       "post": {
-        "description": "Generate or refresh the AI-powered market trend summary.\n\n    Uses Brave Search + Claude Haiku to generate a structured summary:\n    - Executive summary of current market conditions\n    - Key trends (3-5 items)\n    - Opportunities (2-4 items)\n    - Threats/challenges (2-4 items)\n\n    **Rate Limit:** 1 refresh per hour per user.\n    **Cost:** ~$0.005 per generation.\n\n    Returns `rate_limited=true` if called too frequently.",
+        "description": "Generate or refresh the AI-powered market trend summary.\n\n    Uses Brave Search + Claude Haiku to generate a structured summary:\n    - Executive summary of current market conditions\n    - Key trends (3-5 items)\n    - Opportunities (2-4 items)\n    - Threats/challenges (2-4 items)\n\n    **Rate Limits:**\n    - All tiers: 1 refresh per hour (short-term rate limit)\n    - Free tier: can only refresh if last refresh was >28 days ago\n    - Paid tiers (starter/pro/enterprise): 1hr rate limit only\n\n    **Cost:** ~$0.005 per generation.\n\n    Returns 429 if free tier user tries to refresh within 28 days.\n    Returns `rate_limited=true` if called within 1 hour of last refresh.",
         "operationId": "refresh_trend_summary_api_v1_context_trends_summary_refresh_post",
         "responses": {
           "200": {
@@ -37934,6 +38552,9 @@
           },
           "400": {
             "description": "Industry not set"
+          },
+          "429": {
+            "description": "Free tier refresh blocked (28-day limit)"
           }
         },
         "summary": "Refresh trend summary",
@@ -40349,18 +40970,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "boolean"
-                      }
-                    ]
-                  },
-                  "title": "Response Get Unassigned Count Api V1 Projects Unassigned Count Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/UnassignedCountResponse"
                 }
               }
             },
@@ -41031,6 +41641,130 @@
         "tags": [
           "projects",
           "projects"
+        ]
+      }
+    },
+    "/api/v1/ratings": {
+      "post": {
+        "description": "Submit a thumbs up (+1) or thumbs down (-1) rating for a meeting or action.",
+        "operationId": "submit_rating_api_v1_ratings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingResponse"
+                }
+              }
+            },
+            "description": "Rating submitted successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit rating",
+        "tags": [
+          "ratings",
+          "ratings"
+        ]
+      }
+    },
+    "/api/v1/ratings/{entity_type}/{entity_id}": {
+      "get": {
+        "description": "Get the current user's rating for a specific entity.",
+        "operationId": "get_rating_api_v1_ratings__entity_type___entity_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RatingResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Rating Api V1 Ratings  Entity Type   Entity Id  Get"
+                }
+              }
+            },
+            "description": "Rating found (or null if not rated)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid entity_type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get user's rating",
+        "tags": [
+          "ratings",
+          "ratings"
         ]
       }
     },
@@ -45026,7 +45760,7 @@
     },
     "/api/v1/user/terms-consent": {
       "get": {
-        "description": "Check if user has consented to current T&C version, with full consent history.",
+        "description": "Check if user has consented to all required policies, with full consent history.",
         "operationId": "get_consent_status_api_v1_user_terms_consent_get",
         "responses": {
           "200": {
@@ -45047,7 +45781,7 @@
         ]
       },
       "post": {
-        "description": "Record user's consent to a specific T&C version.",
+        "description": "Record user's consent to a specific policy version.",
         "operationId": "record_consent_api_v1_user_terms_consent_post",
         "requestBody": {
           "content": {
@@ -45082,6 +45816,49 @@
           }
         },
         "summary": "Record consent",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/terms-consent/batch": {
+      "post": {
+        "description": "Record user's consent to multiple policies at once (T&C, GDPR, Privacy).",
+        "operationId": "record_multi_consent_api_v1_user_terms_consent_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultiConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultiConsentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record multiple consents",
         "tags": [
           "user",
           "user"

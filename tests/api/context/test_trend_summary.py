@@ -242,3 +242,145 @@ class TestRateLimitLogic:
 
         # Should be approximately 20 minutes remaining
         assert 19 <= minutes_remaining <= 21
+
+
+class TestFreeTierRefreshGating:
+    """Tests for 28-day refresh gating for free tier users."""
+
+    def test_free_tier_fresh_summary_blocked(self):
+        """Test free tier user with fresh summary (<28 days) is blocked."""
+        tier = "free"
+        days_since_generation = 10
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is False
+
+    def test_free_tier_stale_summary_allowed(self):
+        """Test free tier user with stale summary (>28 days) can refresh."""
+        tier = "free"
+        days_since_generation = 30
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is True
+
+    def test_free_tier_at_boundary_allowed(self):
+        """Test free tier user at exactly 28 days can refresh."""
+        tier = "free"
+        days_since_generation = 28
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is True
+
+    def test_starter_tier_always_allowed(self):
+        """Test starter tier user can always refresh."""
+        tier = "starter"
+        days_since_generation = 5  # Fresh summary
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is True
+
+    def test_pro_tier_always_allowed(self):
+        """Test pro tier user can always refresh."""
+        tier = "pro"
+        days_since_generation = 1  # Very fresh summary
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is True
+
+    def test_enterprise_tier_always_allowed(self):
+        """Test enterprise tier user can always refresh."""
+        tier = "enterprise"
+        days_since_generation = 0  # Just refreshed
+        refresh_threshold_days = 28
+
+        can_refresh = tier != "free" or days_since_generation >= refresh_threshold_days
+
+        assert can_refresh is True
+
+    def test_days_remaining_calculation(self):
+        """Test calculation of days remaining for blocked users."""
+        days_since_generation = 20
+        refresh_threshold_days = 28
+
+        days_remaining = refresh_threshold_days - days_since_generation
+
+        assert days_remaining == 8
+
+    def test_blocked_message_singular_day(self):
+        """Test blocked message uses singular 'day' for 1 day."""
+        days_remaining = 1
+        message = f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}."
+
+        assert message == "Refresh available in 1 day."
+
+    def test_blocked_message_plural_days(self):
+        """Test blocked message uses plural 'days' for multiple days."""
+        days_remaining = 5
+        message = f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}."
+
+        assert message == "Refresh available in 5 days."
+
+
+class TestTrendSummaryResponseRefreshFields:
+    """Tests for new refresh gating fields in TrendSummaryResponse."""
+
+    def test_response_with_refresh_allowed(self):
+        """Test response when refresh is allowed."""
+        summary = TrendSummary(
+            summary="Test summary",
+            generated_at=datetime.now(UTC),
+            industry="Tech",
+        )
+        response = TrendSummaryResponse(
+            success=True,
+            summary=summary,
+            stale=False,
+            needs_industry=False,
+            can_refresh_now=True,
+            refresh_blocked_reason=None,
+        )
+
+        assert response.can_refresh_now is True
+        assert response.refresh_blocked_reason is None
+
+    def test_response_with_refresh_blocked(self):
+        """Test response when refresh is blocked for free tier."""
+        summary = TrendSummary(
+            summary="Test summary",
+            generated_at=datetime.now(UTC) - timedelta(days=10),
+            industry="Tech",
+        )
+        response = TrendSummaryResponse(
+            success=True,
+            summary=summary,
+            stale=False,
+            needs_industry=False,
+            can_refresh_now=False,
+            refresh_blocked_reason="Refresh available in 18 days. Upgrade to refresh anytime.",
+        )
+
+        assert response.can_refresh_now is False
+        assert "18 days" in response.refresh_blocked_reason
+        assert "Upgrade" in response.refresh_blocked_reason
+
+    def test_response_default_refresh_allowed(self):
+        """Test response defaults to refresh allowed."""
+        response = TrendSummaryResponse(
+            success=True,
+            summary=None,
+            stale=True,
+            needs_industry=False,
+        )
+
+        assert response.can_refresh_now is True
+        assert response.refresh_blocked_reason is None

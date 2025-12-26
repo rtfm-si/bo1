@@ -34,7 +34,7 @@
 		available_timeframes?: string[];
 	}
 
-	type Timeframe = '3m' | '12m' | '24m';
+	type Timeframe = 'now' | '3m' | '12m' | '24m';
 
 	interface Props {
 		summary: TrendSummary | null;
@@ -46,17 +46,20 @@
 		selectedTimeframe?: Timeframe;
 		availableTimeframes?: string[];
 		upgradePrompt?: string | null;
+		canRefresh?: boolean;
+		refreshBlockedReason?: string | null;
 		onRefresh?: () => void;
 		onTimeframeChange?: (timeframe: Timeframe) => void;
 	}
 
 	const TIMEFRAME_LABELS: Record<Timeframe, string> = {
+		'now': 'Now',
 		'3m': '3 Month',
 		'12m': '12 Month',
 		'24m': '24 Month'
 	};
 
-	const ALL_TIMEFRAMES: Timeframe[] = ['3m', '12m', '24m'];
+	const ALL_TIMEFRAMES: Timeframe[] = ['now', '3m', '12m', '24m'];
 
 	let {
 		summary,
@@ -65,16 +68,23 @@
 		isLoading = false,
 		isRefreshing = false,
 		error = null,
-		selectedTimeframe = '3m',
-		availableTimeframes = ['3m'],
+		selectedTimeframe = 'now',
+		availableTimeframes = ['now', '3m'],
 		upgradePrompt = null,
+		canRefresh = true,
+		refreshBlockedReason = null,
 		onRefresh,
 		onTimeframeChange
 	}: Props = $props();
 
+	// Refresh is only blocked for "Now" view (forecasts have their own tier gating)
+	const isRefreshBlocked = $derived(selectedTimeframe === 'now' && !canRefresh);
+
 	let isExpanded = $state(true);
 
 	function isTimeframeLocked(tf: Timeframe): boolean {
+		// 'now' is never locked - available to all tiers
+		if (tf === 'now') return false;
 		return !availableTimeframes.includes(tf);
 	}
 
@@ -110,7 +120,7 @@
 				</div>
 				<div>
 					<h3 class="font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-						Market Trends Forecast
+						{selectedTimeframe === 'now' ? 'Current Market Trends' : 'Market Trends Forecast'}
 						{#if summary}
 							<Badge variant="neutral" size="sm">{summary.industry}</Badge>
 						{/if}
@@ -134,12 +144,15 @@
 						variant="outline"
 						size="sm"
 						onclick={onRefresh}
-						disabled={isRefreshing || isLoading}
-						title={isStale ? 'Refresh forecast (outdated)' : 'Refresh forecast'}
+						disabled={isRefreshing || isLoading || isRefreshBlocked}
+						title={isRefreshBlocked && refreshBlockedReason ? refreshBlockedReason : isStale ? 'Refresh forecast (outdated)' : 'Refresh forecast'}
 					>
 						{#if isRefreshing}
 							<Loader2 class="h-4 w-4 animate-spin mr-1" />
 							<span>Refreshing...</span>
+						{:else if isRefreshBlocked}
+							<Lock class="h-4 w-4 mr-1" />
+							<span>Refresh</span>
 						{:else}
 							<RefreshCw class="h-4 w-4 mr-1" />
 							<span>Refresh</span>
@@ -166,7 +179,7 @@
 		<!-- Timeframe Selector -->
 		{#if !needsIndustry}
 			<div class="flex items-center gap-2">
-				<span class="text-xs text-neutral-500 dark:text-neutral-400">Forecast:</span>
+				<span class="text-xs text-neutral-500 dark:text-neutral-400">Timeframe:</span>
 				<div class="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
 					{#each ALL_TIMEFRAMES as tf}
 						<button
@@ -194,6 +207,13 @@
 		{#if upgradePrompt}
 			<Alert variant="warning" title="Upgrade required">
 				{upgradePrompt}
+			</Alert>
+		{/if}
+
+		<!-- Refresh Blocked Message (for "Now" view only) -->
+		{#if isRefreshBlocked && refreshBlockedReason && selectedTimeframe === 'now'}
+			<Alert variant="info" title="Refresh cooldown">
+				{refreshBlockedReason}
 			</Alert>
 		{/if}
 

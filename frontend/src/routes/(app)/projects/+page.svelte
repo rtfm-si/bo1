@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import type { ProjectDetailResponse, ProjectStatus, UnassignedCountResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
@@ -8,7 +9,12 @@
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import AutogenProjectsModal from '$lib/components/projects/AutogenProjectsModal.svelte';
 	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
-	import { startProjectsPageTour, injectTourStyles } from '$lib/tour/onboarding-tour';
+	import { startProjectsPageTour, injectTourStyles, destroyActiveTour } from '$lib/tour/onboarding-tour';
+
+	// Cleanup tour popup on navigation to prevent persistence
+	beforeNavigate(() => {
+		destroyActiveTour();
+	});
 
 	// Use data fetch utility for projects
 	const projectsData = useDataFetch(() => apiClient.listProjects());

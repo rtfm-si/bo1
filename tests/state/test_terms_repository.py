@@ -362,3 +362,131 @@ class TestTermsRepository:
             result = repo.publish_version(version_id="nonexistent")
 
         assert result is None
+
+    # =========================================================================
+    # Multi-Policy Consent Tests
+    # =========================================================================
+
+    def test_create_consent_with_policy_type(self, sample_consent):
+        """Verify create_consent accepts policy_type parameter."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        consent_gdpr = {**sample_consent, "policy_type": "gdpr"}
+
+        repo = TermsRepository()
+        with patch.object(repo, "_execute_returning", return_value=consent_gdpr) as mock_exec:
+            result = repo.create_consent(
+                user_id="user_123",
+                version_id=sample_consent["terms_version_id"],
+                ip_address="192.168.1.1",
+                policy_type="gdpr",
+            )
+
+        assert result["policy_type"] == "gdpr"
+        mock_exec.assert_called_once()
+        # Verify policy_type was passed in query params
+        call_args = mock_exec.call_args[0][1]
+        assert "gdpr" in call_args
+
+    def test_get_user_latest_consent_with_policy_type(self, sample_consent):
+        """Verify get_user_latest_consent filters by policy_type."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        consent_privacy = {**sample_consent, "policy_type": "privacy"}
+
+        repo = TermsRepository()
+        with patch.object(repo, "_execute_one", return_value=consent_privacy) as mock_exec:
+            result = repo.get_user_latest_consent("user_123", policy_type="privacy")
+
+        assert result["policy_type"] == "privacy"
+        # Verify policy_type was passed in query params
+        call_args = mock_exec.call_args[0][1]
+        assert "privacy" in call_args
+
+    def test_has_user_consented_to_current_with_policy_type(self):
+        """Verify has_user_consented_to_current checks specific policy."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+        with patch.object(repo, "_execute_one", return_value={"has_consented": True}) as mock_exec:
+            result = repo.has_user_consented_to_current("user_123", policy_type="gdpr")
+
+        assert result is True
+        # Verify gdpr was passed in query params
+        call_args = mock_exec.call_args[0][1]
+        assert "gdpr" in call_args
+
+    def test_has_user_consented_all_policies_returns_true(self):
+        """Verify has_user_consented_all_policies returns True when all consented."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+        # Mock has_user_consented_to_current to return True for all policies
+        with patch.object(repo, "has_user_consented_to_current", return_value=True):
+            result = repo.has_user_consented_all_policies("user_123")
+
+        assert result is True
+
+    def test_has_user_consented_all_policies_returns_false_if_any_missing(self):
+        """Verify has_user_consented_all_policies returns False if any missing."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+
+        # Mock to return True for tc, False for gdpr
+        def mock_check(user_id, policy_type="tc"):
+            return policy_type != "gdpr"
+
+        with patch.object(repo, "has_user_consented_to_current", side_effect=mock_check):
+            result = repo.has_user_consented_all_policies("user_123")
+
+        assert result is False
+
+    def test_get_user_all_policy_consents_returns_dict(self, sample_consent):
+        """Verify get_user_all_policy_consents returns dict keyed by policy_type."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+
+        def mock_consent(user_id, policy_type="tc"):
+            if policy_type == "tc":
+                return {**sample_consent, "policy_type": "tc"}
+            elif policy_type == "gdpr":
+                return {**sample_consent, "policy_type": "gdpr"}
+            return None  # privacy not consented
+
+        with patch.object(repo, "get_user_latest_consent", side_effect=mock_consent):
+            result = repo.get_user_all_policy_consents("user_123")
+
+        assert "tc" in result
+        assert "gdpr" in result
+        assert "privacy" in result
+        assert result["tc"]["policy_type"] == "tc"
+        assert result["gdpr"]["policy_type"] == "gdpr"
+        assert result["privacy"] is None
+
+    def test_get_missing_policies_returns_missing_list(self):
+        """Verify get_missing_policies returns list of unconcsented policies."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+
+        def mock_check(user_id, policy_type="tc"):
+            return policy_type == "tc"  # Only tc consented
+
+        with patch.object(repo, "has_user_consented_to_current", side_effect=mock_check):
+            result = repo.get_missing_policies("user_123")
+
+        assert "gdpr" in result
+        assert "privacy" in result
+        assert "tc" not in result
+
+    def test_get_missing_policies_returns_empty_when_all_consented(self):
+        """Verify get_missing_policies returns empty list when all consented."""
+        from bo1.state.repositories.terms_repository import TermsRepository
+
+        repo = TermsRepository()
+        with patch.object(repo, "has_user_consented_to_current", return_value=True):
+            result = repo.get_missing_policies("user_123")
+
+        assert result == []

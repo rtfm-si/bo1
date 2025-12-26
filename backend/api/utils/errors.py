@@ -23,6 +23,7 @@ from typing import Any, Literal, TypedDict, TypeVar
 from fastapi import HTTPException
 
 from bo1.logging import ErrorCode, log_error
+from bo1.state.pool_degradation import PoolExhaustionError, get_degradation_manager
 
 
 class ErrorDetailDict(TypedDict, total=False):
@@ -191,6 +192,23 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
             except HTTPException:
                 # Re-raise HTTPException as-is (already formatted)
                 raise
+            except PoolExhaustionError as e:
+                # Pool exhaustion → 503 with Retry-After header
+                logger.warning(
+                    f"Pool exhaustion in {operation}: {e}",
+                    extra={"operation": operation, "queue_depth": e.queue_depth},
+                )
+                manager = get_degradation_manager()
+                retry_after = manager.get_retry_after()
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "detail": "Database pool exhausted, please retry",
+                        "error_code": "service_unavailable",
+                        "retry_after": retry_after,
+                    },
+                    headers={"Retry-After": str(retry_after)},
+                ) from e
             except ValueError as e:
                 # Business logic validation errors → 400
                 logger.warning(

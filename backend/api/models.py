@@ -1618,6 +1618,20 @@ class AutogenCreateResponse(BaseModel):
     count: int = Field(0, description="Number of projects created")
 
 
+class UnassignedCountResponse(BaseModel):
+    """Response model for unassigned actions count.
+
+    Attributes:
+        unassigned_count: Number of actions not assigned to any project
+        min_required: Minimum actions required for autogeneration
+        can_autogenerate: Whether autogen is available
+    """
+
+    unassigned_count: int = Field(..., description="Actions without project assignment")
+    min_required: int = Field(..., description="Minimum actions for autogeneration")
+    can_autogenerate: bool = Field(..., description="Whether autogen threshold is met")
+
+
 # =========================================================================
 # Context-Based Project Suggestions
 # =========================================================================
@@ -3541,6 +3555,159 @@ class FeedbackAnalysisSummary(BaseModel):
     analyzed_count: int = Field(..., description="Feedback items with analysis")
     sentiment_counts: dict[str, int] = Field(..., description="Counts by sentiment")
     top_themes: list[ThemeCount] = Field(..., description="Top themes with counts")
+
+
+# ============================================================================
+# User Ratings (Thumbs Up/Down) Models
+# ============================================================================
+
+
+class RatingEntityType:
+    """Valid entity types for ratings."""
+
+    MEETING = "meeting"
+    ACTION = "action"
+
+
+class RatingCreate(BaseModel):
+    """Request model for submitting a rating.
+
+    Attributes:
+        entity_type: Type of entity being rated ('meeting' or 'action')
+        entity_id: UUID of the entity
+        rating: -1 (thumbs down) or 1 (thumbs up)
+        comment: Optional comment explaining the rating
+    """
+
+    entity_type: str = Field(
+        ...,
+        description="Type of entity being rated ('meeting' or 'action')",
+    )
+    entity_id: str = Field(
+        ...,
+        min_length=1,
+        description="UUID of the entity being rated",
+    )
+    rating: int = Field(
+        ...,
+        ge=-1,
+        le=1,
+        description="Rating value: -1 (thumbs down) or 1 (thumbs up)",
+    )
+    comment: str | None = Field(
+        None,
+        max_length=1000,
+        description="Optional comment explaining the rating",
+    )
+
+    @field_validator("entity_type")
+    @classmethod
+    def validate_entity_type(cls, v: str) -> str:
+        """Validate entity type."""
+        valid_types = {RatingEntityType.MEETING, RatingEntityType.ACTION}
+        if v not in valid_types:
+            raise ValueError(f"Invalid entity_type. Must be one of: {valid_types}")
+        return v
+
+    @field_validator("rating")
+    @classmethod
+    def validate_rating(cls, v: int) -> int:
+        """Validate rating is -1 or 1."""
+        if v not in (-1, 1):
+            raise ValueError("Rating must be -1 (thumbs down) or 1 (thumbs up)")
+        return v
+
+
+class RatingResponse(BaseModel):
+    """Response model for a rating.
+
+    Attributes:
+        id: Rating UUID
+        user_id: User who submitted the rating
+        entity_type: Type of entity rated
+        entity_id: UUID of the rated entity
+        rating: Rating value (-1 or 1)
+        comment: Optional comment
+        created_at: When the rating was created/updated
+    """
+
+    id: str = Field(..., description="Rating UUID")
+    user_id: str = Field(..., description="User ID")
+    entity_type: str = Field(..., description="Entity type")
+    entity_id: str = Field(..., description="Entity UUID")
+    rating: int = Field(..., description="Rating value (-1 or 1)")
+    comment: str | None = Field(None, description="Optional comment")
+    created_at: datetime = Field(..., description="Creation timestamp")
+
+
+class RatingMetrics(BaseModel):
+    """Aggregated rating metrics.
+
+    Attributes:
+        period_days: Number of days in the period
+        total: Total ratings in period
+        thumbs_up: Count of positive ratings
+        thumbs_down: Count of negative ratings
+        thumbs_up_pct: Percentage of positive ratings
+        by_type: Breakdown by entity type
+    """
+
+    period_days: int = Field(..., description="Days in period")
+    total: int = Field(..., description="Total ratings")
+    thumbs_up: int = Field(..., description="Positive ratings count")
+    thumbs_down: int = Field(..., description="Negative ratings count")
+    thumbs_up_pct: float = Field(..., description="Positive rating percentage")
+    by_type: dict[str, dict[str, int]] = Field(..., description="Breakdown by entity type")
+
+
+class RatingTrendItem(BaseModel):
+    """Daily rating trend data point.
+
+    Attributes:
+        date: Date (ISO format)
+        up: Thumbs up count
+        down: Thumbs down count
+        total: Total ratings
+    """
+
+    date: str = Field(..., description="Date (ISO format)")
+    up: int = Field(..., description="Thumbs up count")
+    down: int = Field(..., description="Thumbs down count")
+    total: int = Field(..., description="Total ratings")
+
+
+class NegativeRatingItem(BaseModel):
+    """A negative rating with context for admin triage.
+
+    Attributes:
+        id: Rating UUID
+        user_id: User who rated
+        user_email: User's email
+        entity_type: Type of entity
+        entity_id: Entity UUID
+        entity_title: Title/name of the entity
+        comment: Optional comment
+        created_at: When rated
+    """
+
+    id: str = Field(..., description="Rating UUID")
+    user_id: str = Field(..., description="User ID")
+    user_email: str | None = Field(None, description="User email")
+    entity_type: str = Field(..., description="Entity type")
+    entity_id: str = Field(..., description="Entity UUID")
+    entity_title: str | None = Field(None, description="Entity title")
+    comment: str | None = Field(None, description="Comment")
+    created_at: datetime = Field(..., description="Timestamp")
+
+
+class NegativeRatingsResponse(BaseModel):
+    """Response model for negative ratings list.
+
+    Attributes:
+        items: List of negative ratings
+    """
+
+    items: list[NegativeRatingItem] = Field(..., description="Negative ratings")
 
 
 # ============================================================================

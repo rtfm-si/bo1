@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-26 (A/B persona count experiment: 3 vs 5 personas with admin metrics dashboard)_
+_Last updated: 2025-12-26 (Benchmark metrics expanded 12→22)_
 
 ---
 
@@ -28,6 +28,25 @@ _Last updated: 2025-12-26 (A/B persona count experiment: 3 vs 5 personas with ad
 - [ ] [MONITORING][P1] Kubernetes deployment manifest - are we using kubernetes?
 - [ ] [MONITORING] Clarify "grafana logs: value A" (ambiguous)
 - [ ] [DATA][P2] Clarify data retention soft-delete behavior: confirm soft-delete for retention vs hard-delete only on account deletion (RTBF compliance)
+
+### From _TODO.md (2025-12-26)
+
+- [x] [INFRA][P1] Fix analytics.boardof.one 502 nginx error: nginx proxy_pass pointed to wrong port (3100 instead of 3200)
+- [x] [BUG][P1] Onboarding step 2 of 5 broken: "Next" and "Visit actions" buttons do nothing
+- [x] [UX][P2] Onboarding exit: add clear way to exit/skip onboarding flow (allowClose: true, onCloseClick callback, Skip button visible)
+- [x] [BUG][P2] Onboarding popup page persistence: popup follows across pages, highlights wrong elements (destroyActiveTour on beforeNavigate)
+- [ ] [UX][P2] Onboarding first-login flow: after onboarding cards, redirect to context overview page with explanation of why context is collected
+- [x] [BUG][P2] Dashboard strategic objectives tick: fix tick showing for incomplete objectives
+- [ ] [FEAT][P2] Strategic objective progress tracking: allow user to enter current state vs target (e.g., "target=100 customers in 28 days, currently 13 on day 3") with flexible input supporting various industries/stages
+- [ ] [DOCS][P4] Blog post: using Bo1 for Bo1 (dogfooding success story)
+- [ ] [DOCS][P4] Blog post: Bo1 for solo founders, meeting prep, and SMBs
+- [ ] [DOCS][P4] Blog post: Bo1 for product launches
+- [ ] [DOCS][P4] Blog post: Bo1 for analytics use cases
+- [ ] [DOCS][P4] Blog post: Bo1 for light-touch project management (focus on strengths)
+- [ ] [FEAT][P3] SEO trend analyzer: button to analyze recent trends for Bo1 app using Google Trends, Brave, Tavily data (SEO-optimized content suggestions)
+- [ ] [FEAT][P3] SEO topics table: store researched topics/themes with "Research & Write Blog Post" action button per row
+- [ ] [FEAT][P3] SEO blog generator: generate articles linking Bo1 capabilities to real user problems (SEO-optimized)
+- [ ] [ADMIN][P3] SEO content analytics: track view rate, CTR, and signup rate for generated blog content
 
 ### User-Owned
 
@@ -66,13 +85,51 @@ _Last updated: 2025-12-26 (A/B persona count experiment: 3 vs 5 personas with ad
 - [x] [CONTEXT][P2] Competitors: auto-detect competitors from user's business context (background task, rate-limited 24h, tier-aware limits)
 - [x] [CONTEXT][P2] North star goal tracking: track updates/changes to goals, show progress over time, prompt user on goal changes
 
+#### Context/Strategic Fixes (Dec 2025)
+
+- [x] [CONTEXT][P2][BUG] Competitors 503 error: fix `/api/v1/context/managed-competitors` returning 503 (added PoolExhaustionError handling to handle_api_errors, detailed logging)
+- [x] [CONTEXT][P2][UX] Competitors duplicate buttons: consolidate "Auto-Detect" header button, "Detect Now" info box button, and two "+ Add Competitor" buttons into single actions
+- [x] [CONTEXT][P3][UX] Market trends default view: change default from forecast to "Now" (current trends summary)
+- [x] [CONTEXT][P2][BUG] Market trends tier gating: fix 3m forecast showing "Upgrade required" for starter tier (should be accessible)
+- [x] [CONTEXT][P2] Market trends refresh logic: "Now" view should only refresh if last refresh >28 days OR user on paid plan (GET returns can_refresh_now/refresh_blocked_reason, POST returns 429 for free tier <28 days)
+- [x] [CONTEXT][P2] Market trends tier access: 3m for starter+, 12m/24m for pro only (fixed: free/starter=3m, pro/enterprise=all)
+- [x] [CONTEXT][P2] Market trends content extraction: extract actual insights from linked URLs instead of just displaying URLs
+- [x] [CONTEXT][P2] Insights staleness detection: prompt to confirm/update metrics every 90 days, strategic positions every 180 days
+- [x] [CONTEXT][P2] Insights action-triggered staleness: when action targeting a metric completes (e.g., "reduce churn"), prompt to update related insight after 28 days elapsed
+- [x] [CONTEXT][P2][BUG] Competitors enrich: fix "Database error during enrichment" when clicking Enrich button (json.dumps for JSONB columns)
+- [x] [CONTEXT][P2] Benchmarks expand metrics: extended from 12 to 22 standard startup metrics (DAU, MAU, DAU/MAU ratio, ARPU, ARR growth rate, GRR, active churn, revenue churn, NPS, quick ratio)
+- [x] [CONTEXT][P3] Benchmarks track LTV: LTV already present in metric_templates
+
+### Legal & Consent [LEGAL]
+
+- [x] [LEGAL][P2] Extend consent tracking: add GDPR consent capture alongside T&C (explicit checkbox, timestamp, IP)
+- [x] [LEGAL][P2] Multi-policy consent: ensure all required consents (T&C, GDPR, Privacy Policy) are captured before service access
+- [x] [LEGAL][P3] Settings consent display: show links to consented T&C, GDPR, and policies with consent timestamps in user settings
+- [x] [LEGAL][P2] Consent version enforcement: block product access until user accepts latest version of all required policies
+
+### User Feedback [FEEDBACK]
+
+- [x] [FEAT][P3] Meeting feedback: add thumbs up/down rating after meeting completion
+- [x] [FEAT][P3] Action feedback: add thumbs up/down rating on action completion
+- [x] [ADMIN][P3] Feedback tracking: display feedback metrics over time in admin dashboard
+- [x] [ADMIN][P3] Negative feedback view: show latest 10 thumbs-down events in admin for triage
+
+### Security [SECURITY]
+
+- [ ] [SECURITY][P2] Rate limits audit: review all rate limits for sensibility, enforceability, and user impact (ensure legitimate users not blocked)
+
+### Billing & Plans [BILLING]
+
+- [ ] [BILLING][P2] Centralize plan configuration: consolidate all tier limits/allowances into single source of truth (reports, meetings, data analysis, mentor chats, context features, competitors, benchmarks, market trends, etc.)
+- [ ] [BILLING][P2] Plan limits audit: ensure all features check centralized config for free/starter/pro access and usage limits
+
 ### Research Infrastructure [RESEARCH]
 
 - [x] [RESEARCH][P2] Tier research providers: use Brave for starter tier, Tavily for pro tier (competitor analysis, market trends)
 - [x] [RESEARCH][P1] Audit all research call sites: verify using Brave/Tavily instead of Anthropic/OpenAI for web research (see `audits/reports/research-providers.report.md`)
 - [x] [RESEARCH][P2] Track Brave and Tavily API costs in admin dashboard
 - [x] [RESEARCH][P2] Research caching with embeddings: timestamp research, generate Voyage embeddings, search existing before new API calls
-- [ ] [RESEARCH][P4] Cross-user research sharing: leverage research from similar business contexts (same industry) - requires privacy review
+- [ ] [RESEARCH][P4] Cross-user research sharing: leverage research from similar business contexts
 
 ### Admin Dashboard [ADMIN]
 
@@ -88,14 +145,15 @@ _Last updated: 2025-12-26 (A/B persona count experiment: 3 vs 5 personas with ad
 - [x] [BUG][P1] Fix admin rate limiting: 429 errors on costs, metrics, ops, landing page analytics, email-stats, research-cache endpoints
 - [x] [BUG][P1] Fix admin analytics page 502 bad gateway error
 - [x] [BUG][P2] Verify admin impersonation feature is accessible and working (reported as unavailable)
+- [x] [BUG][P2] Fix projects unassigned-count 500 error: `/api/v1/projects/unassigned-count` returning 500 (seen on /reports/competitors page)
 
 ### Test Stability [TEST]
 
 - [x] [TEST][P3] Fix flaky test_trend_analyzer.py::test_invalid_url_returns_error - event loop cleanup race condition (passes individually, fails in suite)
 
-### Deferred / Future [FUTURE]
+### Benchmarks [FUTURE]
 
-- [ ] [FUTURE][P4] Peer benchmarking: compare user metrics against similar businesses without exposing specific business data
+- [ ] [FUTURE][P3] Peer benchmarking: compare user metrics against similar businesses without exposing specific business data
 
 ---
 

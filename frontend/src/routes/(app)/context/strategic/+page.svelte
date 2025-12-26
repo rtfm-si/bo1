@@ -29,7 +29,7 @@
 		available_timeframes?: string[];
 	}
 
-	type Timeframe = '3m' | '12m' | '24m';
+	type Timeframe = 'now' | '3m' | '12m' | '24m';
 
 	// Form state - Value Proposition & Positioning
 	let mainValueProposition = $state('');
@@ -78,9 +78,11 @@
 	let isLoadingTrendSummary = $state(false);
 	let isRefreshingTrendSummary = $state(false);
 	let trendSummaryError = $state<string | null>(null);
-	let selectedTimeframe = $state<Timeframe>('3m');
-	let availableTimeframes = $state<string[]>(['3m']);
+	let selectedTimeframe = $state<Timeframe>('now');
+	let availableTimeframes = $state<string[]>(['now', '3m']);
 	let forecastUpgradePrompt = $state<string | null>(null);
+	let canRefreshNow = $state(true);
+	let refreshBlockedReason = $state<string | null>(null);
 
 	// UI state
 	let isLoading = $state(true);
@@ -225,7 +227,11 @@
 		trendSummaryError = null;
 		forecastUpgradePrompt = null;
 		try {
-			const response = await fetch(`/api/v1/context/trends/forecast?timeframe=${timeframe}`, {
+			// 'now' uses the summary endpoint, forecasts use the forecast endpoint
+			const endpoint = timeframe === 'now'
+				? '/api/v1/context/trends/summary'
+				: `/api/v1/context/trends/forecast?timeframe=${timeframe}`;
+			const response = await fetch(endpoint, {
 				credentials: 'include'
 			});
 			const data = await response.json();
@@ -233,12 +239,18 @@
 				trendSummary = data.summary;
 				trendSummaryStale = data.stale;
 				trendSummaryNeedsIndustry = data.needs_industry;
-				availableTimeframes = data.available_timeframes || ['3m'];
+				// For 'now', derive available timeframes from tier (now is always available)
+				availableTimeframes = timeframe === 'now'
+					? ['now', ...(data.available_timeframes || ['3m'])]
+					: data.available_timeframes || ['now', '3m'];
 				forecastUpgradePrompt = data.upgrade_prompt || null;
+				// Extract refresh gating fields for "Now" view
+				canRefreshNow = data.can_refresh_now ?? true;
+				refreshBlockedReason = data.refresh_blocked_reason ?? null;
 			} else if (data.upgrade_prompt) {
 				// Tier-gated - show upgrade prompt
 				forecastUpgradePrompt = data.upgrade_prompt;
-				availableTimeframes = data.available_timeframes || ['3m'];
+				availableTimeframes = data.available_timeframes || ['now', '3m'];
 			} else {
 				trendSummaryError = data.error || 'Failed to load trend forecast';
 			}
@@ -257,7 +269,11 @@
 		isRefreshingTrendSummary = true;
 		trendSummaryError = null;
 		try {
-			const response = await fetch(`/api/v1/context/trends/forecast/refresh?timeframe=${selectedTimeframe}`, {
+			// 'now' uses the summary refresh endpoint, forecasts use the forecast refresh endpoint
+			const endpoint = selectedTimeframe === 'now'
+				? '/api/v1/context/trends/summary/refresh'
+				: `/api/v1/context/trends/forecast/refresh?timeframe=${selectedTimeframe}`;
+			const response = await fetch(endpoint, {
 				method: 'POST',
 				credentials: 'include'
 			});
@@ -265,7 +281,9 @@
 			if (data.success && data.summary) {
 				trendSummary = data.summary;
 				trendSummaryStale = false;
-				availableTimeframes = data.available_timeframes || ['3m'];
+				availableTimeframes = selectedTimeframe === 'now'
+					? ['now', ...(data.available_timeframes || ['3m'])]
+					: data.available_timeframes || ['now', '3m'];
 				forecastUpgradePrompt = null;
 			} else if (response.status === 403) {
 				trendSummaryError = data.detail || 'Upgrade required to access this timeframe.';
@@ -602,18 +620,7 @@
 
 			{#if needsCompetitorRefresh && competitorCount === 0}
 				<Alert variant="info" class="mb-4">
-					<div class="flex items-center gap-2">
-						<span>We can auto-detect competitors based on your business context.</span>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={handleDetectCompetitors}
-							disabled={isDetectingCompetitors}
-							loading={isDetectingCompetitors}
-						>
-							{isDetectingCompetitors ? 'Detecting...' : 'Detect Now'}
-						</Button>
-					</div>
+					<span>Click <strong>Auto-Detect</strong> above to find competitors based on your business context.</span>
 				</Alert>
 			{/if}
 
@@ -877,6 +884,8 @@
 			{selectedTimeframe}
 			{availableTimeframes}
 			upgradePrompt={forecastUpgradePrompt}
+			canRefresh={canRefreshNow}
+			refreshBlockedReason={refreshBlockedReason}
 			onRefresh={handleRefreshTrendForecast}
 			onTimeframeChange={handleTimeframeChange}
 		/>

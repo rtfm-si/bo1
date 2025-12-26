@@ -7,6 +7,7 @@
 	import { apiClient, type UserMetric, type MetricTemplate, type MetricCategory, type IndustryInsight } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
 
 	// State
 	let metrics = $state<UserMetric[]>([]);
@@ -196,6 +197,9 @@
 </svelte:head>
 
 <div class="space-y-6">
+	<!-- Benchmark Refresh Banner -->
+	<BenchmarkRefreshBanner />
+
 	<!-- Header -->
 	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
 		<div class="flex items-center justify-between">

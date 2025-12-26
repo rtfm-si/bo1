@@ -5,6 +5,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { ActionDetailExtended, ActionUpdateResponse, ActionUpdateCreateRequest, DependencyListResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
+	import RatingPrompt from '$lib/components/ui/RatingPrompt.svelte';
 	import ActivityTimeline from '$lib/components/actions/ActivityTimeline.svelte';
 	import UpdateInput from '$lib/components/actions/UpdateInput.svelte';
 	import CancellationModal from '$lib/components/actions/CancellationModal.svelte';
@@ -1380,6 +1381,17 @@
 								</div>
 							{/if}
 						</div>
+					</div>
+				{/if}
+
+				<!-- Rating Prompt (completed actions only) -->
+				{#if action.status === 'done'}
+					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
+						<RatingPrompt
+							entityType="action"
+							entityId={actionId}
+							prompt="Was this action helpful?"
+						/>
 					</div>
 				{/if}
 

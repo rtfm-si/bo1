@@ -159,8 +159,8 @@ class TestBlockerAnalyzerLLMCall:
             ]
         )
 
-        with patch("backend.services.blocker_analyzer.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.blocker_analyzer.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             analyzer = BlockerAnalyzer()
@@ -184,8 +184,8 @@ class TestBlockerAnalyzerLLMCall:
             ]
         )
 
-        with patch("backend.services.blocker_analyzer.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.blocker_analyzer.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             analyzer = BlockerAnalyzer()
@@ -202,8 +202,8 @@ class TestBlockerAnalyzerLLMCall:
     @pytest.mark.asyncio
     async def test_suggest_unblock_paths_llm_failure_returns_fallback(self):
         """LLM failure should return fallback suggestions."""
-        with patch("backend.services.blocker_analyzer.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.blocker_analyzer.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(side_effect=Exception("API error"))
 
             analyzer = BlockerAnalyzer()
@@ -226,8 +226,8 @@ class TestBlockerAnalyzerLLMCall:
             ]
         )
 
-        with patch("backend.services.blocker_analyzer.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.blocker_analyzer.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             analyzer = BlockerAnalyzer()

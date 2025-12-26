@@ -60,7 +60,7 @@ def _get_time_filter(period: TimePeriod) -> str:
     return f"created_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '{interval}'"
 
 
-def _to_iso(value) -> str:
+def _to_iso(value: object) -> str:
     """Convert datetime to ISO format string."""
     return value.isoformat() if value else ""
 

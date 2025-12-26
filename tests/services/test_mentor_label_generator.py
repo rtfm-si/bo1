@@ -49,8 +49,8 @@ class TestGenerateLabel:
         mock_response = MagicMock()
         mock_response.text = "Quarterly Revenue Strategy"
 
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             result = await generate_label("How should I increase my revenue this quarter?")
@@ -64,8 +64,8 @@ class TestGenerateLabel:
         mock_response = MagicMock()
         mock_response.text = '"Team Hiring Strategy"'
 
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             result = await generate_label("How many people should I hire?")
@@ -75,8 +75,8 @@ class TestGenerateLabel:
     @pytest.mark.asyncio
     async def test_generate_label_fallback_on_llm_error(self):
         """LLM failures should fall back to message truncation."""
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(side_effect=Exception("API error"))
 
             result = await generate_label("What should I do about declining sales?")
@@ -90,8 +90,8 @@ class TestGenerateLabel:
         mock_response = MagicMock()
         mock_response.text = "A" * 150  # Very long label
 
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             result = await generate_label("Test message")
@@ -105,8 +105,8 @@ class TestGenerateLabel:
         mock_response = MagicMock()
         mock_response.text = "Strategy Discussion"
 
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             long_message = "A" * 1000
@@ -131,13 +131,13 @@ class TestGenerateAndSaveLabel:
         mock_repo.update_label = MagicMock(return_value=True)
 
         with (
-            patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker,
+            patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker,
             patch(
                 "backend.services.mentor_conversation_pg_repo.get_mentor_conversation_pg_repo",
                 return_value=mock_repo,
             ),
         ):
-            broker_instance = MockBroker.return_value
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             await generate_and_save_label(
@@ -158,13 +158,13 @@ class TestGenerateAndSaveLabel:
         mock_repo.update_label = MagicMock(return_value=False)  # Conversation deleted
 
         with (
-            patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker,
+            patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker,
             patch(
                 "backend.services.mentor_conversation_pg_repo.get_mentor_conversation_pg_repo",
                 return_value=mock_repo,
             ),
         ):
-            broker_instance = MockBroker.return_value
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(return_value=mock_response)
 
             # Should not raise
@@ -173,8 +173,8 @@ class TestGenerateAndSaveLabel:
     @pytest.mark.asyncio
     async def test_handles_exception_gracefully(self):
         """Should catch and log any exceptions without raising."""
-        with patch("backend.services.mentor_label_generator.PromptBroker") as MockBroker:
-            broker_instance = MockBroker.return_value
+        with patch("backend.services.mentor_label_generator.PromptBroker") as mock_broker:
+            broker_instance = mock_broker.return_value
             broker_instance.call = AsyncMock(side_effect=Exception("Network error"))
 
             # Should not raise

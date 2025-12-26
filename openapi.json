@@ -2337,6 +2337,100 @@
         "title": "AnalysisAskRequest",
         "type": "object"
       },
+      "ApiErrorItem": {
+        "description": "API error (500, 429, 401, etc.).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "error_message": {
+            "title": "Error Message",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "status_code": {
+            "title": "Status Code",
+            "type": "integer"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "status_code",
+          "endpoint",
+          "method",
+          "error_message",
+          "created_at"
+        ],
+        "title": "ApiErrorItem",
+        "type": "object"
+      },
+      "ApiErrorListResponse": {
+        "description": "List of API errors.",
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ApiErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "errors",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ApiErrorListResponse",
+        "type": "object"
+      },
       "ApplyPromoCodeRequest": {
         "description": "User request to apply a promo code.\n\nAttributes:\n    code: The promo code to apply",
         "examples": [
@@ -5077,6 +5171,112 @@
         "title": "CleanupResultResponse",
         "type": "object"
       },
+      "ClientErrorItem": {
+        "description": "Client-side error from frontend.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "stack": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "error",
+          "created_at"
+        ],
+        "title": "ClientErrorItem",
+        "type": "object"
+      },
+      "ClientErrorListResponse": {
+        "description": "List of client errors.",
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ClientErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "errors",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ClientErrorListResponse",
+        "type": "object"
+      },
       "ClientErrorReport": {
         "description": "Client-side error report from frontend.",
         "properties": {
@@ -5969,6 +6169,249 @@
           }
         },
         "title": "ConflictErrorResponse",
+        "type": "object"
+      },
+      "ConsentAuditItem": {
+        "description": "Single consent audit entry.\n\nAttributes:\n    user_id: User identifier\n    email: User email (if available)\n    terms_version: T&C version string (e.g., \"1.0\")\n    consented_at: When consent was given (ISO 8601)\n    ip_address: IP address at time of consent",
+        "properties": {
+          "consented_at": {
+            "description": "When consent was given (ISO 8601)",
+            "title": "Consented At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User email",
+            "title": "Email"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IP address at consent",
+            "title": "Ip Address"
+          },
+          "terms_version": {
+            "description": "T&C version string",
+            "title": "Terms Version",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "terms_version",
+          "consented_at"
+        ],
+        "title": "ConsentAuditItem",
+        "type": "object"
+      },
+      "ConsentAuditResponse": {
+        "description": "Response for consent audit list.\n\nAttributes:\n    items: List of consent entries\n    total: Total count matching filter\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page\n    period: Time period filter applied",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of consent entries",
+            "items": {
+              "$ref": "#/components/schemas/ConsentAuditItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "period"
+        ],
+        "title": "ConsentAuditResponse",
+        "type": "object"
+      },
+      "ConsentHistoryItem": {
+        "description": "Individual consent record in history.",
+        "properties": {
+          "consented_at": {
+            "description": "ISO timestamp of consent",
+            "title": "Consented At",
+            "type": "string"
+          },
+          "policy_type": {
+            "description": "Type of policy (e.g., 'Terms & Conditions')",
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "policy_url": {
+            "description": "URL to policy page",
+            "title": "Policy Url",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version number consented to",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_type",
+          "version",
+          "consented_at",
+          "policy_url"
+        ],
+        "title": "ConsentHistoryItem",
+        "type": "object"
+      },
+      "ConsentRecordResponse": {
+        "description": "Response model for consent record.",
+        "properties": {
+          "consented_at": {
+            "title": "Consented At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "default": "Consent recorded successfully",
+            "title": "Message",
+            "type": "string"
+          },
+          "terms_version_id": {
+            "title": "Terms Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "terms_version_id",
+          "consented_at"
+        ],
+        "title": "ConsentRecordResponse",
+        "type": "object"
+      },
+      "ConsentRequest": {
+        "description": "Request model for recording consent.",
+        "properties": {
+          "terms_version_id": {
+            "description": "UUID of T&C version being accepted",
+            "title": "Terms Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terms_version_id"
+        ],
+        "title": "ConsentRequest",
+        "type": "object"
+      },
+      "ConsentStatusResponse": {
+        "description": "Response model for consent status check.",
+        "properties": {
+          "consented_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented At"
+          },
+          "consented_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented Version"
+          },
+          "consents": {
+            "description": "Full consent history",
+            "items": {
+              "$ref": "#/components/schemas/ConsentHistoryItem"
+            },
+            "title": "Consents",
+            "type": "array"
+          },
+          "current_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Version"
+          },
+          "has_consented": {
+            "title": "Has Consented",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_consented"
+        ],
+        "title": "ConsentStatusResponse",
         "type": "object"
       },
       "ContextChoiceRequest": {
@@ -6882,6 +7325,55 @@
         "title": "CostDrillDownResponse",
         "type": "object"
       },
+      "CostSummary": {
+        "description": "Summary of costs for different periods.",
+        "properties": {
+          "all_time": {
+            "title": "All Time",
+            "type": "number"
+          },
+          "session_count_month": {
+            "title": "Session Count Month",
+            "type": "integer"
+          },
+          "session_count_today": {
+            "title": "Session Count Today",
+            "type": "integer"
+          },
+          "session_count_total": {
+            "title": "Session Count Total",
+            "type": "integer"
+          },
+          "session_count_week": {
+            "title": "Session Count Week",
+            "type": "integer"
+          },
+          "this_month": {
+            "title": "This Month",
+            "type": "number"
+          },
+          "this_week": {
+            "title": "This Week",
+            "type": "number"
+          },
+          "today": {
+            "title": "Today",
+            "type": "number"
+          }
+        },
+        "required": [
+          "today",
+          "this_week",
+          "this_month",
+          "all_time",
+          "session_count_today",
+          "session_count_week",
+          "session_count_month",
+          "session_count_total"
+        ],
+        "title": "CostSummary",
+        "type": "object"
+      },
       "CostSummaryResponse": {
         "description": "Cost totals for different time periods.\n\nAttributes:\n    today: Total cost today in USD\n    this_week: Total cost this week in USD\n    this_month: Total cost this month in USD\n    all_time: Total cost all time in USD\n    session_count_today: Sessions today\n    session_count_week: Sessions this week\n    session_count_month: Sessions this month\n    session_count_total: Total sessions",
         "properties": {
@@ -6967,6 +7459,39 @@
           "period_end"
         ],
         "title": "CostsByProviderResponse",
+        "type": "object"
+      },
+      "CostsDashboardResponse": {
+        "description": "Combined response for costs page - replaces 6 API calls.",
+        "properties": {
+          "by_provider": {
+            "$ref": "#/components/schemas/CostsByProviderResponse"
+          },
+          "daily_costs": {
+            "$ref": "#/components/schemas/backend__api__admin__dashboard__DailyCostsResponse"
+          },
+          "fixed_costs": {
+            "$ref": "#/components/schemas/FixedCostsResponse"
+          },
+          "per_user": {
+            "$ref": "#/components/schemas/PerUserCostResponse"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CostSummary"
+          },
+          "user_costs": {
+            "$ref": "#/components/schemas/backend__api__admin__dashboard__UserCostsResponse"
+          }
+        },
+        "required": [
+          "summary",
+          "user_costs",
+          "daily_costs",
+          "by_provider",
+          "fixed_costs",
+          "per_user"
+        ],
+        "title": "CostsDashboardResponse",
         "type": "object"
       },
       "CreateFeatureFlagRequest": {
@@ -7411,6 +7936,34 @@
         "title": "CreateSessionRequest",
         "type": "object"
       },
+      "CreateTermsVersionRequest": {
+        "description": "Request to create a new T&C version.\n\nAttributes:\n    version: Version string (e.g., \"1.1\")\n    content: T&C content (markdown)",
+        "properties": {
+          "content": {
+            "description": "T&C content (markdown)",
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version string",
+            "examples": [
+              "1.1",
+              "2.0"
+            ],
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "content"
+        ],
+        "title": "CreateTermsVersionRequest",
+        "type": "object"
+      },
       "DailyActionStat": {
         "description": "Daily activity statistics for dashboard heatmap.\n\nAttributes:\n    date: Date (YYYY-MM-DD)\n    completed_count: Actions completed on this date\n    in_progress_count: Actions started (transitioned to in_progress) on this date\n    sessions_run: Sessions run on this date\n    mentor_sessions: Mentor chat sessions on this date\n    estimated_starts: Future actions with start_date on this date (not yet started)\n    estimated_completions: Future actions with due_date on this date (not yet completed)",
         "properties": {
@@ -7460,63 +8013,6 @@
           "date"
         ],
         "title": "DailyActionStat",
-        "type": "object"
-      },
-      "DailyCostItem": {
-        "description": "Cost summary for a single day.\n\nAttributes:\n    date: Date (YYYY-MM-DD)\n    total_cost: Total cost in USD\n    session_count: Number of sessions",
-        "properties": {
-          "date": {
-            "description": "Date (YYYY-MM-DD)",
-            "title": "Date",
-            "type": "string"
-          },
-          "session_count": {
-            "description": "Number of sessions",
-            "title": "Session Count",
-            "type": "integer"
-          },
-          "total_cost": {
-            "description": "Total cost (USD)",
-            "title": "Total Cost",
-            "type": "number"
-          }
-        },
-        "required": [
-          "date",
-          "total_cost",
-          "session_count"
-        ],
-        "title": "DailyCostItem",
-        "type": "object"
-      },
-      "DailyCostsResponse": {
-        "description": "Response for daily cost breakdown.\n\nAttributes:\n    days: List of daily cost items\n    start_date: Start of date range\n    end_date: End of date range",
-        "properties": {
-          "days": {
-            "description": "Daily cost items",
-            "items": {
-              "$ref": "#/components/schemas/DailyCostItem"
-            },
-            "title": "Days",
-            "type": "array"
-          },
-          "end_date": {
-            "description": "End date (YYYY-MM-DD)",
-            "title": "End Date",
-            "type": "string"
-          },
-          "start_date": {
-            "description": "Start date (YYYY-MM-DD)",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "days",
-          "start_date",
-          "end_date"
-        ],
-        "title": "DailyCostsResponse",
         "type": "object"
       },
       "DailyCount": {
@@ -9308,6 +9804,43 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "ErrorSummaryResponse": {
+        "description": "Summary of errors for ops dashboard.",
+        "properties": {
+          "api_errors_24h": {
+            "title": "Api Errors 24H",
+            "type": "integer"
+          },
+          "client_errors_24h": {
+            "title": "Client Errors 24H",
+            "type": "integer"
+          },
+          "top_api_endpoints": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Top Api Endpoints",
+            "type": "array"
+          },
+          "top_client_errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Top Client Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_errors_24h",
+          "api_errors_24h",
+          "top_client_errors",
+          "top_api_endpoints"
+        ],
+        "title": "ErrorSummaryResponse",
+        "type": "object"
+      },
       "EscalateBlockerRequest": {
         "description": "Request model for escalating a blocked action to a meeting.",
         "properties": {
@@ -9428,6 +9961,129 @@
           "status"
         ],
         "title": "EventQueueHealth",
+        "type": "object"
+      },
+      "ExperimentMetricsResponse": {
+        "description": "Response model for A/B experiment metrics.\n\nAttributes:\n    experiment_name: Name of the experiment\n    variants: Stats for each variant\n    total_sessions: Total sessions in experiment\n    period_start: Start of analysis period (ISO 8601)\n    period_end: End of analysis period (ISO 8601)",
+        "properties": {
+          "experiment_name": {
+            "description": "Experiment name",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "period_end": {
+            "description": "Analysis period end (ISO 8601)",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "description": "Analysis period start (ISO 8601)",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "total_sessions": {
+            "description": "Total sessions in experiment",
+            "title": "Total Sessions",
+            "type": "integer"
+          },
+          "variants": {
+            "description": "Per-variant stats",
+            "items": {
+              "$ref": "#/components/schemas/ExperimentVariantStats"
+            },
+            "title": "Variants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "experiment_name",
+          "variants",
+          "total_sessions",
+          "period_start",
+          "period_end"
+        ],
+        "title": "ExperimentMetricsResponse",
+        "type": "object"
+      },
+      "ExperimentVariantStats": {
+        "description": "Statistics for a single A/B test variant.\n\nAttributes:\n    variant: Variant value (e.g., 3 or 5 for persona count)\n    session_count: Number of sessions with this variant\n    completed_count: Number of completed sessions\n    avg_cost: Average total cost per session (USD)\n    avg_duration_seconds: Average session duration\n    avg_rounds: Average number of rounds\n    avg_persona_count: Actual average personas selected\n    completion_rate: Percentage of sessions completed successfully",
+        "properties": {
+          "avg_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average cost per session (USD)",
+            "title": "Avg Cost"
+          },
+          "avg_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average duration (s)",
+            "title": "Avg Duration Seconds"
+          },
+          "avg_persona_count": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average personas selected",
+            "title": "Avg Persona Count"
+          },
+          "avg_rounds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average number of rounds",
+            "title": "Avg Rounds"
+          },
+          "completed_count": {
+            "description": "Completed sessions",
+            "title": "Completed Count",
+            "type": "integer"
+          },
+          "completion_rate": {
+            "description": "Completion rate (0-100%)",
+            "title": "Completion Rate",
+            "type": "number"
+          },
+          "session_count": {
+            "description": "Total sessions with this variant",
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "variant": {
+            "description": "Variant value (3 or 5)",
+            "title": "Variant",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "variant",
+          "session_count",
+          "completed_count",
+          "completion_rate"
+        ],
+        "title": "ExperimentVariantStats",
         "type": "object"
       },
       "ExtendedKPIsResponse": {
@@ -16127,6 +16783,34 @@
         "title": "ResearchCostsResponse",
         "type": "object"
       },
+      "RetentionReminderSettingsResponse": {
+        "description": "Response for retention reminder settings endpoint.",
+        "properties": {
+          "deletion_reminder_suppressed": {
+            "description": "Whether deletion reminder emails are suppressed",
+            "title": "Deletion Reminder Suppressed",
+            "type": "boolean"
+          },
+          "last_deletion_reminder_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When last reminder was sent",
+            "title": "Last Deletion Reminder Sent At"
+          }
+        },
+        "required": [
+          "deletion_reminder_suppressed"
+        ],
+        "title": "RetentionReminderSettingsResponse",
+        "type": "object"
+      },
       "RetentionSettingResponse": {
         "description": "Response for retention setting endpoint.",
         "properties": {
@@ -18158,6 +18842,145 @@
         "title": "TerminationResponse",
         "type": "object"
       },
+      "TermsVersionItem": {
+        "description": "Single T&C version entry.\n\nAttributes:\n    id: Version UUID\n    version: Version string (e.g., \"1.0\")\n    content: T&C content (markdown)\n    is_active: Whether this is the active version\n    published_at: When version was published (ISO 8601, null if draft)\n    created_at: When version was created (ISO 8601)",
+        "properties": {
+          "content": {
+            "description": "T&C content (markdown)",
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When created (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "description": "Version UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "description": "Whether this is the active version",
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When published (ISO 8601)",
+            "title": "Published At"
+          },
+          "version": {
+            "description": "Version string (e.g., '1.0')",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "content",
+          "is_active",
+          "created_at"
+        ],
+        "title": "TermsVersionItem",
+        "type": "object"
+      },
+      "TermsVersionListResponse": {
+        "description": "Response for terms version list.\n\nAttributes:\n    items: List of version entries\n    total: Total count\n    limit: Page size\n    offset: Current offset\n    has_more: Whether more items exist\n    next_offset: Offset for next page",
+        "properties": {
+          "has_more": {
+            "description": "Whether more items exist",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "List of versions",
+            "items": {
+              "$ref": "#/components/schemas/TermsVersionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Offset for next page",
+            "title": "Next Offset"
+          },
+          "offset": {
+            "description": "Current offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "title": "TermsVersionListResponse",
+        "type": "object"
+      },
+      "TermsVersionResponse": {
+        "description": "Response model for T&C version.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "published_at": {
+            "title": "Published At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "content",
+          "published_at",
+          "is_active"
+        ],
+        "title": "TermsVersionResponse",
+        "type": "object"
+      },
       "ThemeCount": {
         "description": "Theme with its count.",
         "properties": {
@@ -19193,6 +20016,22 @@
         "title": "UpdateRuntimeConfigRequest",
         "type": "object"
       },
+      "UpdateTermsVersionRequest": {
+        "description": "Request to update a draft T&C version.\n\nAttributes:\n    content: Updated T&C content (markdown)",
+        "properties": {
+          "content": {
+            "description": "Updated T&C content (markdown)",
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "UpdateTermsVersionRequest",
+        "type": "object"
+      },
       "UpdateUserRequest": {
         "description": "Request model for updating user.\n\nAttributes:\n    subscription_tier: New subscription tier (optional)\n    is_admin: New admin status (optional)",
         "properties": {
@@ -19573,45 +20412,6 @@
         "title": "UserCostDetailResponse",
         "type": "object"
       },
-      "UserCostItem": {
-        "description": "Cost summary for a single user.\n\nAttributes:\n    user_id: User identifier\n    email: User email (if available)\n    total_cost: Total cost in USD\n    session_count: Number of sessions",
-        "properties": {
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "User email",
-            "title": "Email"
-          },
-          "session_count": {
-            "description": "Number of sessions",
-            "title": "Session Count",
-            "type": "integer"
-          },
-          "total_cost": {
-            "description": "Total cost (USD)",
-            "title": "Total Cost",
-            "type": "number"
-          },
-          "user_id": {
-            "description": "User identifier",
-            "title": "User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user_id",
-          "total_cost",
-          "session_count"
-        ],
-        "title": "UserCostItem",
-        "type": "object"
-      },
       "UserCostPeriodItem": {
         "description": "Cost totals for a user's billing period (admin only).\n\nAttributes:\n    user_id: User identifier\n    period_start: Start of period (YYYY-MM-DD)\n    period_end: End of period (YYYY-MM-DD)\n    total_cost_cents: Total cost in cents\n    session_count: Number of sessions",
         "properties": {
@@ -19649,42 +20449,6 @@
           "session_count"
         ],
         "title": "UserCostPeriodItem",
-        "type": "object"
-      },
-      "UserCostsResponse": {
-        "description": "Response for per-user cost breakdown.\n\nAttributes:\n    users: List of user cost items\n    total: Total number of users\n    limit: Page size\n    offset: Page offset",
-        "properties": {
-          "limit": {
-            "description": "Page size",
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "description": "Page offset",
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "description": "Total users with costs",
-            "title": "Total",
-            "type": "integer"
-          },
-          "users": {
-            "description": "User cost items",
-            "items": {
-              "$ref": "#/components/schemas/UserCostItem"
-            },
-            "title": "Users",
-            "type": "array"
-          }
-        },
-        "required": [
-          "users",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "UserCostsResponse",
         "type": "object"
       },
       "UserDrillDownItem": {
@@ -21344,6 +22108,125 @@
         "title": "WorkspaceUpdate",
         "type": "object"
       },
+      "backend__api__admin__dashboard__DailyCostItem": {
+        "description": "Cost data for a single day.",
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "session_count": {
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "total_cost",
+          "session_count"
+        ],
+        "title": "DailyCostItem",
+        "type": "object"
+      },
+      "backend__api__admin__dashboard__DailyCostsResponse": {
+        "description": "Daily cost breakdown.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/backend__api__admin__dashboard__DailyCostItem"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "end_date": {
+            "title": "End Date",
+            "type": "string"
+          },
+          "start_date": {
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "start_date",
+          "end_date"
+        ],
+        "title": "DailyCostsResponse",
+        "type": "object"
+      },
+      "backend__api__admin__dashboard__UserCostItem": {
+        "description": "Cost data for a single user.",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "session_count": {
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "total_cost",
+          "session_count"
+        ],
+        "title": "UserCostItem",
+        "type": "object"
+      },
+      "backend__api__admin__dashboard__UserCostsResponse": {
+        "description": "List of user costs.",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/backend__api__admin__dashboard__UserCostItem"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "users",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "UserCostsResponse",
+        "type": "object"
+      },
       "backend__api__admin__models__WaitlistResponse": {
         "description": "Response model for waitlist list.\n\nAttributes:\n    total_count: Total number of waitlist entries\n    pending_count: Number of pending entries\n    entries: List of waitlist entries",
         "properties": {
@@ -21372,6 +22255,138 @@
           "entries"
         ],
         "title": "WaitlistResponse",
+        "type": "object"
+      },
+      "backend__api__models__DailyCostItem": {
+        "description": "Cost summary for a single day.\n\nAttributes:\n    date: Date (YYYY-MM-DD)\n    total_cost: Total cost in USD\n    session_count: Number of sessions",
+        "properties": {
+          "date": {
+            "description": "Date (YYYY-MM-DD)",
+            "title": "Date",
+            "type": "string"
+          },
+          "session_count": {
+            "description": "Number of sessions",
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "total_cost",
+          "session_count"
+        ],
+        "title": "DailyCostItem",
+        "type": "object"
+      },
+      "backend__api__models__DailyCostsResponse": {
+        "description": "Response for daily cost breakdown.\n\nAttributes:\n    days: List of daily cost items\n    start_date: Start of date range\n    end_date: End of date range",
+        "properties": {
+          "days": {
+            "description": "Daily cost items",
+            "items": {
+              "$ref": "#/components/schemas/backend__api__models__DailyCostItem"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "end_date": {
+            "description": "End date (YYYY-MM-DD)",
+            "title": "End Date",
+            "type": "string"
+          },
+          "start_date": {
+            "description": "Start date (YYYY-MM-DD)",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "start_date",
+          "end_date"
+        ],
+        "title": "DailyCostsResponse",
+        "type": "object"
+      },
+      "backend__api__models__UserCostItem": {
+        "description": "Cost summary for a single user.\n\nAttributes:\n    user_id: User identifier\n    email: User email (if available)\n    total_cost: Total cost in USD\n    session_count: Number of sessions",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User email",
+            "title": "Email"
+          },
+          "session_count": {
+            "description": "Number of sessions",
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "total_cost",
+          "session_count"
+        ],
+        "title": "UserCostItem",
+        "type": "object"
+      },
+      "backend__api__models__UserCostsResponse": {
+        "description": "Response for per-user cost breakdown.\n\nAttributes:\n    users: List of user cost items\n    total: Total number of users\n    limit: Page size\n    offset: Page offset",
+        "properties": {
+          "limit": {
+            "description": "Page size",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Page offset",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total users with costs",
+            "title": "Total",
+            "type": "integer"
+          },
+          "users": {
+            "description": "User cost items",
+            "items": {
+              "$ref": "#/components/schemas/backend__api__models__UserCostItem"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "users",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "UserCostsResponse",
         "type": "object"
       },
       "backend__api__waitlist__WaitlistResponse": {
@@ -21883,7 +22898,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DailyCostsResponse"
+                  "$ref": "#/components/schemas/backend__api__models__DailyCostsResponse"
                 }
               }
             },
@@ -22054,7 +23069,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserCostsResponse"
+                  "$ref": "#/components/schemas/backend__api__models__UserCostsResponse"
                 }
               }
             },
@@ -24237,6 +25252,87 @@
         ]
       }
     },
+    "/api/admin/dashboard/costs": {
+      "get": {
+        "description": "Get all data for the costs admin page in a single request.\n\n    Replaces 6 separate API calls:\n    - Cost summary\n    - User costs (top 10)\n    - Daily costs (30 days)\n    - Costs by provider (30 days)\n    - Fixed costs\n    - Per-user costs (30 days, top 20)",
+        "operationId": "get_costs_dashboard_api_admin_dashboard_costs_get",
+        "parameters": [
+          {
+            "description": "Days for provider breakdown",
+            "in": "query",
+            "name": "provider_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days for provider breakdown",
+              "title": "Provider Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Days for per-user costs",
+            "in": "query",
+            "name": "per_user_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days for per-user costs",
+              "title": "Per User Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Limit for per-user list",
+            "in": "query",
+            "name": "per_user_limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Limit for per-user list",
+              "title": "Per User Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostsDashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get costs dashboard data",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-dashboard"
+        ]
+      }
+    },
     "/api/admin/drilldown/costs": {
       "get": {
         "description": "Get paginated list of cost records within the specified time period.",
@@ -24996,6 +26092,61 @@
           "admin",
           "admin",
           "Admin - Embeddings"
+        ]
+      }
+    },
+    "/api/admin/experiments/persona-count": {
+      "get": {
+        "description": "Get metrics for the persona count A/B experiment (3 vs 5 personas).\n\n    Returns:\n    - Session counts per variant\n    - Average cost per session\n    - Average duration and rounds\n    - Completion rates",
+        "operationId": "get_persona_count_experiment_api_admin_experiments_persona_count_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentMetricsResponse"
+                }
+              }
+            },
+            "description": "Experiment metrics retrieved successfully"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get persona count A/B experiment metrics",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Extended KPIs"
         ]
       }
     },
@@ -26922,6 +28073,97 @@
         ]
       }
     },
+    "/api/admin/ops/api-errors": {
+      "get": {
+        "description": "List recent API errors (500s, 429s, 401s).\n\nArgs:\n    request: FastAPI request object\n    limit: Max entries to return\n    offset: Pagination offset\n    hours: Lookback window in hours (default 24)\n    status_code: Filter by specific status code\n    _user: Current authenticated admin user",
+        "operationId": "list_api_errors_api_admin_ops_api_errors_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "title": "Hours",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Code"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Api Errors",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
     "/api/admin/ops/check": {
       "post": {
         "description": "Manually trigger an error pattern check.\n\nArgs:\n    request: FastAPI request object\n    execute_fixes: Whether to execute fixes (default True)\n    _user: Current authenticated admin user\n\nReturns:\n    Check results including detections and remediations",
@@ -26972,6 +28214,126 @@
           }
         },
         "summary": "Trigger Check",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
+    "/api/admin/ops/client-errors": {
+      "get": {
+        "description": "List recent client-side errors from frontend.\n\nArgs:\n    request: FastAPI request object\n    limit: Max entries to return\n    offset: Pagination offset\n    hours: Lookback window in hours (default 24)\n    _user: Current authenticated admin user",
+        "operationId": "list_client_errors_api_admin_ops_client_errors_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "title": "Hours",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientErrorListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Client Errors",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
+    "/api/admin/ops/error-summary": {
+      "get": {
+        "description": "Get summary of errors for ops dashboard.\n\nReturns counts and top errors from the last 24 hours.",
+        "operationId": "get_error_summary_api_admin_ops_error_summary_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Error Summary",
         "tags": [
           "admin",
           "admin",
@@ -29525,6 +30887,422 @@
           "admin",
           "admin",
           "admin-templates"
+        ]
+      }
+    },
+    "/api/admin/terms/consents": {
+      "get": {
+        "description": "Get paginated list of user T&C consents with time period filtering.",
+        "operationId": "get_consent_audit_api_admin_terms_consents_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "all",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentAuditResponse"
+                }
+              }
+            },
+            "description": "Consent records retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List consent audit records",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Terms"
+        ]
+      }
+    },
+    "/api/admin/terms/versions": {
+      "get": {
+        "description": "Get paginated list of all T&C versions (drafts and published).",
+        "operationId": "list_terms_versions_api_admin_terms_versions_get",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsVersionListResponse"
+                }
+              }
+            },
+            "description": "Versions retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List T&C versions",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Terms"
+        ]
+      },
+      "post": {
+        "description": "Create a new T&C version as a draft.",
+        "operationId": "create_terms_version_api_admin_terms_versions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTermsVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsVersionItem"
+                }
+              }
+            },
+            "description": "Version created successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version string already exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create T&C version",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Terms"
+        ]
+      }
+    },
+    "/api/admin/terms/versions/{version_id}": {
+      "put": {
+        "description": "Update content of a draft T&C version. Cannot update published versions.",
+        "operationId": "update_terms_version_api_admin_terms_versions__version_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTermsVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsVersionItem"
+                }
+              }
+            },
+            "description": "Version updated successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version not found or already published"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update draft T&C version",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Terms"
+        ]
+      }
+    },
+    "/api/admin/terms/versions/{version_id}/publish": {
+      "post": {
+        "description": "Publish a T&C version, making it the active version. Deactivates previous active version.",
+        "operationId": "publish_terms_version_api_admin_terms_versions__version_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsVersionItem"
+                }
+              }
+            },
+            "description": "Version published successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish T&C version",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Terms"
         ]
       }
     },
@@ -42362,6 +44140,29 @@
         ]
       }
     },
+    "/api/v1/terms/current": {
+      "get": {
+        "description": "Returns the currently active Terms & Conditions version. Public endpoint.",
+        "operationId": "get_current_terms_api_v1_terms_current_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get current T&C version",
+        "tags": [
+          "terms",
+          "terms"
+        ]
+      }
+    },
     "/api/v1/user/cost-calculator-defaults": {
       "get": {
         "description": "Get the user's saved defaults for the meeting cost calculator widget.",
@@ -43085,6 +44886,202 @@
           }
         },
         "summary": "Update data retention setting",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/retention-reminder/acknowledge": {
+      "post": {
+        "description": "Acknowledge the retention reminder (user understands data will be deleted).\n\n    This resets the reminder timer without changing any settings.\n    The user won't receive another reminder for the minimum interval period.",
+        "operationId": "acknowledge_retention_reminder_api_v1_user_retention_reminder_acknowledge_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReminderSettingsResponse"
+                }
+              }
+            },
+            "description": "Reminder acknowledged"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to acknowledge"
+          }
+        },
+        "summary": "Acknowledge retention reminder",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/retention-reminder/enable": {
+      "post": {
+        "description": "Re-enable data retention reminder emails after suppressing them.",
+        "operationId": "enable_retention_reminders_api_v1_user_retention_reminder_enable_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReminderSettingsResponse"
+                }
+              }
+            },
+            "description": "Reminders enabled"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to update setting"
+          }
+        },
+        "summary": "Enable retention reminder emails",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/retention-reminder/settings": {
+      "get": {
+        "description": "Get the user's retention reminder email preferences.",
+        "operationId": "get_retention_reminder_settings_api_v1_user_retention_reminder_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReminderSettingsResponse"
+                }
+              }
+            },
+            "description": "Current settings"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to get settings"
+          }
+        },
+        "summary": "Get retention reminder settings",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/retention-reminder/suppress": {
+      "post": {
+        "description": "Suppress future data retention reminder emails.\n\n    Users can turn off reminder emails about upcoming data deletion.\n    This does not affect the actual data retention policy - data will\n    still be deleted according to the configured retention period.",
+        "operationId": "suppress_retention_reminders_api_v1_user_retention_reminder_suppress_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReminderSettingsResponse"
+                }
+              }
+            },
+            "description": "Reminders suppressed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to update setting"
+          }
+        },
+        "summary": "Suppress retention reminder emails",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/terms-consent": {
+      "get": {
+        "description": "Check if user has consented to current T&C version, with full consent history.",
+        "operationId": "get_consent_status_api_v1_user_terms_consent_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get consent status",
+        "tags": [
+          "user",
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Record user's consent to a specific T&C version.",
+        "operationId": "record_consent_api_v1_user_terms_consent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentRecordResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record consent",
         "tags": [
           "user",
           "user"

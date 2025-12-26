@@ -677,6 +677,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/dashboard/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get costs dashboard data
+         * @description Get all data for the costs admin page in a single request.
+         *
+         *         Replaces 6 separate API calls:
+         *         - Cost summary
+         *         - User costs (top 10)
+         *         - Daily costs (30 days)
+         *         - Costs by provider (30 days)
+         *         - Fixed costs
+         *         - Per-user costs (30 days, top 20)
+         */
+        get: operations["get_costs_dashboard_api_admin_dashboard_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/drilldown/costs": {
         parameters: {
             query?: never;
@@ -829,6 +857,32 @@ export interface paths {
          * @description Get counts and storage estimates for stored embeddings (admin only).
          */
         get: operations["get_stats_api_admin_embeddings_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/persona-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get persona count A/B experiment metrics
+         * @description Get metrics for the persona count A/B experiment (3 vs 5 personas).
+         *
+         *         Returns:
+         *         - Session counts per variant
+         *         - Average cost per session
+         *         - Average duration and rounds
+         *         - Completion rates
+         */
+        get: operations["get_persona_count_experiment_api_admin_experiments_persona_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1336,6 +1390,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ops/api-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Api Errors
+         * @description List recent API errors (500s, 429s, 401s).
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         limit: Max entries to return
+         *         offset: Pagination offset
+         *         hours: Lookback window in hours (default 24)
+         *         status_code: Filter by specific status code
+         *         _user: Current authenticated admin user
+         */
+        get: operations["list_api_errors_api_admin_ops_api_errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ops/check": {
         parameters: {
             query?: never;
@@ -1358,6 +1440,55 @@ export interface paths {
          *         Check results including detections and remediations
          */
         post: operations["trigger_check_api_admin_ops_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/client-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Errors
+         * @description List recent client-side errors from frontend.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         limit: Max entries to return
+         *         offset: Pagination offset
+         *         hours: Lookback window in hours (default 24)
+         *         _user: Current authenticated admin user
+         */
+        get: operations["list_client_errors_api_admin_ops_client_errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/error-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Error Summary
+         * @description Get summary of errors for ops dashboard.
+         *
+         *     Returns counts and top errors from the last 24 hours.
+         */
+        get: operations["get_error_summary_api_admin_ops_error_summary_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2071,6 +2202,90 @@ export interface paths {
          * @description Reactivate a deactivated template.
          */
         post: operations["activate_template_api_admin_templates__template_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List consent audit records
+         * @description Get paginated list of user T&C consents with time period filtering.
+         */
+        get: operations["get_consent_audit_api_admin_terms_consents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List T&C versions
+         * @description Get paginated list of all T&C versions (drafts and published).
+         */
+        get: operations["list_terms_versions_api_admin_terms_versions_get"];
+        put?: never;
+        /**
+         * Create T&C version
+         * @description Create a new T&C version as a draft.
+         */
+        post: operations["create_terms_version_api_admin_terms_versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update draft T&C version
+         * @description Update content of a draft T&C version. Cannot update published versions.
+         */
+        put: operations["update_terms_version_api_admin_terms_versions__version_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms/versions/{version_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish T&C version
+         * @description Publish a T&C version, making it the active version. Deactivates previous active version.
+         */
+        post: operations["publish_terms_version_api_admin_terms_versions__version_id__publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6750,6 +6965,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/terms/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get current T&C version
+         * @description Returns the currently active Terms & Conditions version. Public endpoint.
+         */
+        get: operations["get_current_terms_api_v1_terms_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/cost-calculator-defaults": {
         parameters: {
             query?: never;
@@ -7035,6 +7270,117 @@ export interface paths {
          *         the cleanup job entirely.
          */
         patch: operations["update_retention_setting_api_v1_user_retention_patch"];
+        trace?: never;
+    };
+    "/api/v1/user/retention-reminder/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge retention reminder
+         * @description Acknowledge the retention reminder (user understands data will be deleted).
+         *
+         *         This resets the reminder timer without changing any settings.
+         *         The user won't receive another reminder for the minimum interval period.
+         */
+        post: operations["acknowledge_retention_reminder_api_v1_user_retention_reminder_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/retention-reminder/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable retention reminder emails
+         * @description Re-enable data retention reminder emails after suppressing them.
+         */
+        post: operations["enable_retention_reminders_api_v1_user_retention_reminder_enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/retention-reminder/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get retention reminder settings
+         * @description Get the user's retention reminder email preferences.
+         */
+        get: operations["get_retention_reminder_settings_api_v1_user_retention_reminder_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/retention-reminder/suppress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suppress retention reminder emails
+         * @description Suppress future data retention reminder emails.
+         *
+         *         Users can turn off reminder emails about upcoming data deletion.
+         *         This does not affect the actual data retention policy - data will
+         *         still be deleted according to the configured retention period.
+         */
+        post: operations["suppress_retention_reminders_api_v1_user_retention_reminder_suppress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/terms-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get consent status
+         * @description Check if user has consented to current T&C version, with full consent history.
+         */
+        get: operations["get_consent_status_api_v1_user_terms_consent_get"];
+        put?: never;
+        /**
+         * Record consent
+         * @description Record user's consent to a specific T&C version.
+         */
+        post: operations["record_consent_api_v1_user_terms_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/user/tier-info": {
@@ -9449,6 +9795,45 @@ export interface components {
             question: string;
         };
         /**
+         * ApiErrorItem
+         * @description API error (500, 429, 401, etc.).
+         */
+        ApiErrorItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Endpoint */
+            endpoint: string;
+            /** Error Message */
+            error_message: string;
+            /** Id */
+            id: number;
+            /** Ip Address */
+            ip_address?: string | null;
+            /** Method */
+            method: string;
+            /** Status Code */
+            status_code: number;
+            /** User Id */
+            user_id?: string | null;
+        };
+        /**
+         * ApiErrorListResponse
+         * @description List of API errors.
+         */
+        ApiErrorListResponse: {
+            /** Errors */
+            errors: components["schemas"]["ApiErrorItem"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * ApplyPromoCodeRequest
          * @description User request to apply a promo code.
          *
@@ -11161,6 +11546,45 @@ export interface components {
             };
         };
         /**
+         * ClientErrorItem
+         * @description Client-side error from frontend.
+         */
+        ClientErrorItem: {
+            /** Component */
+            component?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string;
+            /** Id */
+            id: number;
+            /** Ip Address */
+            ip_address?: string | null;
+            /** Stack */
+            stack?: string | null;
+            /** Url */
+            url: string;
+            /** User Agent */
+            user_agent?: string | null;
+        };
+        /**
+         * ClientErrorListResponse
+         * @description List of client errors.
+         */
+        ClientErrorListResponse: {
+            /** Errors */
+            errors: components["schemas"]["ClientErrorItem"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * ClientErrorReport
          * @description Client-side error report from frontend.
          */
@@ -11625,6 +12049,167 @@ export interface components {
              * @default Resource conflict
              */
             message: string;
+        };
+        /**
+         * ConsentAuditItem
+         * @description Single consent audit entry.
+         *
+         *     Attributes:
+         *         user_id: User identifier
+         *         email: User email (if available)
+         *         terms_version: T&C version string (e.g., "1.0")
+         *         consented_at: When consent was given (ISO 8601)
+         *         ip_address: IP address at time of consent
+         */
+        ConsentAuditItem: {
+            /**
+             * Consented At
+             * @description When consent was given (ISO 8601)
+             */
+            consented_at: string;
+            /**
+             * Email
+             * @description User email
+             */
+            email?: string | null;
+            /**
+             * Ip Address
+             * @description IP address at consent
+             */
+            ip_address?: string | null;
+            /**
+             * Terms Version
+             * @description T&C version string
+             */
+            terms_version: string;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
+        };
+        /**
+         * ConsentAuditResponse
+         * @description Response for consent audit list.
+         *
+         *     Attributes:
+         *         items: List of consent entries
+         *         total: Total count matching filter
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         *         period: Time period filter applied
+         */
+        ConsentAuditResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of consent entries
+             */
+            items: components["schemas"]["ConsentAuditItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
+         * ConsentHistoryItem
+         * @description Individual consent record in history.
+         */
+        ConsentHistoryItem: {
+            /**
+             * Consented At
+             * @description ISO timestamp of consent
+             */
+            consented_at: string;
+            /**
+             * Policy Type
+             * @description Type of policy (e.g., 'Terms & Conditions')
+             */
+            policy_type: string;
+            /**
+             * Policy Url
+             * @description URL to policy page
+             */
+            policy_url: string;
+            /**
+             * Version
+             * @description Version number consented to
+             */
+            version: string;
+        };
+        /**
+         * ConsentRecordResponse
+         * @description Response model for consent record.
+         */
+        ConsentRecordResponse: {
+            /** Consented At */
+            consented_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Message
+             * @default Consent recorded successfully
+             */
+            message: string;
+            /** Terms Version Id */
+            terms_version_id: string;
+        };
+        /**
+         * ConsentRequest
+         * @description Request model for recording consent.
+         */
+        ConsentRequest: {
+            /**
+             * Terms Version Id
+             * @description UUID of T&C version being accepted
+             */
+            terms_version_id: string;
+        };
+        /**
+         * ConsentStatusResponse
+         * @description Response model for consent status check.
+         */
+        ConsentStatusResponse: {
+            /** Consented At */
+            consented_at?: string | null;
+            /** Consented Version */
+            consented_version?: string | null;
+            /**
+             * Consents
+             * @description Full consent history
+             */
+            consents?: components["schemas"]["ConsentHistoryItem"][];
+            /** Current Version */
+            current_version?: string | null;
+            /** Has Consented */
+            has_consented: boolean;
         };
         /**
          * ContextChoiceRequest
@@ -12318,6 +12903,28 @@ export interface components {
             total_cost_usd: number;
         };
         /**
+         * CostSummary
+         * @description Summary of costs for different periods.
+         */
+        CostSummary: {
+            /** All Time */
+            all_time: number;
+            /** Session Count Month */
+            session_count_month: number;
+            /** Session Count Today */
+            session_count_today: number;
+            /** Session Count Total */
+            session_count_total: number;
+            /** Session Count Week */
+            session_count_week: number;
+            /** This Month */
+            this_month: number;
+            /** This Week */
+            this_week: number;
+            /** Today */
+            today: number;
+        };
+        /**
          * CostSummaryResponse
          * @description Cost totals for different time periods.
          *
@@ -12394,6 +13001,18 @@ export interface components {
             providers: components["schemas"]["ProviderCostItem"][];
             /** Total Usd */
             total_usd: number;
+        };
+        /**
+         * CostsDashboardResponse
+         * @description Combined response for costs page - replaces 6 API calls.
+         */
+        CostsDashboardResponse: {
+            by_provider: components["schemas"]["CostsByProviderResponse"];
+            daily_costs: components["schemas"]["backend__api__admin__dashboard__DailyCostsResponse"];
+            fixed_costs: components["schemas"]["FixedCostsResponse"];
+            per_user: components["schemas"]["PerUserCostResponse"];
+            summary: components["schemas"]["CostSummary"];
+            user_costs: components["schemas"]["backend__api__admin__dashboard__UserCostsResponse"];
         };
         /**
          * CreateFeatureFlagRequest
@@ -12645,6 +13264,28 @@ export interface components {
             workspace_id?: string | null;
         };
         /**
+         * CreateTermsVersionRequest
+         * @description Request to create a new T&C version.
+         *
+         *     Attributes:
+         *         version: Version string (e.g., "1.1")
+         *         content: T&C content (markdown)
+         */
+        CreateTermsVersionRequest: {
+            /**
+             * Content
+             * @description T&C content (markdown)
+             */
+            content: string;
+            /**
+             * Version
+             * @description Version string
+             * @example 1.1
+             * @example 2.0
+             */
+            version: string;
+        };
+        /**
          * DailyActionStat
          * @description Daily activity statistics for dashboard heatmap.
          *
@@ -12699,58 +13340,6 @@ export interface components {
              * @default 0
              */
             sessions_run: number;
-        };
-        /**
-         * DailyCostItem
-         * @description Cost summary for a single day.
-         *
-         *     Attributes:
-         *         date: Date (YYYY-MM-DD)
-         *         total_cost: Total cost in USD
-         *         session_count: Number of sessions
-         */
-        DailyCostItem: {
-            /**
-             * Date
-             * @description Date (YYYY-MM-DD)
-             */
-            date: string;
-            /**
-             * Session Count
-             * @description Number of sessions
-             */
-            session_count: number;
-            /**
-             * Total Cost
-             * @description Total cost (USD)
-             */
-            total_cost: number;
-        };
-        /**
-         * DailyCostsResponse
-         * @description Response for daily cost breakdown.
-         *
-         *     Attributes:
-         *         days: List of daily cost items
-         *         start_date: Start of date range
-         *         end_date: End of date range
-         */
-        DailyCostsResponse: {
-            /**
-             * Days
-             * @description Daily cost items
-             */
-            days: components["schemas"]["DailyCostItem"][];
-            /**
-             * End Date
-             * @description End date (YYYY-MM-DD)
-             */
-            end_date: string;
-            /**
-             * Start Date
-             * @description Start date (YYYY-MM-DD)
-             */
-            start_date: string;
         };
         /**
          * DailyCount
@@ -13930,6 +14519,24 @@ export interface components {
             message: string;
         };
         /**
+         * ErrorSummaryResponse
+         * @description Summary of errors for ops dashboard.
+         */
+        ErrorSummaryResponse: {
+            /** Api Errors 24H */
+            api_errors_24h: number;
+            /** Client Errors 24H */
+            client_errors_24h: number;
+            /** Top Api Endpoints */
+            top_api_endpoints: {
+                [key: string]: unknown;
+            }[];
+            /** Top Client Errors */
+            top_client_errors: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
          * EscalateBlockerRequest
          * @description Request model for escalating a blocked action to a meeting.
          */
@@ -14020,6 +14627,100 @@ export interface components {
              * @description Warning threshold
              */
             threshold_warning: number;
+        };
+        /**
+         * ExperimentMetricsResponse
+         * @description Response model for A/B experiment metrics.
+         *
+         *     Attributes:
+         *         experiment_name: Name of the experiment
+         *         variants: Stats for each variant
+         *         total_sessions: Total sessions in experiment
+         *         period_start: Start of analysis period (ISO 8601)
+         *         period_end: End of analysis period (ISO 8601)
+         */
+        ExperimentMetricsResponse: {
+            /**
+             * Experiment Name
+             * @description Experiment name
+             */
+            experiment_name: string;
+            /**
+             * Period End
+             * @description Analysis period end (ISO 8601)
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * @description Analysis period start (ISO 8601)
+             */
+            period_start: string;
+            /**
+             * Total Sessions
+             * @description Total sessions in experiment
+             */
+            total_sessions: number;
+            /**
+             * Variants
+             * @description Per-variant stats
+             */
+            variants: components["schemas"]["ExperimentVariantStats"][];
+        };
+        /**
+         * ExperimentVariantStats
+         * @description Statistics for a single A/B test variant.
+         *
+         *     Attributes:
+         *         variant: Variant value (e.g., 3 or 5 for persona count)
+         *         session_count: Number of sessions with this variant
+         *         completed_count: Number of completed sessions
+         *         avg_cost: Average total cost per session (USD)
+         *         avg_duration_seconds: Average session duration
+         *         avg_rounds: Average number of rounds
+         *         avg_persona_count: Actual average personas selected
+         *         completion_rate: Percentage of sessions completed successfully
+         */
+        ExperimentVariantStats: {
+            /**
+             * Avg Cost
+             * @description Average cost per session (USD)
+             */
+            avg_cost?: number | null;
+            /**
+             * Avg Duration Seconds
+             * @description Average duration (s)
+             */
+            avg_duration_seconds?: number | null;
+            /**
+             * Avg Persona Count
+             * @description Average personas selected
+             */
+            avg_persona_count?: number | null;
+            /**
+             * Avg Rounds
+             * @description Average number of rounds
+             */
+            avg_rounds?: number | null;
+            /**
+             * Completed Count
+             * @description Completed sessions
+             */
+            completed_count: number;
+            /**
+             * Completion Rate
+             * @description Completion rate (0-100%)
+             */
+            completion_rate: number;
+            /**
+             * Session Count
+             * @description Total sessions with this variant
+             */
+            session_count: number;
+            /**
+             * Variant
+             * @description Variant value (3 or 5)
+             */
+            variant: number;
         };
         /**
          * ExtendedKPIsResponse
@@ -18586,6 +19287,22 @@ export interface components {
             total_usd: number;
         };
         /**
+         * RetentionReminderSettingsResponse
+         * @description Response for retention reminder settings endpoint.
+         */
+        RetentionReminderSettingsResponse: {
+            /**
+             * Deletion Reminder Suppressed
+             * @description Whether deletion reminder emails are suppressed
+             */
+            deletion_reminder_suppressed: boolean;
+            /**
+             * Last Deletion Reminder Sent At
+             * @description When last reminder was sent
+             */
+            last_deletion_reminder_sent_at?: string | null;
+        };
+        /**
          * RetentionSettingResponse
          * @description Response for retention setting endpoint.
          */
@@ -20043,6 +20760,110 @@ export interface components {
             total_sub_problems: number;
         };
         /**
+         * TermsVersionItem
+         * @description Single T&C version entry.
+         *
+         *     Attributes:
+         *         id: Version UUID
+         *         version: Version string (e.g., "1.0")
+         *         content: T&C content (markdown)
+         *         is_active: Whether this is the active version
+         *         published_at: When version was published (ISO 8601, null if draft)
+         *         created_at: When version was created (ISO 8601)
+         */
+        TermsVersionItem: {
+            /**
+             * Content
+             * @description T&C content (markdown)
+             */
+            content: string;
+            /**
+             * Created At
+             * @description When created (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Id
+             * @description Version UUID
+             */
+            id: string;
+            /**
+             * Is Active
+             * @description Whether this is the active version
+             */
+            is_active: boolean;
+            /**
+             * Published At
+             * @description When published (ISO 8601)
+             */
+            published_at?: string | null;
+            /**
+             * Version
+             * @description Version string (e.g., '1.0')
+             */
+            version: string;
+        };
+        /**
+         * TermsVersionListResponse
+         * @description Response for terms version list.
+         *
+         *     Attributes:
+         *         items: List of version entries
+         *         total: Total count
+         *         limit: Page size
+         *         offset: Current offset
+         *         has_more: Whether more items exist
+         *         next_offset: Offset for next page
+         */
+        TermsVersionListResponse: {
+            /**
+             * Has More
+             * @description Whether more items exist
+             */
+            has_more: boolean;
+            /**
+             * Items
+             * @description List of versions
+             */
+            items: components["schemas"]["TermsVersionItem"][];
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Next Offset
+             * @description Offset for next page
+             */
+            next_offset?: number | null;
+            /**
+             * Offset
+             * @description Current offset
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
+         * TermsVersionResponse
+         * @description Response model for T&C version.
+         */
+        TermsVersionResponse: {
+            /** Content */
+            content: string;
+            /** Id */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Published At */
+            published_at: string;
+            /** Version */
+            version: string;
+        };
+        /**
          * ThemeCount
          * @description Theme with its count.
          */
@@ -20625,6 +21446,20 @@ export interface components {
             value: boolean;
         };
         /**
+         * UpdateTermsVersionRequest
+         * @description Request to update a draft T&C version.
+         *
+         *     Attributes:
+         *         content: Updated T&C content (markdown)
+         */
+        UpdateTermsVersionRequest: {
+            /**
+             * Content
+             * @description Updated T&C content (markdown)
+             */
+            content: string;
+        };
+        /**
          * UpdateUserRequest
          * @description Request model for updating user.
          *
@@ -20871,38 +21706,6 @@ export interface components {
             user_id: string;
         };
         /**
-         * UserCostItem
-         * @description Cost summary for a single user.
-         *
-         *     Attributes:
-         *         user_id: User identifier
-         *         email: User email (if available)
-         *         total_cost: Total cost in USD
-         *         session_count: Number of sessions
-         */
-        UserCostItem: {
-            /**
-             * Email
-             * @description User email
-             */
-            email?: string | null;
-            /**
-             * Session Count
-             * @description Number of sessions
-             */
-            session_count: number;
-            /**
-             * Total Cost
-             * @description Total cost (USD)
-             */
-            total_cost: number;
-            /**
-             * User Id
-             * @description User identifier
-             */
-            user_id: string;
-        };
-        /**
          * UserCostPeriodItem
          * @description Cost totals for a user's billing period (admin only).
          *
@@ -20939,38 +21742,6 @@ export interface components {
              * @description User identifier
              */
             user_id: string;
-        };
-        /**
-         * UserCostsResponse
-         * @description Response for per-user cost breakdown.
-         *
-         *     Attributes:
-         *         users: List of user cost items
-         *         total: Total number of users
-         *         limit: Page size
-         *         offset: Page offset
-         */
-        UserCostsResponse: {
-            /**
-             * Limit
-             * @description Page size
-             */
-            limit: number;
-            /**
-             * Offset
-             * @description Page offset
-             */
-            offset: number;
-            /**
-             * Total
-             * @description Total users with costs
-             */
-            total: number;
-            /**
-             * Users
-             * @description User cost items
-             */
-            users: components["schemas"]["UserCostItem"][];
         };
         /**
          * UserDrillDownItem
@@ -22057,6 +22828,58 @@ export interface components {
             slug?: string | null;
         };
         /**
+         * DailyCostItem
+         * @description Cost data for a single day.
+         */
+        backend__api__admin__dashboard__DailyCostItem: {
+            /** Date */
+            date: string;
+            /** Session Count */
+            session_count: number;
+            /** Total Cost */
+            total_cost: number;
+        };
+        /**
+         * DailyCostsResponse
+         * @description Daily cost breakdown.
+         */
+        backend__api__admin__dashboard__DailyCostsResponse: {
+            /** Days */
+            days: components["schemas"]["backend__api__admin__dashboard__DailyCostItem"][];
+            /** End Date */
+            end_date: string;
+            /** Start Date */
+            start_date: string;
+        };
+        /**
+         * UserCostItem
+         * @description Cost data for a single user.
+         */
+        backend__api__admin__dashboard__UserCostItem: {
+            /** Email */
+            email: string | null;
+            /** Session Count */
+            session_count: number;
+            /** Total Cost */
+            total_cost: number;
+            /** User Id */
+            user_id: string;
+        };
+        /**
+         * UserCostsResponse
+         * @description List of user costs.
+         */
+        backend__api__admin__dashboard__UserCostsResponse: {
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+            /** Users */
+            users: components["schemas"]["backend__api__admin__dashboard__UserCostItem"][];
+        };
+        /**
          * WaitlistResponse
          * @description Response model for waitlist list.
          *
@@ -22081,6 +22904,122 @@ export interface components {
              * @description Total number of waitlist entries
              */
             total_count: number;
+        };
+        /**
+         * DailyCostItem
+         * @description Cost summary for a single day.
+         *
+         *     Attributes:
+         *         date: Date (YYYY-MM-DD)
+         *         total_cost: Total cost in USD
+         *         session_count: Number of sessions
+         */
+        backend__api__models__DailyCostItem: {
+            /**
+             * Date
+             * @description Date (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Session Count
+             * @description Number of sessions
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+        };
+        /**
+         * DailyCostsResponse
+         * @description Response for daily cost breakdown.
+         *
+         *     Attributes:
+         *         days: List of daily cost items
+         *         start_date: Start of date range
+         *         end_date: End of date range
+         */
+        backend__api__models__DailyCostsResponse: {
+            /**
+             * Days
+             * @description Daily cost items
+             */
+            days: components["schemas"]["backend__api__models__DailyCostItem"][];
+            /**
+             * End Date
+             * @description End date (YYYY-MM-DD)
+             */
+            end_date: string;
+            /**
+             * Start Date
+             * @description Start date (YYYY-MM-DD)
+             */
+            start_date: string;
+        };
+        /**
+         * UserCostItem
+         * @description Cost summary for a single user.
+         *
+         *     Attributes:
+         *         user_id: User identifier
+         *         email: User email (if available)
+         *         total_cost: Total cost in USD
+         *         session_count: Number of sessions
+         */
+        backend__api__models__UserCostItem: {
+            /**
+             * Email
+             * @description User email
+             */
+            email?: string | null;
+            /**
+             * Session Count
+             * @description Number of sessions
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
+        };
+        /**
+         * UserCostsResponse
+         * @description Response for per-user cost breakdown.
+         *
+         *     Attributes:
+         *         users: List of user cost items
+         *         total: Total number of users
+         *         limit: Page size
+         *         offset: Page offset
+         */
+        backend__api__models__UserCostsResponse: {
+            /**
+             * Limit
+             * @description Page size
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Page offset
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Total users with costs
+             */
+            total: number;
+            /**
+             * Users
+             * @description User cost items
+             */
+            users: components["schemas"]["backend__api__models__UserCostItem"][];
         };
         /**
          * WaitlistResponse
@@ -22380,7 +23319,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DailyCostsResponse"];
+                    "application/json": components["schemas"]["backend__api__models__DailyCostsResponse"];
                 };
             };
             /** @description Admin access required */
@@ -22468,7 +23407,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserCostsResponse"];
+                    "application/json": components["schemas"]["backend__api__models__UserCostsResponse"];
                 };
             };
             /** @description Admin access required */
@@ -23792,6 +24731,44 @@ export interface operations {
             };
         };
     };
+    get_costs_dashboard_api_admin_dashboard_costs_get: {
+        parameters: {
+            query?: {
+                /** @description Days for provider breakdown */
+                provider_days?: number;
+                /** @description Days for per-user costs */
+                per_user_days?: number;
+                /** @description Limit for per-user list */
+                per_user_limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostsDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_costs_drilldown_api_admin_drilldown_costs_get: {
         parameters: {
             query?: {
@@ -24211,6 +25188,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_persona_count_experiment_api_admin_experiments_persona_count_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Experiment metrics retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentMetricsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25531,6 +26548,42 @@ export interface operations {
             };
         };
     };
+    list_api_errors_api_admin_ops_api_errors_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                hours?: number;
+                status_code?: number | null;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     trigger_check_api_admin_ops_check_post: {
         parameters: {
             query?: {
@@ -25553,6 +26606,72 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_client_errors_api_admin_ops_client_errors_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                hours?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientErrorListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_error_summary_api_admin_ops_error_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27344,6 +28463,266 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_consent_audit_api_admin_terms_consents_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent records retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentAuditResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_terms_versions_api_admin_terms_versions_get: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Versions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsVersionListResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_terms_version_api_admin_terms_versions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTermsVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Version created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsVersionItem"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version string already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_terms_version_api_admin_terms_versions__version_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTermsVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Version updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsVersionItem"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version not found or already published */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_terms_version_api_admin_terms_versions__version_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version published successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsVersionItem"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -36606,6 +37985,26 @@ export interface operations {
             };
         };
     };
+    get_current_terms_api_v1_terms_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsVersionResponse"];
+                };
+            };
+        };
+    };
     get_cost_calculator_defaults_api_v1_user_cost_calculator_defaults_get: {
         parameters: {
             query?: never;
@@ -37217,6 +38616,175 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    acknowledge_retention_reminder_api_v1_user_retention_reminder_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reminder acknowledged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionReminderSettingsResponse"];
+                };
+            };
+            /** @description Failed to acknowledge */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    enable_retention_reminders_api_v1_user_retention_reminder_enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reminders enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionReminderSettingsResponse"];
+                };
+            };
+            /** @description Failed to update setting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_retention_reminder_settings_api_v1_user_retention_reminder_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionReminderSettingsResponse"];
+                };
+            };
+            /** @description Failed to get settings */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    suppress_retention_reminders_api_v1_user_retention_reminder_suppress_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reminders suppressed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionReminderSettingsResponse"];
+                };
+            };
+            /** @description Failed to update setting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_consent_status_api_v1_user_terms_consent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    record_consent_api_v1_user_terms_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

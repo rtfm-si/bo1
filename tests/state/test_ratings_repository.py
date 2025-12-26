@@ -29,7 +29,7 @@ class TestRatingsRepositoryValidation:
             )
         except ValueError:
             pytest.fail("'meeting' should be a valid entity_type")
-        except Exception:
+        except Exception:  # noqa: S110
             # Expected - no DB connection, but validation passed
             pass
 
@@ -47,7 +47,7 @@ class TestRatingsRepositoryValidation:
             )
         except ValueError:
             pytest.fail("'action' should be a valid entity_type")
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def test_rejects_invalid_entity_type(self):
@@ -91,7 +91,7 @@ class TestRatingsRepositoryValidation:
         except ValueError as e:
             if "rating" in str(e):
                 pytest.fail("+1 should be a valid rating")
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def test_validates_rating_thumbs_down(self):
@@ -109,7 +109,7 @@ class TestRatingsRepositoryValidation:
         except ValueError as e:
             if "rating" in str(e):
                 pytest.fail("-1 should be a valid rating")
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def test_rejects_rating_zero(self):

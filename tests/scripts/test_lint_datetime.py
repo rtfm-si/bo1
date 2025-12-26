@@ -212,7 +212,7 @@ class TestIntegration:
         # This test runs the actual linter
         import subprocess
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [sys.executable, "scripts/lint_datetime.py", "--base", ".", "--quiet"],
             capture_output=True,
             text=True,

@@ -657,6 +657,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/costs/research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Research costs
+         * @description Get Brave and Tavily research API costs breakdown.
+         */
+        get: operations["get_research_costs_api_admin_costs_research_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/drilldown/costs": {
         parameters: {
             query?: never;
@@ -749,6 +769,26 @@ export interface paths {
          * @description Get email send counts by type and time period (admin only).
          */
         get: operations["get_email_stats_api_admin_email_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/embeddings/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get research cache categories
+         * @description Get distinct categories from research cache for filtering (admin only).
+         */
+        get: operations["get_categories_api_admin_embeddings_categories_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1650,6 +1690,26 @@ export interface paths {
          *         Requires superuser or pg_stat_statements_reset privilege.
          */
         post: operations["reset_query_stats_api_admin_queries_slow_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/research-cache/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get detailed cache metrics with threshold recommendation
+         * @description Get multi-period hit rates, miss distribution, and similarity threshold recommendation.
+         */
+        get: operations["get_research_cache_metrics_api_admin_research_cache_metrics_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2989,6 +3049,26 @@ export interface paths {
          * @description Remove a dependency from an action. May auto-unblock if no more incomplete dependencies.
          */
         delete: operations["remove_action_dependency_api_v1_actions__action_id__dependencies__depends_on_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/actions/{action_id}/escalate-blocker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Escalate blocked action to a meeting
+         * @description Create a focused meeting session to resolve a blocked action with AI personas.
+         */
+        post: operations["escalate_blocker_api_v1_actions__action_id__escalate_blocker_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4424,6 +4504,64 @@ export interface paths {
          *         **Supported content:** HTML pages. PDFs and other formats are not supported.
          */
         post: operations["analyze_trend_api_v1_context_trends_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get trend forecast for timeframe
+         * @description Get AI-generated market forecast for a specific timeframe.
+         *
+         *         **Tier Gating:**
+         *         - Free: 3m only
+         *         - Starter: 3m, 12m
+         *         - Pro/Enterprise: 3m, 12m, 24m
+         *
+         *         Returns 403 with upgrade_prompt if tier insufficient for requested timeframe.
+         *         Cache key: `trend_forecasts_{timeframe}` in user_context.
+         */
+        get: operations["get_trend_forecast_api_v1_context_trends_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/trends/forecast/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh trend forecast for timeframe
+         * @description Generate or refresh the AI-powered market forecast for a specific timeframe.
+         *
+         *         **Tier Gating:**
+         *         - Free: 3m only
+         *         - Starter: 3m, 12m
+         *         - Pro/Enterprise: 3m, 12m, 24m
+         *
+         *         **Rate Limit:** 1 refresh per hour per timeframe.
+         *         **Cost:** ~$0.005 per generation.
+         *
+         *         Returns 403 with upgrade_prompt if tier insufficient.
+         */
+        post: operations["refresh_trend_forecast_api_v1_context_trends_forecast_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10333,6 +10471,118 @@ export interface components {
          */
         BusinessStage: "idea" | "early" | "growing" | "scaling";
         /**
+         * CacheMetricsResponse
+         * @description Response model for detailed research cache metrics.
+         *
+         *     Provides multi-period hit rates, miss distribution, and threshold recommendations.
+         *
+         *     Attributes:
+         *         hit_rate_1d: Cache hit rate in last 24 hours (percentage)
+         *         hit_rate_7d: Cache hit rate in last 7 days (percentage)
+         *         hit_rate_30d: Cache hit rate in last 30 days (percentage)
+         *         total_queries_1d: Total research queries in last 24 hours
+         *         total_queries_7d: Total research queries in last 7 days
+         *         total_queries_30d: Total research queries in last 30 days
+         *         cache_hits_1d: Cache hits in last 24 hours
+         *         cache_hits_7d: Cache hits in last 7 days
+         *         cache_hits_30d: Cache hits in last 30 days
+         *         avg_similarity_on_hit: Mean similarity score for cache hits
+         *         miss_distribution: Histogram of near-miss similarity scores (0.70-0.85)
+         *         current_threshold: Current similarity threshold from config
+         *         recommended_threshold: Algorithm-suggested threshold
+         *         recommendation_reason: Explanation for recommendation
+         *         recommendation_confidence: Confidence level (low, medium, high)
+         *         total_cached_results: Total entries in cache
+         *         cost_savings_30d: Estimated cost savings in last 30 days (USD)
+         */
+        CacheMetricsResponse: {
+            /**
+             * Avg Similarity On Hit
+             * @description Mean similarity score for hits
+             */
+            avg_similarity_on_hit: number;
+            /**
+             * Cache Hits 1D
+             * @description Cache hits in last 24 hours
+             */
+            cache_hits_1d: number;
+            /**
+             * Cache Hits 30D
+             * @description Cache hits in last 30 days
+             */
+            cache_hits_30d: number;
+            /**
+             * Cache Hits 7D
+             * @description Cache hits in last 7 days
+             */
+            cache_hits_7d: number;
+            /**
+             * Cost Savings 30D
+             * @description Estimated savings in last 30 days (USD)
+             */
+            cost_savings_30d: number;
+            /**
+             * Current Threshold
+             * @description Current similarity threshold
+             */
+            current_threshold: number;
+            /**
+             * Hit Rate 1D
+             * @description Cache hit rate in last 24 hours (%)
+             */
+            hit_rate_1d: number;
+            /**
+             * Hit Rate 30D
+             * @description Cache hit rate in last 30 days (%)
+             */
+            hit_rate_30d: number;
+            /**
+             * Hit Rate 7D
+             * @description Cache hit rate in last 7 days (%)
+             */
+            hit_rate_7d: number;
+            /**
+             * Miss Distribution
+             * @description Near-miss similarity distribution (0.70-0.85)
+             */
+            miss_distribution: components["schemas"]["SimilarityBucket"][];
+            /**
+             * Recommendation Confidence
+             * @description Confidence level: low, medium, high
+             */
+            recommendation_confidence: string;
+            /**
+             * Recommendation Reason
+             * @description Explanation for recommendation
+             */
+            recommendation_reason: string;
+            /**
+             * Recommended Threshold
+             * @description Recommended similarity threshold
+             */
+            recommended_threshold: number;
+            /**
+             * Total Cached Results
+             * @description Total entries in cache
+             */
+            total_cached_results: number;
+            /**
+             * Total Queries 1D
+             * @description Total queries in last 24 hours
+             */
+            total_queries_1d: number;
+            /**
+             * Total Queries 30D
+             * @description Total queries in last 30 days
+             */
+            total_queries_30d: number;
+            /**
+             * Total Queries 7D
+             * @description Total queries in last 7 days
+             */
+            total_queries_7d: number;
+        };
+        /**
          * CalendarStatusResponse
          * @description Response for calendar connection status.
          */
@@ -10359,6 +10609,33 @@ export interface components {
         CalendarSyncToggleRequest: {
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * CategoriesResponse
+         * @description Response model for research cache categories.
+         */
+        CategoriesResponse: {
+            /**
+             * Categories
+             * @description List of categories with counts
+             */
+            categories: components["schemas"]["CategoryCount"][];
+        };
+        /**
+         * CategoryCount
+         * @description Category with embedding count.
+         */
+        CategoryCount: {
+            /**
+             * Category
+             * @description Category name
+             */
+            category: string;
+            /**
+             * Count
+             * @description Number of embeddings
+             */
+            count: number;
         };
         /**
          * ChartResultResponse
@@ -10938,6 +11215,34 @@ export interface components {
         ClientMetricsBatch: {
             /** Operations */
             operations?: components["schemas"]["TrackedOperation"][];
+        };
+        /**
+         * ClusterInfo
+         * @description Information about a cluster of embeddings.
+         */
+        ClusterInfo: {
+            /**
+             * Centroid
+             * @description Centroid coordinates {x, y}
+             */
+            centroid: {
+                [key: string]: number;
+            };
+            /**
+             * Count
+             * @description Number of points in cluster
+             */
+            count: number;
+            /**
+             * Id
+             * @description Cluster ID (0-indexed)
+             */
+            id: number;
+            /**
+             * Label
+             * @description Human-readable cluster label
+             */
+            label: string;
         };
         /**
          * CohortResponse
@@ -12461,6 +12766,41 @@ export interface components {
             date: string;
         };
         /**
+         * DailyResearchCost
+         * @description Daily research cost for trend chart.
+         *
+         *     Attributes:
+         *         date: Date (YYYY-MM-DD)
+         *         brave: Brave costs for the day
+         *         tavily: Tavily costs for the day
+         *         total: Total costs for the day
+         */
+        DailyResearchCost: {
+            /**
+             * Brave
+             * @description Brave costs (USD)
+             * @default 0
+             */
+            brave: number;
+            /**
+             * Date
+             * @description Date (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Tavily
+             * @description Tavily costs (USD)
+             * @default 0
+             */
+            tavily: number;
+            /**
+             * Total
+             * @description Total costs (USD)
+             * @default 0
+             */
+            total: number;
+        };
+        /**
          * DailySummaryItem
          * @description Single day cost summary.
          */
@@ -13319,6 +13659,12 @@ export interface components {
          */
         EmbeddingPoint: {
             /**
+             * Cluster Id
+             * @description Cluster assignment (0 if clustering disabled)
+             * @default 0
+             */
+            cluster_id: number;
+            /**
              * Created At
              * @description When embedding was created
              */
@@ -13356,6 +13702,11 @@ export interface components {
          * @description Response model for embedding sample with 2D coordinates.
          */
         EmbeddingSampleResponse: {
+            /**
+             * Clusters
+             * @description Cluster info if clustering enabled
+             */
+            clusters?: components["schemas"]["ClusterInfo"][];
             /**
              * Method
              * @description Reduction method used (pca/umap)
@@ -13577,6 +13928,34 @@ export interface components {
              * @example Invalid request parameters
              */
             message: string;
+        };
+        /**
+         * EscalateBlockerRequest
+         * @description Request model for escalating a blocked action to a meeting.
+         */
+        EscalateBlockerRequest: {
+            /**
+             * Include Suggestions
+             * @description Include prior unblock suggestions in meeting context
+             * @default true
+             */
+            include_suggestions: boolean;
+        };
+        /**
+         * EscalateBlockerResponse
+         * @description Response model for blocker escalation.
+         */
+        EscalateBlockerResponse: {
+            /**
+             * Redirect Url
+             * @description URL to redirect to the meeting
+             */
+            redirect_url: string;
+            /**
+             * Session Id
+             * @description ID of the created meeting session
+             */
+            session_id: string;
         };
         /**
          * EventHistoryResponse
@@ -18110,6 +18489,103 @@ export interface components {
             total_cached_results: number;
         };
         /**
+         * ResearchCostItem
+         * @description Cost data for a single research provider.
+         *
+         *     Attributes:
+         *         provider: Research provider name (brave, tavily)
+         *         amount_usd: Total cost in USD
+         *         query_count: Number of API calls made
+         */
+        ResearchCostItem: {
+            /**
+             * Amount Usd
+             * @description Total cost in USD
+             */
+            amount_usd: number;
+            /**
+             * Provider
+             * @description Research provider (brave, tavily)
+             */
+            provider: string;
+            /**
+             * Query Count
+             * @description Number of queries/calls
+             */
+            query_count: number;
+        };
+        /**
+         * ResearchCostsByPeriod
+         * @description Research costs aggregated by time period.
+         *
+         *     Attributes:
+         *         today: Costs from today
+         *         week: Costs from last 7 days
+         *         month: Costs from last 30 days
+         *         all_time: All-time costs
+         */
+        ResearchCostsByPeriod: {
+            /**
+             * All Time
+             * @description All-time cost (USD)
+             * @default 0
+             */
+            all_time: number;
+            /**
+             * Month
+             * @description Cost this month (USD)
+             * @default 0
+             */
+            month: number;
+            /**
+             * Today
+             * @description Cost today (USD)
+             * @default 0
+             */
+            today: number;
+            /**
+             * Week
+             * @description Cost this week (USD)
+             * @default 0
+             */
+            week: number;
+        };
+        /**
+         * ResearchCostsResponse
+         * @description Response model for research costs endpoint.
+         *
+         *     Attributes:
+         *         brave: Brave Search costs breakdown
+         *         tavily: Tavily costs breakdown
+         *         total_usd: Total research costs
+         *         total_queries: Total number of research queries
+         *         by_period: Costs aggregated by time period
+         *         daily_trend: Last 7 days of costs for chart
+         */
+        ResearchCostsResponse: {
+            /** @description Brave Search costs */
+            brave: components["schemas"]["ResearchCostItem"];
+            /** @description Costs by time period */
+            by_period: components["schemas"]["ResearchCostsByPeriod"];
+            /**
+             * Daily Trend
+             * @description Daily costs for chart
+             */
+            daily_trend: components["schemas"]["DailyResearchCost"][];
+            /** @description Tavily costs */
+            tavily: components["schemas"]["ResearchCostItem"];
+            /**
+             * Total Queries
+             * @description Total research queries
+             */
+            total_queries: number;
+            /**
+             * Total Usd
+             * @description Total research costs (USD)
+             */
+            total_usd: number;
+        };
+        /**
          * RetentionSettingResponse
          * @description Response for retention setting endpoint.
          */
@@ -18819,6 +19295,38 @@ export interface components {
              * @description User ID
              */
             user_id: string;
+        };
+        /**
+         * SimilarityBucket
+         * @description A bucket in the similarity distribution histogram.
+         *
+         *     Attributes:
+         *         bucket: Bucket number (1-5)
+         *         range_start: Start of similarity range
+         *         range_end: End of similarity range
+         *         count: Number of entries in this bucket
+         */
+        SimilarityBucket: {
+            /**
+             * Bucket
+             * @description Bucket number (1-5)
+             */
+            bucket: number;
+            /**
+             * Count
+             * @description Number of entries in this bucket
+             */
+            count: number;
+            /**
+             * Range End
+             * @description End of similarity range
+             */
+            range_end: number;
+            /**
+             * Range Start
+             * @description Start of similarity range
+             */
+            range_start: number;
         };
         /**
          * SlowQueryListResponse
@@ -23253,6 +23761,37 @@ export interface operations {
             };
         };
     };
+    get_research_costs_api_admin_costs_research_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchCostsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_costs_drilldown_api_admin_drilldown_costs_get: {
         parameters: {
             query?: {
@@ -23511,11 +24050,71 @@ export interface operations {
             };
         };
     };
+    get_categories_api_admin_embeddings_categories_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Categories retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoriesResponse"];
+                };
+            };
+            /** @description Admin API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid admin API key */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_sample_api_admin_embeddings_sample_get: {
         parameters: {
             query?: {
                 /** @description Filter by embedding type */
                 embedding_type?: "all" | "contributions" | "research" | "context";
+                /** @description Filter research embeddings by category */
+                category?: string | null;
                 /** @description Max samples to return */
                 limit?: number;
                 /** @description Dimensionality reduction method */
@@ -25682,6 +26281,64 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_research_cache_metrics_api_admin_research_cache_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cache metrics retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CacheMetricsResponse"];
+                };
+            };
+            /** @description Admin API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid admin API key */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -28917,6 +29574,68 @@ export interface operations {
             };
         };
     };
+    escalate_blocker_api_v1_actions__action_id__escalate_blocker_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EscalateBlockerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Meeting created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EscalateBlockerResponse"];
+                };
+            };
+            /** @description Action is not blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Action not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     update_action_progress_api_v1_actions__action_id__progress_patch: {
         parameters: {
             query?: never;
@@ -31282,6 +32001,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_trend_forecast_api_v1_context_trends_forecast_get: {
+        parameters: {
+            query?: {
+                timeframe?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast retrieved or tier-gated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Invalid timeframe */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_trend_forecast_api_v1_context_trends_forecast_refresh_post: {
+        parameters: {
+            query?: {
+                timeframe?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast generated or rate limited */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Industry not set or invalid timeframe */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tier insufficient for requested timeframe */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

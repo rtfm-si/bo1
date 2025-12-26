@@ -4117,6 +4117,120 @@
         "title": "BusinessStage",
         "type": "string"
       },
+      "CacheMetricsResponse": {
+        "description": "Response model for detailed research cache metrics.\n\nProvides multi-period hit rates, miss distribution, and threshold recommendations.\n\nAttributes:\n    hit_rate_1d: Cache hit rate in last 24 hours (percentage)\n    hit_rate_7d: Cache hit rate in last 7 days (percentage)\n    hit_rate_30d: Cache hit rate in last 30 days (percentage)\n    total_queries_1d: Total research queries in last 24 hours\n    total_queries_7d: Total research queries in last 7 days\n    total_queries_30d: Total research queries in last 30 days\n    cache_hits_1d: Cache hits in last 24 hours\n    cache_hits_7d: Cache hits in last 7 days\n    cache_hits_30d: Cache hits in last 30 days\n    avg_similarity_on_hit: Mean similarity score for cache hits\n    miss_distribution: Histogram of near-miss similarity scores (0.70-0.85)\n    current_threshold: Current similarity threshold from config\n    recommended_threshold: Algorithm-suggested threshold\n    recommendation_reason: Explanation for recommendation\n    recommendation_confidence: Confidence level (low, medium, high)\n    total_cached_results: Total entries in cache\n    cost_savings_30d: Estimated cost savings in last 30 days (USD)",
+        "properties": {
+          "avg_similarity_on_hit": {
+            "description": "Mean similarity score for hits",
+            "title": "Avg Similarity On Hit",
+            "type": "number"
+          },
+          "cache_hits_1d": {
+            "description": "Cache hits in last 24 hours",
+            "title": "Cache Hits 1D",
+            "type": "integer"
+          },
+          "cache_hits_30d": {
+            "description": "Cache hits in last 30 days",
+            "title": "Cache Hits 30D",
+            "type": "integer"
+          },
+          "cache_hits_7d": {
+            "description": "Cache hits in last 7 days",
+            "title": "Cache Hits 7D",
+            "type": "integer"
+          },
+          "cost_savings_30d": {
+            "description": "Estimated savings in last 30 days (USD)",
+            "title": "Cost Savings 30D",
+            "type": "number"
+          },
+          "current_threshold": {
+            "description": "Current similarity threshold",
+            "title": "Current Threshold",
+            "type": "number"
+          },
+          "hit_rate_1d": {
+            "description": "Cache hit rate in last 24 hours (%)",
+            "title": "Hit Rate 1D",
+            "type": "number"
+          },
+          "hit_rate_30d": {
+            "description": "Cache hit rate in last 30 days (%)",
+            "title": "Hit Rate 30D",
+            "type": "number"
+          },
+          "hit_rate_7d": {
+            "description": "Cache hit rate in last 7 days (%)",
+            "title": "Hit Rate 7D",
+            "type": "number"
+          },
+          "miss_distribution": {
+            "description": "Near-miss similarity distribution (0.70-0.85)",
+            "items": {
+              "$ref": "#/components/schemas/SimilarityBucket"
+            },
+            "title": "Miss Distribution",
+            "type": "array"
+          },
+          "recommendation_confidence": {
+            "description": "Confidence level: low, medium, high",
+            "title": "Recommendation Confidence",
+            "type": "string"
+          },
+          "recommendation_reason": {
+            "description": "Explanation for recommendation",
+            "title": "Recommendation Reason",
+            "type": "string"
+          },
+          "recommended_threshold": {
+            "description": "Recommended similarity threshold",
+            "title": "Recommended Threshold",
+            "type": "number"
+          },
+          "total_cached_results": {
+            "description": "Total entries in cache",
+            "title": "Total Cached Results",
+            "type": "integer"
+          },
+          "total_queries_1d": {
+            "description": "Total queries in last 24 hours",
+            "title": "Total Queries 1D",
+            "type": "integer"
+          },
+          "total_queries_30d": {
+            "description": "Total queries in last 30 days",
+            "title": "Total Queries 30D",
+            "type": "integer"
+          },
+          "total_queries_7d": {
+            "description": "Total queries in last 7 days",
+            "title": "Total Queries 7D",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hit_rate_1d",
+          "hit_rate_7d",
+          "hit_rate_30d",
+          "total_queries_1d",
+          "total_queries_7d",
+          "total_queries_30d",
+          "cache_hits_1d",
+          "cache_hits_7d",
+          "cache_hits_30d",
+          "avg_similarity_on_hit",
+          "miss_distribution",
+          "current_threshold",
+          "recommended_threshold",
+          "recommendation_reason",
+          "recommendation_confidence",
+          "total_cached_results",
+          "cost_savings_30d"
+        ],
+        "title": "CacheMetricsResponse",
+        "type": "object"
+      },
       "CalendarStatusResponse": {
         "description": "Response for calendar connection status.",
         "properties": {
@@ -4164,6 +4278,45 @@
           "enabled"
         ],
         "title": "CalendarSyncToggleRequest",
+        "type": "object"
+      },
+      "CategoriesResponse": {
+        "description": "Response model for research cache categories.",
+        "properties": {
+          "categories": {
+            "description": "List of categories with counts",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "CategoriesResponse",
+        "type": "object"
+      },
+      "CategoryCount": {
+        "description": "Category with embedding count.",
+        "properties": {
+          "category": {
+            "description": "Category name",
+            "title": "Category",
+            "type": "string"
+          },
+          "count": {
+            "description": "Number of embeddings",
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "count"
+        ],
+        "title": "CategoryCount",
         "type": "object"
       },
       "ChartResultResponse": {
@@ -5031,6 +5184,42 @@
           }
         },
         "title": "ClientMetricsBatch",
+        "type": "object"
+      },
+      "ClusterInfo": {
+        "description": "Information about a cluster of embeddings.",
+        "properties": {
+          "centroid": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Centroid coordinates {x, y}",
+            "title": "Centroid",
+            "type": "object"
+          },
+          "count": {
+            "description": "Number of points in cluster",
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Cluster ID (0-indexed)",
+            "title": "Id",
+            "type": "integer"
+          },
+          "label": {
+            "description": "Human-readable cluster label",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "count",
+          "centroid"
+        ],
+        "title": "ClusterInfo",
         "type": "object"
       },
       "CohortResponse": {
@@ -7350,6 +7539,39 @@
         "title": "DailyCount",
         "type": "object"
       },
+      "DailyResearchCost": {
+        "description": "Daily research cost for trend chart.\n\nAttributes:\n    date: Date (YYYY-MM-DD)\n    brave: Brave costs for the day\n    tavily: Tavily costs for the day\n    total: Total costs for the day",
+        "properties": {
+          "brave": {
+            "default": 0.0,
+            "description": "Brave costs (USD)",
+            "title": "Brave",
+            "type": "number"
+          },
+          "date": {
+            "description": "Date (YYYY-MM-DD)",
+            "title": "Date",
+            "type": "string"
+          },
+          "tavily": {
+            "default": 0.0,
+            "description": "Tavily costs (USD)",
+            "title": "Tavily",
+            "type": "number"
+          },
+          "total": {
+            "default": 0.0,
+            "description": "Total costs (USD)",
+            "title": "Total",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "DailyResearchCost",
+        "type": "object"
+      },
       "DailySummaryItem": {
         "description": "Single day cost summary.",
         "properties": {
@@ -8636,6 +8858,12 @@
       "EmbeddingPoint": {
         "description": "A single embedding point with 2D coordinates.",
         "properties": {
+          "cluster_id": {
+            "default": 0,
+            "description": "Cluster assignment (0 if clustering disabled)",
+            "title": "Cluster Id",
+            "type": "integer"
+          },
           "created_at": {
             "description": "When embedding was created",
             "title": "Created At",
@@ -8682,6 +8910,14 @@
       "EmbeddingSampleResponse": {
         "description": "Response model for embedding sample with 2D coordinates.",
         "properties": {
+          "clusters": {
+            "description": "Cluster info if clustering enabled",
+            "items": {
+              "$ref": "#/components/schemas/ClusterInfo"
+            },
+            "title": "Clusters",
+            "type": "array"
+          },
           "method": {
             "description": "Reduction method used (pca/umap)",
             "title": "Method",
@@ -9070,6 +9306,40 @@
           "message"
         ],
         "title": "ErrorResponse",
+        "type": "object"
+      },
+      "EscalateBlockerRequest": {
+        "description": "Request model for escalating a blocked action to a meeting.",
+        "properties": {
+          "include_suggestions": {
+            "default": true,
+            "description": "Include prior unblock suggestions in meeting context",
+            "title": "Include Suggestions",
+            "type": "boolean"
+          }
+        },
+        "title": "EscalateBlockerRequest",
+        "type": "object"
+      },
+      "EscalateBlockerResponse": {
+        "description": "Response model for blocker escalation.",
+        "properties": {
+          "redirect_url": {
+            "description": "URL to redirect to the meeting",
+            "title": "Redirect Url",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "ID of the created meeting session",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "redirect_url"
+        ],
+        "title": "EscalateBlockerResponse",
         "type": "object"
       },
       "EventHistoryResponse": {
@@ -15754,6 +16024,109 @@
         "title": "ResearchCacheStats",
         "type": "object"
       },
+      "ResearchCostItem": {
+        "description": "Cost data for a single research provider.\n\nAttributes:\n    provider: Research provider name (brave, tavily)\n    amount_usd: Total cost in USD\n    query_count: Number of API calls made",
+        "properties": {
+          "amount_usd": {
+            "description": "Total cost in USD",
+            "title": "Amount Usd",
+            "type": "number"
+          },
+          "provider": {
+            "description": "Research provider (brave, tavily)",
+            "title": "Provider",
+            "type": "string"
+          },
+          "query_count": {
+            "description": "Number of queries/calls",
+            "title": "Query Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "amount_usd",
+          "query_count"
+        ],
+        "title": "ResearchCostItem",
+        "type": "object"
+      },
+      "ResearchCostsByPeriod": {
+        "description": "Research costs aggregated by time period.\n\nAttributes:\n    today: Costs from today\n    week: Costs from last 7 days\n    month: Costs from last 30 days\n    all_time: All-time costs",
+        "properties": {
+          "all_time": {
+            "default": 0.0,
+            "description": "All-time cost (USD)",
+            "title": "All Time",
+            "type": "number"
+          },
+          "month": {
+            "default": 0.0,
+            "description": "Cost this month (USD)",
+            "title": "Month",
+            "type": "number"
+          },
+          "today": {
+            "default": 0.0,
+            "description": "Cost today (USD)",
+            "title": "Today",
+            "type": "number"
+          },
+          "week": {
+            "default": 0.0,
+            "description": "Cost this week (USD)",
+            "title": "Week",
+            "type": "number"
+          }
+        },
+        "title": "ResearchCostsByPeriod",
+        "type": "object"
+      },
+      "ResearchCostsResponse": {
+        "description": "Response model for research costs endpoint.\n\nAttributes:\n    brave: Brave Search costs breakdown\n    tavily: Tavily costs breakdown\n    total_usd: Total research costs\n    total_queries: Total number of research queries\n    by_period: Costs aggregated by time period\n    daily_trend: Last 7 days of costs for chart",
+        "properties": {
+          "brave": {
+            "$ref": "#/components/schemas/ResearchCostItem",
+            "description": "Brave Search costs"
+          },
+          "by_period": {
+            "$ref": "#/components/schemas/ResearchCostsByPeriod",
+            "description": "Costs by time period"
+          },
+          "daily_trend": {
+            "description": "Daily costs for chart",
+            "items": {
+              "$ref": "#/components/schemas/DailyResearchCost"
+            },
+            "title": "Daily Trend",
+            "type": "array"
+          },
+          "tavily": {
+            "$ref": "#/components/schemas/ResearchCostItem",
+            "description": "Tavily costs"
+          },
+          "total_queries": {
+            "description": "Total research queries",
+            "title": "Total Queries",
+            "type": "integer"
+          },
+          "total_usd": {
+            "description": "Total research costs (USD)",
+            "title": "Total Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "brave",
+          "tavily",
+          "total_usd",
+          "total_queries",
+          "by_period",
+          "daily_trend"
+        ],
+        "title": "ResearchCostsResponse",
+        "type": "object"
+      },
       "RetentionSettingResponse": {
         "description": "Response for retention setting endpoint.",
         "properties": {
@@ -16778,6 +17151,39 @@
           "enabled"
         ],
         "title": "SetUserOverrideRequest",
+        "type": "object"
+      },
+      "SimilarityBucket": {
+        "description": "A bucket in the similarity distribution histogram.\n\nAttributes:\n    bucket: Bucket number (1-5)\n    range_start: Start of similarity range\n    range_end: End of similarity range\n    count: Number of entries in this bucket",
+        "properties": {
+          "bucket": {
+            "description": "Bucket number (1-5)",
+            "title": "Bucket",
+            "type": "integer"
+          },
+          "count": {
+            "description": "Number of entries in this bucket",
+            "title": "Count",
+            "type": "integer"
+          },
+          "range_end": {
+            "description": "End of similarity range",
+            "title": "Range End",
+            "type": "number"
+          },
+          "range_start": {
+            "description": "Start of similarity range",
+            "title": "Range Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bucket",
+          "range_start",
+          "range_end",
+          "count"
+        ],
+        "title": "SimilarityBucket",
         "type": "object"
       },
       "SlowQueryListResponse": {
@@ -23786,6 +24192,51 @@
         ]
       }
     },
+    "/api/admin/costs/research": {
+      "get": {
+        "description": "Get Brave and Tavily research API costs breakdown.",
+        "operationId": "get_research_costs_api_admin_costs_research_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchCostsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Research costs",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
     "/api/admin/drilldown/costs": {
       "get": {
         "description": "Get paginated list of cost records within the specified time period.",
@@ -24257,6 +24708,81 @@
         ]
       }
     },
+    "/api/admin/embeddings/categories": {
+      "get": {
+        "description": "Get distinct categories from research cache for filtering (admin only).",
+        "operationId": "get_categories_api_admin_embeddings_categories_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesResponse"
+                }
+              }
+            },
+            "description": "Categories retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin API key required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid admin API key"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get research cache categories",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Embeddings"
+        ]
+      }
+    },
     "/api/admin/embeddings/sample": {
       "get": {
         "description": "Get sample embeddings reduced to 2D for visualization (admin only).",
@@ -24278,6 +24804,24 @@
               ],
               "title": "Embedding Type",
               "type": "string"
+            }
+          },
+          {
+            "description": "Filter research embeddings by category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter research embeddings by category",
+              "title": "Category"
             }
           },
           {
@@ -27557,6 +28101,81 @@
           "admin",
           "admin",
           "Admin - Query Performance"
+        ]
+      }
+    },
+    "/api/admin/research-cache/metrics": {
+      "get": {
+        "description": "Get multi-period hit rates, miss distribution, and similarity threshold recommendation.",
+        "operationId": "get_research_cache_metrics_api_admin_research_cache_metrics_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheMetricsResponse"
+                }
+              }
+            },
+            "description": "Cache metrics retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin API key required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid admin API key"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get detailed cache metrics with threshold recommendation",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Research Cache"
         ]
       }
     },
@@ -32007,6 +32626,97 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/escalate-blocker": {
+      "post": {
+        "description": "Create a focused meeting session to resolve a blocked action with AI personas.",
+        "operationId": "escalate_blocker_api_v1_actions__action_id__escalate_blocker_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EscalateBlockerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalateBlockerResponse"
+                }
+              }
+            },
+            "description": "Meeting created successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Action is not blocked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Action not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Escalate blocked action to a meeting",
+        "tags": [
+          "actions",
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/progress": {
       "patch": {
         "description": "Update action progress tracking (percentage, points, or status-only) and actual dates.",
@@ -35172,6 +35882,109 @@
           }
         },
         "summary": "Analyze a trend URL for insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/forecast": {
+      "get": {
+        "description": "Get AI-generated market forecast for a specific timeframe.\n\n    **Tier Gating:**\n    - Free: 3m only\n    - Starter: 3m, 12m\n    - Pro/Enterprise: 3m, 12m, 24m\n\n    Returns 403 with upgrade_prompt if tier insufficient for requested timeframe.\n    Cache key: `trend_forecasts_{timeframe}` in user_context.",
+        "operationId": "get_trend_forecast_api_v1_context_trends_forecast_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "3m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Trend Forecast Api V1 Context Trends Forecast Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forecast retrieved or tier-gated"
+          },
+          "400": {
+            "description": "Invalid timeframe"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get trend forecast for timeframe",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/trends/forecast/refresh": {
+      "post": {
+        "description": "Generate or refresh the AI-powered market forecast for a specific timeframe.\n\n    **Tier Gating:**\n    - Free: 3m only\n    - Starter: 3m, 12m\n    - Pro/Enterprise: 3m, 12m, 24m\n\n    **Rate Limit:** 1 refresh per hour per timeframe.\n    **Cost:** ~$0.005 per generation.\n\n    Returns 403 with upgrade_prompt if tier insufficient.",
+        "operationId": "refresh_trend_forecast_api_v1_context_trends_forecast_refresh_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "3m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Refresh Trend Forecast Api V1 Context Trends Forecast Refresh Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forecast generated or rate limited"
+          },
+          "400": {
+            "description": "Industry not set or invalid timeframe"
+          },
+          "403": {
+            "description": "Tier insufficient for requested timeframe"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh trend forecast for timeframe",
         "tags": [
           "context",
           "context"

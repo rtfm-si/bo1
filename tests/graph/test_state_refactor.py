@@ -461,6 +461,7 @@ class TestFieldCount:
             "user_input",
             "facilitator_decision",
             "facilitator_guidance",
+            "persona_count_variant",
         }
 
         # Combine all fields

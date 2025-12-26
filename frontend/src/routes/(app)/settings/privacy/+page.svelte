@@ -5,7 +5,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
-	import type { EmailPreferences } from '$lib/api/client';
+	import type { EmailPreferences, ConsentHistoryItem } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
@@ -35,9 +35,12 @@
 	// State
 	let emailPrefs = $state<EmailPreferences | null>(null);
 	let retentionDays = $state<number>(730);
+	let deletionRemindersSuppressed = $state<boolean>(false);
+	let consentHistory = $state<ConsentHistoryItem[]>([]);
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isSavingRetention = $state(false);
+	let isSavingReminderSuppression = $state(false);
 	let isExporting = $state(false);
 	let isDeleting = $state(false);
 	let error = $state<string | null>(null);
@@ -51,15 +54,20 @@
 	let deleteConfirmText = $state('');
 	let deleteError = $state<string | null>(null);
 
-	// Load email preferences and retention setting
+	// Load email preferences, retention setting, and consent history
 	onMount(async () => {
 		try {
-			const [emailResponse, retentionResponse] = await Promise.all([
-				apiClient.getEmailPreferences(),
-				apiClient.getRetentionSetting()
-			]);
+			const [emailResponse, retentionResponse, reminderResponse, consentResponse] =
+				await Promise.all([
+					apiClient.getEmailPreferences(),
+					apiClient.getRetentionSetting(),
+					apiClient.getRetentionReminderSettings(),
+					apiClient.getTermsConsentStatus()
+				]);
 			emailPrefs = emailResponse.preferences;
 			retentionDays = retentionResponse.data_retention_days;
+			deletionRemindersSuppressed = reminderResponse.deletion_reminder_suppressed;
+			consentHistory = consentResponse.consents || [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load settings';
 			// Set defaults if load fails
@@ -69,6 +77,8 @@
 				digest_emails: true
 			};
 			retentionDays = 730;
+			deletionRemindersSuppressed = false;
+			consentHistory = [];
 		} finally {
 			isLoading = false;
 		}
@@ -173,6 +183,24 @@
 		deleteConfirmText = '';
 		deleteError = null;
 	}
+
+	// Toggle deletion reminder suppression
+	async function toggleDeletionReminders() {
+		isSavingReminderSuppression = true;
+		try {
+			if (deletionRemindersSuppressed) {
+				const response = await apiClient.enableRetentionReminders();
+				deletionRemindersSuppressed = response.deletion_reminder_suppressed;
+			} else {
+				const response = await apiClient.suppressRetentionReminders();
+				deletionRemindersSuppressed = response.deletion_reminder_suppressed;
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update reminder settings';
+		} finally {
+			isSavingReminderSuppression = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -196,6 +224,57 @@
 				>{successMessage}</Alert
 			>
 		{/if}
+
+		<!-- Legal Agreements -->
+		<div
+			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+		>
+			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Legal Agreements</h2>
+			<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+				Your consent to our terms and policies.
+			</p>
+
+			<div class="space-y-4">
+				{#if consentHistory.length > 0}
+					{@const latestConsent = consentHistory[0]}
+					<div class="flex items-start justify-between">
+						<div>
+							<p class="font-medium text-slate-900 dark:text-white">Terms & Conditions</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Version {latestConsent.version} · Accepted on {new Date(
+									latestConsent.consented_at
+								).toLocaleDateString()}
+							</p>
+						</div>
+						<a
+							href="/legal/terms"
+							class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
+						>
+							View
+						</a>
+					</div>
+				{:else}
+					<p class="text-sm text-slate-500 dark:text-slate-400 italic">
+						No consent records found.
+					</p>
+				{/if}
+
+				<div class="flex items-start justify-between">
+					<div>
+						<p class="font-medium text-slate-900 dark:text-white">Privacy Policy</p>
+						<p class="text-sm text-slate-500 dark:text-slate-400">
+							View our privacy practices and your data rights
+						</p>
+					</div>
+					<a
+						href="/legal/privacy"
+						class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
+					>
+						View
+					</a>
+				</div>
+			</div>
+		</div>
 
 		<!-- Email Preferences -->
 		<div
@@ -346,6 +425,40 @@
 				Note: Changing to a shorter period does not immediately delete data. The cleanup job runs
 				periodically.
 			</p>
+
+			<!-- Deletion Reminder Emails Toggle -->
+			{#if retentionDays !== -1}
+				<div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+					<label class="flex items-center justify-between cursor-pointer">
+						<div>
+							<p class="font-medium text-slate-900 dark:text-white">Deletion reminder emails</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Receive reminders before your data is scheduled for deletion
+							</p>
+						</div>
+						<button
+							type="button"
+							role="switch"
+							aria-checked={!deletionRemindersSuppressed}
+							aria-label="Toggle deletion reminder emails"
+							disabled={isSavingReminderSuppression}
+							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 {!deletionRemindersSuppressed
+								? 'bg-brand-600'
+								: 'bg-slate-300 dark:bg-slate-600'}"
+							onclick={toggleDeletionReminders}
+						>
+							<span
+								class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {!deletionRemindersSuppressed
+									? 'translate-x-6'
+									: 'translate-x-1'}"
+							></span>
+						</button>
+					</label>
+					<p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+						We'll send you a reminder at 28 days and 1 day before scheduled data deletion.
+					</p>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Data Export -->

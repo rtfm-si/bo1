@@ -655,6 +655,21 @@ async def start_deliberation(
         except Exception as e:
             logger.debug(f"Could not load user preferences: {e}")
 
+        # Load A/B test variant from session record
+        persona_count_variant = None
+        try:
+            from bo1.state.repositories import session_repository
+
+            session_record = session_repository.get(session_id)
+            if session_record:
+                persona_count_variant = session_record.get("persona_count_variant")
+                if persona_count_variant:
+                    logger.info(
+                        f"Session {session_id} A/B variant: persona_count={persona_count_variant}"
+                    )
+        except Exception as e:
+            logger.debug(f"Could not load persona_count_variant: {e}")
+
         # Load context_ids from metadata (user-selected meetings/actions/datasets)
         context_ids = metadata.get("context_ids")
 
@@ -671,6 +686,7 @@ async def start_deliberation(
             context_ids=context_ids,
             subscription_tier=subscription_tier,
             request_id=request_id,
+            persona_count_variant=persona_count_variant,
         )
 
         # Create graph

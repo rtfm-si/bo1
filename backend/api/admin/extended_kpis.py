@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, Request
 from backend.api.admin.models import (
     ActionStats,
     DataAnalysisStats,
+    ExperimentMetricsResponse,
+    ExperimentVariantStats,
     ExtendedKPIsResponse,
     MeetingStats,
     MentorSessionStats,
@@ -140,7 +142,7 @@ def get_meeting_stats() -> MeetingStats:
                     COALESCE(COUNT(*) FILTER (WHERE status = 'completed'), 0) AS completed,
                     COALESCE(COUNT(*) FILTER (WHERE status = 'failed'), 0) AS failed,
                     COALESCE(COUNT(*) FILTER (WHERE status = 'killed'), 0) AS killed,
-                    COALESCE(COUNT(*) FILTER (WHERE deleted_at IS NOT NULL), 0) AS deleted,
+                    0 AS deleted,  -- sessions don't support soft-delete
                     COALESCE(COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE), 0) AS today,
                     COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'), 0) AS week,
                     COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'), 0) AS month
@@ -195,4 +197,121 @@ async def get_extended_kpis(
         projects=get_project_stats(),
         actions=get_action_stats(),
         meetings=get_meeting_stats(),
+    )
+
+
+def get_persona_count_experiment_metrics() -> list[ExperimentVariantStats]:
+    """Get metrics for persona count A/B experiment (3 vs 5 personas)."""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    persona_count_variant AS variant,
+                    COUNT(*) AS session_count,
+                    COUNT(*) FILTER (WHERE status = 'completed') AS completed_count,
+                    AVG(total_cost) FILTER (WHERE status = 'completed') AS avg_cost,
+                    AVG(EXTRACT(EPOCH FROM (updated_at - created_at)))
+                        FILTER (WHERE status = 'completed') AS avg_duration_seconds,
+                    AVG(round_number) FILTER (WHERE status = 'completed') AS avg_rounds,
+                    AVG(expert_count) FILTER (WHERE status = 'completed') AS avg_persona_count
+                FROM sessions
+                WHERE persona_count_variant IS NOT NULL
+                GROUP BY persona_count_variant
+                ORDER BY persona_count_variant
+                """
+            )
+            rows = cur.fetchall()
+
+            variants = []
+            for row in rows:
+                session_count = row["session_count"]
+                completed_count = row["completed_count"]
+                completion_rate = (
+                    (completed_count / session_count * 100) if session_count > 0 else 0
+                )
+
+                variants.append(
+                    ExperimentVariantStats(
+                        variant=row["variant"],
+                        session_count=session_count,
+                        completed_count=completed_count,
+                        avg_cost=round(row["avg_cost"], 4) if row["avg_cost"] else None,
+                        avg_duration_seconds=(
+                            round(row["avg_duration_seconds"], 1)
+                            if row["avg_duration_seconds"]
+                            else None
+                        ),
+                        avg_rounds=round(row["avg_rounds"], 1) if row["avg_rounds"] else None,
+                        avg_persona_count=(
+                            round(row["avg_persona_count"], 1) if row["avg_persona_count"] else None
+                        ),
+                        completion_rate=round(completion_rate, 1),
+                    )
+                )
+            return variants
+
+
+@router.get(
+    "/experiments/persona-count",
+    response_model=ExperimentMetricsResponse,
+    summary="Get persona count A/B experiment metrics",
+    description="""
+    Get metrics for the persona count A/B experiment (3 vs 5 personas).
+
+    Returns:
+    - Session counts per variant
+    - Average cost per session
+    - Average duration and rounds
+    - Completion rates
+    """,
+    responses={
+        200: {"description": "Experiment metrics retrieved successfully"},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get experiment metrics")
+async def get_persona_count_experiment(
+    request: Request,
+    _admin: str = Depends(require_admin_any),
+) -> ExperimentMetricsResponse:
+    """Get persona count A/B experiment metrics (admin only)."""
+    from datetime import UTC, datetime
+
+    logger.info("Admin: Fetching persona count experiment metrics")
+
+    variants = get_persona_count_experiment_metrics()
+    total_sessions = sum(v.session_count for v in variants)
+
+    # Get experiment period (first and last session with variant)
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    MIN(created_at) AS period_start,
+                    MAX(created_at) AS period_end
+                FROM sessions
+                WHERE persona_count_variant IS NOT NULL
+                """
+            )
+            row = cur.fetchone()
+            period_start = (
+                row["period_start"].isoformat()
+                if row["period_start"]
+                else datetime.now(UTC).isoformat()
+            )
+            period_end = (
+                row["period_end"].isoformat()
+                if row["period_end"]
+                else datetime.now(UTC).isoformat()
+            )
+
+    return ExperimentMetricsResponse(
+        experiment_name="persona_count",
+        variants=variants,
+        total_sessions=total_sessions,
+        period_start=period_start,
+        period_end=period_end,
     )

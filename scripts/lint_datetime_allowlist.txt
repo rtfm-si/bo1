@@ -21,6 +21,7 @@ backend/api/admin/helpers.py  # TODO: P4 - 2 violations, admin formatting helper
 backend/api/admin/feature_flags.py  # TODO: P4 - 2 violations
 backend/api/admin/impersonation.py  # TODO: P4 - 2 violations
 backend/api/admin/templates.py  # TODO: P4 - 1 violation
+backend/api/admin/terms.py  # TODO: P4 - 1 violation - terms version response
 backend/api/admin/users.py  # TODO: P4 - 1 violation
 
 # Infrastructure/health (acceptable - internal use)
@@ -45,6 +46,7 @@ backend/api/tags.py  # TODO: P4 - 2 violations
 backend/api/user.py  # TODO: P4 - 1 violation
 backend/api/share.py  # TODO: P4 - 1 violation
 backend/api/feedback.py  # TODO: P4 - 1 violation
+backend/api/terms.py  # TODO: P4 - 3 violations - T&C consent responses
 
 # Middleware (acceptable - rate limit response headers)
 backend/api/middleware/rate_limit.py  # 1 violation - rate limit headers

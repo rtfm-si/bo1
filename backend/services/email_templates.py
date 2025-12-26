@@ -958,3 +958,111 @@ You can snooze or disable reminders from the action detail page.
 """
 
     return html, plain_text
+
+
+# =============================================================================
+# Data Retention Reminder Email
+# =============================================================================
+
+
+def render_data_retention_reminder_email(
+    user_id: str,
+    days_until_deletion: int,
+    settings_url: str,
+    suppress_url: str,
+) -> tuple[str, str]:
+    """Render email reminding user about upcoming data deletion.
+
+    Two variants:
+    - 28-day warning: Gentle notice with option to adjust settings
+    - 1-day warning: Urgent final notice
+
+    Args:
+        user_id: User ID for unsubscribe link
+        days_until_deletion: Days until oldest data is deleted
+        settings_url: URL to privacy settings page
+        suppress_url: URL to suppress future reminders
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    is_urgent = days_until_deletion <= 1
+
+    if is_urgent:
+        # 1-day (urgent) variant
+        urgency_class = "overdue"
+        days_text = "tomorrow" if days_until_deletion == 1 else "today"
+        heading = "Final Notice: Your data will be deleted"
+        intro = f"""Your oldest meeting data will be automatically deleted <strong>{days_text}</strong>
+        based on your data retention settings."""
+    else:
+        # 28-day (gentle) variant
+        urgency_class = "due-soon"
+        days_text = f"in {days_until_deletion} days"
+        heading = "Upcoming Data Deletion"
+        intro = f"""Some of your meeting data will be automatically deleted <strong>{days_text}</strong>
+        based on your current data retention settings."""
+
+    content = f"""
+<h2>{heading}</h2>
+
+<div class="action-item {urgency_class}">
+<p class="action-title">Data scheduled for deletion</p>
+<p class="action-due">{days_text}</p>
+</div>
+
+<p>{intro}</p>
+
+<div class="summary-box">
+<p class="summary-title">What gets deleted</p>
+<ul>
+<li>Meetings (problem statements, deliberations, recommendations)</li>
+<li>Actions created from those meetings</li>
+<li>Session events and contributions</li>
+</ul>
+<p style="font-size: 14px; margin-top: 10px;"><em>Your profile, business context, and datasets are not affected.</em></p>
+</div>
+
+<h3>Your Options</h3>
+<ul>
+<li><strong>Extend retention</strong> - Change to a longer period or "Forever" in settings</li>
+<li><strong>Export data</strong> - Download a copy before deletion</li>
+<li><strong>Take no action</strong> - Data will be deleted as scheduled</li>
+</ul>
+
+<p>
+<a href="{settings_url}" class="button">Review Settings</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+Don't want these reminders? <a href="{suppress_url}" style="color: #666;">Turn them off</a>
+</p>
+"""
+
+    html = _wrap_email(content, user_id, "retention_reminder")
+
+    plain_text = f"""{heading}
+
+Data scheduled for deletion: {days_text}
+
+{intro.replace("<strong>", "").replace("</strong>", "")}
+
+What gets deleted:
+- Meetings (problem statements, deliberations, recommendations)
+- Actions created from those meetings
+- Session events and contributions
+
+Your profile, business context, and datasets are not affected.
+
+Your Options:
+- Extend retention - Change to a longer period or "Forever" in settings
+- Export data - Download a copy before deletion
+- Take no action - Data will be deleted as scheduled
+
+Review Settings: {settings_url}
+
+---
+Don't want these reminders? Turn them off: {suppress_url}
+"""
+
+    return html, plain_text

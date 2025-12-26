@@ -558,6 +558,29 @@ export interface ErrorCheckResult {
 }
 
 // =============================================================================
+// A/B Experiment Types
+// =============================================================================
+
+export interface ExperimentVariantStats {
+	variant: number;
+	session_count: number;
+	completed_count: number;
+	avg_cost: number | null;
+	avg_duration_seconds: number | null;
+	avg_rounds: number | null;
+	avg_persona_count: number | null;
+	completion_rate: number;
+}
+
+export interface ExperimentMetricsResponse {
+	experiment_name: string;
+	variants: ExperimentVariantStats[];
+	total_sessions: number;
+	period_start: string;
+	period_end: string;
+}
+
+// =============================================================================
 // Admin API Client
 // =============================================================================
 
@@ -1212,6 +1235,14 @@ class AdminApiClient {
 
 	async getResearchCosts(): Promise<ResearchCostsResponse> {
 		return this.fetch<ResearchCostsResponse>('/api/admin/costs/research');
+	}
+
+	// =========================================================================
+	// A/B Experiments
+	// =========================================================================
+
+	async getPersonaCountExperiment(): Promise<ExperimentMetricsResponse> {
+		return this.fetch<ExperimentMetricsResponse>('/api/admin/experiments/persona-count');
 	}
 
 	// =========================================================================

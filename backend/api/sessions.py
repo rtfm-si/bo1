@@ -387,6 +387,13 @@ async def create_session(
                 subscription_tier=user.get("subscription_tier", "free") if user else "free",
             )
 
+            # A/B test: Assign persona count variant (3 or 5 personas)
+            # 50/50 random assignment using hash of user_id for user-level consistency
+            import hashlib
+
+            user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)  # noqa: S324
+            persona_count_variant = 3 if user_hash % 2 == 0 else 5
+
             session_repository.create(
                 session_id=session_id,
                 user_id=user_id,
@@ -398,6 +405,7 @@ async def create_session(
                 used_promo_credit=tier_usage.uses_promo_credit,
                 context_ids=validated_context_ids,
                 template_id=session_request.template_id,
+                persona_count_variant=persona_count_variant,
             )
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"

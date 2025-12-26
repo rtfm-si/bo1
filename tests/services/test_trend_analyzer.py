@@ -19,17 +19,6 @@ class TestTrendAnalyzer:
         """Create a TrendAnalyzer instance."""
         return TrendAnalyzer()
 
-    # TODO: Fix test isolation - fails in full suite due to event loop cleanup race
-    # See: https://github.com/bo1/issues/xxx - Event loop cleanup race condition
-    @pytest.mark.skip(reason="Flaky: event loop cleanup race - passes individually, fails in suite")
-    async def test_invalid_url_returns_error(self, analyzer: TrendAnalyzer) -> None:
-        """Test that invalid URLs return error result."""
-        result = await analyzer.analyze_trend("not-a-valid-url")
-
-        assert result.status == "error"
-        assert "Invalid URL" in (result.error or "")
-        assert result.url == "not-a-valid-url"
-
     def test_extract_title_from_html(self, analyzer: TrendAnalyzer) -> None:
         """Test title extraction from HTML."""
         html = """
@@ -282,6 +271,24 @@ class TestGetTrendAnalyzer:
 @pytest.mark.asyncio
 class TestTrendAnalyzerAsync:
     """Async tests for TrendAnalyzer."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self) -> None:
+        """Reset singleton before each test to ensure isolation."""
+        import backend.services.trend_analyzer as module
+
+        module._analyzer = None
+        yield
+        module._analyzer = None
+
+    async def test_invalid_url_returns_error(self) -> None:
+        """Test that invalid URLs return error result."""
+        analyzer = TrendAnalyzer()
+        result = await analyzer.analyze_trend("not-a-valid-url")
+
+        assert result.status == "error"
+        assert "Invalid URL" in (result.error or "")
+        assert result.url == "not-a-valid-url"
 
     async def test_analyze_trend_with_mocked_fetch(self) -> None:
         """Test analyze_trend with mocked URL fetch."""

@@ -74,6 +74,7 @@ from backend.api import (  # noqa: E402
     streaming,
     tags,
     templates,
+    terms,
     user,
     waitlist,
     workspaces,
@@ -584,6 +585,8 @@ app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
 app.include_router(templates.router, prefix="/api", tags=["templates"])
+app.include_router(terms.terms_router, prefix="/api", tags=["terms"])
+app.include_router(terms.user_terms_router, prefix="/api", tags=["user"])
 app.include_router(e2e_auth.router, prefix="/api", tags=["e2e"])
 
 _startup_times["router_registration"] = (time.perf_counter() - _routers_start) * 1000
@@ -607,6 +610,53 @@ print(f"🔧 Module init complete in {_module_init_total:.1f}ms (before lifespan
 from backend.api.metrics import prom_metrics as _prom_metrics  # noqa: E402
 
 _prom_metrics.record_startup_time("module_init", _module_init_total)
+
+
+def _log_api_error_to_audit(
+    request: Request,
+    status_code: int,
+    error_message: str,
+    user_id: str | None = None,
+) -> None:
+    """Log API error to audit_log for ops tracking.
+
+    Non-blocking - failures are logged but don't affect request.
+    Only logs errors (4xx/5xx) to avoid noise.
+    """
+    import json
+    import logging
+
+    from slowapi.util import get_remote_address
+
+    from backend.api.utils.db_helpers import execute_query
+
+    # Only log errors worth tracking
+    if status_code < 400:
+        return
+
+    # Skip logging rate limits for non-interesting endpoints
+    if status_code == 429 and "/health" in request.url.path:
+        return
+
+    try:
+        ip = get_remote_address(request)
+        details = {
+            "status_code": status_code,
+            "endpoint": request.url.path,
+            "method": request.method,
+            "error": error_message[:500] if error_message else "",
+        }
+
+        execute_query(
+            """
+            INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, ip_address)
+            VALUES (%s, 'api_error', 'api', %s, %s, %s)
+            """,
+            (user_id, request.url.path, json.dumps(details), ip),
+            fetch="none",
+        )
+    except Exception as e:
+        logging.getLogger(__name__).debug(f"Failed to log API error to audit: {e}")
 
 
 @app.exception_handler(Exception)
@@ -658,6 +708,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     # Record error metric
     record_api_endpoint_error(request.url.path, 500)
 
+    # Log to audit for ops tracking
+    _log_api_error_to_audit(request, 500, str(exc))
+
     if settings.debug:
         # Development: Return full error details
         return JSONResponse(
@@ -693,6 +746,9 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
 
     # Record error metric
     record_api_endpoint_error(request.url.path, 429)
+
+    # Log to audit for ops tracking (rate limits are important to track)
+    _log_api_error_to_audit(request, 429, "Rate limit exceeded")
 
     # Try to extract retry time from slowapi exception
     # Format: "N per M second/minute/hour" - extract window in seconds
@@ -744,6 +800,11 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     # Record error metric for 4xx and 5xx responses
     if exc.status_code >= 400:
         record_api_endpoint_error(request.url.path, exc.status_code)
+
+    # Log to audit for ops tracking (only 401s and 5xx to reduce noise)
+    if exc.status_code == 401 or exc.status_code >= 500:
+        error_msg = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        _log_api_error_to_audit(request, exc.status_code, error_msg)
 
     # Check if detail is already structured (dict with error_code)
     if isinstance(exc.detail, dict) and "error_code" in exc.detail:

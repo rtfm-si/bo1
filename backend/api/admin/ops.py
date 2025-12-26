@@ -504,3 +504,293 @@ async def trigger_check(
             execute_fixes=execute_fixes,
         )
         raise HTTPException(status_code=500, detail=f"Check failed: {e}") from None
+
+
+# =============================================================================
+# Client & API Error Tracking
+# =============================================================================
+
+
+class ClientErrorItem(BaseModel):
+    """Client-side error from frontend."""
+
+    id: int
+    url: str
+    error: str
+    stack: str | None = None
+    component: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    created_at: datetime
+
+
+class ClientErrorListResponse(BaseModel):
+    """List of client errors."""
+
+    errors: list[ClientErrorItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class ApiErrorItem(BaseModel):
+    """API error (500, 429, 401, etc.)."""
+
+    id: int
+    status_code: int
+    endpoint: str
+    method: str
+    error_message: str
+    ip_address: str | None = None
+    user_id: str | None = None
+    created_at: datetime
+
+
+class ApiErrorListResponse(BaseModel):
+    """List of API errors."""
+
+    errors: list[ApiErrorItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class ErrorSummaryResponse(BaseModel):
+    """Summary of errors for ops dashboard."""
+
+    client_errors_24h: int
+    api_errors_24h: int
+    top_client_errors: list[dict]
+    top_api_endpoints: list[dict]
+
+
+@router.get("/client-errors", response_model=ClientErrorListResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def list_client_errors(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    hours: int = 24,
+    _user: dict = Depends(require_admin_any),
+) -> ClientErrorListResponse:
+    """List recent client-side errors from frontend.
+
+    Args:
+        request: FastAPI request object
+        limit: Max entries to return
+        offset: Pagination offset
+        hours: Lookback window in hours (default 24)
+        _user: Current authenticated admin user
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Count total
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM audit_log
+                    WHERE action = 'client_error'
+                    AND created_at >= NOW() - INTERVAL '%s hours'
+                    """,
+                    (hours,),
+                )
+                total = cur.fetchone()["count"]
+
+                # Fetch errors
+                cur.execute(
+                    """
+                    SELECT id, resource_id AS url, details, ip_address, user_agent, created_at
+                    FROM audit_log
+                    WHERE action = 'client_error'
+                    AND created_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (hours, limit, offset),
+                )
+                rows = cur.fetchall()
+
+        errors = []
+        for row in rows:
+            details = row["details"] or {}
+            errors.append(
+                ClientErrorItem(
+                    id=row["id"],
+                    url=row["url"] or "",
+                    error=details.get("error", ""),
+                    stack=details.get("stack"),
+                    component=details.get("component"),
+                    ip_address=row["ip_address"],
+                    user_agent=row["user_agent"],
+                    created_at=row["created_at"],
+                )
+            )
+
+        return ClientErrorListResponse(errors=errors, total=total, limit=limit, offset=offset)
+
+    except Exception as e:
+        log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to list client errors: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list client errors") from None
+
+
+@router.get("/api-errors", response_model=ApiErrorListResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def list_api_errors(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    hours: int = 24,
+    status_code: int | None = None,
+    _user: dict = Depends(require_admin_any),
+) -> ApiErrorListResponse:
+    """List recent API errors (500s, 429s, 401s).
+
+    Args:
+        request: FastAPI request object
+        limit: Max entries to return
+        offset: Pagination offset
+        hours: Lookback window in hours (default 24)
+        status_code: Filter by specific status code
+        _user: Current authenticated admin user
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Count total
+                count_query = """
+                    SELECT COUNT(*) FROM audit_log
+                    WHERE action = 'api_error'
+                    AND created_at >= NOW() - INTERVAL '%s hours'
+                """
+                count_params: list[Any] = [hours]
+
+                if status_code:
+                    count_query += " AND (details->>'status_code')::int = %s"
+                    count_params.append(status_code)
+
+                cur.execute(count_query, count_params)
+                total = cur.fetchone()["count"]
+
+                # Fetch errors
+                query = """
+                    SELECT id, resource_id, details, ip_address, user_id, created_at
+                    FROM audit_log
+                    WHERE action = 'api_error'
+                    AND created_at >= NOW() - INTERVAL '%s hours'
+                """
+                params: list[Any] = [hours]
+
+                if status_code:
+                    query += " AND (details->>'status_code')::int = %s"
+                    params.append(status_code)
+
+                query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+                params.extend([limit, offset])
+
+                cur.execute(query, params)
+                rows = cur.fetchall()
+
+        errors = []
+        for row in rows:
+            details = row["details"] or {}
+            errors.append(
+                ApiErrorItem(
+                    id=row["id"],
+                    status_code=details.get("status_code", 500),
+                    endpoint=details.get("endpoint", row["resource_id"] or ""),
+                    method=details.get("method", "GET"),
+                    error_message=details.get("error", ""),
+                    ip_address=row["ip_address"],
+                    user_id=row["user_id"],
+                    created_at=row["created_at"],
+                )
+            )
+
+        return ApiErrorListResponse(errors=errors, total=total, limit=limit, offset=offset)
+
+    except Exception as e:
+        log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to list API errors: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list API errors") from None
+
+
+@router.get("/error-summary", response_model=ErrorSummaryResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def get_error_summary(
+    request: Request,
+    _user: dict = Depends(require_admin_any),
+) -> ErrorSummaryResponse:
+    """Get summary of errors for ops dashboard.
+
+    Returns counts and top errors from the last 24 hours.
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Count client errors
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM audit_log
+                    WHERE action = 'client_error'
+                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    """
+                )
+                client_errors_24h = cur.fetchone()["count"]
+
+                # Count API errors
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM audit_log
+                    WHERE action = 'api_error'
+                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    """
+                )
+                api_errors_24h = cur.fetchone()["count"]
+
+                # Top client errors by URL
+                cur.execute(
+                    """
+                    SELECT resource_id AS url, COUNT(*) AS count
+                    FROM audit_log
+                    WHERE action = 'client_error'
+                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    GROUP BY resource_id
+                    ORDER BY count DESC
+                    LIMIT 5
+                    """
+                )
+                top_client = [{"url": r["url"], "count": r["count"]} for r in cur.fetchall()]
+
+                # Top API endpoints with errors
+                cur.execute(
+                    """
+                    SELECT
+                        details->>'endpoint' AS endpoint,
+                        (details->>'status_code')::int AS status_code,
+                        COUNT(*) AS count
+                    FROM audit_log
+                    WHERE action = 'api_error'
+                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    GROUP BY details->>'endpoint', details->>'status_code'
+                    ORDER BY count DESC
+                    LIMIT 5
+                    """
+                )
+                top_api = [
+                    {
+                        "endpoint": r["endpoint"],
+                        "status_code": r["status_code"],
+                        "count": r["count"],
+                    }
+                    for r in cur.fetchall()
+                ]
+
+        return ErrorSummaryResponse(
+            client_errors_24h=client_errors_24h,
+            api_errors_24h=api_errors_24h,
+            top_client_errors=top_client,
+            top_api_endpoints=top_api,
+        )
+
+    except Exception as e:
+        log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get error summary: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get error summary") from None

@@ -6,6 +6,8 @@
  */
 
 import { env } from '$env/dynamic/public';
+import { browser } from '$app/environment';
+import Session from 'supertokens-web-js/recipe/session';
 import { operationTracker } from '../services/operation-tracker';
 import type {
 	CreateSessionRequest,
@@ -194,6 +196,68 @@ export interface DemoQuestionsResponse {
 	questions: DemoQuestion[];
 	generated: boolean;
 	cached: boolean;
+}
+
+// ============================================================================
+// Terms & Conditions Types
+// ============================================================================
+
+export interface TermsVersionResponse {
+	id: string;
+	version: string;
+	content: string;
+	published_at: string;
+	is_active: boolean;
+}
+
+export interface ConsentHistoryItem {
+	policy_type: string;
+	version: string;
+	consented_at: string;
+	policy_url: string;
+}
+
+export interface ConsentStatusResponse {
+	has_consented: boolean;
+	current_version: string | null;
+	consented_version: string | null;
+	consented_at: string | null;
+	consents: ConsentHistoryItem[];
+}
+
+export interface ConsentRecordResponse {
+	id: string;
+	terms_version_id: string;
+	consented_at: string;
+	message: string;
+}
+
+// Admin T&C Version Management Types
+export interface TermsVersionItem {
+	id: string;
+	version: string;
+	content: string;
+	is_active: boolean;
+	published_at: string | null;
+	created_at: string;
+}
+
+export interface TermsVersionListResponse {
+	items: TermsVersionItem[];
+	total: number;
+	limit: number;
+	offset: number;
+	has_more: boolean;
+	next_offset: number | null;
+}
+
+export interface CreateTermsVersionRequest {
+	version: string;
+	content: string;
+}
+
+export interface UpdateTermsVersionRequest {
+	content: string;
 }
 
 export interface EnrichmentRequest {
@@ -468,6 +532,11 @@ export interface RetentionSettingUpdate {
 	days: number;
 }
 
+export interface RetentionReminderSettingsResponse {
+	deletion_reminder_suppressed: boolean;
+	last_deletion_reminder_sent_at: string | null;
+}
+
 export interface UserPreferences {
 	skip_clarification: boolean;
 }
@@ -593,7 +662,7 @@ export class ApiClient {
 	 *
 	 * Includes operation tracking for observability.
 	 */
-	private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+	private async fetch<T>(endpoint: string, options?: RequestInit, _isRetry = false): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 		const defaultHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
 
@@ -618,6 +687,20 @@ export class ApiClient {
 				credentials: 'include',
 				headers
 			});
+
+			// Handle 401 with session refresh retry (only in browser, only once)
+			if (response.status === 401 && browser && !_isRetry) {
+				try {
+					const refreshed = await Session.attemptRefreshingSession();
+					if (refreshed) {
+						// Session refreshed - retry the request
+						operationTracker.endOp(opId, { status: 401, retrying: true });
+						return this.fetch<T>(endpoint, options, true);
+					}
+				} catch {
+					// Refresh failed - fall through to error handling
+				}
+			}
 
 			if (!response.ok) {
 				let error: ApiError;
@@ -1506,6 +1589,22 @@ export class ApiClient {
 
 	async updateRetentionSetting(days: number): Promise<RetentionSettingResponse> {
 		return this.patch<RetentionSettingResponse>('/api/v1/user/retention', { days });
+	}
+
+	async getRetentionReminderSettings(): Promise<RetentionReminderSettingsResponse> {
+		return this.fetch<RetentionReminderSettingsResponse>('/api/v1/user/retention-reminder/settings');
+	}
+
+	async suppressRetentionReminders(): Promise<RetentionReminderSettingsResponse> {
+		return this.post<RetentionReminderSettingsResponse>('/api/v1/user/retention-reminder/suppress', {});
+	}
+
+	async enableRetentionReminders(): Promise<RetentionReminderSettingsResponse> {
+		return this.post<RetentionReminderSettingsResponse>('/api/v1/user/retention-reminder/enable', {});
+	}
+
+	async acknowledgeRetentionReminder(): Promise<RetentionReminderSettingsResponse> {
+		return this.post<RetentionReminderSettingsResponse>('/api/v1/user/retention-reminder/acknowledge', {});
 	}
 
 	async getUserPreferences(): Promise<UserPreferencesResponse> {
@@ -2865,6 +2964,75 @@ export class ApiClient {
 	 */
 	async getMeetingTemplateBySlug(slug: string): Promise<MeetingTemplate> {
 		return this.fetch<MeetingTemplate>(`/api/v1/templates/${slug}`);
+	}
+
+	// =========================================================================
+	// Terms & Conditions
+	// =========================================================================
+
+	/**
+	 * Get current active T&C version (public)
+	 */
+	async getCurrentTerms(): Promise<TermsVersionResponse> {
+		return this.fetch<TermsVersionResponse>('/api/v1/terms/current');
+	}
+
+	/**
+	 * Get user's consent status for current T&C
+	 */
+	async getTermsConsentStatus(): Promise<ConsentStatusResponse> {
+		return this.fetch<ConsentStatusResponse>('/api/v1/user/terms-consent');
+	}
+
+	/**
+	 * Record user's consent to T&C version
+	 */
+	async recordTermsConsent(termsVersionId: string): Promise<ConsentRecordResponse> {
+		return this.post<ConsentRecordResponse>('/api/v1/user/terms-consent', {
+			terms_version_id: termsVersionId,
+		});
+	}
+
+	// =========================================================================
+	// Admin: Terms Version Management
+	// =========================================================================
+
+	/**
+	 * Get all T&C versions (admin)
+	 */
+	async getTermsVersions(
+		limit: number = 50,
+		offset: number = 0
+	): Promise<TermsVersionListResponse> {
+		return this.fetch<TermsVersionListResponse>(
+			`/api/admin/terms/versions?limit=${limit}&offset=${offset}`
+		);
+	}
+
+	/**
+	 * Create a new draft T&C version (admin)
+	 */
+	async createTermsVersion(
+		data: CreateTermsVersionRequest
+	): Promise<TermsVersionItem> {
+		return this.post<TermsVersionItem>('/api/admin/terms/versions', data);
+	}
+
+	/**
+	 * Update a draft T&C version (admin)
+	 */
+	async updateTermsVersion(
+		versionId: string,
+		data: UpdateTermsVersionRequest
+	): Promise<TermsVersionItem> {
+		return this.put<TermsVersionItem>(`/api/admin/terms/versions/${versionId}`, data);
+	}
+
+	/**
+	 * Publish a T&C version (admin)
+	 */
+	async publishTermsVersion(versionId: string): Promise<TermsVersionItem> {
+		return this.post<TermsVersionItem>(`/api/admin/terms/versions/${versionId}/publish`, {});
 	}
 }
 

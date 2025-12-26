@@ -97,6 +97,8 @@ def _extract_email_type(subject: str, tags: list[dict[str, str]] | None = None) 
         return "action_deadline"
     elif "start" in subject_lower:
         return "action_start"
+    elif "data" in subject_lower and "deleted" in subject_lower:
+        return "retention_reminder"
     else:
         return "other"
 

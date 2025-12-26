@@ -1,6 +1,6 @@
 """Tests for admin rate limit configuration.
 
-Verifies that admin endpoints use higher rate limits (600/minute)
+Verifies that admin endpoints use higher rate limits (1200/minute)
 to support dashboard page loads that fire multiple API requests in parallel.
 """
 
@@ -15,7 +15,7 @@ class TestAdminRateLimitConstants:
     def test_admin_rate_limit_exists(self):
         """Admin rate limit constant is defined."""
         assert hasattr(RateLimits, "ADMIN")
-        assert RateLimits.ADMIN == "600/minute"
+        assert RateLimits.ADMIN == "1200/minute"
 
     def test_admin_rate_limit_higher_than_general(self):
         """Admin rate limit is higher than general rate limit."""
@@ -24,7 +24,7 @@ class TestAdminRateLimitConstants:
         general_limit = int(RateLimits.GENERAL.split("/")[0])
 
         assert admin_limit > general_limit
-        assert admin_limit >= 600  # At least 600/minute for admin
+        assert admin_limit >= 1200  # At least 1200/minute for admin
 
     def test_admin_rate_limit_format(self):
         """Admin rate limit has correct format."""
@@ -40,7 +40,7 @@ class TestAdminRateLimitImports:
         from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT
 
         assert ADMIN_RATE_LIMIT == RateLimits.ADMIN
-        assert ADMIN_RATE_LIMIT == "600/minute"
+        assert ADMIN_RATE_LIMIT == "1200/minute"
 
 
 class TestGlobalIPRateLimiterAdminExemption:

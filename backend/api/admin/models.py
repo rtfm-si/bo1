@@ -1323,3 +1323,176 @@ class ResearchCostsResponse(BaseModel):
     total_queries: int = Field(..., description="Total research queries")
     by_period: ResearchCostsByPeriod = Field(..., description="Costs by time period")
     daily_trend: list[DailyResearchCost] = Field(..., description="Daily costs for chart")
+
+
+# ==============================================================================
+# Terms & Conditions Consent Audit Models
+# ==============================================================================
+
+
+class ConsentAuditItem(BaseModel):
+    """Single consent audit entry.
+
+    Attributes:
+        user_id: User identifier
+        email: User email (if available)
+        terms_version: T&C version string (e.g., "1.0")
+        consented_at: When consent was given (ISO 8601)
+        ip_address: IP address at time of consent
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    email: str | None = Field(None, description="User email")
+    terms_version: str = Field(..., description="T&C version string")
+    consented_at: str = Field(..., description="When consent was given (ISO 8601)")
+    ip_address: str | None = Field(None, description="IP address at consent")
+
+
+class ConsentAuditResponse(BaseModel):
+    """Response for consent audit list.
+
+    Attributes:
+        items: List of consent entries
+        total: Total count matching filter
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+        period: Time period filter applied
+    """
+
+    items: list[ConsentAuditItem] = Field(..., description="List of consent entries")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+    period: str = Field(..., description="Time period filter applied")
+
+
+# ==============================================================================
+# Terms Version Management Models
+# ==============================================================================
+
+
+class TermsVersionItem(BaseModel):
+    """Single T&C version entry.
+
+    Attributes:
+        id: Version UUID
+        version: Version string (e.g., "1.0")
+        content: T&C content (markdown)
+        is_active: Whether this is the active version
+        published_at: When version was published (ISO 8601, null if draft)
+        created_at: When version was created (ISO 8601)
+    """
+
+    id: str = Field(..., description="Version UUID")
+    version: str = Field(..., description="Version string (e.g., '1.0')")
+    content: str = Field(..., description="T&C content (markdown)")
+    is_active: bool = Field(..., description="Whether this is the active version")
+    published_at: str | None = Field(None, description="When published (ISO 8601)")
+    created_at: str = Field(..., description="When created (ISO 8601)")
+
+
+class TermsVersionListResponse(BaseModel):
+    """Response for terms version list.
+
+    Attributes:
+        items: List of version entries
+        total: Total count
+        limit: Page size
+        offset: Current offset
+        has_more: Whether more items exist
+        next_offset: Offset for next page
+    """
+
+    items: list[TermsVersionItem] = Field(..., description="List of versions")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Current offset")
+    has_more: bool = Field(..., description="Whether more items exist")
+    next_offset: int | None = Field(None, description="Offset for next page")
+
+
+class CreateTermsVersionRequest(BaseModel):
+    """Request to create a new T&C version.
+
+    Attributes:
+        version: Version string (e.g., "1.1")
+        content: T&C content (markdown)
+    """
+
+    version: str = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Version string",
+        examples=["1.1", "2.0"],
+    )
+    content: str = Field(
+        ...,
+        min_length=1,
+        description="T&C content (markdown)",
+    )
+
+
+class UpdateTermsVersionRequest(BaseModel):
+    """Request to update a draft T&C version.
+
+    Attributes:
+        content: Updated T&C content (markdown)
+    """
+
+    content: str = Field(
+        ...,
+        min_length=1,
+        description="Updated T&C content (markdown)",
+    )
+
+
+# ==============================================================================
+# A/B Experiment Models
+# ==============================================================================
+
+
+class ExperimentVariantStats(BaseModel):
+    """Statistics for a single A/B test variant.
+
+    Attributes:
+        variant: Variant value (e.g., 3 or 5 for persona count)
+        session_count: Number of sessions with this variant
+        completed_count: Number of completed sessions
+        avg_cost: Average total cost per session (USD)
+        avg_duration_seconds: Average session duration
+        avg_rounds: Average number of rounds
+        avg_persona_count: Actual average personas selected
+        completion_rate: Percentage of sessions completed successfully
+    """
+
+    variant: int = Field(..., description="Variant value (3 or 5)")
+    session_count: int = Field(..., description="Total sessions with this variant")
+    completed_count: int = Field(..., description="Completed sessions")
+    avg_cost: float | None = Field(None, description="Average cost per session (USD)")
+    avg_duration_seconds: float | None = Field(None, description="Average duration (s)")
+    avg_rounds: float | None = Field(None, description="Average number of rounds")
+    avg_persona_count: float | None = Field(None, description="Average personas selected")
+    completion_rate: float = Field(..., description="Completion rate (0-100%)")
+
+
+class ExperimentMetricsResponse(BaseModel):
+    """Response model for A/B experiment metrics.
+
+    Attributes:
+        experiment_name: Name of the experiment
+        variants: Stats for each variant
+        total_sessions: Total sessions in experiment
+        period_start: Start of analysis period (ISO 8601)
+        period_end: End of analysis period (ISO 8601)
+    """
+
+    experiment_name: str = Field(..., description="Experiment name")
+    variants: list[ExperimentVariantStats] = Field(..., description="Per-variant stats")
+    total_sessions: int = Field(..., description="Total sessions in experiment")
+    period_start: str = Field(..., description="Analysis period start (ISO 8601)")
+    period_end: str = Field(..., description="Analysis period end (ISO 8601)")

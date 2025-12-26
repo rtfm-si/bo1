@@ -663,7 +663,7 @@ class TestAdminEndpointRateLimits:
         general_limit = int(RateLimits.GENERAL.split("/")[0])
 
         assert admin_limit > general_limit
-        assert admin_limit == 600  # 600/minute for admin (doubled for dashboard page loads)
+        assert admin_limit == 1200  # 1200/minute for admin (increased for dashboard page loads)
         assert general_limit == 60  # 60/minute for general
 
 
@@ -808,7 +808,7 @@ class TestRateLimitConstants:
         from bo1.constants import RateLimits
 
         # Global IP limits
-        assert RateLimits.GLOBAL_IP == "500/minute"
+        assert RateLimits.GLOBAL_IP == "180/minute"
         assert RateLimits.GLOBAL_IP_BURST == "50/second"
 
         # Other limits
@@ -822,7 +822,7 @@ class TestRateLimitConstants:
         assert RateLimits.UPLOAD == "10/hour"
         assert RateLimits.GENERAL == "60/minute"
         assert RateLimits.CONTROL == "20/minute"
-        assert RateLimits.ADMIN == "600/minute"
+        assert RateLimits.ADMIN == "1200/minute"
 
     def test_rate_limit_format_valid(self):
         """Rate limit format should be parseable (N/unit)."""
@@ -848,9 +848,9 @@ class TestRateLimitConstants:
         """Global IP limit should be high enough for NAT/corporate networks."""
         from bo1.constants import RateLimits
 
-        # 500/min = ~8 requests/second, generous for corporate NAT
+        # 180/min = 3 requests/second, allows corporate NAT while preventing floods
         limit = int(RateLimits.GLOBAL_IP.split("/")[0])
-        assert limit >= 500
+        assert limit >= 180
 
 
 # =============================================================================

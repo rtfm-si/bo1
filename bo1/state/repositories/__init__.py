@@ -40,6 +40,7 @@ from bo1.state.repositories.template_repository import (
     TemplateRepository,
     template_repository,
 )
+from bo1.state.repositories.terms_repository import TermsRepository, terms_repository
 from bo1.state.repositories.user_repository import UserRepository, user_repository
 
 __all__ = [
@@ -58,4 +59,6 @@ __all__ = [
     "promotion_repository",
     "TemplateRepository",
     "template_repository",
+    "TermsRepository",
+    "terms_repository",
 ]

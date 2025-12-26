@@ -324,8 +324,10 @@ class RateLimits:
     """API rate limits by endpoint type."""
 
     # Global IP-based flood protection (runs before all other limits)
-    GLOBAL_IP = "500/minute"
-    """Global per-IP limit to catch flood attacks (generous for NAT/corporate)"""
+    # Note: Admin endpoints (/api/admin/*) bypass this limit entirely
+    # Normal user: ~20-30 calls/min; corporate NAT (10 users): 200-300 calls/min
+    GLOBAL_IP = "180/minute"
+    """Global per-IP limit to catch flood attacks (3/sec, allows corporate NAT)"""
 
     GLOBAL_IP_BURST = "50/second"
     """Short burst protection per IP"""
@@ -362,8 +364,9 @@ class RateLimits:
     """Control endpoints (start/kill deliberation)"""
 
     # Admin tier limits (much higher to allow dashboard page loads)
-    ADMIN = "600/minute"
-    """Admin endpoints (dashboards fire multiple requests on page load)"""
+    # Single admin clicking through pages: ~50-100 calls/min with parallel requests
+    ADMIN = "1200/minute"
+    """Admin endpoints (dashboards fire multiple parallel requests on page load)"""
 
     # Public unauthenticated endpoints (CSRF-exempt, need extra protection)
     WAITLIST = "5/minute"

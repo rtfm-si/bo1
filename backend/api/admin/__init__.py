@@ -26,6 +26,7 @@ from backend.api.admin import (
     blog,
     cost_analytics,
     costs,
+    dashboard,
     drilldown,
     email,
     email_stats,
@@ -44,6 +45,7 @@ from backend.api.admin import (
     runtime_config,
     session_control,
     templates,
+    terms,
     user_metrics,
     users,
     waitlist,
@@ -79,6 +81,8 @@ router.include_router(runtime_config.router)
 router.include_router(email.router)
 router.include_router(queries.router)
 router.include_router(templates.router)
+router.include_router(dashboard.router)
+router.include_router(terms.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

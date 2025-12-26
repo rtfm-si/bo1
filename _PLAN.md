@@ -1,68 +1,40 @@
-# Plan: Embeddings Graph Improvements - Category Filtering & Clustering
+# Plan: Backlog Review - No Actionable Tasks
 
 ## Summary
 
-- Add category filter for research embeddings (by category field: saas_metrics, pricing, etc.)
-- Implement K-means clustering on 2D projections with automatic label generation
-- Display cluster labels in visualization for semantic grouping insight
+- All P0-P2 tasks completed
+- Remaining items are P4 (deferred), blocked, or require user input
+- No implementation work available without unblocking decisions
 
-## Implementation Steps
+## Current Backlog Status
 
-1. **Extend `/embeddings/sample` endpoint** (`backend/api/admin/embeddings.py`)
-   - Add `category: str | None` query parameter to filter research embeddings
-   - Pass to `get_sample_embeddings()` for DB-level filtering
+### Blocked/Requires User Decision
+- [LAUNCH][P1] Switch Stripe to live mode - **manual action**
+- [LAUNCH][P1] Test emergency access procedures - **manual action**
+- [BILLING][P4] Configure Stripe products/prices - **manual action**
+- [EMAIL][P4] Payment receipt email - blocked on Stripe
+- [SOCIAL][P3] Direct posting - blocked on user decision
+- [MONITORING][P1] K8s manifest - **needs clarification**
+- [DATA][P2] Soft-delete behavior - **needs clarification**
 
-2. **Update `get_sample_embeddings()`** (`backend/services/embedding_visualizer.py`)
-   - Add `category: str | None` parameter
-   - Filter research_cache query: `WHERE category = %s` when provided
-   - Return distinct categories in stats for UI dropdown population
+### Low Priority / Deferred
+- [RESEARCH][P4] Cross-user research sharing - requires privacy review
+- [FUTURE][P4] Peer benchmarking - deferred by design
 
-3. **Add category stats endpoint** (`backend/api/admin/embeddings.py`)
-   - `GET /embeddings/categories` - returns list of distinct categories with counts
-   - For populating filter dropdown in UI
+## Recommended Next Steps
 
-4. **Implement clustering** (`backend/services/embedding_visualizer.py`)
-   - Add `compute_clusters()` function using sklearn K-means
-   - Input: 2D coordinates from `reduce_dimensions()`
-   - Auto-determine k using silhouette score (2-8 clusters, pick best)
-   - Return cluster assignments for each point
+1. **Unblock Stripe** (user action): Switch to live mode, configure products/prices
+2. **Clarify K8s** (user decision): Are we using Kubernetes?
+3. **Clarify soft-delete** (user decision): Confirm retention vs hard-delete behavior
+4. **Test procedures** (user action): Run emergency access test
 
-5. **Generate cluster labels** (`backend/services/embedding_visualizer.py`)
-   - Add `generate_cluster_labels()` function
-   - For each cluster: find centroid, sample 3-5 nearest text previews
-   - Use simple heuristic: most common 2-word ngram or first 20 chars of centroid's preview
-   - Return `{cluster_id: label}` mapping
+## No Implementation Plan Generated
 
-6. **Extend response models** (`backend/api/admin/embeddings.py`)
-   - Add `cluster_id: int` to `EmbeddingPoint`
-   - Add `clusters: list[ClusterInfo]` to `EmbeddingSampleResponse`
-   - `ClusterInfo`: `{id: int, label: str, count: int, centroid: {x, y}}`
+No coding tasks available. Awaiting:
+- User decisions on blocked items
+- Clarification on ambiguous requirements
+- New feature requests
 
-7. **Update cache key** (`backend/api/admin/embeddings.py`)
-   - Include category in cache key: `admin:embeddings:sample:{type}:{category}:{limit}:{method}`
+---
 
-## Tests
-
-- Unit tests:
-  - `tests/services/test_embedding_visualizer.py`: test `compute_clusters()` returns valid assignments
-  - `tests/services/test_embedding_visualizer.py`: test `generate_cluster_labels()` returns labels for each cluster
-  - `tests/api/admin/test_embeddings.py`: test category filter returns only matching embeddings
-
-- Integration tests:
-  - Test `/embeddings/sample?category=saas_metrics` returns only saas_metrics research
-  - Test cluster labels appear in response when embeddings > 10
-
-- Manual validation:
-  - Verify category dropdown populates from available categories
-  - Verify cluster visualization shows labeled groups
-  - Verify filtering by category updates cluster assignments
-
-## Dependencies & Risks
-
-- Dependencies:
-  - sklearn already installed (used for PCA)
-  - Existing embedding visualization infrastructure
-
-- Risks:
-  - K-means may produce poor clusters on small datasets (<20 points) - mitigate: skip clustering if n < 20
-  - Label generation may be uninformative - mitigate: fall back to "Cluster N" if no clear pattern
+_Generated: 2025-12-26_

@@ -358,6 +358,9 @@ class DeliberationGraphState(TypedDict, total=False):
     interjection_responses: list[dict[str, Any]]  # Expert responses to the interjection
     needs_interjection_response: bool  # Flag indicating interjection needs processing
 
+    # A/B TEST: Persona count experiment
+    persona_count_variant: int | None  # 3 or 5 personas (A/B test for cost optimization)
+
 
 def create_initial_state(
     session_id: str,
@@ -370,6 +373,7 @@ def create_initial_state(
     context_ids: dict[str, list[str]] | None = None,
     subscription_tier: str | None = None,
     request_id: str | None = None,
+    persona_count_variant: int | None = None,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -384,6 +388,7 @@ def create_initial_state(
         context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
         subscription_tier: User's subscription tier for cost limit enforcement (default: "free")
         request_id: HTTP request ID for log correlation across graph nodes
+        persona_count_variant: A/B test variant (3 or 5 personas)
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
@@ -459,6 +464,8 @@ def create_initial_state(
         user_interjection=None,  # User's interjection message
         interjection_responses=[],  # Expert responses to interjection
         needs_interjection_response=False,  # Flag for interjection processing
+        # A/B TEST: Persona count experiment
+        persona_count_variant=persona_count_variant,
     )
 
 

@@ -14,8 +14,8 @@ from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 
-# Default retention period (days)
-DEFAULT_RETENTION_DAYS = 365
+# Default retention period (days) - matches DB column default of 730
+DEFAULT_RETENTION_DAYS = 730
 
 
 def cleanup_expired_sessions(retention_days: int | None = None) -> dict[str, int]:
@@ -25,7 +25,7 @@ def cleanup_expired_sessions(retention_days: int | None = None) -> dict[str, int
     aggregate statistics while complying with GDPR.
 
     Uses per-user data_retention_days from users table, falling back to
-    DEFAULT_RETENTION_DAYS (365) if not set. Users with data_retention_days = -1
+    DEFAULT_RETENTION_DAYS (730) if not set. Users with data_retention_days = -1
     (forever) are skipped entirely.
 
     Args:

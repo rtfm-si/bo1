@@ -1303,3 +1303,231 @@ async def get_value_metrics(
             user_id=user_id,
         )
         return ValueMetricsResponse(metrics=[], has_context=False, has_history=False)
+
+
+# =============================================================================
+# Data Retention Reminder Settings
+# =============================================================================
+
+
+class RetentionReminderSettingsResponse(BaseModel):
+    """Response for retention reminder settings endpoint."""
+
+    deletion_reminder_suppressed: bool = Field(
+        ..., description="Whether deletion reminder emails are suppressed"
+    )
+    last_deletion_reminder_sent_at: datetime | None = Field(
+        None, description="When last reminder was sent"
+    )
+
+
+@router.get(
+    "/retention-reminder/settings",
+    summary="Get retention reminder settings",
+    description="Get the user's retention reminder email preferences.",
+    response_model=RetentionReminderSettingsResponse,
+    responses={
+        200: {"description": "Current settings"},
+        500: {"description": "Failed to get settings", "model": ErrorResponse},
+    },
+)
+async def get_retention_reminder_settings(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionReminderSettingsResponse:
+    """Get user's retention reminder email settings."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT deletion_reminder_suppressed, last_deletion_reminder_sent_at
+                    FROM users WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                return RetentionReminderSettingsResponse(
+                    deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False)
+                    or False,
+                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get retention reminder settings for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to get settings") from e
+
+
+@router.post(
+    "/retention-reminder/suppress",
+    summary="Suppress retention reminder emails",
+    description="""
+    Suppress future data retention reminder emails.
+
+    Users can turn off reminder emails about upcoming data deletion.
+    This does not affect the actual data retention policy - data will
+    still be deleted according to the configured retention period.
+    """,
+    response_model=RetentionReminderSettingsResponse,
+    responses={
+        200: {"description": "Reminders suppressed"},
+        500: {"description": "Failed to update setting", "model": ErrorResponse},
+    },
+)
+async def suppress_retention_reminders(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionReminderSettingsResponse:
+    """Suppress retention reminder emails for the user."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET deletion_reminder_suppressed = true, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"User {user_id} suppressed retention reminders")
+                return RetentionReminderSettingsResponse(
+                    deletion_reminder_suppressed=True,
+                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to suppress retention reminders for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to update setting") from e
+
+
+@router.post(
+    "/retention-reminder/enable",
+    summary="Enable retention reminder emails",
+    description="Re-enable data retention reminder emails after suppressing them.",
+    response_model=RetentionReminderSettingsResponse,
+    responses={
+        200: {"description": "Reminders enabled"},
+        500: {"description": "Failed to update setting", "model": ErrorResponse},
+    },
+)
+async def enable_retention_reminders(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionReminderSettingsResponse:
+    """Re-enable retention reminder emails for the user."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET deletion_reminder_suppressed = false, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"User {user_id} enabled retention reminders")
+                return RetentionReminderSettingsResponse(
+                    deletion_reminder_suppressed=False,
+                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to enable retention reminders for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to update setting") from e
+
+
+@router.post(
+    "/retention-reminder/acknowledge",
+    summary="Acknowledge retention reminder",
+    description="""
+    Acknowledge the retention reminder (user understands data will be deleted).
+
+    This resets the reminder timer without changing any settings.
+    The user won't receive another reminder for the minimum interval period.
+    """,
+    response_model=RetentionReminderSettingsResponse,
+    responses={
+        200: {"description": "Reminder acknowledged"},
+        500: {"description": "Failed to acknowledge", "model": ErrorResponse},
+    },
+)
+async def acknowledge_retention_reminder(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionReminderSettingsResponse:
+    """Acknowledge retention reminder (resets reminder timer)."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Just update the last sent timestamp to delay next reminder
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET last_deletion_reminder_sent_at = NOW(), updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"User {user_id} acknowledged retention reminder")
+                return RetentionReminderSettingsResponse(
+                    deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False)
+                    or False,
+                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to acknowledge retention reminder for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to acknowledge") from e

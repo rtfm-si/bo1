@@ -47,12 +47,24 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Calculate problem complexity and target expert count
     settings = get_settings()
     complexity_score = calculate_problem_complexity(state)
-    target_count = calculate_target_expert_count(
-        complexity_score,
-        min_experts=settings.min_experts,
-        max_experts=settings.max_experts,
-        threshold_simple=settings.complexity_threshold_simple,
-    )
+
+    # A/B TEST: Use persona_count_variant if set, otherwise calculate dynamically
+    persona_count_variant = state.get("persona_count_variant")
+    if persona_count_variant is not None:
+        target_count = persona_count_variant
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            f"select_personas_node: Using A/B test variant persona_count={target_count}",
+        )
+    else:
+        target_count = calculate_target_expert_count(
+            complexity_score,
+            min_experts=settings.min_experts,
+            max_experts=settings.max_experts,
+            threshold_simple=settings.complexity_threshold_simple,
+        )
 
     log_with_session(
         logger,

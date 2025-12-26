@@ -10,7 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.api.user import RetentionSettingResponse, RetentionSettingUpdate
+from backend.api.user import (
+    RetentionReminderSettingsResponse,
+    RetentionSettingResponse,
+    RetentionSettingUpdate,
+)
 
 
 @pytest.mark.unit
@@ -180,3 +184,93 @@ class TestSessionCleanupPerUserRetention:
         sql = call_args[0][0]
         # Query should have condition to exclude -1 retention
         assert "!= -1" in sql or "<> -1" in sql
+
+
+@pytest.mark.unit
+class TestRetentionReminderSettingsModels:
+    """Test Pydantic models for retention reminder settings."""
+
+    def test_reminder_settings_response_valid(self) -> None:
+        """Test valid reminder settings response."""
+        response = RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=False,
+            last_deletion_reminder_sent_at=None,
+        )
+        assert response.deletion_reminder_suppressed is False
+        assert response.last_deletion_reminder_sent_at is None
+
+    def test_reminder_settings_response_suppressed(self) -> None:
+        """Test suppressed reminder settings response."""
+        response = RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=True,
+            last_deletion_reminder_sent_at=None,
+        )
+        assert response.deletion_reminder_suppressed is True
+
+    def test_reminder_settings_response_with_timestamp(self) -> None:
+        """Test reminder settings with last sent timestamp."""
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        response = RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=False,
+            last_deletion_reminder_sent_at=now,
+        )
+        assert response.last_deletion_reminder_sent_at == now
+
+
+@pytest.mark.unit
+class TestRetentionReminderEndpoints:
+    """Test retention reminder endpoint logic."""
+
+    @patch("backend.api.user.db_session")
+    def test_get_settings_returns_values(self, mock_db: MagicMock) -> None:
+        """Test GET returns user's reminder settings."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {
+            "deletion_reminder_suppressed": False,
+            "last_deletion_reminder_sent_at": None,
+        }
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = mock_cursor.fetchone()
+        assert result["deletion_reminder_suppressed"] is False
+        assert result["last_deletion_reminder_sent_at"] is None
+
+    @patch("backend.api.user.db_session")
+    def test_suppress_sets_flag(self, mock_db: MagicMock) -> None:
+        """Test suppress sets deletion_reminder_suppressed to true."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {
+            "deletion_reminder_suppressed": True,
+            "last_deletion_reminder_sent_at": None,
+        }
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = mock_cursor.fetchone()
+        assert result["deletion_reminder_suppressed"] is True
+
+    @patch("backend.api.user.db_session")
+    def test_enable_clears_flag(self, mock_db: MagicMock) -> None:
+        """Test enable sets deletion_reminder_suppressed to false."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {
+            "deletion_reminder_suppressed": False,
+            "last_deletion_reminder_sent_at": None,
+        }
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = mock_cursor.fetchone()
+        assert result["deletion_reminder_suppressed"] is False

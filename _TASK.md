@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
+_Last updated: 2025-12-26 (A/B persona count experiment: 3 vs 5 personas with admin metrics dashboard)_
 
 ---
 
@@ -27,6 +27,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 
 - [ ] [MONITORING][P1] Kubernetes deployment manifest - are we using kubernetes?
 - [ ] [MONITORING] Clarify "grafana logs: value A" (ambiguous)
+- [ ] [DATA][P2] Clarify data retention soft-delete behavior: confirm soft-delete for retention vs hard-delete only on account deletion (RTBF compliance)
 
 ### User-Owned
 
@@ -38,7 +39,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 
 ### Cost Optimization [COST]
 
-- [ ] [COST][P4] Run A/B test comparing 3 vs 5 personas for user satisfaction (potential 20-30% reduction)
+- [x] [COST][P4] Run A/B test comparing 3 vs 5 personas for user satisfaction (potential 20-30% reduction)
 - [x] [COST][P3] Monitor cache hit rate and adjust similarity threshold based on data (admin metrics dashboard with recommendations)
 - [x] [COST][P3] Remove verbose examples from facilitator.py after model training stabilizes
 
@@ -48,6 +49,15 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 - [x] [FEAT][P2] Action update LLM summarizer: pass all action updates through LLM for improved formatting
 - [x] [FEAT][P2] Action post-mortems: capture what went well and lessons learned on action completion
 - [x] [FEAT][P3] Action post-mortems: feed insights into "ask mentor" for future improvement suggestions
+- [x] [FEAT][P2] Data retention email notifications: send reminder emails at 28 days and 1 day before scheduled deletion
+- [x] [FEAT][P2] Data retention acknowledgement UI: allow users to acknowledge and suppress future deletion reminders
+- [x] [FEAT][P2] Default data retention period: set 2-year default retention for new user accounts
+- [x] [LEGAL][P1] T&C document versioning: schema to store T&C versions with content, version number, published_at timestamp, and active status
+- [x] [LEGAL][P1] T&C consent capture: store agreement timestamp, T&C version, and IP address on user signup/re-acceptance
+- [x] [LEGAL][P2] T&C admin management UI: create, edit, preview, and publish new T&C versions with version history
+- [x] [LEGAL][P2] T&C version tracking: prompt users to re-accept when T&C version changes, block access until accepted
+- [x] [LEGAL][P2] T&C consent audit log: admin view showing user consent history with timestamps, versions, and IPs
+- [x] [LEGAL][P2] Privacy settings consent history: display Legal Agreements card with T&C version, consent date, and privacy policy link
 
 ### Context Strategic Enhancements [CONTEXT]
 
@@ -61,7 +71,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 - [x] [RESEARCH][P2] Tier research providers: use Brave for starter tier, Tavily for pro tier (competitor analysis, market trends)
 - [x] [RESEARCH][P1] Audit all research call sites: verify using Brave/Tavily instead of Anthropic/OpenAI for web research (see `audits/reports/research-providers.report.md`)
 - [x] [RESEARCH][P2] Track Brave and Tavily API costs in admin dashboard
-- [ ] [RESEARCH][P2] Research caching with embeddings: timestamp research, generate Voyage embeddings, search existing before new API calls
+- [x] [RESEARCH][P2] Research caching with embeddings: timestamp research, generate Voyage embeddings, search existing before new API calls
 - [ ] [RESEARCH][P4] Cross-user research sharing: leverage research from similar business contexts (same industry) - requires privacy review
 
 ### Admin Dashboard [ADMIN]
@@ -81,7 +91,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 
 ### Test Stability [TEST]
 
-- [ ] [TEST][P3] Fix flaky test_trend_analyzer.py::test_invalid_url_returns_error - event loop cleanup race condition (passes individually, fails in suite)
+- [x] [TEST][P3] Fix flaky test_trend_analyzer.py::test_invalid_url_returns_error - event loop cleanup race condition (passes individually, fails in suite)
 
 ### Deferred / Future [FUTURE]
 
@@ -108,7 +118,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 
 ### Admin & Ops
 
-- **Admin Dashboard**: Sessions, costs, KPIs, kill history, alerts, users, waitlist, promotions, impersonation, blog management, template management, email activity metrics (open/click/failed rates via Resend webhooks), research cache metrics with threshold recommendations
+- **Admin Dashboard**: Sessions, costs, KPIs, kill history, alerts, users, waitlist, promotions, impersonation, blog management, template management, email activity metrics (open/click/failed rates via Resend webhooks), research cache metrics with threshold recommendations, A/B experiments dashboard (persona count experiment)
 - **AI Ops**: Error detection, auto-remediation, self-monitoring
 - **Observability**: Prometheus metrics (circuit breakers, Redis pool, event persistence, cost tracking, health history), Grafana dashboards (overview, cache performance), Loki logging, graph node instrumentation
 - **Monitoring**: Health checks (Redis, Postgres, Anthropic, Voyage, Brave, ClamAV), pool exhaustion alerts, LLM provider health probes
@@ -116,7 +126,7 @@ _Last updated: 2025-12-26 (Blocker buster: escalate blocked actions to meeting)_
 ### Security & Compliance
 
 - **Security**: Rate limiting (global IP, SSE, dataset, admin), prompt injection detection, SQL validation, metrics auth, input sanitization (LLM outputs, user interjections, business context)
-- **GDPR**: Data export, deletion/anonymization, audit logging, retention, consent capture
+- **GDPR**: Data export, deletion/anonymization, audit logging, retention, consent capture, T&C versioning (terms_versions/terms_consents tables, consent modal, callback flow integration)
 - **Supply Chain**: Pinned versions, OSV-Scanner, pip-audit blocking, Trivy container scanning, Dependabot
 - **Web Security**: Nonce-based CSP, CSRF protection, HSTS, WAF rules, ClamAV file scanning
 

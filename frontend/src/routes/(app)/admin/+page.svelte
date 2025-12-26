@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import ResearchCostsPanel from '$lib/components/admin/ResearchCostsPanel.svelte';
 	import ResearchCacheMetrics from '$lib/components/admin/ResearchCacheMetrics.svelte';
@@ -505,6 +505,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-info-600 dark:text-info-400">View embeddings →</span>
+			</a>
+
+			<!-- A/B Experiments Card -->
+			<a
+				href="/admin/experiments"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<FlaskConical class="w-6 h-6 text-accent-600 dark:text-accent-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">A/B Experiments</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Track experiment metrics</p>
+					</div>
+				</div>
+				<span class="text-sm text-accent-600 dark:text-accent-400">View experiments →</span>
 			</a>
 		</div>
 

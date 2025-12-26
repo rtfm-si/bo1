@@ -6,8 +6,28 @@
 	import { ActivityStatus, LOADING_MESSAGES } from '$lib/components/ui/loading';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 	import { env } from '$env/dynamic/public';
+	import TermsConsentModal from '$lib/components/TermsConsentModal.svelte';
+	import { apiClient, ApiClientError } from '$lib/api/client';
 
-	let error: string | null = null;
+	let error = $state<string | null>(null);
+	let showTermsModal = $state(false);
+	let isCheckingTerms = $state(false);
+
+	async function checkTermsConsent(): Promise<boolean> {
+		try {
+			const status = await apiClient.getTermsConsentStatus();
+			return status.has_consented;
+		} catch (err) {
+			// If no active T&C or API error, consider consented to avoid blocking
+			console.warn('[Callback] Terms consent check failed:', err);
+			return true;
+		}
+	}
+
+	function handleTermsAccept() {
+		showTermsModal = false;
+		goto('/dashboard');
+	}
 
 	onMount(async () => {
 		console.log('[Callback] Starting OAuth callback processing...');
@@ -53,6 +73,18 @@
 				console.log('[Callback] Initializing auth store...');
 				await initAuth();
 
+				// Check T&C consent before redirecting
+				console.log('[Callback] Checking T&C consent...');
+				isCheckingTerms = true;
+				const hasConsented = await checkTermsConsent();
+				isCheckingTerms = false;
+
+				if (!hasConsented) {
+					console.log('[Callback] User needs to accept T&C');
+					showTermsModal = true;
+					return; // Don't redirect - wait for modal acceptance
+				}
+
 				console.log('[Callback] Redirecting to dashboard...');
 				// Success! Redirect to dashboard
 				goto('/dashboard');
@@ -97,12 +129,16 @@
 			</div>
 		</div>
 	</div>
+{:else if showTermsModal}
+	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4">
+		<TermsConsentModal bind:open={showTermsModal} onAccept={handleTermsAccept} />
+	</div>
 {:else}
 	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4">
 		<div class="max-w-md w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
 			<ActivityStatus
 				variant="card"
-				message={LOADING_MESSAGES.auth.completing}
+				message={isCheckingTerms ? 'Checking terms...' : LOADING_MESSAGES.auth.completing}
 				phase="Please wait while we verify your account."
 			/>
 		</div>

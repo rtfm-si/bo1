@@ -61,6 +61,8 @@ class Session(BaseModel):
     )
     # Meeting template (from z21_add_meeting_templates migration)
     template_id: str | None = Field(None, description="Template used to create this session")
+    # A/B experiment (from ab1_add_persona_experiment migration)
+    persona_count_variant: int | None = Field(None, description="A/B test variant: 3 or 5 personas")
 
     model_config = ConfigDict(
         from_attributes=True,

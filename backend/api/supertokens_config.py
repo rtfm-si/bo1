@@ -712,6 +712,11 @@ def init_supertokens() -> None:
                 cookie_secure=cookie_secure,  # HTTPS only in production
                 cookie_domain=cookie_domain,  # .boardof.one in production
                 cookie_same_site="lax",  # CSRF protection
+                # Handle cookie domain transitions - if domain was changed,
+                # older_cookie_domain clears cookies from previous domain.
+                # Set to "" if previous was localhost/unset, or previous domain value.
+                # Must keep for 1 year (access token frontend lifetime).
+                older_cookie_domain=os.getenv("OLDER_COOKIE_DOMAIN", ""),
                 override=session.InputOverrideConfig(
                     apis=override_session_apis,
                 ),

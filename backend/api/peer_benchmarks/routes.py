@@ -99,7 +99,7 @@ class ComparisonResponse(BaseModel):
 
 
 @router.get("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("get benchmark consent")
 @limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
 async def get_consent(
     request: Request,
@@ -118,7 +118,7 @@ async def get_consent(
 
 
 @router.post("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("opt in benchmarks")
 @limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
 async def opt_in(
     request: Request,
@@ -142,7 +142,7 @@ async def opt_in(
 
 
 @router.delete("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("opt out benchmarks")
 @limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
 async def opt_out(
     request: Request,
@@ -171,7 +171,7 @@ async def opt_out(
 
 
 @router.get("", response_model=PeerBenchmarksResponse)
-@handle_api_errors
+@handle_api_errors("get peer benchmarks")
 @limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
 async def get_benchmarks(
     request: Request,
@@ -227,7 +227,7 @@ async def get_benchmarks(
 
 
 @router.get("/compare", response_model=ComparisonResponse)
-@handle_api_errors
+@handle_api_errors("get peer comparison")
 @limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
 async def get_comparison(
     request: Request,

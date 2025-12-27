@@ -323,7 +323,7 @@ async def _perform_trend_analysis(
 
 
 @router.post("/analyze-trends", response_model=TrendAnalysisResponse)
-@handle_api_errors
+@handle_api_errors("analyze trends")
 @limiter.limit(SEO_ANALYZE_RATE_LIMIT)
 async def analyze_trends(
     request: Request,
@@ -391,7 +391,7 @@ async def analyze_trends(
 
 
 @router.get("/history", response_model=HistoryResponse)
-@handle_api_errors
+@handle_api_errors("get trend history")
 async def get_history(
     request: Request,
     limit: int = Query(10, ge=1, le=50, description="Number of entries to return"),
@@ -458,7 +458,7 @@ async def get_history(
 
 
 @router.get("/topics", response_model=SeoTopicListResponse)
-@handle_api_errors
+@handle_api_errors("list topics")
 async def list_topics(
     request: Request,
     limit: int = Query(50, ge=1, le=100, description="Number of topics to return"),
@@ -511,7 +511,7 @@ async def list_topics(
 
 
 @router.post("/topics", response_model=SeoTopic, status_code=201)
-@handle_api_errors
+@handle_api_errors("create topic")
 async def create_topic(
     request: Request,
     body: SeoTopicCreate,
@@ -569,7 +569,7 @@ async def create_topic(
 
 
 @router.patch("/topics/{topic_id}", response_model=SeoTopic)
-@handle_api_errors
+@handle_api_errors("update topic")
 async def update_topic(
     request: Request,
     topic_id: int,
@@ -639,7 +639,7 @@ async def update_topic(
 
 
 @router.delete("/topics/{topic_id}", status_code=204, response_model=None)
-@handle_api_errors
+@handle_api_errors("delete topic")
 async def delete_topic(
     request: Request,
     topic_id: int,
@@ -737,7 +737,7 @@ def _get_monthly_article_usage(user_id: str) -> int:
 
 
 @router.post("/topics/{topic_id}/generate", response_model=SeoBlogArticle, status_code=201)
-@handle_api_errors
+@handle_api_errors("generate article")
 @limiter.limit(SEO_GENERATE_RATE_LIMIT)
 async def generate_article(
     request: Request,
@@ -853,7 +853,7 @@ async def generate_article(
 
 
 @router.get("/articles", response_model=SeoBlogArticleListResponse)
-@handle_api_errors
+@handle_api_errors("list articles")
 async def list_articles(
     request: Request,
     limit: int = Query(20, ge=1, le=100, description="Number of articles to return"),
@@ -919,7 +919,7 @@ async def list_articles(
 
 
 @router.get("/articles/{article_id}", response_model=SeoBlogArticle)
-@handle_api_errors
+@handle_api_errors("get article")
 async def get_article(
     request: Request,
     article_id: int,
@@ -958,7 +958,7 @@ async def get_article(
 
 
 @router.patch("/articles/{article_id}", response_model=SeoBlogArticle)
-@handle_api_errors
+@handle_api_errors("update article")
 async def update_article(
     request: Request,
     article_id: int,
@@ -1063,7 +1063,7 @@ async def update_article(
 
 
 @router.delete("/articles/{article_id}", status_code=204, response_model=None)
-@handle_api_errors
+@handle_api_errors("delete article")
 async def delete_article(
     request: Request,
     article_id: int,
@@ -1147,7 +1147,7 @@ SEO_EVENT_RATE_LIMIT = "30/minute"
 
 
 @router.post("/articles/{article_id}/events", status_code=201, response_model=None)
-@handle_api_errors
+@handle_api_errors("record article event")
 @limiter.limit(SEO_EVENT_RATE_LIMIT)
 async def record_article_event(
     request: Request,
@@ -1207,7 +1207,7 @@ async def record_article_event(
 
 
 @router.get("/articles/{article_id}/analytics", response_model=ArticleAnalytics)
-@handle_api_errors
+@handle_api_errors("get article analytics")
 async def get_article_analytics(
     request: Request,
     article_id: int,
@@ -1272,7 +1272,7 @@ async def get_article_analytics(
 
 
 @router.get("/analytics", response_model=ArticleAnalyticsListResponse)
-@handle_api_errors
+@handle_api_errors("get aggregated analytics")
 async def get_all_analytics(
     request: Request,
     user: dict = Depends(get_current_user),

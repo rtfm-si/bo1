@@ -46,7 +46,7 @@ class ConsentStatusResponse(BaseModel):
 
 
 @router.get("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("get research sharing consent")
 @limiter.limit(CONTEXT_RATE_LIMIT)
 async def get_consent(
     request: Request,
@@ -65,7 +65,7 @@ async def get_consent(
 
 
 @router.post("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("opt in research sharing")
 @limiter.limit(CONTEXT_RATE_LIMIT)
 async def opt_in(
     request: Request,
@@ -90,7 +90,7 @@ async def opt_in(
 
 
 @router.delete("/consent", response_model=ConsentStatusResponse)
-@handle_api_errors
+@handle_api_errors("opt out research sharing")
 @limiter.limit(CONTEXT_RATE_LIMIT)
 async def opt_out(
     request: Request,

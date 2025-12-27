@@ -71,7 +71,7 @@ class AdminSeoAnalyticsResponse(BaseModel):
 
 
 @router.get("/analytics", response_model=AdminSeoAnalyticsResponse)
-@handle_api_errors
+@handle_api_errors("get admin seo analytics")
 @limiter.limit(ADMIN_RATE_LIMIT)
 async def get_admin_seo_analytics(
     request: Request,

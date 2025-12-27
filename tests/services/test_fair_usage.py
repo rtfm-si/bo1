@@ -1,12 +1,11 @@
 """Tests for FairUsageService."""
 
+from unittest.mock import patch
+
 import pytest
-from datetime import date
-from unittest.mock import MagicMock, patch
 
 from backend.services.fair_usage import (
     FairUsageService,
-    UsageCheckResult,
     UsageStatus,
     get_fair_usage_service,
 )

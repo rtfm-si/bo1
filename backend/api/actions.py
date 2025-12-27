@@ -2649,7 +2649,7 @@ async def get_action_reminder_settings(
 
     settings = get_reminder_settings(action_id, user_id)
     if not settings:
-        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
+        raise http_error(ErrorCode.API_NOT_FOUND, "Action not found", 404)
 
     return ReminderSettingsResponse(
         action_id=settings.action_id,
@@ -2702,7 +2702,7 @@ async def update_action_reminder_settings(
     )
 
     if not settings:
-        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
+        raise http_error(ErrorCode.API_NOT_FOUND, "Action not found", 404)
 
     return ReminderSettingsResponse(
         action_id=settings.action_id,

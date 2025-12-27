@@ -59,7 +59,9 @@ class TestCreateProjectMeeting:
             )
 
         assert exc_info.value.status_code == 404
-        assert "not found" in exc_info.value.detail.lower()
+        detail = exc_info.value.detail
+        msg = detail if isinstance(detail, str) else detail.get("message", "")
+        assert "not found" in msg.lower()
 
     @pytest.mark.asyncio
     @patch("backend.api.projects.project_repository")
@@ -86,7 +88,9 @@ class TestCreateProjectMeeting:
             )
 
         assert exc_info.value.status_code == 403
-        assert "denied" in exc_info.value.detail.lower()
+        detail = exc_info.value.detail
+        msg = detail if isinstance(detail, str) else detail.get("message", "")
+        assert "denied" in msg.lower()
 
 
 class TestCreateProjectMeetingModel:

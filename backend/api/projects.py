@@ -606,9 +606,9 @@ async def create_project_meeting(
     # Verify project ownership
     project = project_repository.get(project_id)
     if not project:
-        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
+        raise http_error(ErrorCode.API_NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
+        raise http_error(ErrorCode.API_FORBIDDEN, "Access denied", 403)
 
     # Build problem statement if not provided
     problem_statement = request.problem_statement

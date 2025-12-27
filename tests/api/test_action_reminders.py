@@ -475,7 +475,10 @@ class TestReminderSettingsHTTPEndpoints:
         response = wrong_user_client.get(f"/api/v1/actions/{test_action_id}/reminder-settings")
 
         assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        detail = response.json()["detail"]
+        # detail can be string or structured dict with "message" key
+        msg = detail if isinstance(detail, str) else detail.get("message", "")
+        assert "not found" in msg.lower()
 
     def test_get_reminder_settings_http_nonexistent(self, api_client):
         """GET should return 404 for nonexistent action."""

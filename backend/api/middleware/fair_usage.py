@@ -7,11 +7,10 @@ fair usage limits before allowing expensive operations.
 import logging
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 
 from backend.api.middleware.auth import get_current_user
 from backend.services.fair_usage import (
-    FairUsageService,
     UsageCheckResult,
     UsageStatus,
     get_fair_usage_service,

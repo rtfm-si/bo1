@@ -1,60 +1,59 @@
-# Plan: Backlog Triage – Unblock Next Tasks
+# Plan: Non-Fixed Costs Analysis & Fair Usage Caps
 
-## Summary
+## Status: NEEDS CLARIFICATION
 
-- All implementation tasks in `_TASK.md` are completed or blocked
-- Remaining items require user clarification or external action
-- This plan identifies what's needed to unblock progress
+The task `[BILLING][P2] Clarify scope of: "non-fixed costs (mentor chats, data analysis, competitor analysis) - cost analysis, fair usage caps, top 10% capping"` requires user input before implementation.
 
-## Items Requiring User Action
+## Current State
 
-### [LAUNCH][P1] Switch Stripe to Live Mode
-**Status:** Ready for manual action
-**Action:** User to toggle Stripe keys from test to live per `docs/runbooks/stripe-config.md`
+**Existing infrastructure:**
+- `api_costs` table tracks all LLM costs with `operation_type`, `node_name`, `user_id`
+- `user_cost_periods` aggregates monthly costs per user
+- `user_budget_settings` supports per-user hard limits and alert thresholds (admin-configured)
+- `PlanConfig` defines tier limits for `mentor_daily` (10/50/unlimited)
 
-### [EMAIL][P4] Payment Receipt Email Trigger
-**Status:** Blocked on Stripe live mode
-**Unblocks after:** Stripe live mode switch
+**Missing:**
+- No distinct tracking for "mentor chat" vs "data analysis" vs "competitor analysis" operation types
+- No automatic fair usage caps based on usage percentiles
+- No "top 10% capping" logic
 
-### [SOCIAL][P3] Direct Posting to Social Accounts
-**Status:** Blocked on user decision
-**Action:** User to decide approach (see previous `_PLAN.md` discussion)
+## Clarification Questions
 
-## Items Requiring Clarification
+Before proceeding, please clarify:
 
-### [MONITORING][P1] Kubernetes Deployment Manifest
-**Question:** Are we using Kubernetes? Current deployment appears to be direct SSH to DigitalOcean droplet.
-**If yes:** Create k8s manifests (deployment, service, ingress, configmap)
-**If no:** Mark task as not applicable
+1. **Operation categorization**: Should we add explicit `operation_type` values like `mentor_chat`, `data_analysis`, `competitor_analysis`? Currently these are tracked as generic `completion` or `summarization`.
 
-### [MONITORING] Grafana Logs "value A"
-**Question:** What does "grafana logs: value A" refer to? Need specific requirement.
+2. **Fair usage caps scope**:
+   - Per-feature caps (e.g., 50 mentor chats/day) vs per-cost caps (e.g., $5/month on mentor)?
+   - Should caps be tier-specific or universal?
 
-### [DATA][P2] Data Retention Soft-Delete Behavior
-**Question:** What is expected soft-delete behavior?
-- Soft-delete keeps row with `deleted_at` timestamp?
-- Or hard-delete with audit log?
-- Retention period before permanent purge?
+3. **Top 10% capping mechanism**:
+   - Cap users in top 10% of usage to prevent runaway costs?
+   - Alert-only or hard block?
+   - Rolling window (daily/weekly/monthly)?
 
-## Deferred by Design (No Action Required)
+4. **Implementation priority**:
+   - Cost analysis dashboard (admin visibility into per-feature costs)?
+   - Automatic caps enforcement?
+   - Both?
 
-- `[DATA][P2]` DuckDB backend – defer until >100K rows needed
-- `[BILLING][P4]` Upgrade prompts near limit – nice-to-have
+## Proposed Approaches (pending clarification)
 
-## User-Owned (Si's Todo)
+### Option A: Cost Analysis Only
+- Add granular `operation_type` tracking for mentor/data/competitor
+- Admin dashboard showing per-feature cost breakdown
+- No automatic caps (admin manually adjusts `user_budget_settings`)
 
-- `[DOCS][P3]` Help pages content review
+### Option B: Automatic Fair Usage Caps
+- Tier-specific cost budgets per feature category
+- Soft warnings at 80%, hard cap at 100%
+- Per-feature limits in `PlanConfig`
+
+### Option C: Percentile-Based Capping
+- Calculate daily/monthly usage percentiles
+- Auto-throttle users above 90th percentile
+- Requires background job for percentile calculation
 
 ---
 
-## Recommended Next Step
-
-**Option A:** Switch Stripe to live mode (unlocks email task, enables production billing)
-
-**Option B:** Clarify Kubernetes question (highest priority monitoring task)
-
-**Option C:** Add new tasks to `_TASK.md` based on priorities
-
----
-
-_Generated: 2025-12-27_
+**Action required**: Please clarify the scope before I proceed with implementation steps.

@@ -3824,6 +3824,21 @@
         "title": "BulkEnrichResponse",
         "type": "object"
       },
+      "BundlePurchaseRequest": {
+        "description": "Request to purchase a meeting bundle.",
+        "properties": {
+          "bundle_size": {
+            "description": "Number of meetings (1, 3, 5, or 9)",
+            "title": "Bundle Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bundle_size"
+        ],
+        "title": "BundlePurchaseRequest",
+        "type": "object"
+      },
       "BusinessContext": {
         "description": "Business context data model.\n\nContains both basic fields (original) and extended fields (new).",
         "properties": {
@@ -9369,6 +9384,44 @@
             "title": "Name",
             "type": "string"
           },
+          "relevance_flags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelevanceFlags"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Individual relevance check results"
+          },
+          "relevance_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0",
+            "title": "Relevance Score"
+          },
+          "relevance_warning": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Warning message if <2 checks pass",
+            "title": "Relevance Warning"
+          },
           "url": {
             "anyOf": [
               {
@@ -12966,6 +13019,262 @@
         "title": "KanbanColumnsUpdate",
         "type": "object"
       },
+      "KeyMetricConfig": {
+        "description": "Configuration for a single key metric in user's dashboard.\n\nStores user's prioritization and categorization of metrics they want to track.",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/MetricSourceCategory",
+            "default": "user",
+            "description": "Source category: user, competitor, or industry"
+          },
+          "display_order": {
+            "default": 0,
+            "description": "Display order within importance bucket",
+            "minimum": 0.0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "importance": {
+            "$ref": "#/components/schemas/MetricImportance",
+            "default": "monitor",
+            "description": "Priority level: now, later, or monitor"
+          },
+          "metric_key": {
+            "description": "Metric identifier (e.g., 'revenue', 'customers', 'churn')",
+            "maxLength": 50,
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional user notes about this metric",
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "metric_key"
+        ],
+        "title": "KeyMetricConfig",
+        "type": "object"
+      },
+      "KeyMetricConfigUpdate": {
+        "description": "Request to update key metrics configuration.",
+        "properties": {
+          "metrics": {
+            "description": "Updated list of key metric configurations",
+            "items": {
+              "$ref": "#/components/schemas/KeyMetricConfig"
+            },
+            "maxItems": 20,
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "KeyMetricConfigUpdate",
+        "type": "object"
+      },
+      "KeyMetricDisplay": {
+        "description": "Display model for a single key metric with current value and trends.\n\nUsed to render metric cards in the UI.",
+        "properties": {
+          "benchmark_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Industry benchmark for comparison",
+            "title": "Benchmark Value"
+          },
+          "category": {
+            "$ref": "#/components/schemas/MetricSourceCategory",
+            "description": "Source category"
+          },
+          "importance": {
+            "$ref": "#/components/schemas/MetricImportance",
+            "description": "User's priority level"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When value was last updated",
+            "title": "Last Updated"
+          },
+          "metric_key": {
+            "description": "Metric identifier",
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name",
+            "maxLength": 100,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User notes",
+            "title": "Notes"
+          },
+          "percentile": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's percentile vs industry (0-100)",
+            "title": "Percentile"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/MetricTrendIndicator",
+            "default": "unknown",
+            "description": "Trend direction (pendulum)"
+          },
+          "trend_change": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable change (e.g., '+15% MoM')",
+            "title": "Trend Change"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unit (%, $, count)",
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current value",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "metric_key",
+          "name",
+          "importance",
+          "category"
+        ],
+        "title": "KeyMetricDisplay",
+        "type": "object"
+      },
+      "KeyMetricsResponse": {
+        "description": "Response containing user's key metrics with current values and trends.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "later_count": {
+            "default": 0,
+            "description": "Number of 'later' priority metrics",
+            "title": "Later Count",
+            "type": "integer"
+          },
+          "metrics": {
+            "description": "Key metrics with values and trends, sorted by importance",
+            "items": {
+              "$ref": "#/components/schemas/KeyMetricDisplay"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "monitor_count": {
+            "default": 0,
+            "description": "Number of 'monitor' priority metrics",
+            "title": "Monitor Count",
+            "type": "integer"
+          },
+          "now_count": {
+            "default": 0,
+            "description": "Number of 'now' priority metrics",
+            "title": "Now Count",
+            "type": "integer"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "KeyMetricsResponse",
+        "type": "object"
+      },
       "KillAllResponse": {
         "description": "Response model for kill-all operation.\n\nAttributes:\n    killed_count: Number of sessions killed\n    message: Human-readable message",
         "properties": {
@@ -13327,6 +13636,33 @@
             "description": "Error message if failed",
             "title": "Error"
           },
+          "relevance_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relevance score (0.0-1.0) if skeptic check ran",
+            "title": "Relevance Score"
+          },
+          "relevance_warning": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Warning if competitor has low relevance (<2 checks pass)",
+            "title": "Relevance Warning"
+          },
           "success": {
             "description": "Whether operation succeeded",
             "title": "Success",
@@ -13449,6 +13785,27 @@
           "by_phase"
         ],
         "title": "MeetingCostResponse",
+        "type": "object"
+      },
+      "MeetingCreditsResponse": {
+        "description": "Response for meeting credits info.",
+        "properties": {
+          "has_subscription": {
+            "description": "Whether user has active subscription",
+            "title": "Has Subscription",
+            "type": "boolean"
+          },
+          "meeting_credits": {
+            "description": "Number of prepaid meeting credits",
+            "title": "Meeting Credits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meeting_credits",
+          "has_subscription"
+        ],
+        "title": "MeetingCreditsResponse",
         "type": "object"
       },
       "MeetingStats": {
@@ -14253,6 +14610,16 @@
         "title": "MetricCategory",
         "type": "string"
       },
+      "MetricImportance": {
+        "description": "Importance classification for key metrics.",
+        "enum": [
+          "now",
+          "later",
+          "monitor"
+        ],
+        "title": "MetricImportance",
+        "type": "string"
+      },
       "MetricSource": {
         "description": "Source of metric value.",
         "enum": [
@@ -14261,6 +14628,16 @@
           "integration"
         ],
         "title": "MetricSource",
+        "type": "string"
+      },
+      "MetricSourceCategory": {
+        "description": "Source category for key metrics.",
+        "enum": [
+          "user",
+          "competitor",
+          "industry"
+        ],
+        "title": "MetricSourceCategory",
         "type": "string"
       },
       "MetricTemplate": {
@@ -14401,6 +14778,17 @@
         ],
         "title": "MetricTrend",
         "type": "object"
+      },
+      "MetricTrendIndicator": {
+        "description": "Direction of metric trend (pendulum indicator).",
+        "enum": [
+          "up",
+          "down",
+          "stable",
+          "unknown"
+        ],
+        "title": "MetricTrendIndicator",
+        "type": "string"
       },
       "MetricsResponse": {
         "description": "Response containing user metrics and unfilled templates.",
@@ -14567,6 +14955,63 @@
           "items"
         ],
         "title": "NegativeRatingsResponse",
+        "type": "object"
+      },
+      "NonprofitStatusResponse": {
+        "description": "Response model for nonprofit status operations.\n\nAttributes:\n    user_id: User identifier\n    is_nonprofit: Whether user is marked as nonprofit\n    nonprofit_org_name: Name of the nonprofit organization\n    nonprofit_verified_at: When nonprofit status was verified (ISO 8601)\n    promo_applied: Whether a promo code was applied\n    message: Human-readable message",
+        "properties": {
+          "is_nonprofit": {
+            "description": "Whether user is marked as nonprofit",
+            "title": "Is Nonprofit",
+            "type": "boolean"
+          },
+          "message": {
+            "description": "Human-readable message",
+            "title": "Message",
+            "type": "string"
+          },
+          "nonprofit_org_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nonprofit organization name",
+            "title": "Nonprofit Org Name"
+          },
+          "nonprofit_verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Verification date (ISO 8601)",
+            "title": "Nonprofit Verified At"
+          },
+          "promo_applied": {
+            "default": false,
+            "description": "Whether promo code was applied",
+            "title": "Promo Applied",
+            "type": "boolean"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "is_nonprofit",
+          "message"
+        ],
+        "title": "NonprofitStatusResponse",
         "type": "object"
       },
       "NotFoundErrorResponse": {
@@ -15794,6 +16239,45 @@
           }
         },
         "title": "PreferencesUpdate",
+        "type": "object"
+      },
+      "PreviewMetricResponse": {
+        "description": "Preview metric for non-opted users (shows industry median only).",
+        "properties": {
+          "display_name": {
+            "description": "Human-readable metric name",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "industry": {
+            "description": "Industry segment",
+            "title": "Industry",
+            "type": "string"
+          },
+          "metric": {
+            "description": "Metric identifier",
+            "title": "Metric",
+            "type": "string"
+          },
+          "p50": {
+            "description": "Industry median value",
+            "title": "P50",
+            "type": "number"
+          },
+          "sample_count": {
+            "description": "Number of peers contributing",
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric",
+          "display_name",
+          "industry",
+          "p50",
+          "sample_count"
+        ],
+        "title": "PreviewMetricResponse",
         "type": "object"
       },
       "PrimaryObjective": {
@@ -17305,6 +17789,31 @@
           "status"
         ],
         "title": "RelatedAction",
+        "type": "object"
+      },
+      "RelevanceFlags": {
+        "description": "Relevance check flags for a detected competitor.",
+        "properties": {
+          "same_icp": {
+            "default": false,
+            "description": "Targets similar customer profile",
+            "title": "Same Icp",
+            "type": "boolean"
+          },
+          "same_market": {
+            "default": false,
+            "description": "Same geographic/market segment",
+            "title": "Same Market",
+            "type": "boolean"
+          },
+          "similar_product": {
+            "default": false,
+            "description": "Solves the same core problem",
+            "title": "Similar Product",
+            "type": "boolean"
+          }
+        },
+        "title": "RelevanceFlags",
         "type": "object"
       },
       "RemediationHistoryResponse": {
@@ -19105,6 +19614,18 @@
             "description": "Last activity timestamp (state change, API call, etc.)",
             "title": "Last Activity At"
           },
+          "meeting_credits_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Remaining meeting credits after this session (if session used prepaid credit)",
+            "title": "Meeting Credits Remaining"
+          },
           "phase": {
             "anyOf": [
               {
@@ -19212,6 +19733,43 @@
           "problem_statement"
         ],
         "title": "SessionResponse",
+        "type": "object"
+      },
+      "SetNonprofitRequest": {
+        "description": "Request model for setting nonprofit status.\n\nAttributes:\n    org_name: Name of the nonprofit organization\n    apply_promo_code: Optional promo code to auto-apply (NONPROFIT80 or NONPROFIT100)",
+        "properties": {
+          "apply_promo_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Promo code to apply (NONPROFIT80 or NONPROFIT100)",
+            "examples": [
+              "NONPROFIT80",
+              "NONPROFIT100"
+            ],
+            "title": "Apply Promo Code"
+          },
+          "org_name": {
+            "description": "Name of the nonprofit organization",
+            "examples": [
+              "Doctors Without Borders",
+              "Local Food Bank"
+            ],
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Org Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org_name"
+        ],
+        "title": "SetNonprofitRequest",
         "type": "object"
       },
       "SetTierOverrideRequest": {
@@ -22287,7 +22845,7 @@
         "type": "object"
       },
       "UserInfo": {
-        "description": "Information about a user.\n\nAttributes:\n    user_id: User identifier\n    email: User email address\n    auth_provider: Authentication provider (google, github, supertokens, etc.)\n    subscription_tier: Subscription tier (free, pro, enterprise)\n    is_admin: Whether user has admin privileges\n    is_locked: Whether account is locked\n    locked_at: When account was locked\n    lock_reason: Reason for locking\n    deleted_at: When account was soft deleted\n    total_meetings: Total number of meetings created\n    total_cost: Total cost across all meetings (USD)\n    last_meeting_at: When user's most recent meeting was created\n    last_meeting_id: ID of user's most recent meeting\n    created_at: When user account was created\n    updated_at: When user account was last updated",
+        "description": "Information about a user.\n\nAttributes:\n    user_id: User identifier\n    email: User email address\n    auth_provider: Authentication provider (google, github, supertokens, etc.)\n    subscription_tier: Subscription tier (free, pro, enterprise)\n    is_admin: Whether user has admin privileges\n    is_locked: Whether account is locked\n    locked_at: When account was locked\n    lock_reason: Reason for locking\n    deleted_at: When account was soft deleted\n    is_nonprofit: Whether user is verified nonprofit\n    nonprofit_org_name: Name of nonprofit organization\n    total_meetings: Total number of meetings created\n    total_cost: Total cost across all meetings (USD)\n    last_meeting_at: When user's most recent meeting was created\n    last_meeting_id: ID of user's most recent meeting\n    created_at: When user account was created\n    updated_at: When user account was last updated",
         "examples": [
           {
             "auth_provider": "google",
@@ -22359,6 +22917,12 @@
             "title": "Is Locked",
             "type": "boolean"
           },
+          "is_nonprofit": {
+            "default": false,
+            "description": "Whether user is verified nonprofit",
+            "title": "Is Nonprofit",
+            "type": "boolean"
+          },
           "last_meeting_at": {
             "anyOf": [
               {
@@ -22412,6 +22976,18 @@
             ],
             "description": "When account was locked (ISO 8601)",
             "title": "Locked At"
+          },
+          "nonprofit_org_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of nonprofit organization",
+            "title": "Nonprofit Org Name"
           },
           "subscription_tier": {
             "description": "Subscription tier",
@@ -26563,6 +27139,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Topic discovery failed"
           }
         },
         "summary": "Discover topics",
@@ -33807,6 +34403,212 @@
         ]
       }
     },
+    "/api/admin/users/{user_id}/nonprofit": {
+      "delete": {
+        "description": "Remove nonprofit status from a user. Does not revoke applied promos.",
+        "operationId": "remove_nonprofit_status_api_admin_users__user_id__nonprofit_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NonprofitStatusResponse"
+                }
+              }
+            },
+            "description": "Nonprofit status removed successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "User not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Remove nonprofit status",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Users"
+        ]
+      },
+      "post": {
+        "description": "Mark a user as a verified nonprofit and optionally apply a discount promo.",
+        "operationId": "set_nonprofit_status_api_admin_users__user_id__nonprofit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNonprofitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NonprofitStatusResponse"
+                }
+              }
+            },
+            "description": "Nonprofit status set successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request or promo code"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "User not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Set nonprofit status",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Users"
+        ]
+      }
+    },
     "/api/admin/users/{user_id}/send-email": {
       "post": {
         "description": "Send a branded email to a user using available templates.",
@@ -37953,6 +38755,29 @@
         ]
       }
     },
+    "/api/v1/billing/credits": {
+      "get": {
+        "description": "Returns the user's remaining meeting credits from bundle purchases.",
+        "operationId": "get_meeting_credits_api_v1_billing_credits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingCreditsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get meeting credits",
+        "tags": [
+          "billing",
+          "billing"
+        ]
+      }
+    },
     "/api/v1/billing/plan": {
       "get": {
         "description": "Returns details about the user's current subscription plan.",
@@ -37993,6 +38818,49 @@
           }
         },
         "summary": "Create billing portal session",
+        "tags": [
+          "billing",
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/purchase-bundle": {
+      "post": {
+        "description": "Creates a Stripe checkout session for a one-time meeting bundle purchase.",
+        "operationId": "purchase_bundle_api_v1_billing_purchase_bundle_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundlePurchaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purchase meeting bundle",
         "tags": [
           "billing",
           "billing"
@@ -39395,6 +40263,72 @@
           }
         },
         "summary": "Update a clarification insight",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/key-metrics": {
+      "get": {
+        "description": "Returns user's prioritized key metrics with current values and trends.",
+        "operationId": "get_key_metrics_api_v1_context_key_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get key metrics",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/key-metrics/config": {
+      "put": {
+        "description": "Update user's key metrics prioritization and configuration.",
+        "operationId": "update_key_metrics_config_api_v1_context_key_metrics_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyMetricConfigUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update key metrics config",
         "tags": [
           "context",
           "context"
@@ -42450,6 +43384,29 @@
           }
         },
         "summary": "Opt In",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      }
+    },
+    "/api/v1/peer-benchmarks/preview": {
+      "get": {
+        "description": "Get a sample benchmark metric preview.\n\nReturns one industry median metric (no user data) to show the value\nof opting in. Does not require consent.",
+        "operationId": "get_preview_api_v1_peer_benchmarks_preview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewMetricResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Preview",
         "tags": [
           "peer-benchmarks",
           "peer-benchmarks"

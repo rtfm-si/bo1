@@ -516,6 +516,53 @@ def get_user_percentile_rank(
         return round(percentile, 1)
 
 
+def get_preview_metric(user_id: str) -> dict | None:
+    """Get a single preview metric for non-opted users.
+
+    Returns the first metric with sufficient sample count (>=5 peers)
+    showing only industry median. No user-specific data included.
+
+    Args:
+        user_id: User identifier (to get their industry)
+
+    Returns:
+        Dict with metric, display_name, industry, p50, sample_count or None
+    """
+    with db_session() as session:
+        # Get user's industry
+        result = session.execute(
+            text("SELECT industry FROM user_context WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).fetchone()
+
+        if not result or not result[0]:
+            return None
+
+        industry = result[0]
+
+    # Get cached aggregates for this industry
+    aggregates = get_cached_aggregates(industry)
+    if not aggregates:
+        # Compute fresh if no cache exists
+        aggregates = aggregate_industry_metrics(industry)
+
+    if not aggregates:
+        return None
+
+    # Find first metric with sufficient data
+    for _metric, data in aggregates.items():
+        if data.sample_count >= K_ANONYMITY_THRESHOLD and data.p50 is not None:
+            return {
+                "metric": data.metric,
+                "display_name": data.display_name,
+                "industry": industry,
+                "p50": data.p50,
+                "sample_count": data.sample_count,
+            }
+
+    return None
+
+
 def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
     """Get full peer comparison for a user.
 

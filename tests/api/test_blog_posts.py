@@ -391,3 +391,161 @@ class TestDiscoverTopics:
         data = response.json()
         assert len(data["topics"]) == 1
         assert data["topics"][0]["title"] == "AI in Business"
+
+    def test_discover_topics_rate_limit_error(self, client):
+        """Test topic discovery returns 429 on rate limit."""
+        from backend.services.topic_discovery import TopicDiscoveryError
+
+        with (
+            patch(
+                "backend.api.admin.blog.discover_topics", new_callable=AsyncMock
+            ) as mock_discover,
+            patch("backend.api.admin.blog.blog_repository") as mock_repo,
+        ):
+            mock_discover.side_effect = TopicDiscoveryError(
+                "Rate limit exceeded", error_type="rate_limit"
+            )
+            mock_repo.list.return_value = []
+
+            response = client.get("/api/admin/blog/topics")
+
+        assert response.status_code == 429
+        data = response.json()
+        assert "Rate limit" in data["detail"]["message"]
+
+    def test_discover_topics_parse_error(self, client):
+        """Test topic discovery returns 500 on parse error."""
+        from backend.services.topic_discovery import TopicDiscoveryError
+
+        with (
+            patch(
+                "backend.api.admin.blog.discover_topics", new_callable=AsyncMock
+            ) as mock_discover,
+            patch("backend.api.admin.blog.blog_repository") as mock_repo,
+        ):
+            mock_discover.side_effect = TopicDiscoveryError(
+                "Failed to parse LLM response", error_type="parse_error"
+            )
+            mock_repo.list.return_value = []
+
+            response = client.get("/api/admin/blog/topics")
+
+        assert response.status_code == 500
+        data = response.json()
+        assert "Failed to parse" in data["detail"]["message"]
+
+    def test_discover_topics_empty_list(self, client):
+        """Test topic discovery with no results."""
+        with (
+            patch(
+                "backend.api.admin.blog.discover_topics", new_callable=AsyncMock
+            ) as mock_discover,
+            patch("backend.api.admin.blog.blog_repository") as mock_repo,
+        ):
+            mock_discover.return_value = []
+            mock_repo.list.return_value = []
+
+            response = client.get("/api/admin/blog/topics")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["topics"] == []
+
+
+# ============================================================================
+# Topic Discovery Service Unit Tests
+# ============================================================================
+
+
+class TestTopicDiscoveryService:
+    """Unit tests for backend/services/topic_discovery.py."""
+
+    @pytest.mark.asyncio
+    async def test_discover_topics_with_mocked_llm(self):
+        """Test discover_topics with mocked LLM response."""
+        from unittest.mock import MagicMock
+
+        from backend.services.topic_discovery import Topic, discover_topics
+
+        mock_response = """{
+    "topics": [
+        {
+            "title": "Test Topic",
+            "description": "Test description",
+            "keywords": ["test", "mock"],
+            "relevance_score": 0.9,
+            "source": "context"
+        }
+    ]
+}"""
+        # Remove leading "{" since prefill adds it
+        mock_response_body = mock_response[1:]
+
+        with patch("backend.services.topic_discovery.ClaudeClient") as mock_client_class:
+            mock_client = mock_client_class.return_value
+            # Use MagicMock (not AsyncMock) for the usage object since it's not awaited
+            mock_usage = MagicMock()
+            mock_usage.total_tokens = 100
+            mock_usage.calculate_cost.return_value = 0.001
+            mock_client.call = AsyncMock(return_value=(mock_response_body, mock_usage))
+
+            topics = await discover_topics(industry="tech")
+
+        assert len(topics) == 1
+        assert isinstance(topics[0], Topic)
+        assert topics[0].title == "Test Topic"
+        assert topics[0].relevance_score == 0.9
+
+    @pytest.mark.asyncio
+    async def test_discover_topics_invalid_json_retries(self):
+        """Test discover_topics retries on invalid JSON."""
+        from unittest.mock import MagicMock
+
+        from backend.services.topic_discovery import TopicDiscoveryError, discover_topics
+
+        with patch("backend.services.topic_discovery.ClaudeClient") as mock_client_class:
+            mock_client = mock_client_class.return_value
+            mock_usage = MagicMock()
+            mock_usage.total_tokens = 100
+            mock_usage.calculate_cost.return_value = 0.001
+            # Return invalid JSON twice (max_attempts = 2)
+            mock_client.call = AsyncMock(return_value=("invalid json", mock_usage))
+
+            with pytest.raises(TopicDiscoveryError) as exc_info:
+                await discover_topics()
+
+            assert exc_info.value.error_type == "parse_error"
+            assert mock_client.call.call_count == 2  # Retried once
+
+    @pytest.mark.asyncio
+    async def test_discover_topics_rate_limit(self):
+        """Test discover_topics raises TopicDiscoveryError on rate limit."""
+        from anthropic import RateLimitError
+
+        from backend.services.topic_discovery import TopicDiscoveryError, discover_topics
+
+        with patch("backend.services.topic_discovery.ClaudeClient") as mock_client_class:
+            mock_client = mock_client_class.return_value
+            mock_client.call = AsyncMock(
+                side_effect=RateLimitError(
+                    "rate limited",
+                    response=AsyncMock(status_code=429),
+                    body={"error": {"message": "rate limited"}},
+                )
+            )
+
+            with pytest.raises(TopicDiscoveryError) as exc_info:
+                await discover_topics()
+
+            assert exc_info.value.error_type == "rate_limit"
+
+    @pytest.mark.asyncio
+    async def test_discover_topics_mock_mode(self):
+        """Test discover_topics returns mock topics when enabled."""
+        from backend.services.topic_discovery import MOCK_TOPICS, discover_topics
+
+        with patch("backend.services.topic_discovery.USE_MOCK_TOPIC_DISCOVERY", True):
+            topics = await discover_topics()
+
+        assert topics == MOCK_TOPICS
+        assert len(topics) == 5

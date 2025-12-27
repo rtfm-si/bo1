@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical, Image } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import ResearchCostsPanel from '$lib/components/admin/ResearchCostsPanel.svelte';
 	import ResearchCacheMetrics from '$lib/components/admin/ResearchCacheMetrics.svelte';
@@ -104,7 +104,10 @@
 		<!-- Stats Cards -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
 				<!-- Total Users -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				<a
+					href="/admin/users"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200 block"
+				>
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Total Users</p>
@@ -114,10 +117,13 @@
 							<Users class="w-6 h-6 text-brand-600 dark:text-brand-400" />
 						</div>
 					</div>
-				</div>
+				</a>
 
 				<!-- Total Meetings -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				<a
+					href="/admin/sessions"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200 block"
+				>
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Total Meetings</p>
@@ -127,10 +133,13 @@
 							<TrendingUp class="w-6 h-6 text-accent-600 dark:text-accent-400" />
 						</div>
 					</div>
-				</div>
+				</a>
 
 				<!-- Total Cost -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				<a
+					href="/admin/costs"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-success-300 dark:hover:border-success-700 transition-all duration-200 block"
+				>
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Total Cost</p>
@@ -140,12 +149,12 @@
 							<DollarSign class="w-6 h-6 text-success-600 dark:text-success-400" />
 						</div>
 					</div>
-				</div>
+				</a>
 
 				<!-- Waitlist Pending -->
 				<a
 					href="/admin/waitlist"
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200 block"
 				>
 					<div class="flex items-center justify-between">
 						<div>
@@ -159,7 +168,10 @@
 				</a>
 
 				<!-- Whitelist Count -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				<a
+					href="/admin/whitelist"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-warning-300 dark:hover:border-warning-700 transition-all duration-200 block"
+				>
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Whitelist</p>
@@ -169,7 +181,7 @@
 							<List class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 						</div>
 					</div>
-				</div>
+				</a>
 			</div>
 
 		<!-- Email Stats Card -->
@@ -651,6 +663,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-success-600 dark:text-success-400">Manage blog →</span>
+			</a>
+
+			<!-- Collateral Bank Card -->
+			<a
+				href="/admin/collateral"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<Image class="w-6 h-6 text-accent-600 dark:text-accent-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Collateral Bank</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Marketing assets for AI content</p>
+					</div>
+				</div>
+				<span class="text-sm text-accent-600 dark:text-accent-400">Manage assets →</span>
 			</a>
 		</div>
 	</main>

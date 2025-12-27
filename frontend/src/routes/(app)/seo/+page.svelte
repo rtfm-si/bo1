@@ -12,7 +12,10 @@
 		SeoHistoryEntry,
 		SeoTrendOpportunity,
 		SeoTopic,
-		SeoBlogArticle
+		SeoBlogArticle,
+		SeoAutopilotConfig,
+		SeoAutopilotConfigResponse,
+		SeoPendingArticle
 	} from '$lib/api/types';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
@@ -42,9 +45,17 @@
 	let generatingArticle = $state<number | null>(null);
 	let deletingArticle = $state<number | null>(null);
 
-	// Load history, topics, and articles on mount
+	// Autopilot state
+	let autopilotConfig = $state<SeoAutopilotConfigResponse | null>(null);
+	let autopilotLoading = $state(true);
+	let autopilotSaving = $state(false);
+	let pendingArticles = $state<SeoPendingArticle[]>([]);
+	let approvingArticle = $state<number | null>(null);
+	let rejectingArticle = $state<number | null>(null);
+
+	// Load history, topics, articles, and autopilot config on mount
 	onMount(async () => {
-		await Promise.all([loadHistory(), loadTopics(), loadArticles()]);
+		await Promise.all([loadHistory(), loadTopics(), loadArticles(), loadAutopilotConfig()]);
 	});
 
 	async function loadHistory() {
@@ -82,6 +93,100 @@
 			console.error('Failed to load SEO articles:', err);
 		} finally {
 			articlesLoading = false;
+		}
+	}
+
+	async function loadAutopilotConfig() {
+		autopilotLoading = true;
+		try {
+			const response = await apiClient.getSeoAutopilotConfig();
+			autopilotConfig = response;
+			if (response.articles_pending_review > 0) {
+				const pendingResp = await apiClient.getSeoPendingArticles();
+				pendingArticles = pendingResp.articles;
+			}
+		} catch (err) {
+			console.error('Failed to load autopilot config:', err);
+		} finally {
+			autopilotLoading = false;
+		}
+	}
+
+	async function toggleAutopilot() {
+		if (!autopilotConfig) return;
+		autopilotSaving = true;
+		try {
+			const newEnabled = !autopilotConfig.config.enabled;
+			const response = await apiClient.updateSeoAutopilotConfig({
+				...autopilotConfig.config,
+				enabled: newEnabled
+			});
+			autopilotConfig = response;
+			toast.success(newEnabled ? 'Autopilot enabled' : 'Autopilot disabled');
+		} catch (err) {
+			console.error('Failed to toggle autopilot:', err);
+			toast.error('Failed to update autopilot');
+		} finally {
+			autopilotSaving = false;
+		}
+	}
+
+	async function updateAutopilotFrequency(freq: number) {
+		if (!autopilotConfig) return;
+		autopilotSaving = true;
+		try {
+			const response = await apiClient.updateSeoAutopilotConfig({
+				...autopilotConfig.config,
+				frequency_per_week: freq
+			});
+			autopilotConfig = response;
+			toast.success('Frequency updated');
+		} catch (err) {
+			console.error('Failed to update frequency:', err);
+			toast.error('Failed to update frequency');
+		} finally {
+			autopilotSaving = false;
+		}
+	}
+
+	async function approveArticle(articleId: number) {
+		approvingArticle = articleId;
+		try {
+			const approved = await apiClient.approveSeoArticle(articleId);
+			pendingArticles = pendingArticles.filter((a) => a.id !== articleId);
+			articles = [approved, ...articles];
+			if (autopilotConfig) {
+				autopilotConfig = {
+					...autopilotConfig,
+					articles_pending_review: autopilotConfig.articles_pending_review - 1
+				};
+			}
+			toast.success('Article published');
+		} catch (err) {
+			console.error('Failed to approve article:', err);
+			toast.error('Failed to approve article');
+		} finally {
+			approvingArticle = null;
+		}
+	}
+
+	async function rejectArticle(articleId: number) {
+		rejectingArticle = articleId;
+		try {
+			await apiClient.rejectSeoArticle(articleId);
+			pendingArticles = pendingArticles.filter((a) => a.id !== articleId);
+			if (autopilotConfig) {
+				autopilotConfig = {
+					...autopilotConfig,
+					articles_pending_review: autopilotConfig.articles_pending_review - 1
+				};
+			}
+			toast.success('Article rejected');
+		} catch (err) {
+			console.error('Failed to reject article:', err);
+			toast.error('Failed to reject article');
+		} finally {
+			rejectingArticle = null;
 		}
 	}
 
@@ -689,8 +794,137 @@
 			</BoCard>
 		</div>
 
-		<!-- History Sidebar -->
-		<div class="lg:col-span-1">
+		<!-- Sidebar -->
+		<div class="lg:col-span-1 space-y-6">
+			<!-- Autopilot Settings -->
+			<BoCard>
+				{#snippet header()}
+					<div class="flex items-center justify-between">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+							Autopilot
+						</h2>
+						{#if autopilotConfig?.config.enabled}
+							<Badge variant="success">Active</Badge>
+						{:else}
+							<Badge variant="neutral">Off</Badge>
+						{/if}
+					</div>
+				{/snippet}
+
+				{#if autopilotLoading}
+					<div class="space-y-3">
+						<ShimmerSkeleton type="text" />
+						<ShimmerSkeleton type="text" />
+					</div>
+				{:else if autopilotConfig}
+					<div class="space-y-4">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
+							Auto-generate SEO articles from high-intent topics.
+						</p>
+
+						<!-- Toggle -->
+						<div class="flex items-center justify-between">
+							<span id="autopilot-toggle-label" class="text-sm text-neutral-700 dark:text-neutral-300">Enable autopilot</span>
+							<button
+								type="button"
+								role="switch"
+								aria-checked={autopilotConfig.config.enabled}
+								aria-labelledby="autopilot-toggle-label"
+								class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 {autopilotConfig.config.enabled ? 'bg-brand-600' : 'bg-neutral-200 dark:bg-neutral-700'}"
+								onclick={toggleAutopilot}
+								disabled={autopilotSaving}
+							>
+								<span
+									class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {autopilotConfig.config.enabled ? 'translate-x-5' : 'translate-x-0'}"
+								></span>
+							</button>
+						</div>
+
+						<!-- Frequency -->
+						{#if autopilotConfig.config.enabled}
+							<div class="space-y-2">
+								<label class="text-sm text-neutral-700 dark:text-neutral-300">Articles per week</label>
+								<select
+									class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+									onchange={(e) => updateAutopilotFrequency(Number(e.currentTarget.value))}
+									disabled={autopilotSaving}
+								>
+									{#each [1, 2, 3, 5, 7] as freq}
+										<option value={freq} selected={autopilotConfig.config.frequency_per_week === freq}>
+											{freq} article{freq > 1 ? 's' : ''}/week
+										</option>
+									{/each}
+								</select>
+							</div>
+
+							<!-- Stats -->
+							<div class="pt-2 border-t border-neutral-200 dark:border-neutral-700 text-sm text-neutral-600 dark:text-neutral-400">
+								<div class="flex justify-between mb-1">
+									<span>This week:</span>
+									<span class="font-medium">{autopilotConfig.articles_this_week} articles</span>
+								</div>
+								{#if autopilotConfig.next_run}
+									<div class="flex justify-between">
+										<span>Next run:</span>
+										<span class="font-medium">{new Date(autopilotConfig.next_run).toLocaleDateString()}</span>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</BoCard>
+
+			<!-- Pending Review Queue -->
+			{#if pendingArticles.length > 0}
+				<BoCard>
+					{#snippet header()}
+						<div class="flex items-center justify-between">
+							<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+								Pending Review
+							</h2>
+							<Badge variant="warning">{pendingArticles.length}</Badge>
+						</div>
+					{/snippet}
+
+					<div class="space-y-3">
+						{#each pendingArticles as article (article.id)}
+							<div class="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
+								<h3 class="text-sm font-medium text-neutral-900 dark:text-white truncate">
+									{article.title}
+								</h3>
+								{#if article.keyword}
+									<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+										Keyword: {article.keyword}
+									</p>
+								{/if}
+								<div class="flex gap-2 mt-2">
+									<BoButton
+										variant="brand"
+										size="sm"
+										onclick={() => approveArticle(article.id)}
+										loading={approvingArticle === article.id}
+										disabled={approvingArticle !== null || rejectingArticle !== null}
+									>
+										Approve
+									</BoButton>
+									<BoButton
+										variant="ghost"
+										size="sm"
+										onclick={() => rejectArticle(article.id)}
+										loading={rejectingArticle === article.id}
+										disabled={approvingArticle !== null || rejectingArticle !== null}
+									>
+										Reject
+									</BoButton>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</BoCard>
+			{/if}
+
+			<!-- Recent Analyses -->
 			<BoCard>
 				{#snippet header()}
 					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
@@ -734,7 +968,7 @@
 			</BoCard>
 
 			<!-- Tips -->
-			<div class="mt-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
+			<div class="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
 				<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Tips</h3>
 				<ul class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
 					<li>Use specific, targeted keywords</li>

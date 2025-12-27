@@ -11,20 +11,15 @@
 
 	let { actionsData }: Props = $props();
 
-	// Get current week days (Monday to Sunday, ISO standard)
+	// Get rolling 7-day window centered on today (±3 days)
 	function getWeekDays(): Date[] {
 		const today = new Date();
-		const day = today.getDay();
-		// JS getDay: 0=Sun, 1=Mon... We want Monday as first day
-		const mondayOffset = day === 0 ? -6 : 1 - day;
-		const monday = new Date(today);
-		monday.setDate(today.getDate() + mondayOffset);
-		monday.setHours(0, 0, 0, 0);
+		today.setHours(0, 0, 0, 0);
 
 		const days: Date[] = [];
-		for (let i = 0; i < 7; i++) {
-			const d = new Date(monday);
-			d.setDate(monday.getDate() + i);
+		for (let i = -3; i <= 3; i++) {
+			const d = new Date(today);
+			d.setDate(today.getDate() + i);
 			days.push(d);
 		}
 		return days;
@@ -150,7 +145,7 @@
 				<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
 				</svg>
-				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">This Week</h2>
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">7-Day View</h2>
 			</div>
 			<a
 				href="/actions"

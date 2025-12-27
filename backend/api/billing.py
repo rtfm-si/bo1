@@ -83,11 +83,24 @@ class CheckoutRequest(BaseModel):
     price_id: str = Field(..., description="Stripe price ID (price_...)")
 
 
+class BundlePurchaseRequest(BaseModel):
+    """Request to purchase a meeting bundle."""
+
+    bundle_size: int = Field(..., description="Number of meetings (1, 3, 5, or 9)")
+
+
 class CheckoutResponse(BaseModel):
     """Response from checkout session creation."""
 
     session_id: str = Field(..., description="Stripe checkout session ID")
     url: str = Field(..., description="Checkout URL to redirect user to")
+
+
+class MeetingCreditsResponse(BaseModel):
+    """Response for meeting credits info."""
+
+    meeting_credits: int = Field(..., description="Number of prepaid meeting credits")
+    has_subscription: bool = Field(..., description="Whether user has active subscription")
 
 
 # =============================================================================
@@ -321,6 +334,117 @@ async def create_checkout_session(
 
 
 @router.post(
+    "/v1/billing/purchase-bundle",
+    response_model=CheckoutResponse,
+    summary="Purchase meeting bundle",
+    description="Creates a Stripe checkout session for a one-time meeting bundle purchase.",
+)
+@handle_api_errors("purchase meeting bundle")
+async def purchase_bundle(
+    request: BundlePurchaseRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CheckoutResponse:
+    """Create checkout for meeting bundle purchase."""
+    import os
+
+    from backend.services.stripe_service import stripe_service
+
+    bundle = PlanConfig.get_meeting_bundle(request.bundle_size)
+    if not bundle:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid bundle size. Choose from: 1, 3, 5, or 9 meetings",
+        )
+
+    # Get price ID from environment
+    price_id = os.environ.get(bundle.price_id_env_var)
+    if not price_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Meeting bundles not configured. Contact support.",
+        )
+
+    settings = get_settings()
+    user_id = extract_user_id(user)
+    email = extract_user_email(user)
+
+    # Get or create customer
+    existing_customer_id = user_repository.get_stripe_customer_id(user_id)
+    customer = await stripe_service.get_or_create_customer(
+        user_id=user_id,
+        email=email,
+        existing_customer_id=existing_customer_id,
+    )
+    if not existing_customer_id:
+        user_repository.save_stripe_customer_id(user_id, customer.id)
+
+    # Build URLs
+    base_url = settings.frontend_url.rstrip("/")
+    success_url = (
+        f"{base_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}&bundle={bundle.meetings}"
+    )
+    cancel_url = f"{base_url}/pricing"
+
+    # Create checkout session (one-time payment mode)
+    result = await stripe_service.create_checkout_session(
+        customer_id=customer.id,
+        price_id=price_id,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        mode="payment",  # One-time payment, not subscription
+        allow_promotion_codes=True,
+    )
+
+    logger.info(
+        f"Created bundle checkout {result.session_id} for user {user_id} ({bundle.meetings} meetings)"
+    )
+
+    return CheckoutResponse(
+        session_id=result.session_id,
+        url=result.url,
+    )
+
+
+@router.get(
+    "/v1/billing/credits",
+    response_model=MeetingCreditsResponse,
+    summary="Get meeting credits",
+    description="Returns the user's remaining meeting credits from bundle purchases.",
+)
+@handle_api_errors("get meeting credits")
+async def get_meeting_credits(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MeetingCreditsResponse:
+    """Get user's meeting credits and subscription status."""
+    user_id = extract_user_id(user)
+
+    # Get credits and tier
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT meeting_credits, subscription_tier
+                FROM users
+                WHERE id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                credits, tier = row
+            else:
+                credits, tier = 0, "free"
+
+    # User has subscription if tier is not free
+    has_subscription = tier not in ("free", None)
+
+    return MeetingCreditsResponse(
+        meeting_credits=credits,
+        has_subscription=has_subscription,
+    )
+
+
+@router.post(
     "/v1/billing/portal",
     response_model=BillingPortalResponse,
     summary="Create billing portal session",
@@ -513,8 +637,68 @@ async def _handle_checkout_completed(session: Any) -> None:
             user_repository.save_stripe_subscription(user_id, subscription_id, tier)
             logger.info(f"User {user_id} upgraded to {tier} via checkout")
     else:
-        # One-time payment - just log for now
-        logger.info(f"One-time payment completed for user {user_id}")
+        # One-time payment - check if it's a meeting bundle
+        await _handle_bundle_purchase(session, user_id)
+
+
+async def _handle_bundle_purchase(session: Any, user_id: str) -> None:
+    """Handle meeting bundle one-time purchase.
+
+    Credits the user's account with purchased meetings.
+    """
+    import stripe
+
+    from backend.services.stripe_service import stripe_service
+
+    stripe_service._ensure_initialized()
+
+    # Get the checkout session with line items
+    full_session = stripe.checkout.Session.retrieve(
+        session.id,
+        expand=["line_items.data.price"],
+    )
+
+    if not full_session.line_items or not full_session.line_items.data:
+        logger.info(f"One-time payment for user {user_id} (no line items)")
+        return
+
+    # Check each line item for bundle price
+    for line_item in full_session.line_items.data:
+        price = line_item.price
+        if not price:
+            continue
+
+        # Check if this is a bundle price
+        meetings = PlanConfig.get_meetings_for_price_id(price.id)
+        if meetings:
+            # Credit the user's account
+            _add_meeting_credits(user_id, meetings)
+            logger.info(
+                f"User {user_id} purchased {meetings} meeting bundle (checkout {session.id})"
+            )
+            return
+
+    logger.info(f"One-time payment for user {user_id} (not a bundle)")
+
+
+def _add_meeting_credits(user_id: str, meetings: int) -> None:
+    """Add meeting credits to user's account.
+
+    Args:
+        user_id: User ID
+        meetings: Number of credits to add
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET meeting_credits = meeting_credits + %s
+                WHERE id = %s
+                """,
+                (meetings, user_id),
+            )
+    logger.info(f"Added {meetings} meeting credits to user {user_id}")
 
 
 async def _handle_subscription_updated(subscription: Any) -> None:

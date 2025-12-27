@@ -256,6 +256,41 @@ export const PRICING_FAQ: FAQItem[] = [
 	}
 ];
 
+// Meeting bundle configuration (one-time purchases)
+export interface MeetingBundle {
+	meetings: number;
+	price: number; // In GBP
+	pricePerMeeting: number;
+	description: string;
+}
+
+export const MEETING_BUNDLES: MeetingBundle[] = [
+	{
+		meetings: 1,
+		price: 10,
+		pricePerMeeting: 10,
+		description: 'Try a single meeting'
+	},
+	{
+		meetings: 3,
+		price: 30,
+		pricePerMeeting: 10,
+		description: 'Perfect for occasional use'
+	},
+	{
+		meetings: 5,
+		price: 50,
+		pricePerMeeting: 10,
+		description: 'Most popular bundle'
+	},
+	{
+		meetings: 9,
+		price: 90,
+		pricePerMeeting: 10,
+		description: 'Best value for teams'
+	}
+];
+
 // Helper to format limit values
 export function formatLimit(value: number): string {
 	if (value === -1) return 'Unlimited';

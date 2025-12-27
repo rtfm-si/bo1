@@ -34,6 +34,7 @@
 	const contextLinks = [
 		{ href: '/context/overview', label: 'Overview' },
 		{ href: '/context/metrics', label: 'Metrics' },
+		{ href: '/context/key-metrics', label: 'Key Metrics' },
 		{ href: '/context/strategic', label: 'Strategic' },
 		{ href: '/context/insights', label: 'Insights' },
 		{ href: '/context/peer-benchmarks', label: 'Peer Benchmarks' },

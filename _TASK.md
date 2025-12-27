@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-27_
+_Last updated: 2025-12-27 (rolling week view)_
 
 ---
 
@@ -29,9 +29,172 @@ _Last updated: 2025-12-27_
 
 ---
 
+## Backlog (from _TODO.md, 2025-12-27)
+
+### Auth & Login
+
+- [x] [AUTH][P1] Fix local development login issue (authentication not working locally)
+- [x] [AUTH][P2] Fix GDPR consent API returning 403 during OAuth callback flow
+
+### SEO Tools
+
+- [x] [SEO][P1] Fix 'Discover' button in blog generate modal (topic discovery)
+- [x] [SEO][P2] Define SEO autopilot strategy: focus on high-intent-to-purchase traffic generation
+- [x] [SEO][P2] Create marketing collateral bank (images, animations, concepts) for AI content generation
+
+### Admin Dashboard
+
+- [x] [ADMIN][P2] Make dashboard cards drillable to relevant metrics (currently only waitlist is drillable)
+- [x] [ADMIN][P2] Fix rate limiting on admin endpoints causing 429 cascade during callback (email-stats, observability-links, research-cache, costs, runtime-config, extended-kpis, blog/topics)
+- [x] [ANALYTICS][P2] Investigate signup page conversion (48 unique visitors, 0 waitlist signups) - Fixed: slowapi param naming bug
+
+### UX Improvements
+
+- [x] [DASHBOARD][P3] Change 'this week' view from calendar-based (Mon-Sun) to rolling ±3 days view
+
+### Billing & Pricing
+
+- [x] [BILLING][P3] Add non-profit/charity discount tier (free or 80% off)
+- [x] [BILLING][P3] Create granular meeting tiers in Stripe (1-9 meetings @ £10 each, targeting 90% gross margin)
+- [ ] [BILLING][P2] Clarify scope of: "non-fixed costs (mentor chats, data analysis, competitor analysis) - cost analysis, fair usage caps, top 10% capping" (ambiguous item from _TODO.md)
+
+### Competitors
+
+- [x] [COMPETITORS][P3] Add skeptic checks for competitor relevance (similar product? ICP? market?)
+
+### Peer Benchmarks
+
+- [x] [BENCHMARKS][P3] Review peer benchmark opt-in UX: show one teaser metric OR default opt-in with privacy explanation
+
+### Metrics & Context
+
+- [x] [CONTEXT][P2] Add 'Metrics You Need to Know' feature: user metrics, competitor metrics, industry benchmarks, importance ranking (now vs later), pendulum indicator
+
+---
+
 ## Completed Summary
 
 ### December 2025
+
+- **Marketing Collateral Bank (2025-12-27)**: Implemented marketing asset storage for AI content generation:
+  - Database: `marketing_assets` table (migration zl) with file metadata, CDN URL, tags, type
+  - Backend: `backend/services/marketing_assets.py` with CRUD, DO Spaces upload, tag-based search
+  - Backend: Asset suggestion algorithm using tag overlap for article relevance scoring
+  - API: POST/GET/PATCH/DELETE `/api/v1/seo/assets`, GET `/api/v1/seo/assets/suggest`
+  - Billing: `marketing_assets_total` limit (free=10, starter=50, pro=500, enterprise=unlimited)
+  - Frontend: Admin collateral bank page `/admin/collateral` with drag-drop upload, grid view, edit/delete
+  - Frontend: Type filtering, tag-based search, CDN URL copy
+  - Tests: 16 unit tests for validation, service, tier limits
+  - Asset types: image, animation, concept, template (PNG, JPG, GIF, WebP, SVG, MP4, WebM)
+
+- **SEO Autopilot (2025-12-27)**: Implemented automated SEO content generation with purchase intent prioritization:
+  - Database: `seo_autopilot_config` JSONB column on user_context (migration zk)
+  - Backend: `SEOAutopilotConfig` Pydantic model (enabled, frequency_per_week, auto_publish, require_approval, target_keywords, purchase_intent_only)
+  - Backend: `SEOAutopilotService` class with topic discovery, article generation, tier limit enforcement
+  - Backend: Purchase intent scoring - transactional (+0.4), problem-solution (+0.3), comparison (+0.25), decision-stage (+0.2) keywords
+  - Backend: Scheduled job (`seo_autopilot_job.py`) runs daily, respects frequency settings
+  - API: GET/PUT `/api/v1/seo/autopilot/config`, GET `/api/v1/seo/autopilot/pending`, POST `.../approve`, POST `.../reject`
+  - Frontend: Autopilot settings card in SEO page sidebar (toggle, frequency selector, stats)
+  - Frontend: Pending review queue with approve/reject actions
+  - Tests: 2 unit tests for purchase intent scoring logic
+  - High-intent targeting: Prioritizes keywords with transactional, comparison, and decision-stage signals
+
+- **Peer Benchmark Preview UX (2025-12-27)**: Improved opt-in UX for peer benchmarking:
+  - Backend: `GET /api/v1/peer-benchmarks/preview` endpoint returns one sample metric (industry median) without consent
+  - Backend: `get_preview_metric()` service function finds first metric with sufficient sample count (>=5 peers)
+  - Frontend: Teaser card with industry preview metric, blurred locked metrics, clear "Opt In to Compare" CTA
+  - Frontend: Enhanced consent card with privacy checkmarks (k-anonymity, no PII, industry-level only)
+  - API client: `getPeerBenchmarkPreview()` method added
+  - Tests: 7 new tests for PreviewMetricResponse model validation
+  - Privacy-first: Preview shows only industry p50, never user data
+
+- **Competitor Skeptic Relevance (2025-12-27)**: Added AI-powered relevance checks for detected competitors:
+  - Backend: `backend/api/context/skeptic.py` with `evaluate_competitor_relevance()` and batch evaluation
+  - Model: Extended `DetectedCompetitor` with `relevance_score` (0.0-1.0), `relevance_flags` (similar_product/same_icp/same_market), `relevance_warning`
+  - Integration: Skeptic check runs during auto-detect and for manually added competitors
+  - API: `ManagedCompetitorResponse` now includes `relevance_warning` and `relevance_score`
+  - Frontend: Color-coded relevance indicators (✓ green = high, ~ yellow = partial, ? red = low) in strategic context
+  - Tooltip shows which checks passed/failed on hover
+  - Tests: 27 unit tests for skeptic evaluation and model validation
+
+- **Meeting Bundle Purchases (2025-12-27)**: Implemented one-time meeting bundle purchases:
+  - Database: `meeting_credits` column on users (migration zj)
+  - Backend: `MeetingBundleConfig` in PlanConfig, bundles of 1/3/5/9 meetings @ £10 each
+  - Backend: `POST /api/v1/billing/purchase-bundle`, `GET /api/v1/billing/credits` endpoints
+  - Webhook: `checkout.session.completed` handler credits user account for bundle purchases
+  - Usage: Meeting credits consumed before tier limits when creating sessions
+  - Frontend: `MeetingBundles.svelte` component on pricing page
+  - Frontend: Billing settings shows remaining credits with purchase buttons
+  - Script: `create_meeting_tier_prices.py` for Stripe product/price creation
+  - Tests: 10 unit tests for bundle config and credit management
+
+- **Nonprofit Discount Tier (2025-12-27)**: Added nonprofit/charity discount feature:
+  - Database: `is_nonprofit`, `nonprofit_verified_at`, `nonprofit_org_name` columns on users (migration zi)
+  - Promo codes: NONPROFIT80 (80% off), NONPROFIT100 (free) via `create_nonprofit_promos.py` script
+  - Admin API: POST/DELETE `/api/admin/users/{id}/nonprofit` endpoints for status management
+  - Auto-applies promo code when setting nonprofit status
+  - Admin UI: Nonprofit badge (pink heart) in Users table Badges column
+  - Runbook: `docs/runbooks/nonprofit-verification.md` with verification process
+
+- **Rolling 7-Day View (2025-12-27)**: Changed dashboard week view from calendar-based (Mon-Sun) to rolling ±3 days:
+  - Updated `getWeekDays()` in `WeeklyPlanView.svelte` to center on today
+  - Renamed header from "This Week" to "7-Day View"
+  - Added 9 unit tests for date logic (month/year boundary handling)
+
+- **Key Metrics Feature (2025-12-27)**: Implemented "Metrics You Need to Know" for prioritized metric tracking:
+  - Database: `key_metrics_config` JSONB column on `user_context` (migration zh)
+  - Backend: Pydantic models (KeyMetricConfig, KeyMetricDisplay, KeyMetricsResponse), trend calculation from benchmark_history
+  - API: GET `/api/v1/context/key-metrics`, PUT `/api/v1/context/key-metrics/config`
+  - Service: `get_key_metrics_for_user()` aggregates user metrics, calculates trends (up/down/stable), industry comparisons
+  - Frontend: `/context/key-metrics` page with 3 sections (Focus Now, Track Later, Monitor), trend arrows, benchmark bars
+  - Navigation: Added to Context dropdown in header
+  - Tests: 31 unit tests for model validation
+  - Displays user's prioritized metrics with pendulum trend indicators
+
+- **Waitlist Form 500 Error Fix (2025-12-27)**: Fixed production waitlist form returning 500 error:
+  - Root cause: slowapi rate limiter requires first parameter to be named `request` (starlette.requests.Request)
+  - Waitlist endpoints used `http_request` causing slowapi to throw exception
+  - Renamed `http_request` → `request` and `request` → `body` in both endpoints
+  - Updated corresponding tests
+  - This was why 48 unique visitors → 0 signups on the waitlist page
+
+- **Admin Blog Rate Limiting (2025-12-27)**: Added missing rate limiting to all 9 admin blog endpoints:
+  - Added `@limiter.limit(ADMIN_RATE_LIMIT)` to: list_posts, create_post, get_post, update_post, delete_post, generate_post, discover_blog_topics, publish_post, schedule_post
+  - Consistent with other admin endpoints (1200/minute)
+  - Prevents 429 cascade during admin dashboard load
+
+- **Admin Dashboard Drillable Cards (2025-12-27)**: Made all admin dashboard stat cards navigable:
+  - Total Users → `/admin/users`
+  - Total Meetings → `/admin/sessions`
+  - Total Cost → `/admin/costs`
+  - Whitelist Count → `/admin/whitelist`
+  - Added hover effects (shadow, border color change) matching existing Waitlist card style
+  - Proper `<a>` tags for accessibility (keyboard nav, right-click context menu)
+
+- **GDPR Consent OAuth Fix (2025-12-27)**: Fixed 403 error when recording GDPR consent during OAuth callback:
+  - Root cause: callback page used raw `fetch()` without CSRF token header
+  - Added `recordGdprConsent()` method to apiClient with proper CSRF handling
+  - Updated callback page to call `apiClient.recordGdprConsent()` after `initAuth()` (ensures CSRF cookie set)
+  - Removed unused imports (`env`, `ApiClientError`)
+
+- **SEO Topic Discovery Fix (2025-12-27)**: Fixed 'Discover' button in BlogGenerateModal:
+  - Added `TopicDiscoveryError` exception class for specific error handling
+  - Improved LLM prompt for reliable JSON output (explicit schema, lower temperature 0.6)
+  - Added retry logic (max 2 attempts) on JSON parse failures
+  - Added debug logging for raw LLM responses
+  - API returns 429/500 with descriptive error messages
+  - Frontend shows specific error messages with retry button
+  - Added loading state with "5-10 seconds" timing hint
+  - Added `USE_MOCK_TOPIC_DISCOVERY=true` env flag for local dev
+  - Tests: 8 new tests (4 API endpoint, 4 service unit tests)
+
+- **Local Development Auth Fix (2025-12-27)**: Fixed authentication not working in local development:
+  - Created `.env.local.example` with documented local dev auth variables
+  - Updated `docker-compose.yml` to explicitly pass SuperTokens env vars to API container
+  - Added `backend/api/startup_validation.py` with auth config validation at startup
+  - Created `docs/runbooks/local-dev-auth.md` with setup guide and troubleshooting
+  - Added `make auth-check` Makefile target for diagnostics
+  - Validates SuperTokens Core reachability, OAuth provider credentials, cookie settings
 
 - **Cross-User Research Sharing (2025-12-27)**: Implemented opt-in research sharing between users:
   - Database: `research_sharing_consent` table + `user_id`/`is_shareable` columns on `research_cache` (migration zg)

@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail, Heart } from 'lucide-svelte';
 	import SendEmailModal from '$lib/components/admin/SendEmailModal.svelte';
 	import { getTierColor } from '$lib/utils/colors';
 	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
@@ -250,7 +250,7 @@
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Email</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Status</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Tier</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Admin</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Badges</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Meetings</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Cost</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Last Meeting</th>
@@ -297,21 +297,33 @@
 										{/if}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
-										{#if editingUserId === user.user_id}
-											<input
-												type="checkbox"
-												bind:checked={editForm.is_admin}
-												class="rounded"
-											/>
-										{:else}
-											{#if user.is_admin}
-												<span class="inline-flex text-xs px-2 py-1 rounded-full bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300">
+										<div class="flex flex-wrap gap-1">
+											{#if editingUserId === user.user_id}
+												<label class="flex items-center gap-1 text-xs">
+													<input
+														type="checkbox"
+														bind:checked={editForm.is_admin}
+														class="rounded"
+													/>
 													Admin
-												</span>
+												</label>
 											{:else}
-												<span class="text-neutral-400">-</span>
+												{#if user.is_admin}
+													<span class="inline-flex text-xs px-2 py-1 rounded-full bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300">
+														Admin
+													</span>
+												{/if}
+												{#if user.is_nonprofit}
+													<span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-300" title={user.nonprofit_org_name || 'Nonprofit'}>
+														<Heart class="w-3 h-3" />
+														Nonprofit
+													</span>
+												{/if}
+												{#if !user.is_admin && !user.is_nonprofit}
+													<span class="text-neutral-400">-</span>
+												{/if}
 											{/if}
-										{/if}
+										</div>
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-white">
 										{user.total_meetings}

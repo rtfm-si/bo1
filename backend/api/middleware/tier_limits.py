@@ -45,17 +45,21 @@ TIER_PRIORITY = {
 
 @dataclass
 class MeetingLimitResult:
-    """Result of checking meeting limits with promo fallback.
+    """Result of checking meeting limits with promo/credit fallback.
 
     Attributes:
         usage: The tier usage result
         uses_promo_credit: Whether this session will consume a promo credit
         promo_credits_remaining: Remaining promo credits after this session
+        uses_meeting_credit: Whether this session will consume a prepaid meeting credit
+        meeting_credits_remaining: Remaining meeting credits after this session
     """
 
     usage: UsageResult
     uses_promo_credit: bool = False
     promo_credits_remaining: int = 0
+    uses_meeting_credit: bool = False
+    meeting_credits_remaining: int = 0
 
 
 class TierLimitError(HTTPException):
@@ -153,6 +157,65 @@ def _get_user_tier(user: dict[str, Any], request: Request | None = None) -> tupl
     return user_id, effective_tier
 
 
+def _get_meeting_credits(user_id: str) -> int:
+    """Get user's prepaid meeting credits.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        Number of meeting credits remaining
+    """
+    from bo1.state.database import db_session
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT meeting_credits FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else 0
+    except Exception as e:
+        logger.error(f"Failed to get meeting credits for user {user_id}: {e}")
+        return 0
+
+
+def _decrement_meeting_credit(user_id: str) -> int:
+    """Decrement user's meeting credits by 1.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        New credits remaining
+    """
+    from bo1.state.database import db_session
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET meeting_credits = meeting_credits - 1
+                    WHERE id = %s AND meeting_credits > 0
+                    RETURNING meeting_credits
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                new_credits = row[0] if row else 0
+                logger.info(
+                    f"Decremented meeting credit for user {user_id}: {new_credits} remaining"
+                )
+                return new_credits
+    except Exception as e:
+        logger.error(f"Failed to decrement meeting credit for user {user_id}: {e}")
+        return 0
+
+
 async def require_meeting_limit(
     request: Request,
     user: dict[str, Any] = Depends(get_current_user),
@@ -161,8 +224,10 @@ async def require_meeting_limit(
 
     Should be added to POST /sessions endpoint.
 
-    If tier limit is exceeded, checks for promo credits as fallback.
-    Sets uses_promo_credit=True if falling back to promo credit.
+    Fallback order:
+    1. Tier subscription limit
+    2. Prepaid meeting credits (from bundle purchases)
+    3. Promo credits
 
     Considers workspace tier via X-Workspace-ID header.
 
@@ -171,10 +236,10 @@ async def require_meeting_limit(
         user: Authenticated user
 
     Returns:
-        MeetingLimitResult with usage info and promo credit status
+        MeetingLimitResult with usage info and credit status
 
     Raises:
-        TierLimitError: If user has exceeded both tier limit and promo credits
+        TierLimitError: If user has exceeded all allowances
     """
     user_id, tier = _get_user_tier(user, request)
     result = check_limit(user_id, UsageMetrics.MEETINGS_CREATED, tier)
@@ -183,7 +248,20 @@ async def require_meeting_limit(
     if result.allowed:
         return MeetingLimitResult(usage=result)
 
-    # Tier limit exceeded - check promo credits as fallback
+    # Tier limit exceeded - check prepaid meeting credits
+    meeting_credits = _get_meeting_credits(user_id)
+    if meeting_credits > 0:
+        logger.info(
+            f"User {user_id} tier limit exceeded but has {meeting_credits} "
+            f"meeting credits - allowing session with meeting credit"
+        )
+        return MeetingLimitResult(
+            usage=result,
+            uses_meeting_credit=True,
+            meeting_credits_remaining=meeting_credits - 1,  # Will consume 1
+        )
+
+    # Check promo credits as last fallback
     allowance = check_deliberation_allowance(user_id)
     if allowance.has_credits:
         logger.info(
@@ -196,10 +274,10 @@ async def require_meeting_limit(
             promo_credits_remaining=allowance.total_remaining - 1,  # Will consume 1
         )
 
-    # Both tier and promo limits exceeded
+    # All limits exceeded
     logger.warning(
         f"Meeting limit exceeded: user={user_id} tier={tier} "
-        f"current={result.current} limit={result.limit} promo_credits=0"
+        f"current={result.current} limit={result.limit} meeting_credits=0 promo_credits=0"
     )
     raise TierLimitError(result, "meetings_monthly")
 

@@ -5,6 +5,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import PricingTable from '$lib/components/pricing/PricingTable.svelte';
+	import MeetingBundles from '$lib/components/pricing/MeetingBundles.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import { PRICING_FAQ } from '$lib/data/pricing';
 	import { ChevronDown } from 'lucide-svelte';
@@ -45,6 +46,13 @@
 		<section class="py-12 sm:py-16 bg-neutral-50 dark:bg-neutral-800/50">
 			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<PricingTable />
+			</div>
+		</section>
+
+		<!-- Meeting Bundles -->
+		<section class="py-12 sm:py-16 bg-white dark:bg-neutral-900">
+			<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+				<MeetingBundles />
 			</div>
 		</section>
 

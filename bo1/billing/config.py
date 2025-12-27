@@ -43,12 +43,22 @@ class TierConfig:
     seo_analyses_monthly: int  # SEO trend analyses per month
     seo_articles_monthly: int  # SEO article generations per month
     peer_benchmarks_visible: int  # Peer comparison metrics visible (-1 = unlimited)
+    marketing_assets_total: int  # Marketing collateral bank storage limit
 
     # Cost limits
     cost_per_session: float
 
     # Feature flags
     features: dict[str, bool]
+
+
+@dataclass(frozen=True)
+class MeetingBundleConfig:
+    """Configuration for a one-time meeting bundle."""
+
+    meetings: int
+    price_cents: int  # In GBP pence
+    price_id_env_var: str  # Environment variable for Stripe price ID
 
 
 class PlanConfig:
@@ -74,6 +84,7 @@ class PlanConfig:
             seo_analyses_monthly=1,
             seo_articles_monthly=1,
             peer_benchmarks_visible=3,
+            marketing_assets_total=10,
             cost_per_session=0.50,
             features={
                 "meetings": True,
@@ -106,6 +117,7 @@ class PlanConfig:
             seo_analyses_monthly=5,
             seo_articles_monthly=5,
             peer_benchmarks_visible=5,
+            marketing_assets_total=50,
             cost_per_session=1.00,
             features={
                 "meetings": True,
@@ -139,6 +151,7 @@ class PlanConfig:
             seo_analyses_monthly=-1,  # Unlimited
             seo_articles_monthly=-1,  # Unlimited
             peer_benchmarks_visible=-1,  # Unlimited
+            marketing_assets_total=500,
             cost_per_session=2.00,
             features={
                 "meetings": True,
@@ -172,6 +185,7 @@ class PlanConfig:
             seo_analyses_monthly=-1,  # Unlimited
             seo_articles_monthly=-1,  # Unlimited
             peer_benchmarks_visible=-1,  # Unlimited
+            marketing_assets_total=-1,  # Unlimited
             cost_per_session=10.00,
             features={
                 "meetings": True,
@@ -186,6 +200,30 @@ class PlanConfig:
                 "seo_tools": True,
                 "peer_benchmarks": True,
             },
+        ),
+    }
+
+    # Meeting bundles: one-time purchases (£10/meeting)
+    MEETING_BUNDLES: dict[int, MeetingBundleConfig] = {
+        1: MeetingBundleConfig(
+            meetings=1,
+            price_cents=1000,  # £10
+            price_id_env_var="STRIPE_PRICE_BUNDLE_1",
+        ),
+        3: MeetingBundleConfig(
+            meetings=3,
+            price_cents=3000,  # £30
+            price_id_env_var="STRIPE_PRICE_BUNDLE_3",
+        ),
+        5: MeetingBundleConfig(
+            meetings=5,
+            price_cents=5000,  # £50
+            price_id_env_var="STRIPE_PRICE_BUNDLE_5",
+        ),
+        9: MeetingBundleConfig(
+            meetings=9,
+            price_cents=9000,  # £90
+            price_id_env_var="STRIPE_PRICE_BUNDLE_9",
         ),
     }
 
@@ -354,3 +392,55 @@ class PlanConfig:
         """
         config = cls.get_tier(tier)
         return config.seo_articles_monthly
+
+    @classmethod
+    def get_marketing_assets_limit(cls, tier: str) -> int:
+        """Get marketing assets storage limit for a tier.
+
+        Args:
+            tier: Subscription tier
+
+        Returns:
+            Maximum number of marketing assets allowed (-1 for unlimited)
+        """
+        config = cls.get_tier(tier)
+        return config.marketing_assets_total
+
+    @classmethod
+    def get_meeting_bundle(cls, meetings: int) -> MeetingBundleConfig | None:
+        """Get meeting bundle config by size.
+
+        Args:
+            meetings: Number of meetings in bundle (1, 3, 5, or 9)
+
+        Returns:
+            MeetingBundleConfig or None if invalid size
+        """
+        return cls.MEETING_BUNDLES.get(meetings)
+
+    @classmethod
+    def get_all_bundles(cls) -> list[MeetingBundleConfig]:
+        """Get all available meeting bundles.
+
+        Returns:
+            List of MeetingBundleConfig sorted by size
+        """
+        return [cls.MEETING_BUNDLES[k] for k in sorted(cls.MEETING_BUNDLES.keys())]
+
+    @classmethod
+    def get_meetings_for_price_id(cls, price_id: str) -> int | None:
+        """Get number of meetings for a bundle price ID.
+
+        Args:
+            price_id: Stripe price ID
+
+        Returns:
+            Number of meetings or None if not a bundle
+        """
+        import os
+
+        for bundle in cls.MEETING_BUNDLES.values():
+            env_price = os.environ.get(bundle.price_id_env_var)
+            if env_price and env_price == price_id:
+                return bundle.meetings
+        return None

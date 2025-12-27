@@ -28,6 +28,8 @@ from backend.api.admin.models import (
     DeleteUserResponse,
     LockUserRequest,
     LockUserResponse,
+    NonprofitStatusResponse,
+    SetNonprofitRequest,
     SetTierOverrideRequest,
     TierOverrideResponse,
     UpdateUserRequest,
@@ -626,4 +628,169 @@ async def delete_tier_override(
         tier_override=None,
         effective_tier=base_tier,
         message=f"Tier override removed. User reverted to {base_tier} tier.",
+    )
+
+
+# ==============================================================================
+# Nonprofit Status Endpoints
+# ==============================================================================
+
+
+@router.post(
+    "/users/{user_id}/nonprofit",
+    response_model=NonprofitStatusResponse,
+    summary="Set nonprofit status",
+    description="Mark a user as a verified nonprofit and optionally apply a discount promo.",
+    responses={
+        200: {"description": "Nonprofit status set successfully"},
+        400: {"description": "Invalid request or promo code", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("set nonprofit status")
+async def set_nonprofit_status(
+    request: Request,
+    user_id: str,
+    body: SetNonprofitRequest,
+    admin_id: str = Depends(require_admin_any),
+) -> NonprofitStatusResponse:
+    """Set nonprofit status for a user and optionally apply promo."""
+    from datetime import UTC, datetime
+
+    from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Validate promo code if provided
+    if body.apply_promo_code:
+        code = body.apply_promo_code.upper()
+        if code not in ("NONPROFIT80", "NONPROFIT100"):
+            raise HTTPException(
+                status_code=400,
+                detail="Promo code must be NONPROFIT80 or NONPROFIT100",
+            )
+
+    # Set nonprofit status
+    now = datetime.now(UTC)
+    execute_query(
+        """
+        UPDATE users
+        SET is_nonprofit = true,
+            nonprofit_org_name = %s,
+            nonprofit_verified_at = %s,
+            updated_at = NOW()
+        WHERE id = %s
+        """,
+        (body.org_name, now, user_id),
+        fetch="none",
+    )
+
+    # Apply promo code if requested
+    promo_applied = False
+    if body.apply_promo_code:
+        try:
+            validate_and_apply_code(user_id, body.apply_promo_code)
+            promo_applied = True
+            logger.info(f"Applied nonprofit promo {body.apply_promo_code} to user {user_id}")
+        except PromoValidationError as e:
+            # Don't fail the nonprofit status, just note promo wasn't applied
+            logger.warning(f"Could not apply promo to {user_id}: {e.message}")
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="nonprofit_status_set",
+        resource_type="user",
+        resource_id=user_id,
+        details={
+            "org_name": body.org_name,
+            "promo_code": body.apply_promo_code,
+            "promo_applied": promo_applied,
+        },
+    )
+
+    logger.info(f"Admin {admin_id}: Set nonprofit status for {user_id} ({body.org_name})")
+
+    message = f"Nonprofit status set for {body.org_name}"
+    if promo_applied:
+        message += f" with {body.apply_promo_code} promo applied"
+
+    return NonprofitStatusResponse(
+        user_id=user_id,
+        is_nonprofit=True,
+        nonprofit_org_name=body.org_name,
+        nonprofit_verified_at=now.isoformat(),
+        promo_applied=promo_applied,
+        message=message,
+    )
+
+
+@router.delete(
+    "/users/{user_id}/nonprofit",
+    response_model=NonprofitStatusResponse,
+    summary="Remove nonprofit status",
+    description="Remove nonprofit status from a user. Does not revoke applied promos.",
+    responses={
+        200: {"description": "Nonprofit status removed successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("remove nonprofit status")
+async def remove_nonprofit_status(
+    request: Request,
+    user_id: str,
+    admin_id: str = Depends(require_admin_any),
+) -> NonprofitStatusResponse:
+    """Remove nonprofit status from a user."""
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Remove nonprofit status
+    execute_query(
+        """
+        UPDATE users
+        SET is_nonprofit = false,
+            nonprofit_org_name = NULL,
+            nonprofit_verified_at = NULL,
+            updated_at = NOW()
+        WHERE id = %s
+        """,
+        (user_id,),
+        fetch="none",
+    )
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="nonprofit_status_removed",
+        resource_type="user",
+        resource_id=user_id,
+    )
+
+    logger.info(f"Admin {admin_id}: Removed nonprofit status from {user_id}")
+
+    return NonprofitStatusResponse(
+        user_id=user_id,
+        is_nonprofit=False,
+        nonprofit_org_name=None,
+        nonprofit_verified_at=None,
+        promo_applied=False,
+        message="Nonprofit status removed. Note: Previously applied promos are not revoked.",
     )

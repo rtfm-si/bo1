@@ -574,8 +574,18 @@ async def create_session(
             # Non-blocking - log and continue
             logger.debug(f"Stale metrics check failed (non-blocking): {e}")
 
-        # Record meeting usage for tier tracking (only if NOT using promo)
-        if not tier_usage.uses_promo_credit:
+        # Record meeting usage or decrement credits
+        if tier_usage.uses_meeting_credit:
+            # Decrement prepaid meeting credit
+            try:
+                from backend.api.middleware.tier_limits import _decrement_meeting_credit
+
+                _decrement_meeting_credit(user_id)
+            except Exception as e:
+                # Non-blocking - log and continue
+                logger.debug(f"Meeting credit decrement failed (non-blocking): {e}")
+        elif not tier_usage.uses_promo_credit:
+            # Record tier usage (only if NOT using promo or meeting credit)
             try:
                 record_meeting_usage(user_id)
             except Exception as e:
@@ -595,6 +605,9 @@ async def create_session(
             stale_metrics=stale_metrics_list,
             promo_credits_remaining=(
                 tier_usage.promo_credits_remaining if tier_usage.uses_promo_credit else None
+            ),
+            meeting_credits_remaining=(
+                tier_usage.meeting_credits_remaining if tier_usage.uses_meeting_credit else None
             ),
         )
 

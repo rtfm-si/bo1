@@ -38,6 +38,8 @@ class UserInfo(BaseModel):
         locked_at: When account was locked
         lock_reason: Reason for locking
         deleted_at: When account was soft deleted
+        is_nonprofit: Whether user is verified nonprofit
+        nonprofit_org_name: Name of nonprofit organization
         total_meetings: Total number of meetings created
         total_cost: Total cost across all meetings (USD)
         last_meeting_at: When user's most recent meeting was created
@@ -59,6 +61,8 @@ class UserInfo(BaseModel):
     locked_at: str | None = Field(None, description="When account was locked (ISO 8601)")
     lock_reason: str | None = Field(None, description="Reason for locking")
     deleted_at: str | None = Field(None, description="When account was soft deleted (ISO 8601)")
+    is_nonprofit: bool = Field(False, description="Whether user is verified nonprofit")
+    nonprofit_org_name: str | None = Field(None, description="Name of nonprofit organization")
     total_meetings: int = Field(..., description="Total number of meetings created", examples=[5])
     total_cost: float | None = Field(
         None, description="Total cost across all meetings (USD)", examples=[0.42]
@@ -1496,3 +1500,50 @@ class ExperimentMetricsResponse(BaseModel):
     total_sessions: int = Field(..., description="Total sessions in experiment")
     period_start: str = Field(..., description="Analysis period start (ISO 8601)")
     period_end: str = Field(..., description="Analysis period end (ISO 8601)")
+
+
+# ==============================================================================
+# Nonprofit Status Models
+# ==============================================================================
+
+
+class SetNonprofitRequest(BaseModel):
+    """Request model for setting nonprofit status.
+
+    Attributes:
+        org_name: Name of the nonprofit organization
+        apply_promo_code: Optional promo code to auto-apply (NONPROFIT80 or NONPROFIT100)
+    """
+
+    org_name: str = Field(
+        ...,
+        min_length=2,
+        max_length=200,
+        description="Name of the nonprofit organization",
+        examples=["Doctors Without Borders", "Local Food Bank"],
+    )
+    apply_promo_code: str | None = Field(
+        None,
+        description="Promo code to apply (NONPROFIT80 or NONPROFIT100)",
+        examples=["NONPROFIT80", "NONPROFIT100"],
+    )
+
+
+class NonprofitStatusResponse(BaseModel):
+    """Response model for nonprofit status operations.
+
+    Attributes:
+        user_id: User identifier
+        is_nonprofit: Whether user is marked as nonprofit
+        nonprofit_org_name: Name of the nonprofit organization
+        nonprofit_verified_at: When nonprofit status was verified (ISO 8601)
+        promo_applied: Whether a promo code was applied
+        message: Human-readable message
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    is_nonprofit: bool = Field(..., description="Whether user is marked as nonprofit")
+    nonprofit_org_name: str | None = Field(None, description="Nonprofit organization name")
+    nonprofit_verified_at: str | None = Field(None, description="Verification date (ISO 8601)")
+    promo_applied: bool = Field(False, description="Whether promo code was applied")
+    message: str = Field(..., description="Human-readable message")

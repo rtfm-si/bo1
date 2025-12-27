@@ -5,9 +5,8 @@
 	import { initAuth } from '$lib/stores/auth';
 	import { ActivityStatus, LOADING_MESSAGES } from '$lib/components/ui/loading';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
-	import { env } from '$env/dynamic/public';
 	import TermsConsentModal from '$lib/components/TermsConsentModal.svelte';
-	import { apiClient, ApiClientError } from '$lib/api/client';
+	import { apiClient } from '$lib/api/client';
 
 	let error = $state<string | null>(null);
 	let showTermsModal = $state(false);
@@ -51,16 +50,16 @@
 				// Wait a moment for cookies to be fully set
 				await new Promise(resolve => setTimeout(resolve, 100));
 
+				// Initialize auth store with the new session (sets up CSRF cookie)
+				console.log('[Callback] Initializing auth store...');
+				await initAuth();
+
 				// Record GDPR consent if pending from login page
+				// Must be after initAuth() so CSRF cookie is available for apiClient
 				const gdprConsentPending = localStorage.getItem('gdpr_consent_pending');
 				if (gdprConsentPending === 'true') {
 					try {
-						const apiUrl = env.PUBLIC_API_URL || 'http://localhost:8000';
-						await fetch(`${apiUrl}/api/v1/user/gdpr-consent`, {
-							method: 'POST',
-							credentials: 'include',
-							headers: { 'Content-Type': 'application/json' },
-						});
+						await apiClient.recordGdprConsent();
 						console.log('[Callback] GDPR consent recorded');
 					} catch (consentErr) {
 						console.warn('[Callback] Failed to record GDPR consent:', consentErr);
@@ -68,10 +67,6 @@
 						localStorage.removeItem('gdpr_consent_pending');
 					}
 				}
-
-				// Initialize auth store with the new session
-				console.log('[Callback] Initializing auth store...');
-				await initAuth();
 
 				// Check T&C consent before redirecting
 				console.log('[Callback] Checking T&C consent...');

@@ -1325,6 +1325,125 @@ export interface SeoBlogArticleListResponse {
 }
 
 // =============================================================================
+// Marketing Assets Types
+// =============================================================================
+
+/**
+ * Asset type for marketing collateral
+ */
+export type MarketingAssetType = 'image' | 'animation' | 'concept' | 'template';
+
+/**
+ * Marketing asset in the collateral bank
+ */
+export interface MarketingAsset {
+	id: number;
+	filename: string;
+	cdn_url: string;
+	asset_type: MarketingAssetType;
+	title: string;
+	description: string | null;
+	tags: string[];
+	file_size: number;
+	mime_type: string;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Marketing asset creation request (used with FormData)
+ */
+export interface MarketingAssetCreate {
+	title: string;
+	asset_type: MarketingAssetType;
+	description?: string;
+	tags?: string[];
+}
+
+/**
+ * Marketing asset update request
+ */
+export interface MarketingAssetUpdate {
+	title?: string;
+	description?: string;
+	tags?: string[];
+}
+
+/**
+ * Marketing asset list response
+ */
+export interface MarketingAssetListResponse {
+	assets: MarketingAsset[];
+	total: number;
+	remaining: number;
+}
+
+/**
+ * Asset suggestion for article content
+ */
+export interface AssetSuggestion {
+	id: number;
+	title: string;
+	cdn_url: string;
+	asset_type: MarketingAssetType;
+	relevance_score: number;
+	matching_tags: string[];
+}
+
+/**
+ * Asset suggestions response
+ */
+export interface AssetSuggestionsResponse {
+	suggestions: AssetSuggestion[];
+	article_keywords: string[];
+}
+
+// =============================================================================
+// SEO Autopilot Types
+// =============================================================================
+
+/**
+ * SEO Autopilot configuration
+ */
+export interface SeoAutopilotConfig {
+	enabled: boolean;
+	frequency_per_week: number;
+	auto_publish: boolean;
+	require_approval: boolean;
+	target_keywords: string[];
+	purchase_intent_only: boolean;
+}
+
+/**
+ * SEO Autopilot configuration response
+ */
+export interface SeoAutopilotConfigResponse {
+	config: SeoAutopilotConfig;
+	next_run: string | null;
+	articles_this_week: number;
+	articles_pending_review: number;
+}
+
+/**
+ * Pending article from autopilot
+ */
+export interface SeoPendingArticle {
+	id: number;
+	title: string;
+	excerpt: string | null;
+	keyword: string | null;
+	created_at: string;
+}
+
+/**
+ * Pending articles response
+ */
+export interface SeoPendingArticlesResponse {
+	articles: SeoPendingArticle[];
+	count: number;
+}
+
+// =============================================================================
 // Peer Benchmarking Types
 // =============================================================================
 
@@ -1391,4 +1510,80 @@ export interface PeerComparisonMetric {
 export interface PeerComparisonResponse {
 	industry: string;
 	comparisons: PeerComparisonMetric[];
+}
+
+/**
+ * Preview metric for non-opted users (shows industry median only).
+ */
+export interface PeerBenchmarkPreviewResponse {
+	metric: string;
+	display_name: string;
+	industry: string;
+	p50: number;
+	sample_count: number;
+}
+
+// ---- Key Metrics Types (Metrics You Need to Know) ----
+
+/**
+ * Importance classification for key metrics.
+ */
+export type MetricImportance = 'now' | 'later' | 'monitor';
+
+/**
+ * Source category for key metrics.
+ */
+export type MetricSourceCategory = 'user' | 'competitor' | 'industry';
+
+/**
+ * Trend indicator for a metric.
+ */
+export type MetricTrendIndicator = 'up' | 'down' | 'stable' | 'unknown';
+
+/**
+ * Configuration for a single key metric.
+ */
+export interface KeyMetricConfig {
+	metric_key: string;
+	importance: MetricImportance;
+	category: MetricSourceCategory;
+	display_order: number;
+	notes?: string | null;
+}
+
+/**
+ * Display model for a key metric with current value and trends.
+ */
+export interface KeyMetricDisplay {
+	metric_key: string;
+	name: string;
+	value: string | number | null;
+	unit?: string | null;
+	trend: MetricTrendIndicator;
+	trend_change?: string | null;
+	importance: MetricImportance;
+	category: MetricSourceCategory;
+	benchmark_value?: string | number | null;
+	percentile?: number | null;
+	notes?: string | null;
+	last_updated?: string | null;
+}
+
+/**
+ * Request to update key metrics configuration.
+ */
+export interface KeyMetricConfigUpdate {
+	metrics: KeyMetricConfig[];
+}
+
+/**
+ * Response containing user's key metrics.
+ */
+export interface KeyMetricsResponse {
+	success: boolean;
+	metrics: KeyMetricDisplay[];
+	now_count: number;
+	later_count: number;
+	monitor_count: number;
+	error?: string | null;
 }

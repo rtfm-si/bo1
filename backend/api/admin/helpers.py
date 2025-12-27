@@ -48,6 +48,8 @@ USER_WITH_METRICS_SELECT = """
         u.locked_at,
         u.lock_reason,
         u.deleted_at,
+        u.is_nonprofit,
+        u.nonprofit_org_name,
         u.created_at,
         u.updated_at,
         COUNT(s.id) as total_meetings,
@@ -60,7 +62,8 @@ USER_WITH_METRICS_SELECT = """
 
 USER_WITH_METRICS_GROUP_BY = """
     GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin,
-             u.is_locked, u.locked_at, u.lock_reason, u.deleted_at, u.created_at, u.updated_at
+             u.is_locked, u.locked_at, u.lock_reason, u.deleted_at, u.is_nonprofit,
+             u.nonprofit_org_name, u.created_at, u.updated_at
 """
 
 
@@ -76,6 +79,8 @@ def _row_to_user_info(row: dict[str, Any]) -> UserInfo:
         locked_at=_to_iso_or_none(row.get("locked_at")),
         lock_reason=row.get("lock_reason"),
         deleted_at=_to_iso_or_none(row.get("deleted_at")),
+        is_nonprofit=row.get("is_nonprofit", False),
+        nonprofit_org_name=row.get("nonprofit_org_name"),
         created_at=_to_iso(row["created_at"]),
         updated_at=_to_iso(row["updated_at"]),
         total_meetings=row["total_meetings"] or 0,

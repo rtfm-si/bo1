@@ -186,12 +186,27 @@ import type {
 	SeoBlogArticle,
 	SeoBlogArticleUpdate,
 	SeoBlogArticleListResponse,
+	// SEO Autopilot types
+	SeoAutopilotConfig,
+	SeoAutopilotConfigResponse,
+	SeoPendingArticle,
+	SeoPendingArticlesResponse,
+	// Marketing Assets types
+	MarketingAsset,
+	MarketingAssetType,
+	MarketingAssetUpdate,
+	MarketingAssetListResponse,
+	AssetSuggestionsResponse,
 	// Peer Benchmarking types
 	PeerBenchmarkConsentStatus,
 	PeerBenchmarksResponse,
 	PeerComparisonResponse,
+	PeerBenchmarkPreviewResponse,
 	// Research Sharing types
-	ResearchSharingConsentStatus
+	ResearchSharingConsentStatus,
+	// Key Metrics types
+	KeyMetricsResponse,
+	KeyMetricConfigUpdate
 } from './types';
 
 // Re-export types that are used by other modules
@@ -340,10 +355,19 @@ export interface DismissRefreshRequest {
 // Strategic Context Types (Phase 3)
 // ============================================================================
 
+export interface RelevanceFlags {
+	similar_product: boolean;
+	same_icp: boolean;
+	same_market: boolean;
+}
+
 export interface DetectedCompetitor {
 	name: string;
 	url: string | null;
 	description: string | null;
+	relevance_score: number | null;
+	relevance_flags: RelevanceFlags | null;
+	relevance_warning: string | null;
 }
 
 export interface CompetitorDetectRequest {
@@ -530,6 +554,11 @@ export interface CheckoutRequest {
 export interface CheckoutResponse {
 	session_id: string;
 	url: string;
+}
+
+export interface MeetingCreditsResponse {
+	meeting_credits: number;
+	has_subscription: boolean;
 }
 
 // Workspace Billing Types
@@ -1581,6 +1610,16 @@ export class ApiClient {
 		return this.post<CheckoutResponse>('/api/v1/billing/checkout', { price_id: priceId });
 	}
 
+	async purchaseMeetingBundle(bundleSize: number): Promise<CheckoutResponse> {
+		return this.post<CheckoutResponse>('/api/v1/billing/purchase-bundle', {
+			bundle_size: bundleSize
+		});
+	}
+
+	async getMeetingCredits(): Promise<MeetingCreditsResponse> {
+		return this.fetch<MeetingCreditsResponse>('/api/v1/billing/credits');
+	}
+
 	// ==========================================================================
 	// Workspace Billing Endpoints
 	// ==========================================================================
@@ -1647,6 +1686,16 @@ export class ApiClient {
 
 	async deleteUserAccount(): Promise<AccountDeletionResponse> {
 		return this.delete<AccountDeletionResponse>('/api/v1/user/delete');
+	}
+
+	/**
+	 * Record GDPR consent during OAuth callback
+	 */
+	async recordGdprConsent(): Promise<{ status: string; consent_recorded: boolean }> {
+		return this.post<{ status: string; consent_recorded: boolean }>(
+			'/api/v1/user/gdpr-consent',
+			{}
+		);
 	}
 
 	async getRetentionSetting(): Promise<RetentionSettingResponse> {
@@ -3266,6 +3315,147 @@ export class ApiClient {
 	}
 
 	// ============================================================================
+	// SEO Autopilot Methods
+	// ============================================================================
+
+	/**
+	 * Get SEO autopilot configuration
+	 */
+	async getSeoAutopilotConfig(): Promise<SeoAutopilotConfigResponse> {
+		return this.fetch<SeoAutopilotConfigResponse>('/api/v1/seo/autopilot/config');
+	}
+
+	/**
+	 * Update SEO autopilot configuration
+	 */
+	async updateSeoAutopilotConfig(data: SeoAutopilotConfig): Promise<SeoAutopilotConfigResponse> {
+		return this.put<SeoAutopilotConfigResponse>('/api/v1/seo/autopilot/config', data);
+	}
+
+	/**
+	 * Get pending articles from autopilot
+	 */
+	async getSeoPendingArticles(): Promise<SeoPendingArticlesResponse> {
+		return this.fetch<SeoPendingArticlesResponse>('/api/v1/seo/autopilot/pending');
+	}
+
+	/**
+	 * Approve a pending article
+	 */
+	async approveSeoArticle(articleId: number): Promise<SeoBlogArticle> {
+		return this.post<SeoBlogArticle>(`/api/v1/seo/autopilot/articles/${articleId}/approve`, {});
+	}
+
+	/**
+	 * Reject a pending article
+	 */
+	async rejectSeoArticle(articleId: number): Promise<void> {
+		return this.post<void>(`/api/v1/seo/autopilot/articles/${articleId}/reject`, {});
+	}
+
+	// ============================================================================
+	// Marketing Assets Methods
+	// ============================================================================
+
+	/**
+	 * Upload a marketing asset
+	 * Uses FormData for file upload with metadata
+	 */
+	async uploadMarketingAsset(
+		file: File,
+		title: string,
+		assetType: MarketingAssetType,
+		description?: string,
+		tags?: string[]
+	): Promise<MarketingAsset> {
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('title', title);
+		formData.append('asset_type', assetType);
+		if (description) formData.append('description', description);
+		if (tags?.length) formData.append('tags', tags.join(','));
+
+		const headers: Record<string, string> = {};
+		const csrfToken = getCsrfToken();
+		if (csrfToken) {
+			headers['X-CSRF-Token'] = csrfToken;
+		}
+
+		const response = await fetch(`${this.baseUrl}/api/v1/seo/assets`, {
+			method: 'POST',
+			body: formData,
+			credentials: 'include',
+			headers
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => null);
+			throw new ApiClientError(
+				errorData?.detail || 'Upload failed',
+				response.status
+			);
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * List marketing assets with optional filtering
+	 */
+	async listMarketingAssets(params?: {
+		asset_type?: MarketingAssetType;
+		tags?: string;
+		search?: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<MarketingAssetListResponse> {
+		const queryParams = new URLSearchParams();
+		if (params?.asset_type) queryParams.set('asset_type', params.asset_type);
+		if (params?.tags) queryParams.set('tags', params.tags);
+		if (params?.search) queryParams.set('search', params.search);
+		if (params?.limit) queryParams.set('limit', params.limit.toString());
+		if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+		const query = queryParams.toString();
+		return this.fetch<MarketingAssetListResponse>(
+			`/api/v1/seo/assets${query ? `?${query}` : ''}`
+		);
+	}
+
+	/**
+	 * Get a single marketing asset
+	 */
+	async getMarketingAsset(assetId: number): Promise<MarketingAsset> {
+		return this.fetch<MarketingAsset>(`/api/v1/seo/assets/${assetId}`);
+	}
+
+	/**
+	 * Update a marketing asset
+	 */
+	async updateMarketingAsset(
+		assetId: number,
+		data: MarketingAssetUpdate
+	): Promise<MarketingAsset> {
+		return this.patch<MarketingAsset>(`/api/v1/seo/assets/${assetId}`, data);
+	}
+
+	/**
+	 * Delete a marketing asset
+	 */
+	async deleteMarketingAsset(assetId: number): Promise<void> {
+		return this.delete<void>(`/api/v1/seo/assets/${assetId}`);
+	}
+
+	/**
+	 * Get asset suggestions for an article
+	 */
+	async getAssetSuggestions(articleId: number): Promise<AssetSuggestionsResponse> {
+		return this.fetch<AssetSuggestionsResponse>(
+			`/api/v1/seo/assets/suggest?article_id=${articleId}`
+		);
+	}
+
+	// ============================================================================
 	// Peer Benchmarking Methods
 	// ============================================================================
 
@@ -3304,6 +3494,13 @@ export class ApiClient {
 		return this.fetch<PeerComparisonResponse>('/api/v1/peer-benchmarks/compare');
 	}
 
+	/**
+	 * Get preview metric for non-opted users (shows industry median only)
+	 */
+	async getPeerBenchmarkPreview(): Promise<PeerBenchmarkPreviewResponse> {
+		return this.fetch<PeerBenchmarkPreviewResponse>('/api/v1/peer-benchmarks/preview');
+	}
+
 	// ============================================================================
 	// Research Sharing Methods
 	// ============================================================================
@@ -3327,6 +3524,24 @@ export class ApiClient {
 	 */
 	async optOutResearchSharing(): Promise<ResearchSharingConsentStatus> {
 		return this.delete<ResearchSharingConsentStatus>('/api/v1/research-sharing/consent');
+	}
+
+	// ============================================================================
+	// Key Metrics Methods (Metrics You Need to Know)
+	// ============================================================================
+
+	/**
+	 * Get user's key metrics with current values and trends
+	 */
+	async getKeyMetrics(): Promise<KeyMetricsResponse> {
+		return this.fetch<KeyMetricsResponse>('/api/v1/context/key-metrics');
+	}
+
+	/**
+	 * Update key metrics configuration (importance rankings)
+	 */
+	async updateKeyMetricsConfig(config: KeyMetricConfigUpdate): Promise<KeyMetricsResponse> {
+		return this.put<KeyMetricsResponse>('/api/v1/context/key-metrics/config', config);
 	}
 }
 

@@ -9,7 +9,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { PeerBenchmarkConsentStatus, PeerBenchmarksResponse, PeerBenchmarkMetric } from '$lib/api/types';
+	import type { PeerBenchmarkConsentStatus, PeerBenchmarksResponse, PeerBenchmarkPreviewResponse } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
@@ -18,6 +18,7 @@
 	// State
 	let consent = $state<PeerBenchmarkConsentStatus | null>(null);
 	let benchmarks = $state<PeerBenchmarksResponse | null>(null);
+	let preview = $state<PeerBenchmarkPreviewResponse | null>(null);
 	let isLoading = $state(true);
 	let isToggling = $state(false);
 	let error = $state<string | null>(null);
@@ -33,6 +34,16 @@
 		try {
 			// Load consent status first
 			consent = await apiClient.getPeerBenchmarkConsent();
+
+			// If not consented, fetch preview metric to show teaser
+			if (!consent.consented) {
+				try {
+					preview = await apiClient.getPeerBenchmarkPreview();
+				} catch {
+					// Preview not available (no industry or insufficient data) - that's fine
+					preview = null;
+				}
+			}
 
 			// Try to load benchmarks (may fail if no industry set)
 			try {
@@ -126,24 +137,108 @@
 			</button>
 		</Alert>
 	{:else}
+		<!-- Teaser Card for Non-Opted Users with Preview -->
+		{#if !consent?.consented && preview}
+			<BoCard class="border-brand-200 dark:border-brand-800 bg-gradient-to-br from-brand-50 to-white dark:from-brand-950/20 dark:to-neutral-900">
+				<div class="p-4 sm:p-6">
+					<div class="flex flex-col md:flex-row gap-6">
+						<!-- Preview Metric -->
+						<div class="flex-1">
+							<div class="flex items-center gap-2 mb-3">
+								<div class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></div>
+								<span class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase tracking-wide">
+									Industry Preview
+								</span>
+							</div>
+							<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">
+								{preview.display_name}
+							</h3>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+								{preview.industry} industry median from {preview.sample_count} peers
+							</p>
+							<div class="inline-flex items-baseline gap-1 px-4 py-2 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+								<span class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+									{formatValue(preview.p50)}
+								</span>
+								<span class="text-sm text-neutral-500">median</span>
+							</div>
+						</div>
+
+						<!-- CTA -->
+						<div class="flex-shrink-0 flex flex-col justify-center items-start md:items-end gap-3">
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 max-w-xs">
+								<strong>See how you compare.</strong> Opt in to view your percentile rank across all metrics.
+							</p>
+							<BoButton
+								variant="brand"
+								loading={isToggling}
+								onclick={toggleConsent}
+							>
+								Opt In to Compare
+							</BoButton>
+						</div>
+					</div>
+
+					<!-- Blurred/locked preview of other metrics -->
+					<div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+						<div class="flex items-center gap-2 mb-3">
+							<svg class="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+							</svg>
+							<span class="text-xs text-neutral-500">More metrics available after opt-in</span>
+						</div>
+						<div class="flex gap-2 flex-wrap">
+							{#each ['Revenue', 'Customers', 'Growth Rate', 'Team Size', 'Churn'] as metric}
+								<span class="px-3 py-1 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-400 rounded-full blur-[1px]">
+									{metric}
+								</span>
+							{/each}
+							<span class="px-3 py-1 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-400 rounded-full">
+								+10 more
+							</span>
+						</div>
+					</div>
+				</div>
+			</BoCard>
+		{/if}
+
 		<!-- Consent Card -->
 		<BoCard>
 			<div class="p-4 sm:p-6">
 				<div class="flex items-start justify-between gap-4">
 					<div class="flex-1">
 						<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-							Data Sharing Consent
+							{consent?.consented ? 'You\'re Contributing' : 'Join Peer Benchmarking'}
 						</h2>
 						<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
 							{#if consent?.consented}
-								Your anonymized metrics are included in industry benchmarks. Your data helps other businesses and improves comparison accuracy.
+								Your anonymized metrics are helping build better industry benchmarks. You can now see your percentile rank across all metrics.
+							{:else if benchmarks}
+								Join {benchmarks.metrics[0]?.sample_count || 'other'} peers in {benchmarks.industry} to see how your metrics stack up. Compare revenue, growth, churn, and more.
 							{:else}
 								Opt in to share your anonymized metrics and see how you compare to peers. No personal or company-identifying information is shared.
 							{/if}
 						</p>
-						<p class="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-							Privacy: Metrics are aggregated with k-anonymity protection (min 5 peers). Industry-level only, no PII.
-						</p>
+						<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400 dark:text-neutral-500">
+							<span class="flex items-center gap-1">
+								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+								</svg>
+								K-anonymity protected (min 5 peers)
+							</span>
+							<span class="flex items-center gap-1">
+								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+								</svg>
+								No PII or company names
+							</span>
+							<span class="flex items-center gap-1">
+								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+								</svg>
+								Industry-level aggregates only
+							</span>
+						</div>
 					</div>
 					<div class="flex-shrink-0">
 						<BoButton

@@ -8,11 +8,26 @@ Finds relevant topics for blog posts based on:
 
 import json
 import logging
+import os
 from dataclasses import dataclass
+
+from anthropic import RateLimitError
 
 from bo1.llm.client import ClaudeClient
 
 logger = logging.getLogger(__name__)
+
+# Enable mock mode for local dev without LLM calls
+USE_MOCK_TOPIC_DISCOVERY = os.getenv("USE_MOCK_TOPIC_DISCOVERY", "").lower() == "true"
+
+
+class TopicDiscoveryError(Exception):
+    """Raised when topic discovery fails."""
+
+    def __init__(self, message: str, error_type: str = "unknown"):
+        super().__init__(message)
+        self.error_type = error_type
+
 
 # Use Haiku for cost efficiency
 MODEL = "haiku"
@@ -43,18 +58,64 @@ For each topic, consider:
 3. Actionable insights opportunity
 4. Competitive gap (topics not well covered)
 
-Output as JSON:
+IMPORTANT: You MUST respond with ONLY valid JSON matching this exact schema. No text before or after.
 {{
     "topics": [
         {{
-            "title": "Topic title",
-            "description": "Brief description of what the post would cover",
+            "title": "Topic title (string)",
+            "description": "Brief description of what the post would cover (string)",
             "keywords": ["keyword1", "keyword2", "keyword3"],
-            "relevance_score": 0.95,
-            "source": "context|trend|gap"
+            "relevance_score": 0.85,
+            "source": "context"
         }}
     ]
-}}"""
+}}
+
+Rules for the JSON:
+- relevance_score must be a number between 0 and 1
+- source must be one of: "context", "trend", "gap"
+- keywords must be an array of strings
+- Return exactly 5 topics"""
+
+
+# Mock topics for local development
+MOCK_TOPICS = [
+    Topic(
+        title="How AI-Powered Decision Making is Transforming Business Strategy",
+        description="Explore how AI deliberation tools help leaders make better, faster decisions",
+        keywords=["AI decisions", "business strategy", "AI tools"],
+        relevance_score=0.92,
+        source="context",
+    ),
+    Topic(
+        title="The Rise of Asynchronous Collaboration in Remote Teams",
+        description="Best practices for effective async communication in distributed teams",
+        keywords=["async collaboration", "remote work", "team productivity"],
+        relevance_score=0.88,
+        source="trend",
+    ),
+    Topic(
+        title="Data-Driven vs Intuition: Finding the Right Balance",
+        description="When to trust the numbers and when to go with your gut",
+        keywords=["data-driven", "intuition", "decision making"],
+        relevance_score=0.85,
+        source="gap",
+    ),
+    Topic(
+        title="Building a Second Brain for Your Business",
+        description="How to create systems that capture and leverage organizational knowledge",
+        keywords=["knowledge management", "second brain", "productivity"],
+        relevance_score=0.82,
+        source="context",
+    ),
+    Topic(
+        title="The Hidden Costs of Decision Fatigue in Leadership",
+        description="Strategies to reduce cognitive load and make better decisions",
+        keywords=["decision fatigue", "leadership", "productivity"],
+        relevance_score=0.80,
+        source="trend",
+    ),
+]
 
 
 async def discover_topics(
@@ -71,7 +132,15 @@ async def discover_topics(
 
     Returns:
         List of discovered Topic objects
+
+    Raises:
+        TopicDiscoveryError: If discovery fails after retries
     """
+    # Return mock topics if mock mode enabled
+    if USE_MOCK_TOPIC_DISCOVERY:
+        logger.info("Using mock topics (USE_MOCK_TOPIC_DISCOVERY=true)")
+        return MOCK_TOPICS
+
     industry_str = industry or "technology and business"
     focus_str = (
         ", ".join(focus_areas) if focus_areas else "business growth, productivity, decision-making"
@@ -86,43 +155,76 @@ async def discover_topics(
         existing_topics=existing_str,
     )
 
-    try:
-        response, usage = await client.call(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,  # Higher for creativity
-            max_tokens=2048,
-            prefill="{",
-        )
+    max_attempts = 2
+    last_error: Exception | None = None
 
-        json_str = "{" + response
-        data = json.loads(json_str)
-
-        topics = []
-        for item in data.get("topics", []):
-            topics.append(
-                Topic(
-                    title=item["title"],
-                    description=item["description"],
-                    keywords=item.get("keywords", []),
-                    relevance_score=float(item.get("relevance_score", 0.5)),
-                    source=item.get("source", "context"),
-                )
+    for attempt in range(max_attempts):
+        try:
+            response, usage = await client.call(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,  # Lower for more predictable JSON output
+                max_tokens=2048,
+                prefill="{",
             )
 
-        logger.info(
-            f"Discovered {len(topics)} topics for industry={industry_str} "
-            f"(tokens: {usage.total_tokens}, cost: ${usage.calculate_cost(MODEL):.4f})"
-        )
+            json_str = "{" + response
+            logger.debug(f"Topic discovery raw response (attempt {attempt + 1}): {json_str[:500]}")
 
-        return topics
+            data = json.loads(json_str)
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse topic discovery response: {e}")
-        return []
-    except KeyError as e:
-        logger.error(f"Missing field in topic discovery: {e}")
-        return []
+            topics = []
+            for item in data.get("topics", []):
+                topics.append(
+                    Topic(
+                        title=item["title"],
+                        description=item["description"],
+                        keywords=item.get("keywords", []),
+                        relevance_score=float(item.get("relevance_score", 0.5)),
+                        source=item.get("source", "context"),
+                    )
+                )
+
+            logger.info(
+                f"Discovered {len(topics)} topics for industry={industry_str} "
+                f"(tokens: {usage.total_tokens}, cost: ${usage.calculate_cost(MODEL):.4f})"
+            )
+
+            return topics
+
+        except RateLimitError as e:
+            logger.error(f"Rate limit exceeded during topic discovery: {e}")
+            raise TopicDiscoveryError(
+                "Rate limit exceeded. Please try again in a few minutes.",
+                error_type="rate_limit",
+            ) from e
+        except json.JSONDecodeError as e:
+            last_error = e
+            logger.warning(
+                f"Failed to parse topic discovery response (attempt {attempt + 1}/{max_attempts}): {e}"
+            )
+            if attempt < max_attempts - 1:
+                continue  # Retry
+        except KeyError as e:
+            last_error = e
+            logger.warning(
+                f"Missing field in topic discovery (attempt {attempt + 1}/{max_attempts}): {e}"
+            )
+            if attempt < max_attempts - 1:
+                continue  # Retry
+        except Exception as e:
+            logger.error(f"Unexpected error during topic discovery: {type(e).__name__}: {e}")
+            raise TopicDiscoveryError(
+                f"Failed to discover topics: {e}",
+                error_type="unknown",
+            ) from e
+
+    # All retries exhausted
+    error_msg = f"Failed to parse LLM response after {max_attempts} attempts"
+    if last_error:
+        error_msg = f"{error_msg}: {last_error}"
+    logger.error(error_msg)
+    raise TopicDiscoveryError(error_msg, error_type="parse_error")
 
 
 async def generate_topic_from_context(

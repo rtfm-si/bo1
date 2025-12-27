@@ -7,9 +7,11 @@
 	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
 	import type { PlanDetails, UsageStats } from '$lib/api/client';
-	import { PRICING_TIERS } from '$lib/data/pricing';
+	import { PRICING_TIERS, MEETING_BUNDLES } from '$lib/data/pricing';
+	import type { MeetingCreditsResponse } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import { Package } from 'lucide-svelte';
 
 	// Get Stripe price IDs from environment
 	const STRIPE_PRICE_STARTER = env.PUBLIC_STRIPE_PRICE_STARTER || '';
@@ -21,10 +23,12 @@
 	// State
 	let plan = $state<PlanDetails | null>(null);
 	let usage = $state<UsageStats | null>(null);
+	let credits = $state<MeetingCreditsResponse | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let portalMessage = $state<string | null>(null);
 	let isUpgrading = $state(false);
+	let purchasingBundle = $state<number | null>(null);
 
 	// Format price in dollars
 	function formatPrice(cents: number): string {
@@ -59,12 +63,14 @@
 
 	onMount(async () => {
 		try {
-			const [planResult, usageResult] = await Promise.all([
+			const [planResult, usageResult, creditsResult] = await Promise.all([
 				apiClient.getBillingPlan(),
-				apiClient.getBillingUsage()
+				apiClient.getBillingUsage(),
+				apiClient.getMeetingCredits()
 			]);
 			plan = planResult;
 			usage = usageResult;
+			credits = creditsResult;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load billing information';
 			console.error('Failed to load billing:', e);
@@ -72,6 +78,21 @@
 			isLoading = false;
 		}
 	});
+
+	async function purchaseBundle(bundleSize: number) {
+		if (purchasingBundle !== null) return;
+
+		purchasingBundle = bundleSize;
+		error = null;
+
+		try {
+			const result = await apiClient.purchaseMeetingBundle(bundleSize);
+			window.location.href = result.url;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to start checkout';
+			purchasingBundle = null;
+		}
+	}
 
 	async function openBillingPortal() {
 		try {
@@ -276,6 +297,58 @@
 				</div>
 			{/if}
 		{/if}
+
+		<!-- Meeting Credits -->
+		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="flex items-start justify-between mb-4">
+				<div>
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						Meeting Credits
+					</h3>
+					<p class="text-sm text-slate-600 dark:text-slate-400">
+						Prepaid meetings that never expire
+					</p>
+				</div>
+				{#if credits?.meeting_credits}
+					<div class="flex items-center gap-2 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 px-3 py-1.5 rounded-full">
+						<Package class="w-4 h-4" />
+						<span class="font-semibold">{credits.meeting_credits} credit{credits.meeting_credits === 1 ? '' : 's'}</span>
+					</div>
+				{/if}
+			</div>
+
+			{#if !credits?.meeting_credits}
+				<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+					No meeting credits. Purchase a bundle to get started.
+				</p>
+			{/if}
+
+			<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+				{#each MEETING_BUNDLES as bundle (bundle.meetings)}
+					<button
+						class="p-3 rounded-lg border text-center transition-colors {bundle.meetings === 5
+							? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10 hover:bg-brand-50 dark:hover:bg-brand-900/20'
+							: 'border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600'}"
+						onclick={() => purchaseBundle(bundle.meetings)}
+						disabled={purchasingBundle !== null}
+					>
+						<div class="text-xl font-bold text-slate-900 dark:text-white">
+							{bundle.meetings}
+						</div>
+						<div class="text-xs text-slate-500 dark:text-slate-400">
+							meeting{bundle.meetings > 1 ? 's' : ''}
+						</div>
+						<div class="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400">
+							{#if purchasingBundle === bundle.meetings}
+								...
+							{:else}
+								£{bundle.price}
+							{/if}
+						</div>
+					</button>
+				{/each}
+			</div>
+		</div>
 
 		<!-- Usage -->
 		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">

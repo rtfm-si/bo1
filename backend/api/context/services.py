@@ -569,3 +569,212 @@ def append_benchmark_history(
             history[field] = history[field][:MAX_BENCHMARK_HISTORY_ENTRIES]
 
     return history
+
+
+# =============================================================================
+# Key Metrics (Metrics You Need to Know)
+# =============================================================================
+
+# Human-readable display names for benchmark metrics
+METRIC_DISPLAY_NAMES = {
+    "revenue": "Revenue",
+    "customers": "Customers",
+    "growth_rate": "Growth Rate",
+    "team_size": "Team Size",
+    "mau_bucket": "MAU Range",
+    "revenue_stage": "Revenue Stage",
+    "traffic_range": "Traffic Range",
+    "dau": "Daily Active Users",
+    "mau": "Monthly Active Users",
+    "dau_mau_ratio": "DAU/MAU Ratio",
+    "arpu": "ARPU",
+    "arr_growth_rate": "ARR Growth Rate",
+    "grr": "Gross Revenue Retention",
+    "active_churn": "Active Churn",
+    "revenue_churn": "Revenue Churn",
+    "nps": "NPS Score",
+    "quick_ratio": "Quick Ratio",
+}
+
+# Units for each metric
+METRIC_UNITS = {
+    "revenue": "$",
+    "customers": "count",
+    "growth_rate": "%",
+    "team_size": "people",
+    "mau_bucket": "range",
+    "revenue_stage": "stage",
+    "traffic_range": "range",
+    "dau": "count",
+    "mau": "count",
+    "dau_mau_ratio": "%",
+    "arpu": "$",
+    "arr_growth_rate": "%",
+    "grr": "%",
+    "active_churn": "%",
+    "revenue_churn": "%",
+    "nps": "score",
+    "quick_ratio": "ratio",
+}
+
+
+def calculate_trend_from_history(
+    history: list[dict[str, Any]],
+) -> tuple[str, str | None]:
+    """Calculate trend direction from benchmark history entries.
+
+    Args:
+        history: List of {value, date} entries, newest first
+
+    Returns:
+        Tuple of (trend: up|down|stable|unknown, change_text: "+15%" or None)
+    """
+    from backend.api.context.models import MetricTrendIndicator
+
+    if not history or len(history) < 2:
+        return MetricTrendIndicator.UNKNOWN.value, None
+
+    try:
+        current_entry = history[0]
+        previous_entry = history[1]
+
+        current_val = current_entry.get("value")
+        previous_val = previous_entry.get("value")
+
+        # Try to parse as numbers
+        if isinstance(current_val, str):
+            # Remove common prefixes/suffixes
+            current_val = current_val.replace("$", "").replace(",", "").replace("%", "")
+            if current_val.endswith("K"):
+                current_val = float(current_val[:-1]) * 1000
+            elif current_val.endswith("M"):
+                current_val = float(current_val[:-1]) * 1000000
+            else:
+                current_val = float(current_val)
+
+        if isinstance(previous_val, str):
+            previous_val = previous_val.replace("$", "").replace(",", "").replace("%", "")
+            if previous_val.endswith("K"):
+                previous_val = float(previous_val[:-1]) * 1000
+            elif previous_val.endswith("M"):
+                previous_val = float(previous_val[:-1]) * 1000000
+            else:
+                previous_val = float(previous_val)
+
+        if previous_val == 0:
+            return MetricTrendIndicator.UNKNOWN.value, None
+
+        change = ((current_val - previous_val) / abs(previous_val)) * 100
+
+        if change > 5:
+            return MetricTrendIndicator.UP.value, f"+{change:.0f}%"
+        elif change < -5:
+            return MetricTrendIndicator.DOWN.value, f"{change:.0f}%"
+        else:
+            return MetricTrendIndicator.STABLE.value, None
+
+    except (ValueError, TypeError):
+        return MetricTrendIndicator.UNKNOWN.value, None
+
+
+def get_key_metrics_for_user(
+    context_data: dict[str, Any] | None,
+    key_metrics_config: list[dict[str, Any]] | None,
+    industry_benchmarks: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Build list of key metrics with current values and trends.
+
+    Combines user's benchmark metrics, their importance config, historical trends,
+    and optionally industry benchmark comparisons.
+
+    Args:
+        context_data: User's context data from database
+        key_metrics_config: User's key metrics configuration list
+        industry_benchmarks: Optional industry benchmark data for comparison
+
+    Returns:
+        List of KeyMetricDisplay-compatible dicts, sorted by importance then order
+    """
+    from backend.api.context.models import (
+        MetricImportance,
+        MetricSourceCategory,
+    )
+
+    if not context_data:
+        return []
+
+    # Build config lookup by metric_key
+    config_lookup: dict[str, dict] = {}
+    if key_metrics_config:
+        for cfg in key_metrics_config:
+            config_lookup[cfg.get("metric_key", "")] = cfg
+
+    benchmark_history = context_data.get("benchmark_history", {}) or {}
+    benchmark_timestamps = context_data.get("benchmark_timestamps", {}) or {}
+
+    metrics = []
+
+    # Only include metrics that user has configured OR has data for
+    tracked_keys = set(config_lookup.keys())
+    if not tracked_keys:
+        # Default: show all metrics with values
+        tracked_keys = {k for k in BENCHMARK_METRIC_FIELDS if context_data.get(k)}
+
+    for metric_key in tracked_keys:
+        value = context_data.get(metric_key)
+        if value is None and metric_key not in config_lookup:
+            continue  # Skip empty unconfigured metrics
+
+        cfg = config_lookup.get(metric_key, {})
+
+        # Calculate trend from history
+        history = benchmark_history.get(metric_key, [])
+        trend, trend_change = calculate_trend_from_history(history)
+
+        # Get last updated timestamp
+        last_updated = None
+        if metric_key in benchmark_timestamps:
+            try:
+                from datetime import datetime
+
+                last_updated = datetime.fromisoformat(
+                    benchmark_timestamps[metric_key].replace("Z", "+00:00")
+                )
+            except (ValueError, TypeError):
+                pass
+
+        # Industry benchmark comparison
+        benchmark_value = None
+        percentile = None
+        if industry_benchmarks and metric_key in industry_benchmarks:
+            benchmark_value = industry_benchmarks.get(metric_key)
+            # Percentile calculation would need more data; placeholder
+            percentile = None
+
+        metrics.append(
+            {
+                "metric_key": metric_key,
+                "name": METRIC_DISPLAY_NAMES.get(metric_key, metric_key.replace("_", " ").title()),
+                "value": value,
+                "unit": METRIC_UNITS.get(metric_key),
+                "trend": trend,
+                "trend_change": trend_change,
+                "importance": cfg.get("importance", MetricImportance.MONITOR.value),
+                "category": cfg.get("category", MetricSourceCategory.USER.value),
+                "benchmark_value": benchmark_value,
+                "percentile": percentile,
+                "notes": cfg.get("notes"),
+                "last_updated": last_updated.isoformat() if last_updated else None,
+                "display_order": cfg.get("display_order", 999),
+            }
+        )
+
+    # Sort by importance (now < later < monitor), then display_order
+    importance_order = {
+        MetricImportance.NOW.value: 0,
+        MetricImportance.LATER.value: 1,
+        MetricImportance.MONITOR.value: 2,
+    }
+    metrics.sort(key=lambda m: (importance_order.get(m["importance"], 3), m["display_order"]))
+
+    return metrics

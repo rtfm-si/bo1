@@ -39,7 +39,8 @@
 
 	// Form state - Competitors (stored as comma-separated string for simplicity)
 	let competitorsText = $state('');
-	let detectedCompetitors = $state<string[]>([]);
+	let detectedCompetitorNames = $state<string[]>([]);
+	let detectedCompetitorData = $state<DetectedCompetitor[]>([]);
 
 	// Managed competitors state
 	let managedCompetitors = $state<ManagedCompetitor[]>([]);
@@ -128,7 +129,7 @@
 				pricingModel = ctx.pricing_model || '';
 				// Competitors
 				competitorsText = ctx.competitors || '';
-				detectedCompetitors = ctx.detected_competitors || [];
+				detectedCompetitorNames = ctx.detected_competitors || [];
 				// ICP
 				idealCustomerProfile = ctx.ideal_customer_profile || '';
 				targetGeography = ctx.target_geography || '';
@@ -401,7 +402,7 @@
 				pricing_model: pricingModel.trim() || undefined,
 				// Competitors
 				competitors: competitorsText.trim() || undefined,
-				detected_competitors: detectedCompetitors.length > 0 ? detectedCompetitors : undefined,
+				detected_competitors: detectedCompetitorNames.length > 0 ? detectedCompetitorNames : undefined,
 				// ICP
 				ideal_customer_profile: idealCustomerProfile.trim() || undefined,
 				target_geography: targetGeography.trim() || undefined,
@@ -426,13 +427,14 @@
 	}
 
 	function addDetectedCompetitor(name: string) {
-		if (name && !detectedCompetitors.includes(name)) {
-			detectedCompetitors = [...detectedCompetitors, name];
+		if (name && !detectedCompetitorNames.includes(name)) {
+			detectedCompetitorNames = [...detectedCompetitorNames, name];
 		}
 	}
 
 	function removeDetectedCompetitor(index: number) {
-		detectedCompetitors = detectedCompetitors.filter((_, i) => i !== index);
+		detectedCompetitorNames = detectedCompetitorNames.filter((_, i) => i !== index);
+		detectedCompetitorData = detectedCompetitorData.filter((_, i) => i !== index);
 	}
 
 	async function handleDetectCompetitors() {
@@ -442,11 +444,11 @@
 		try {
 			const response = await apiClient.detectCompetitors();
 			if (response.success && response.competitors.length > 0) {
-				// Add newly detected competitors to the list
-				const newNames = response.competitors.map((c) => c.name);
-				const existingNames = new Set(detectedCompetitors);
-				const uniqueNew = newNames.filter((name) => !existingNames.has(name));
-				detectedCompetitors = [...detectedCompetitors, ...uniqueNew];
+				// Add newly detected competitors to the list (with full relevance data)
+				const existingNames = new Set(detectedCompetitorNames);
+				const uniqueNew = response.competitors.filter((c) => !existingNames.has(c.name));
+				detectedCompetitorData = [...detectedCompetitorData, ...uniqueNew];
+				detectedCompetitorNames = [...detectedCompetitorNames, ...uniqueNew.map((c) => c.name)];
 			} else if (!response.success) {
 				detectError = response.error || 'Failed to detect competitors';
 			} else {
@@ -644,15 +646,25 @@
 					</p>
 				</div>
 
-				{#if detectedCompetitors.length > 0}
+				{#if detectedCompetitorData.length > 0}
 					<div>
 						<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 							Auto-Detected Competitors
 						</span>
 						<div class="flex flex-wrap gap-2">
-							{#each detectedCompetitors as competitor, index}
-								<span class="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-slate-700 rounded-full text-sm">
-									{competitor}
+							{#each detectedCompetitorData as competitor, index}
+								{@const score = competitor.relevance_score}
+								{@const pillColor = score === null ? 'bg-slate-100 dark:bg-slate-700' : score >= 0.66 ? 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700' : score >= 0.33 ? 'bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700' : 'bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700'}
+								<span
+									class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm {pillColor}"
+									title={competitor.relevance_warning || (competitor.relevance_flags ? `Similar product: ${competitor.relevance_flags.similar_product ? 'Yes' : 'No'}, Same ICP: ${competitor.relevance_flags.same_icp ? 'Yes' : 'No'}, Same market: ${competitor.relevance_flags.same_market ? 'Yes' : 'No'}` : '')}
+								>
+									{#if score !== null}
+										<span class="text-xs font-medium {score >= 0.66 ? 'text-green-700 dark:text-green-300' : score >= 0.33 ? 'text-yellow-700 dark:text-yellow-300' : 'text-red-700 dark:text-red-300'}">
+											{score >= 0.66 ? '✓' : score >= 0.33 ? '~' : '?'}
+										</span>
+									{/if}
+									{competitor.name}
 									<button
 										type="button"
 										onclick={() => removeDetectedCompetitor(index)}
@@ -667,7 +679,9 @@
 							{/each}
 						</div>
 						<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-							Click a competitor to remove it from the list
+							<span class="inline-flex items-center gap-1"><span class="text-green-600">✓</span> High relevance</span>
+							<span class="inline-flex items-center gap-1 ml-3"><span class="text-yellow-600">~</span> Partial match</span>
+							<span class="inline-flex items-center gap-1 ml-3"><span class="text-red-600">?</span> Low relevance</span>
 						</p>
 					</div>
 				{/if}
@@ -734,9 +748,9 @@
 				{/if}
 
 				<!-- Generate insight for detected competitors without insights -->
-				{#if detectedCompetitors.length > 0}
+				{#if detectedCompetitorNames.length > 0}
 					{@const insightNames = new Set(competitorInsights.map((i) => i.name))}
-					{@const missingInsights = detectedCompetitors.filter((c) => !insightNames.has(c))}
+					{@const missingInsights = detectedCompetitorNames.filter((c) => !insightNames.has(c))}
 					{#if missingInsights.length > 0}
 						<div class="pt-4 border-t border-slate-200 dark:border-slate-700">
 							<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">

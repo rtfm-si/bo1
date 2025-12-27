@@ -23,6 +23,7 @@ from backend.services.peer_benchmarks import (
     K_ANONYMITY_THRESHOLD,
     get_consent_status,
     get_peer_comparison,
+    get_preview_metric,
     give_consent,
     revoke_consent,
 )
@@ -91,6 +92,16 @@ class ComparisonResponse(BaseModel):
     comparisons: list[ComparisonMetric] = Field(
         default_factory=list, description="Metric comparisons"
     )
+
+
+class PreviewMetricResponse(BaseModel):
+    """Preview metric for non-opted users (shows industry median only)."""
+
+    metric: str = Field(..., description="Metric identifier")
+    display_name: str = Field(..., description="Human-readable metric name")
+    industry: str = Field(..., description="Industry segment")
+    p50: float = Field(..., description="Industry median value")
+    sample_count: int = Field(..., description="Number of peers contributing")
 
 
 # =============================================================================
@@ -162,6 +173,42 @@ async def opt_out(
         consented=status.consented,
         consented_at=status.consented_at,
         revoked_at=status.revoked_at,
+    )
+
+
+# =============================================================================
+# Preview Endpoint (No Consent Required)
+# =============================================================================
+
+
+@router.get("/preview", response_model=PreviewMetricResponse)
+@handle_api_errors("get benchmark preview")
+@limiter.limit(PEER_BENCHMARKS_RATE_LIMIT)
+async def get_preview(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+) -> PreviewMetricResponse:
+    """Get a sample benchmark metric preview.
+
+    Returns one industry median metric (no user data) to show the value
+    of opting in. Does not require consent.
+    """
+    user_id = extract_user_id(current_user)
+
+    result = get_preview_metric(user_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="No industry set or insufficient peer data for preview.",
+        )
+
+    return PreviewMetricResponse(
+        metric=result["metric"],
+        display_name=result["display_name"],
+        industry=result["industry"],
+        p50=result["p50"],
+        sample_count=result["sample_count"],
     )
 
 

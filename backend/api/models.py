@@ -211,6 +211,11 @@ class SessionResponse(BaseModel):
         None,
         description="Remaining promo credits after this session (if session used promo credit)",
     )
+    # Meeting credits (returned on session creation when prepaid credit was used)
+    meeting_credits_remaining: int | None = Field(
+        None,
+        description="Remaining meeting credits after this session (if session used prepaid credit)",
+    )
 
 
 class SessionListResponse(BaseModel):

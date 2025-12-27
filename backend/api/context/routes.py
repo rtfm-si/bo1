@@ -38,6 +38,7 @@ from backend.api.context.models import (
     ContextUpdateSource,
     ContextUpdateSuggestion,
     ContextWithTrends,
+    DetectedCompetitor,
     DismissRefreshRequest,
     EnrichmentRequest,
     EnrichmentResponse,
@@ -48,6 +49,9 @@ from backend.api.context.models import (
     InsightCategory,
     InsightMetricResponse,
     InsightsResponse,
+    KeyMetricConfigUpdate,
+    KeyMetricDisplay,
+    KeyMetricsResponse,
     ManagedCompetitor,
     ManagedCompetitorCreate,
     ManagedCompetitorListResponse,
@@ -82,10 +86,12 @@ from backend.api.context.services import (
     context_model_to_dict,
     enriched_data_to_dict,
     enriched_to_context_model,
+    get_key_metrics_for_user,
     merge_context,
     sanitize_context_values,
     update_benchmark_timestamps,
 )
+from backend.api.context.skeptic import evaluate_competitor_relevance
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTEXT_RATE_LIMIT, limiter
 from backend.api.utils.auth_helpers import extract_user_id
@@ -1713,6 +1719,23 @@ async def add_managed_competitor(
     if isinstance(added_at, str):
         added_at = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
 
+    # Run skeptic check to warn about low-relevance competitors
+    relevance_warning = None
+    relevance_score = None
+    try:
+        context_data = user_repository.get_context(user_id)
+        if context_data:
+            competitor = DetectedCompetitor(
+                name=request.name,
+                url=request.url,
+                description=request.notes,
+            )
+            evaluated = await evaluate_competitor_relevance(competitor, context_data)
+            relevance_score = evaluated.relevance_score
+            relevance_warning = evaluated.relevance_warning
+    except Exception as e:
+        logger.warning(f"Skeptic check failed for manual competitor: {e}")
+
     return ManagedCompetitorResponse(
         success=True,
         competitor=ManagedCompetitor(
@@ -1721,6 +1744,8 @@ async def add_managed_competitor(
             notes=result.get("notes"),
             added_at=added_at or datetime.now(UTC),
         ),
+        relevance_warning=relevance_warning,
+        relevance_score=relevance_score,
     )
 
 
@@ -2941,3 +2966,85 @@ async def delete_objective_progress(
         user_repository.save_context(user_id, {"strategic_objectives_progress": progress_data})
 
     return {"success": True}
+
+
+# =============================================================================
+# Key Metrics (Metrics You Need to Know)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/key-metrics",
+    response_model=KeyMetricsResponse,
+    summary="Get key metrics",
+    description="Returns user's prioritized key metrics with current values and trends.",
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get key metrics")
+async def get_key_metrics(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> KeyMetricsResponse:
+    """Get user's key metrics with values and trends."""
+    user_id = extract_user_id(user)
+
+    # Get context and key metrics config
+    context_data = user_repository.get_context(user_id)
+    key_metrics_config = None
+    if context_data:
+        key_metrics_config = context_data.get("key_metrics_config")
+
+    # Build metrics list
+    metrics = get_key_metrics_for_user(context_data, key_metrics_config)
+
+    # Count by importance
+    now_count = sum(1 for m in metrics if m.get("importance") == "now")
+    later_count = sum(1 for m in metrics if m.get("importance") == "later")
+    monitor_count = sum(1 for m in metrics if m.get("importance") == "monitor")
+
+    return KeyMetricsResponse(
+        success=True,
+        metrics=[KeyMetricDisplay(**m) for m in metrics],
+        now_count=now_count,
+        later_count=later_count,
+        monitor_count=monitor_count,
+    )
+
+
+@router.put(
+    "/v1/context/key-metrics/config",
+    response_model=KeyMetricsResponse,
+    summary="Update key metrics config",
+    description="Update user's key metrics prioritization and configuration.",
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update key metrics config")
+async def update_key_metrics_config(
+    request: Request,
+    body: KeyMetricConfigUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> KeyMetricsResponse:
+    """Update key metrics configuration."""
+    user_id = extract_user_id(user)
+
+    # Convert to storable format
+    config_list = [m.model_dump() for m in body.metrics]
+
+    # Save config
+    user_repository.save_context(user_id, {"key_metrics_config": config_list})
+
+    # Re-fetch and return updated metrics
+    context_data = user_repository.get_context(user_id)
+    metrics = get_key_metrics_for_user(context_data, config_list)
+
+    now_count = sum(1 for m in metrics if m.get("importance") == "now")
+    later_count = sum(1 for m in metrics if m.get("importance") == "later")
+    monitor_count = sum(1 for m in metrics if m.get("importance") == "monitor")
+
+    return KeyMetricsResponse(
+        success=True,
+        metrics=[KeyMetricDisplay(**m) for m in metrics],
+        now_count=now_count,
+        later_count=later_count,
+        monitor_count=monitor_count,
+    )

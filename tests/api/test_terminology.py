@@ -30,6 +30,8 @@ LEGACY_EXCEPTIONS = frozenset(
         # OnboardingStep enum value
         # models.py - SessionResponse
         "expert_count",
+        # sessions.py - meeting credits (user-facing tier limit field)
+        "meeting_credits_remaining",
     }
 )
 

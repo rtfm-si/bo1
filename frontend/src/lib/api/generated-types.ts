@@ -2386,6 +2386,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users/{user_id}/nonprofit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set nonprofit status
+         * @description Mark a user as a verified nonprofit and optionally apply a discount promo.
+         */
+        post: operations["set_nonprofit_status_api_admin_users__user_id__nonprofit_post"];
+        /**
+         * Remove nonprofit status
+         * @description Remove nonprofit status from a user. Does not revoke applied promos.
+         */
+        delete: operations["remove_nonprofit_status_api_admin_users__user_id__nonprofit_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{user_id}/send-email": {
         parameters: {
             query?: never;
@@ -3875,6 +3899,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get meeting credits
+         * @description Returns the user's remaining meeting credits from bundle purchases.
+         */
+        get: operations["get_meeting_credits_api_v1_billing_credits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/plan": {
         parameters: {
             query?: never;
@@ -3909,6 +3953,26 @@ export interface paths {
          * @description Creates a Stripe billing portal session for subscription management.
          */
         post: operations["create_portal_session_api_v1_billing_portal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/purchase-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Purchase meeting bundle
+         * @description Creates a Stripe checkout session for a one-time meeting bundle purchase.
+         */
+        post: operations["purchase_bundle_api_v1_billing_purchase_bundle_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4571,6 +4635,46 @@ export interface paths {
          *         users to keep their responses current as their business evolves.
          */
         patch: operations["update_insight_api_v1_context_insights__question_hash__patch"];
+        trace?: never;
+    };
+    "/api/v1/context/key-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get key metrics
+         * @description Returns user's prioritized key metrics with current values and trends.
+         */
+        get: operations["get_key_metrics_api_v1_context_key_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/key-metrics/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update key metrics config
+         * @description Update user's key metrics prioritization and configuration.
+         */
+        put: operations["update_key_metrics_config_api_v1_context_key_metrics_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/context/managed-competitors": {
@@ -6129,6 +6233,29 @@ export interface paths {
          *     User's data is immediately excluded from future aggregations.
          */
         delete: operations["opt_out_api_v1_peer_benchmarks_consent_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/peer-benchmarks/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Preview
+         * @description Get a sample benchmark metric preview.
+         *
+         *     Returns one industry median metric (no user data) to show the value
+         *     of opting in. Does not require consent.
+         */
+        get: operations["get_preview_api_v1_peer_benchmarks_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -11332,6 +11459,17 @@ export interface components {
             success: boolean;
         };
         /**
+         * BundlePurchaseRequest
+         * @description Request to purchase a meeting bundle.
+         */
+        BundlePurchaseRequest: {
+            /**
+             * Bundle Size
+             * @description Number of meetings (1, 3, 5, or 9)
+             */
+            bundle_size: number;
+        };
+        /**
          * BusinessContext
          * @description Business context data model.
          *
@@ -14874,6 +15012,18 @@ export interface components {
              * @description Competitor name
              */
             name: string;
+            /** @description Individual relevance check results */
+            relevance_flags?: components["schemas"]["RelevanceFlags"] | null;
+            /**
+             * Relevance Score
+             * @description Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0
+             */
+            relevance_score?: number | null;
+            /**
+             * Relevance Warning
+             * @description Warning message if <2 checks pass
+             */
+            relevance_warning?: string | null;
             /**
              * Url
              * @description Competitor website
@@ -17334,6 +17484,152 @@ export interface components {
             columns: components["schemas"]["KanbanColumn"][];
         };
         /**
+         * KeyMetricConfig
+         * @description Configuration for a single key metric in user's dashboard.
+         *
+         *     Stores user's prioritization and categorization of metrics they want to track.
+         */
+        KeyMetricConfig: {
+            /**
+             * @description Source category: user, competitor, or industry
+             * @default user
+             */
+            category: components["schemas"]["MetricSourceCategory"];
+            /**
+             * Display Order
+             * @description Display order within importance bucket
+             * @default 0
+             */
+            display_order: number;
+            /**
+             * @description Priority level: now, later, or monitor
+             * @default monitor
+             */
+            importance: components["schemas"]["MetricImportance"];
+            /**
+             * Metric Key
+             * @description Metric identifier (e.g., 'revenue', 'customers', 'churn')
+             */
+            metric_key: string;
+            /**
+             * Notes
+             * @description Optional user notes about this metric
+             */
+            notes?: string | null;
+        };
+        /**
+         * KeyMetricConfigUpdate
+         * @description Request to update key metrics configuration.
+         */
+        KeyMetricConfigUpdate: {
+            /**
+             * Metrics
+             * @description Updated list of key metric configurations
+             */
+            metrics: components["schemas"]["KeyMetricConfig"][];
+        };
+        /**
+         * KeyMetricDisplay
+         * @description Display model for a single key metric with current value and trends.
+         *
+         *     Used to render metric cards in the UI.
+         */
+        KeyMetricDisplay: {
+            /**
+             * Benchmark Value
+             * @description Industry benchmark for comparison
+             */
+            benchmark_value?: string | number | null;
+            /** @description Source category */
+            category: components["schemas"]["MetricSourceCategory"];
+            /** @description User's priority level */
+            importance: components["schemas"]["MetricImportance"];
+            /**
+             * Last Updated
+             * @description When value was last updated
+             */
+            last_updated?: string | null;
+            /**
+             * Metric Key
+             * @description Metric identifier
+             */
+            metric_key: string;
+            /**
+             * Name
+             * @description Display name
+             */
+            name: string;
+            /**
+             * Notes
+             * @description User notes
+             */
+            notes?: string | null;
+            /**
+             * Percentile
+             * @description User's percentile vs industry (0-100)
+             */
+            percentile?: number | null;
+            /**
+             * @description Trend direction (pendulum)
+             * @default unknown
+             */
+            trend: components["schemas"]["MetricTrendIndicator"];
+            /**
+             * Trend Change
+             * @description Human-readable change (e.g., '+15% MoM')
+             */
+            trend_change?: string | null;
+            /**
+             * Unit
+             * @description Unit (%, $, count)
+             */
+            unit?: string | null;
+            /**
+             * Value
+             * @description Current value
+             */
+            value?: string | number | null;
+        };
+        /**
+         * KeyMetricsResponse
+         * @description Response containing user's key metrics with current values and trends.
+         */
+        KeyMetricsResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Later Count
+             * @description Number of 'later' priority metrics
+             * @default 0
+             */
+            later_count: number;
+            /**
+             * Metrics
+             * @description Key metrics with values and trends, sorted by importance
+             */
+            metrics?: components["schemas"]["KeyMetricDisplay"][];
+            /**
+             * Monitor Count
+             * @description Number of 'monitor' priority metrics
+             * @default 0
+             */
+            monitor_count: number;
+            /**
+             * Now Count
+             * @description Number of 'now' priority metrics
+             * @default 0
+             */
+            now_count: number;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
          * KillAllResponse
          * @description Response model for kill-all operation.
          *
@@ -17580,6 +17876,16 @@ export interface components {
              */
             error?: string | null;
             /**
+             * Relevance Score
+             * @description Relevance score (0.0-1.0) if skeptic check ran
+             */
+            relevance_score?: number | null;
+            /**
+             * Relevance Warning
+             * @description Warning if competitor has low relevance (<2 checks pass)
+             */
+            relevance_warning?: string | null;
+            /**
              * Success
              * @description Whether operation succeeded
              */
@@ -17641,6 +17947,22 @@ export interface components {
             session_id: string;
             /** Total Cost */
             total_cost: number;
+        };
+        /**
+         * MeetingCreditsResponse
+         * @description Response for meeting credits info.
+         */
+        MeetingCreditsResponse: {
+            /**
+             * Has Subscription
+             * @description Whether user has active subscription
+             */
+            has_subscription: boolean;
+            /**
+             * Meeting Credits
+             * @description Number of prepaid meeting credits
+             */
+            meeting_credits: number;
         };
         /**
          * MeetingStats
@@ -18124,11 +18446,23 @@ export interface components {
          */
         MetricCategory: "financial" | "growth" | "retention" | "efficiency" | "custom";
         /**
+         * MetricImportance
+         * @description Importance classification for key metrics.
+         * @enum {string}
+         */
+        MetricImportance: "now" | "later" | "monitor";
+        /**
          * MetricSource
          * @description Source of metric value.
          * @enum {string}
          */
         MetricSource: "manual" | "clarification" | "integration";
+        /**
+         * MetricSourceCategory
+         * @description Source category for key metrics.
+         * @enum {string}
+         */
+        MetricSourceCategory: "user" | "competitor" | "industry";
         /**
          * MetricTemplate
          * @description Predefined metric template.
@@ -18205,6 +18539,12 @@ export interface components {
              */
             previous_value?: string | number | null;
         };
+        /**
+         * MetricTrendIndicator
+         * @description Direction of metric trend (pendulum indicator).
+         * @enum {string}
+         */
+        MetricTrendIndicator: "up" | "down" | "stable" | "unknown";
         /**
          * MetricsResponse
          * @description Response containing user metrics and unfilled templates.
@@ -18320,6 +18660,51 @@ export interface components {
              * @description Negative ratings
              */
             items: components["schemas"]["NegativeRatingItem"][];
+        };
+        /**
+         * NonprofitStatusResponse
+         * @description Response model for nonprofit status operations.
+         *
+         *     Attributes:
+         *         user_id: User identifier
+         *         is_nonprofit: Whether user is marked as nonprofit
+         *         nonprofit_org_name: Name of the nonprofit organization
+         *         nonprofit_verified_at: When nonprofit status was verified (ISO 8601)
+         *         promo_applied: Whether a promo code was applied
+         *         message: Human-readable message
+         */
+        NonprofitStatusResponse: {
+            /**
+             * Is Nonprofit
+             * @description Whether user is marked as nonprofit
+             */
+            is_nonprofit: boolean;
+            /**
+             * Message
+             * @description Human-readable message
+             */
+            message: string;
+            /**
+             * Nonprofit Org Name
+             * @description Nonprofit organization name
+             */
+            nonprofit_org_name?: string | null;
+            /**
+             * Nonprofit Verified At
+             * @description Verification date (ISO 8601)
+             */
+            nonprofit_verified_at?: string | null;
+            /**
+             * Promo Applied
+             * @description Whether promo code was applied
+             * @default false
+             */
+            promo_applied: boolean;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
         };
         /**
          * NotFoundErrorResponse
@@ -19100,6 +19485,37 @@ export interface components {
              * @description Skip pre-meeting clarifying questions by default
              */
             skip_clarification?: boolean | null;
+        };
+        /**
+         * PreviewMetricResponse
+         * @description Preview metric for non-opted users (shows industry median only).
+         */
+        PreviewMetricResponse: {
+            /**
+             * Display Name
+             * @description Human-readable metric name
+             */
+            display_name: string;
+            /**
+             * Industry
+             * @description Industry segment
+             */
+            industry: string;
+            /**
+             * Metric
+             * @description Metric identifier
+             */
+            metric: string;
+            /**
+             * P50
+             * @description Industry median value
+             */
+            p50: number;
+            /**
+             * Sample Count
+             * @description Number of peers contributing
+             */
+            sample_count: number;
         };
         /**
          * PrimaryObjective
@@ -20213,6 +20629,30 @@ export interface components {
              * @description Action title
              */
             title: string;
+        };
+        /**
+         * RelevanceFlags
+         * @description Relevance check flags for a detected competitor.
+         */
+        RelevanceFlags: {
+            /**
+             * Same Icp
+             * @description Targets similar customer profile
+             * @default false
+             */
+            same_icp: boolean;
+            /**
+             * Same Market
+             * @description Same geographic/market segment
+             * @default false
+             */
+            same_market: boolean;
+            /**
+             * Similar Product
+             * @description Solves the same core problem
+             * @default false
+             */
+            similar_product: boolean;
         };
         /**
          * RemediationHistoryResponse
@@ -21462,6 +21902,11 @@ export interface components {
              */
             last_activity_at?: string | null;
             /**
+             * Meeting Credits Remaining
+             * @description Remaining meeting credits after this session (if session used prepaid credit)
+             */
+            meeting_credits_remaining?: number | null;
+            /**
              * Phase
              * @description Current deliberation phase
              * @example decompose
@@ -21516,6 +21961,30 @@ export interface components {
              * @description Last update timestamp
              */
             updated_at: string;
+        };
+        /**
+         * SetNonprofitRequest
+         * @description Request model for setting nonprofit status.
+         *
+         *     Attributes:
+         *         org_name: Name of the nonprofit organization
+         *         apply_promo_code: Optional promo code to auto-apply (NONPROFIT80 or NONPROFIT100)
+         */
+        SetNonprofitRequest: {
+            /**
+             * Apply Promo Code
+             * @description Promo code to apply (NONPROFIT80 or NONPROFIT100)
+             * @example NONPROFIT80
+             * @example NONPROFIT100
+             */
+            apply_promo_code?: string | null;
+            /**
+             * Org Name
+             * @description Name of the nonprofit organization
+             * @example Doctors Without Borders
+             * @example Local Food Bank
+             */
+            org_name: string;
         };
         /**
          * SetTierOverrideRequest
@@ -23608,6 +24077,8 @@ export interface components {
          *         locked_at: When account was locked
          *         lock_reason: Reason for locking
          *         deleted_at: When account was soft deleted
+         *         is_nonprofit: Whether user is verified nonprofit
+         *         nonprofit_org_name: Name of nonprofit organization
          *         total_meetings: Total number of meetings created
          *         total_cost: Total cost across all meetings (USD)
          *         last_meeting_at: When user's most recent meeting was created
@@ -23668,6 +24139,12 @@ export interface components {
              */
             is_locked: boolean;
             /**
+             * Is Nonprofit
+             * @description Whether user is verified nonprofit
+             * @default false
+             */
+            is_nonprofit: boolean;
+            /**
              * Last Meeting At
              * @description When user's most recent meeting was created (ISO 8601)
              * @example 2025-01-15T12:00:00
@@ -23689,6 +24166,11 @@ export interface components {
              * @description When account was locked (ISO 8601)
              */
             locked_at?: string | null;
+            /**
+             * Nonprofit Org Name
+             * @description Name of nonprofit organization
+             */
+            nonprofit_org_name?: string | null;
             /**
              * Subscription Tier
              * @description Subscription tier
@@ -26221,6 +26703,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Topic discovery failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -30986,6 +31486,157 @@ export interface operations {
             };
         };
     };
+    set_nonprofit_status_api_admin_users__user_id__nonprofit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetNonprofitRequest"];
+            };
+        };
+        responses: {
+            /** @description Nonprofit status set successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonprofitStatusResponse"];
+                };
+            };
+            /** @description Invalid request or promo code */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_nonprofit_status_api_admin_users__user_id__nonprofit_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Nonprofit status removed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonprofitStatusResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     send_user_email_api_admin_users__user_id__send_email_post: {
         parameters: {
             query?: never;
@@ -34007,6 +34658,26 @@ export interface operations {
             };
         };
     };
+    get_meeting_credits_api_v1_billing_credits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingCreditsResponse"];
+                };
+            };
+        };
+    };
     get_plan_api_v1_billing_plan_get: {
         parameters: {
             query?: never;
@@ -34043,6 +34714,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillingPortalResponse"];
+                };
+            };
+        };
+    };
+    purchase_bundle_api_v1_billing_purchase_bundle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundlePurchaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -35049,6 +35753,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClarificationInsight"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_key_metrics_api_v1_context_key_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyMetricsResponse"];
+                };
+            };
+        };
+    };
+    update_key_metrics_config_api_v1_context_key_metrics_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyMetricConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyMetricsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37220,6 +37977,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["backend__api__peer_benchmarks__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    get_preview_api_v1_peer_benchmarks_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewMetricResponse"];
                 };
             };
         };

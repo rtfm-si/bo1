@@ -18,6 +18,7 @@ from backend.api.context.models import (
     TrendsRefreshResponse,
 )
 from backend.api.context.services import auto_save_competitors
+from backend.api.context.skeptic import evaluate_competitors_batch
 from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.logging.errors import ErrorCode, log_error
@@ -215,6 +216,8 @@ async def detect_competitors_for_user(
                 DetectedCompetitor(name=name, url=None, description=None)
                 for name in enriched_competitors[:10]
             ]
+            # Run skeptic evaluation
+            detected = await evaluate_competitors_batch(detected, context_data)
             # Auto-save pre-enriched competitors
             await auto_save_competitors(user_id, detected)
             return CompetitorDetectResponse(
@@ -250,7 +253,7 @@ async def detect_competitors_for_user(
 
     try:
         competitors = await _search_competitors_tavily(
-            settings.tavily_api_key, search_query, company_name
+            settings.tavily_api_key, search_query, company_name, context_data
         )
 
         if not competitors:
@@ -318,19 +321,22 @@ async def _search_competitors_tavily(
     api_key: str,
     search_query: str,
     company_name: str | None,
+    company_context: dict | None = None,
 ) -> list[DetectedCompetitor]:
     """Search for competitors using Tavily API with LLM extraction.
 
     Uses LLM-based extraction to identify real company names from results.
     Falls back to direct search if initial results are insufficient.
+    Runs skeptic evaluation to assess relevance of each competitor.
 
     Args:
         api_key: Tavily API key
         search_query: Search query
         company_name: Company name to exclude from results
+        company_context: User's business context for relevance evaluation
 
     Returns:
-        List of detected competitors
+        List of detected competitors with relevance scores
     """
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
@@ -380,6 +386,11 @@ async def _search_competitors_tavily(
                 description=item.get("description"),
             )
         )
+
+    # Run skeptic evaluation if we have context
+    if competitors and company_context:
+        logger.info(f"Running skeptic evaluation for {len(competitors)} competitors")
+        competitors = await evaluate_competitors_batch(competitors, company_context)
 
     return competitors
 

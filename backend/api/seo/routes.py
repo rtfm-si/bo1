@@ -11,6 +11,7 @@ from typing import Any  # noqa: F401
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import (
@@ -33,6 +34,88 @@ router = APIRouter(prefix="/v1/seo", tags=["seo"])
 
 # =============================================================================
 # Models
+# =============================================================================
+
+
+# =============================================================================
+# Marketing Asset Models
+# =============================================================================
+
+
+class AssetType(str):
+    """Valid asset types for marketing collateral."""
+
+    IMAGE = "image"
+    ANIMATION = "animation"
+    CONCEPT = "concept"
+    TEMPLATE = "template"
+
+
+class MarketingAsset(BaseModel):
+    """A marketing asset in the collateral bank."""
+
+    id: int = Field(..., description="Asset ID")
+    filename: str = Field(..., description="Original filename")
+    cdn_url: str = Field(..., description="CDN URL for embedding")
+    asset_type: str = Field(..., description="Asset type: image, animation, concept, template")
+    title: str = Field(..., description="User-friendly title")
+    description: str | None = Field(None, description="Optional description")
+    tags: list[str] = Field(default_factory=list, description="Tags for search")
+    file_size: int = Field(..., description="File size in bytes")
+    mime_type: str = Field(..., description="MIME type")
+    created_at: datetime = Field(..., description="When asset was uploaded")
+    updated_at: datetime = Field(..., description="When asset was last updated")
+
+
+class MarketingAssetCreate(BaseModel):
+    """Request to create a marketing asset (metadata only, file uploaded separately)."""
+
+    title: str = Field(..., min_length=1, max_length=255, description="User-friendly title")
+    asset_type: str = Field(..., description="Asset type: image, animation, concept, template")
+    description: str | None = Field(None, max_length=1000, description="Optional description")
+    tags: list[str] = Field(
+        default_factory=list, max_length=20, description="Tags for search (max 20)"
+    )
+
+
+class MarketingAssetUpdate(BaseModel):
+    """Request to update a marketing asset."""
+
+    title: str | None = Field(None, max_length=255, description="Updated title")
+    description: str | None = Field(None, max_length=1000, description="Updated description")
+    tags: list[str] | None = Field(None, max_length=20, description="Updated tags")
+
+
+class MarketingAssetListResponse(BaseModel):
+    """Response containing list of marketing assets."""
+
+    assets: list[MarketingAsset] = Field(default_factory=list, description="User's assets")
+    total: int = Field(..., description="Total number of assets")
+    remaining: int = Field(..., description="Remaining asset slots (-1 for unlimited)")
+
+
+class AssetSuggestion(BaseModel):
+    """A suggested asset for article content."""
+
+    id: int = Field(..., description="Asset ID")
+    title: str = Field(..., description="Asset title")
+    cdn_url: str = Field(..., description="CDN URL for embedding")
+    asset_type: str = Field(..., description="Asset type")
+    relevance_score: float = Field(..., ge=0, le=1, description="Relevance to article keywords")
+    matching_tags: list[str] = Field(default_factory=list, description="Tags that matched")
+
+
+class AssetSuggestionsResponse(BaseModel):
+    """Response containing suggested assets for an article."""
+
+    suggestions: list[AssetSuggestion] = Field(default_factory=list, description="Suggested assets")
+    article_keywords: list[str] = Field(
+        default_factory=list, description="Keywords used for matching"
+    )
+
+
+# =============================================================================
+# SEO Trend Models
 # =============================================================================
 
 
@@ -1103,6 +1186,61 @@ class ArticleEventType(str):
     SIGNUP = "signup"
 
 
+# =============================================================================
+# SEO Autopilot Models
+# =============================================================================
+
+
+class SEOAutopilotConfig(BaseModel):
+    """Configuration for SEO autopilot content scheduling.
+
+    Stores user preferences for automated topic discovery and article generation.
+    """
+
+    enabled: bool = Field(default=False, description="Whether autopilot is enabled")
+    frequency_per_week: int = Field(
+        default=1,
+        ge=1,
+        le=7,
+        description="Number of articles to generate per week (1-7)",
+    )
+    auto_publish: bool = Field(
+        default=False,
+        description="Automatically publish generated articles (vs review queue)",
+    )
+    require_approval: bool = Field(
+        default=True,
+        description="Require manual approval before publishing (default: True for new users)",
+    )
+    target_keywords: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Keywords to focus on for topic discovery",
+    )
+    purchase_intent_only: bool = Field(
+        default=True,
+        description="Only target high-intent keywords (transactional, comparison, etc.)",
+    )
+
+
+class SEOAutopilotConfigResponse(BaseModel):
+    """Response for autopilot config retrieval."""
+
+    config: SEOAutopilotConfig = Field(..., description="Current autopilot configuration")
+    next_run: datetime | None = Field(None, description="Next scheduled autopilot run")
+    articles_this_week: int = Field(0, ge=0, description="Articles generated this week")
+    articles_pending_review: int = Field(0, ge=0, description="Articles awaiting approval")
+
+
+class ArticleStatus(str):
+    """Valid status values for SEO blog articles including autopilot statuses."""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    PENDING_REVIEW = "pending_review"  # Awaiting approval (autopilot-generated)
+    REJECTED = "rejected"  # User rejected the article
+
+
 class ArticleEventCreate(BaseModel):
     """Request to record an article event."""
 
@@ -1344,3 +1482,700 @@ async def get_all_analytics(
             overall_ctr=round(overall_ctr, 4),
             overall_signup_rate=round(overall_signup_rate, 4),
         )
+
+
+# =============================================================================
+# SEO Autopilot Endpoints
+# =============================================================================
+
+
+def _get_autopilot_stats(user_id: str) -> tuple[int, int]:
+    """Get autopilot stats: articles generated this week and pending review count.
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        Tuple of (articles_this_week, articles_pending_review)
+    """
+    from sqlalchemy import text
+
+    with db_session() as session:
+        # Articles generated this week (by autopilot - status pending_review or via autopilot source)
+        week_result = session.execute(
+            text("""
+                SELECT COUNT(*) FROM seo_blog_articles
+                WHERE user_id = :user_id
+                AND created_at >= date_trunc('week', CURRENT_TIMESTAMP)
+            """),
+            {"user_id": user_id},
+        )
+        articles_this_week = week_result.fetchone()[0] or 0
+
+        # Articles pending review
+        pending_result = session.execute(
+            text("""
+                SELECT COUNT(*) FROM seo_blog_articles
+                WHERE user_id = :user_id
+                AND status = 'pending_review'
+            """),
+            {"user_id": user_id},
+        )
+        articles_pending = pending_result.fetchone()[0] or 0
+
+        return articles_this_week, articles_pending
+
+
+@router.get("/autopilot/config", response_model=SEOAutopilotConfigResponse)
+@handle_api_errors("get autopilot config")
+async def get_autopilot_config(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> SEOAutopilotConfigResponse:
+    """Get current SEO autopilot configuration.
+
+    Returns autopilot settings and status (next run, articles this week, pending).
+    """
+    user_id = extract_user_id(user)
+    tier = await get_user_tier(user_id)
+
+    # Check feature access
+    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+        raise HTTPException(
+            status_code=403,
+            detail="SEO tools are not available on your plan. Please upgrade.",
+        )
+
+    from sqlalchemy import text
+
+    with db_session() as session:
+        result = session.execute(
+            text("""
+                SELECT seo_autopilot_config FROM user_context
+                WHERE user_id = :user_id
+            """),
+            {"user_id": user_id},
+        )
+        row = result.fetchone()
+
+    # Parse config or return defaults
+    if row and row[0]:
+        config = SEOAutopilotConfig(**row[0])
+    else:
+        config = SEOAutopilotConfig()
+
+    # Get stats
+    articles_this_week, articles_pending = _get_autopilot_stats(user_id)
+
+    # Calculate next run (if enabled, next Monday at 9am UTC)
+    next_run = None
+    if config.enabled:
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        # Next Monday
+        days_until_monday = (7 - now.weekday()) % 7 or 7
+        next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(
+            days=days_until_monday
+        )
+        next_run = next_monday
+
+    return SEOAutopilotConfigResponse(
+        config=config,
+        next_run=next_run,
+        articles_this_week=articles_this_week,
+        articles_pending_review=articles_pending,
+    )
+
+
+@router.put("/autopilot/config", response_model=SEOAutopilotConfigResponse)
+@handle_api_errors("update autopilot config")
+async def update_autopilot_config(
+    request: Request,
+    body: SEOAutopilotConfig,
+    user: dict = Depends(get_current_user),
+) -> SEOAutopilotConfigResponse:
+    """Update SEO autopilot configuration.
+
+    Configure automated topic discovery and article generation settings.
+    """
+    user_id = extract_user_id(user)
+    tier = await get_user_tier(user_id)
+
+    # Check feature access
+    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+        raise HTTPException(
+            status_code=403,
+            detail="SEO tools are not available on your plan. Please upgrade.",
+        )
+
+    # Check tier limits - autopilot is only available if user has article quota
+    limit = PlanConfig.get_seo_articles_limit(tier)
+    if not PlanConfig.is_unlimited(limit) and limit <= 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Autopilot requires SEO article generation quota. Upgrade your plan.",
+        )
+
+    from sqlalchemy import text
+
+    with db_session() as session:
+        # Check if user_context exists
+        check = session.execute(
+            text("SELECT 1 FROM user_context WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        exists = check.fetchone()
+
+        if exists:
+            session.execute(
+                text("""
+                    UPDATE user_context
+                    SET seo_autopilot_config = :config, updated_at = now()
+                    WHERE user_id = :user_id
+                """),
+                {"user_id": user_id, "config": body.model_dump()},
+            )
+        else:
+            session.execute(
+                text("""
+                    INSERT INTO user_context (user_id, seo_autopilot_config)
+                    VALUES (:user_id, :config)
+                """),
+                {"user_id": user_id, "config": body.model_dump()},
+            )
+        session.commit()
+
+    logger.info(f"Updated autopilot config for user {user_id[:8]}...: enabled={body.enabled}")
+
+    # Get stats
+    articles_this_week, articles_pending = _get_autopilot_stats(user_id)
+
+    # Calculate next run
+    next_run = None
+    if body.enabled:
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        days_until_monday = (7 - now.weekday()) % 7 or 7
+        next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(
+            days=days_until_monday
+        )
+        next_run = next_monday
+
+    return SEOAutopilotConfigResponse(
+        config=body,
+        next_run=next_run,
+        articles_this_week=articles_this_week,
+        articles_pending_review=articles_pending,
+    )
+
+
+# =============================================================================
+# Pending Articles Queue Endpoints
+# =============================================================================
+
+
+class PendingArticle(BaseModel):
+    """An article pending review from autopilot."""
+
+    id: int = Field(..., description="Article ID")
+    title: str = Field(..., description="Article title")
+    excerpt: str | None = Field(None, description="Article excerpt")
+    keyword: str | None = Field(None, description="Source keyword/topic")
+    created_at: datetime = Field(..., description="When article was generated")
+
+
+class PendingArticlesResponse(BaseModel):
+    """Response containing articles pending review."""
+
+    articles: list[PendingArticle] = Field(
+        default_factory=list, description="Articles pending review"
+    )
+    count: int = Field(0, ge=0, description="Number of pending articles")
+
+
+@router.get("/autopilot/pending", response_model=PendingArticlesResponse)
+@handle_api_errors("get pending articles")
+async def get_pending_articles(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> PendingArticlesResponse:
+    """Get articles pending review from autopilot.
+
+    Returns all articles with status 'pending_review'.
+    """
+    user_id = extract_user_id(user)
+
+    from sqlalchemy import text
+
+    with db_session() as session:
+        result = session.execute(
+            text("""
+                SELECT a.id, a.title, a.excerpt, t.keyword, a.created_at
+                FROM seo_blog_articles a
+                LEFT JOIN seo_topics t ON a.topic_id = t.id
+                WHERE a.user_id = :user_id AND a.status = 'pending_review'
+                ORDER BY a.created_at DESC
+            """),
+            {"user_id": user_id},
+        )
+
+        articles = []
+        for row in result.fetchall():
+            articles.append(
+                PendingArticle(
+                    id=row[0],
+                    title=row[1],
+                    excerpt=row[2],
+                    keyword=row[3],
+                    created_at=row[4],
+                )
+            )
+
+    return PendingArticlesResponse(articles=articles, count=len(articles))
+
+
+@router.post("/autopilot/articles/{article_id}/approve", response_model=SeoBlogArticle)
+@handle_api_errors("approve article")
+async def approve_article(
+    request: Request,
+    article_id: int,
+    user: dict = Depends(get_current_user),
+) -> SeoBlogArticle:
+    """Approve a pending article for publishing.
+
+    Changes status from 'pending_review' to 'published'.
+    """
+    user_id = extract_user_id(user)
+
+    from sqlalchemy import text
+
+    with db_session() as session:
+        # Check article exists and is pending
+        check = session.execute(
+            text("""
+                SELECT id, status, topic_id FROM seo_blog_articles
+                WHERE id = :id AND user_id = :user_id
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        row = check.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        if row[1] != "pending_review":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Article is not pending review (status: {row[1]})",
+            )
+
+        topic_id = row[2]
+
+        # Update to published
+        result = session.execute(
+            text("""
+                UPDATE seo_blog_articles
+                SET status = 'published', updated_at = now()
+                WHERE id = :id AND user_id = :user_id
+                RETURNING id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        article_row = result.fetchone()
+
+        # Update topic status if linked
+        if topic_id:
+            session.execute(
+                text("""
+                    UPDATE seo_topics SET status = 'published', updated_at = now()
+                    WHERE id = :id AND user_id = :user_id
+                """),
+                {"id": topic_id, "user_id": user_id},
+            )
+
+        session.commit()
+
+        logger.info(f"Approved article {article_id} for user {user_id[:8]}...")
+
+        return SeoBlogArticle(
+            id=article_row[0],
+            topic_id=article_row[1],
+            title=article_row[2],
+            excerpt=article_row[3],
+            content=article_row[4],
+            meta_title=article_row[5],
+            meta_description=article_row[6],
+            status=article_row[7],
+            created_at=article_row[8],
+            updated_at=article_row[9],
+        )
+
+
+@router.post("/autopilot/articles/{article_id}/reject", status_code=204, response_model=None)
+@handle_api_errors("reject article")
+async def reject_article(
+    request: Request,
+    article_id: int,
+    user: dict = Depends(get_current_user),
+) -> None:
+    """Reject a pending article.
+
+    Changes status from 'pending_review' to 'rejected'.
+    """
+    user_id = extract_user_id(user)
+
+    from sqlalchemy import text
+
+    with db_session() as session:
+        # Check article exists and is pending
+        check = session.execute(
+            text("""
+                SELECT id, status FROM seo_blog_articles
+                WHERE id = :id AND user_id = :user_id
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        row = check.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        if row[1] != "pending_review":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Article is not pending review (status: {row[1]})",
+            )
+
+        # Update to rejected
+        session.execute(
+            text("""
+                UPDATE seo_blog_articles
+                SET status = 'rejected', updated_at = now()
+                WHERE id = :id AND user_id = :user_id
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        session.commit()
+
+    logger.info(f"Rejected article {article_id} for user {user_id[:8]}...")
+
+
+# =============================================================================
+# Marketing Assets Endpoints
+# =============================================================================
+
+SEO_UPLOAD_RATE_LIMIT = "10/minute"
+
+
+@router.post("/assets", response_model=MarketingAsset, status_code=201)
+@handle_api_errors("upload asset")
+@limiter.limit(SEO_UPLOAD_RATE_LIMIT)
+async def upload_asset(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> MarketingAsset:
+    """Upload a marketing asset to the collateral bank.
+
+    Accepts multipart form data with file and metadata.
+    Validates file type (png, jpg, gif, webp, svg, mp4, webm) and size (max 10MB images, 50MB video).
+
+    Rate limited to 10 uploads per minute.
+    Tier limits: free=10 total, starter=50, pro=500, enterprise=unlimited.
+    """
+    from fastapi import UploadFile
+
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+    tier = await get_user_tier(user_id)
+
+    # Check feature access
+    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+        raise HTTPException(
+            status_code=403,
+            detail="SEO tools are not available on your plan.",
+        )
+
+    # Check storage limit
+    limit = PlanConfig.get_marketing_assets_limit(tier)
+    current_count = asset_service.get_asset_count(user_id)
+
+    if not PlanConfig.is_unlimited(limit) and current_count >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Asset storage limit reached ({limit}). Upgrade your plan for more storage.",
+        )
+
+    # Parse multipart form data
+    form = await request.form()
+    file: UploadFile | None = form.get("file")
+    title = form.get("title", "")
+    asset_type = form.get("asset_type", "image")
+    description = form.get("description")
+    tags_str = form.get("tags", "")
+
+    if not file or not hasattr(file, "read"):
+        raise HTTPException(status_code=400, detail="File is required")
+
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+
+    # Parse tags from comma-separated string
+    tags = [t.strip() for t in str(tags_str).split(",") if t.strip()] if tags_str else []
+
+    # Read file content
+    file_data = await file.read()
+    filename = file.filename or "unnamed"
+    mime_type = file.content_type or "application/octet-stream"
+
+    workspace_id = getattr(request.state, "workspace_id", None)
+
+    try:
+        record = asset_service.upload_asset(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            filename=filename,
+            file_data=file_data,
+            mime_type=mime_type,
+            title=str(title),
+            asset_type=str(asset_type),
+            description=str(description) if description else None,
+            tags=tags,
+        )
+    except asset_service.AssetValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except asset_service.AssetStorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return MarketingAsset(
+        id=record.id,
+        filename=record.filename,
+        cdn_url=record.cdn_url,
+        asset_type=record.asset_type,
+        title=record.title,
+        description=record.description,
+        tags=record.tags,
+        file_size=record.file_size,
+        mime_type=record.mime_type,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+@router.get("/assets", response_model=MarketingAssetListResponse)
+@handle_api_errors("list assets")
+async def list_assets(
+    request: Request,
+    asset_type: str | None = Query(None, description="Filter by type"),
+    tags: str | None = Query(None, description="Filter by tags (comma-separated)"),
+    search: str | None = Query(None, description="Search in title/description"),
+    limit: int = Query(50, ge=1, le=100, description="Max results"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    user: dict = Depends(get_current_user),
+) -> MarketingAssetListResponse:
+    """List user's marketing assets with optional filtering.
+
+    Supports filtering by asset type, tags, and text search.
+    """
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+    tier = await get_user_tier(user_id)
+
+    # Parse tags
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+
+    assets, total = asset_service.list_assets(
+        user_id=user_id,
+        asset_type=asset_type,
+        tags=tag_list,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+    # Calculate remaining
+    tier_limit = PlanConfig.get_marketing_assets_limit(tier)
+    remaining = -1 if PlanConfig.is_unlimited(tier_limit) else (tier_limit - total)
+
+    return MarketingAssetListResponse(
+        assets=[
+            MarketingAsset(
+                id=a.id,
+                filename=a.filename,
+                cdn_url=a.cdn_url,
+                asset_type=a.asset_type,
+                title=a.title,
+                description=a.description,
+                tags=a.tags,
+                file_size=a.file_size,
+                mime_type=a.mime_type,
+                created_at=a.created_at,
+                updated_at=a.updated_at,
+            )
+            for a in assets
+        ],
+        total=total,
+        remaining=remaining,
+    )
+
+
+@router.get("/assets/{asset_id}", response_model=MarketingAsset)
+@handle_api_errors("get asset")
+async def get_asset(
+    request: Request,
+    asset_id: int,
+    user: dict = Depends(get_current_user),
+) -> MarketingAsset:
+    """Get a single marketing asset by ID."""
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+
+    record = asset_service.get_asset(user_id, asset_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    return MarketingAsset(
+        id=record.id,
+        filename=record.filename,
+        cdn_url=record.cdn_url,
+        asset_type=record.asset_type,
+        title=record.title,
+        description=record.description,
+        tags=record.tags,
+        file_size=record.file_size,
+        mime_type=record.mime_type,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+@router.patch("/assets/{asset_id}", response_model=MarketingAsset)
+@handle_api_errors("update asset")
+async def update_asset(
+    request: Request,
+    asset_id: int,
+    body: MarketingAssetUpdate,
+    user: dict = Depends(get_current_user),
+) -> MarketingAsset:
+    """Update marketing asset metadata.
+
+    Can update title, description, and tags.
+    """
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+
+    try:
+        record = asset_service.update_asset(
+            user_id=user_id,
+            asset_id=asset_id,
+            title=body.title,
+            description=body.description,
+            tags=body.tags,
+        )
+    except asset_service.AssetValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    return MarketingAsset(
+        id=record.id,
+        filename=record.filename,
+        cdn_url=record.cdn_url,
+        asset_type=record.asset_type,
+        title=record.title,
+        description=record.description,
+        tags=record.tags,
+        file_size=record.file_size,
+        mime_type=record.mime_type,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+@router.get("/assets/suggest", response_model=AssetSuggestionsResponse)
+@handle_api_errors("suggest assets")
+async def suggest_assets_for_article(
+    request: Request,
+    article_id: int = Query(..., description="Article ID to get suggestions for"),
+    user: dict = Depends(get_current_user),
+) -> AssetSuggestionsResponse:
+    """Get suggested assets for an article based on keyword matching.
+
+    Analyzes article title and content to find matching assets from the collateral bank.
+    """
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+
+    # Get article to extract keywords
+    with db_session() as session:
+        result = session.execute(
+            text("""
+                SELECT a.title, a.content, t.keyword
+                FROM seo_blog_articles a
+                LEFT JOIN seo_topics t ON a.topic_id = t.id
+                WHERE a.id = :id AND a.user_id = :user_id
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        row = result.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        title, content, topic_keyword = row
+
+    # Extract keywords from title and topic
+    keywords = []
+    if topic_keyword:
+        keywords.append(topic_keyword)
+    if title:
+        # Simple keyword extraction from title
+        title_words = [w.lower() for w in title.split() if len(w) > 3]
+        keywords.extend(title_words[:10])
+
+    if not keywords:
+        return AssetSuggestionsResponse(suggestions=[], article_keywords=[])
+
+    # Get suggestions
+    suggestions = asset_service.suggest_for_article(user_id, keywords, limit=5)
+
+    return AssetSuggestionsResponse(
+        suggestions=[
+            AssetSuggestion(
+                id=s.asset.id,
+                title=s.asset.title,
+                cdn_url=s.asset.cdn_url,
+                asset_type=s.asset.asset_type,
+                relevance_score=s.relevance_score,
+                matching_tags=s.matching_tags,
+            )
+            for s in suggestions
+        ],
+        article_keywords=keywords,
+    )
+
+
+@router.delete("/assets/{asset_id}", status_code=204, response_model=None)
+@handle_api_errors("delete asset")
+async def delete_asset(
+    request: Request,
+    asset_id: int,
+    user: dict = Depends(get_current_user),
+) -> None:
+    """Delete a marketing asset.
+
+    Removes the asset from storage and database.
+    """
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+
+    deleted = asset_service.delete_asset(user_id, asset_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Asset not found")

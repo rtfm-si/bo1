@@ -24,18 +24,27 @@
 	let error = $state<string | null>(null);
 	let suggestions = $state<Topic[]>([]);
 	let activeTab = $state<'manual' | 'discover'>('manual');
+	let discoveryFailed = $state(false);
 
 	async function discoverTopics() {
 		isDiscovering = true;
 		error = null;
+		discoveryFailed = false;
 		try {
 			const response = await adminApi.discoverTopics(industry || undefined);
 			suggestions = response.topics;
+			if (response.topics.length === 0) {
+				error = 'No topics found. Try a different industry or try again.';
+			}
 		} catch (err: unknown) {
+			discoveryFailed = true;
 			if (err && typeof err === 'object' && 'message' in err) {
 				error = (err as { message: string }).message;
+			} else if (err && typeof err === 'object' && 'detail' in err) {
+				const detail = (err as { detail: { message?: string } }).detail;
+				error = detail?.message || 'Failed to discover topics';
 			} else {
-				error = 'Failed to discover topics';
+				error = 'Failed to discover topics. Please try again.';
 			}
 		} finally {
 			isDiscovering = false;
@@ -242,7 +251,24 @@
 							</Button>
 						</div>
 
-						{#if suggestions.length > 0}
+						{#if isDiscovering}
+							<div class="text-center py-12">
+								<RefreshCw class="w-8 h-8 mx-auto mb-3 animate-spin text-brand-500" />
+								<p class="text-neutral-600 dark:text-neutral-400 font-medium">Discovering topics...</p>
+								<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">This may take 5-10 seconds</p>
+							</div>
+						{:else if discoveryFailed}
+							<div class="text-center py-8 text-neutral-500 dark:text-neutral-400">
+								<div class="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+									<X class="w-6 h-6 text-red-500" />
+								</div>
+								<p class="text-neutral-700 dark:text-neutral-300 mb-4">{error}</p>
+								<Button variant="outline" onclick={discoverTopics}>
+									<RefreshCw class="w-4 h-4 mr-1.5" />
+									Try Again
+								</Button>
+							</div>
+						{:else if suggestions.length > 0}
 							<div class="space-y-3">
 								<p class="text-sm text-neutral-500 dark:text-neutral-400">
 									Click a topic to use it:
@@ -284,7 +310,7 @@
 									</button>
 								{/each}
 							</div>
-						{:else if !isDiscovering}
+						{:else}
 							<div class="text-center py-8 text-neutral-500 dark:text-neutral-400">
 								<Lightbulb class="w-12 h-12 mx-auto mb-3 opacity-50" />
 								<p>Click "Discover" to find relevant blog topics</p>

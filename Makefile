@@ -356,6 +356,59 @@ generate-ssl: ## Generate self-signed SSL certificate (dev/testing only)
 	@bash scripts/generate-ssl-cert.sh
 
 # =============================================================================
+# Authentication Diagnostics
+# =============================================================================
+
+.PHONY: auth-check
+auth-check: ## Verify local dev auth configuration (SuperTokens, OAuth)
+	@echo "🔐 Checking authentication configuration..."
+	@echo ""
+	@echo "1. SuperTokens Core:"
+	@if docker-compose ps supertokens 2>/dev/null | grep -q "running"; then \
+		echo "   ✓ Container running"; \
+	else \
+		echo "   ✗ Container not running (start with: make up)"; \
+	fi
+	@if curl -sf http://localhost:3567/hello >/dev/null 2>&1; then \
+		echo "   ✓ Reachable at http://localhost:3567"; \
+	else \
+		echo "   ✗ Not reachable (check: docker-compose logs supertokens)"; \
+	fi
+	@echo ""
+	@echo "2. Environment Variables:"
+	@if [ -n "$${SUPERTOKENS_API_KEY:-}" ]; then \
+		echo "   ✓ SUPERTOKENS_API_KEY set"; \
+	else \
+		echo "   ✗ SUPERTOKENS_API_KEY not set"; \
+	fi
+	@if [ -n "$${GOOGLE_OAUTH_CLIENT_ID:-}" ]; then \
+		echo "   ✓ GOOGLE_OAUTH_CLIENT_ID set"; \
+	else \
+		echo "   ✗ GOOGLE_OAUTH_CLIENT_ID not set"; \
+	fi
+	@if [ -n "$${GOOGLE_OAUTH_CLIENT_SECRET:-}" ]; then \
+		echo "   ✓ GOOGLE_OAUTH_CLIENT_SECRET set"; \
+	else \
+		echo "   ✗ GOOGLE_OAUTH_CLIENT_SECRET not set"; \
+	fi
+	@echo ""
+	@echo "3. API Health:"
+	@if curl -sf http://localhost:8000/api/health >/dev/null 2>&1; then \
+		echo "   ✓ API healthy at http://localhost:8000"; \
+	else \
+		echo "   ✗ API not responding (start with: make up)"; \
+	fi
+	@echo ""
+	@echo "4. Frontend:"
+	@if curl -sf http://localhost:5173 >/dev/null 2>&1; then \
+		echo "   ✓ Frontend running at http://localhost:5173"; \
+	else \
+		echo "   ✗ Frontend not responding (check: docker-compose logs frontend)"; \
+	fi
+	@echo ""
+	@echo "📚 Troubleshooting: docs/runbooks/local-dev-auth.md"
+
+# =============================================================================
 # Setup Commands
 # =============================================================================
 

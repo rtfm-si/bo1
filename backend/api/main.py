@@ -184,6 +184,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise
     _track_startup_time("auth_validation", op_start)
 
+    # Validate local dev auth configuration
+    op_start = time.perf_counter()
+    from backend.api.startup_validation import validate_auth_config
+
+    auth_warnings = validate_auth_config()
+    if auth_warnings:
+        for warning in auth_warnings:
+            print(f"⚠️  {warning}")
+    else:
+        print("✓ Auth configuration validated")
+    _track_startup_time("auth_config_validation", op_start)
+
     # Start persistence retry worker
     op_start = time.perf_counter()
     from backend.api.persistence_worker import start_persistence_worker

@@ -386,12 +386,36 @@ class CompetitorDetectRequest(BaseModel):
     product_description: str | None = Field(None, description="Product description")
 
 
+class RelevanceFlags(BaseModel):
+    """Relevance check flags for a detected competitor."""
+
+    similar_product: bool = Field(False, description="Solves the same core problem")
+    same_icp: bool = Field(False, description="Targets similar customer profile")
+    same_market: bool = Field(False, description="Same geographic/market segment")
+
+
 class DetectedCompetitor(BaseModel):
     """A detected competitor."""
 
     name: str = Field(..., description="Competitor name")
     url: str | None = Field(None, description="Competitor website")
     description: str | None = Field(None, description="Brief description")
+    # Relevance scoring (populated by skeptic check)
+    relevance_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0",
+    )
+    relevance_flags: RelevanceFlags | None = Field(
+        None,
+        description="Individual relevance check results",
+    )
+    relevance_warning: str | None = Field(
+        None,
+        max_length=200,
+        description="Warning message if <2 checks pass",
+    )
 
 
 class CompetitorDetectResponse(BaseModel):
@@ -962,6 +986,17 @@ class ManagedCompetitorResponse(BaseModel):
     success: bool = Field(..., description="Whether operation succeeded")
     competitor: ManagedCompetitor | None = Field(None, description="Competitor data")
     error: str | None = Field(None, description="Error message if failed")
+    relevance_warning: str | None = Field(
+        None,
+        max_length=200,
+        description="Warning if competitor has low relevance (<2 checks pass)",
+    )
+    relevance_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score (0.0-1.0) if skeptic check ran",
+    )
 
 
 class ManagedCompetitorListResponse(BaseModel):
@@ -1212,3 +1247,143 @@ class ObjectiveProgressListResponse(BaseModel):
         default_factory=list, description="Progress for each objective"
     )
     count: int = Field(0, description="Number of objectives with progress set")
+
+
+# =============================================================================
+# Key Metrics Models (Metrics You Need to Know)
+# =============================================================================
+
+
+class MetricImportance(str, Enum):
+    """Importance classification for key metrics."""
+
+    NOW = "now"  # Focus on this metric immediately
+    LATER = "later"  # Track for future focus
+    MONITOR = "monitor"  # Keep an eye on, low priority
+
+
+class MetricSourceCategory(str, Enum):
+    """Source category for key metrics."""
+
+    USER = "user"  # User's own metrics (revenue, customers, etc.)
+    COMPETITOR = "competitor"  # Competitor comparison metrics
+    INDUSTRY = "industry"  # Industry benchmark metrics
+
+
+class KeyMetricConfig(BaseModel):
+    """Configuration for a single key metric in user's dashboard.
+
+    Stores user's prioritization and categorization of metrics they want to track.
+    """
+
+    metric_key: str = Field(
+        ...,
+        max_length=50,
+        description="Metric identifier (e.g., 'revenue', 'customers', 'churn')",
+    )
+    importance: MetricImportance = Field(
+        default=MetricImportance.MONITOR,
+        description="Priority level: now, later, or monitor",
+    )
+    category: MetricSourceCategory = Field(
+        default=MetricSourceCategory.USER,
+        description="Source category: user, competitor, or industry",
+    )
+    display_order: int = Field(
+        default=0,
+        ge=0,
+        description="Display order within importance bucket",
+    )
+    notes: str | None = Field(
+        None,
+        max_length=500,
+        description="Optional user notes about this metric",
+    )
+
+
+class MetricTrendIndicator(str, Enum):
+    """Direction of metric trend (pendulum indicator)."""
+
+    UP = "up"  # Improving
+    DOWN = "down"  # Declining
+    STABLE = "stable"  # No significant change
+    UNKNOWN = "unknown"  # Insufficient data
+
+
+class KeyMetricDisplay(BaseModel):
+    """Display model for a single key metric with current value and trends.
+
+    Used to render metric cards in the UI.
+    """
+
+    metric_key: str = Field(..., description="Metric identifier")
+    name: str = Field(..., max_length=100, description="Display name")
+    value: str | float | int | None = Field(None, description="Current value")
+    unit: str | None = Field(None, max_length=20, description="Unit (%, $, count)")
+    trend: MetricTrendIndicator = Field(
+        default=MetricTrendIndicator.UNKNOWN,
+        description="Trend direction (pendulum)",
+    )
+    trend_change: str | None = Field(
+        None,
+        max_length=50,
+        description="Human-readable change (e.g., '+15% MoM')",
+    )
+    importance: MetricImportance = Field(..., description="User's priority level")
+    category: MetricSourceCategory = Field(..., description="Source category")
+    benchmark_value: str | float | int | None = Field(
+        None, description="Industry benchmark for comparison"
+    )
+    percentile: int | None = Field(
+        None,
+        ge=0,
+        le=100,
+        description="User's percentile vs industry (0-100)",
+    )
+    notes: str | None = Field(None, description="User notes")
+    last_updated: datetime | None = Field(None, description="When value was last updated")
+
+
+class KeyMetricConfigUpdate(BaseModel):
+    """Request to update key metrics configuration."""
+
+    metrics: list[KeyMetricConfig] = Field(
+        ...,
+        max_length=20,
+        description="Updated list of key metric configurations",
+    )
+
+
+class KeyMetricsResponse(BaseModel):
+    """Response containing user's key metrics with current values and trends."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    metrics: list[KeyMetricDisplay] = Field(
+        default_factory=list,
+        description="Key metrics with values and trends, sorted by importance",
+    )
+    now_count: int = Field(0, description="Number of 'now' priority metrics")
+    later_count: int = Field(0, description="Number of 'later' priority metrics")
+    monitor_count: int = Field(0, description="Number of 'monitor' priority metrics")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class KeyMetricSuggestion(BaseModel):
+    """AI-suggested key metric with reasoning."""
+
+    metric_key: str = Field(..., description="Suggested metric identifier")
+    name: str = Field(..., description="Display name")
+    importance: MetricImportance = Field(..., description="Suggested priority")
+    category: MetricSourceCategory = Field(..., description="Source category")
+    reasoning: str = Field(..., max_length=300, description="Why this metric matters")
+
+
+class KeyMetricsSuggestResponse(BaseModel):
+    """Response from AI metric suggestion."""
+
+    success: bool = Field(..., description="Whether suggestion succeeded")
+    suggestions: list[KeyMetricSuggestion] = Field(
+        default_factory=list,
+        description="Suggested metrics based on context (5-7 items)",
+    )
+    error: str | None = Field(None, description="Error message if failed")

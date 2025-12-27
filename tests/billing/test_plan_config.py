@@ -251,3 +251,60 @@ class TestPlanConfigConsistency:
             old_limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
             new_limit = PlanConfig.get_benchmark_limit(tier)
             assert old_limit == new_limit, f"Mismatch for tier {tier}"
+
+
+class TestPlanConfigFairUsage:
+    """Tests for fair usage limits."""
+
+    def test_free_fair_usage_limits(self):
+        """Free tier should have conservative fair usage limits."""
+        limits = PlanConfig.get_fair_usage_limits("free")
+        assert limits.mentor_chat == 0.50
+        assert limits.dataset_qa == 0.25
+        assert limits.competitor_analysis == 0.10
+        assert limits.meeting == 0.50
+
+    def test_starter_fair_usage_limits(self):
+        """Starter tier should have higher fair usage limits."""
+        limits = PlanConfig.get_fair_usage_limits("starter")
+        assert limits.mentor_chat == 2.00
+        assert limits.dataset_qa == 1.00
+        assert limits.competitor_analysis == 0.50
+        assert limits.meeting == 1.00
+
+    def test_pro_fair_usage_limits(self):
+        """Pro tier should have generous fair usage limits."""
+        limits = PlanConfig.get_fair_usage_limits("pro")
+        assert limits.mentor_chat == 10.00
+        assert limits.dataset_qa == 5.00
+        assert limits.competitor_analysis == 2.00
+        assert limits.meeting == 2.00
+
+    def test_enterprise_fair_usage_unlimited(self):
+        """Enterprise tier should have unlimited fair usage."""
+        limits = PlanConfig.get_fair_usage_limits("enterprise")
+        assert limits.mentor_chat < 0  # Unlimited
+        assert limits.dataset_qa < 0
+        assert limits.competitor_analysis < 0
+        assert limits.meeting < 0
+
+    def test_get_fair_usage_limit_single_feature(self):
+        """get_fair_usage_limit should return limit for specific feature."""
+        assert PlanConfig.get_fair_usage_limit("free", "mentor_chat") == 0.50
+        assert PlanConfig.get_fair_usage_limit("starter", "dataset_qa") == 1.00
+        assert PlanConfig.get_fair_usage_limit("enterprise", "mentor_chat") < 0
+
+    def test_is_fair_usage_unlimited(self):
+        """is_fair_usage_unlimited should correctly identify unlimited limits."""
+        assert PlanConfig.is_fair_usage_unlimited(-1.0) is True
+        assert PlanConfig.is_fair_usage_unlimited(-0.1) is True
+        assert PlanConfig.is_fair_usage_unlimited(0.0) is False
+        assert PlanConfig.is_fair_usage_unlimited(0.50) is False
+
+    def test_fair_usage_soft_cap_threshold(self):
+        """Soft cap threshold should be 80%."""
+        assert PlanConfig.FAIR_USAGE_SOFT_CAP_PCT == 0.80
+
+    def test_fair_usage_hard_cap_threshold(self):
+        """Hard cap threshold should be 100%."""
+        assert PlanConfig.FAIR_USAGE_HARD_CAP_PCT == 1.00

@@ -19,6 +19,7 @@ from langgraph.config import get_stream_writer
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.agents.summarizer import SummarizerAgent
 from bo1.config import get_model_for_role
+from bo1.constants import PersonaContextConfig
 from bo1.data import get_persona_by_code
 from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
 from bo1.graph.safety.loop_prevention import check_convergence_node as _check_convergence
@@ -222,12 +223,23 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
             if expert.code in expert_memory:
                 context_parts.append(f"\n# Your Previous Positions\n{expert_memory[expert.code]}")
 
-            # Add recent contributions
-            recent = contributions[-6:] if contributions else []
+            # Add recent contributions (limited for token optimization)
+            limit = PersonaContextConfig.CONTRIBUTION_LIMIT
+            recent = contributions[-limit:] if contributions else []
             if recent:
                 context_parts.append("\n# Recent Discussion")
+                contribution_context_chars = 0
                 for c in recent:
-                    context_parts.append(f"\n{c.persona_name}: {c.content[:500]}...")
+                    contrib_text = f"\n{c.persona_name}: {c.content[:500]}..."
+                    contribution_context_chars += len(contrib_text)
+                    context_parts.append(contrib_text)
+                # Log contribution context size for cost tracking comparison
+                # Estimate ~4 chars per token (rough approximation)
+                estimated_tokens = contribution_context_chars // 4
+                logger.debug(
+                    f"Persona context: {len(recent)} contributions, "
+                    f"~{contribution_context_chars} chars, ~{estimated_tokens} tokens"
+                )
 
             # Add round summaries
             if round_summaries:

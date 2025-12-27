@@ -25,9 +25,11 @@ from backend.api.models import (
     TopicResponse,
     TopicsResponse,
 )
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.services.content_generator import generate_blog_post
 from backend.services.topic_discovery import TopicDiscoveryError, discover_topics, filter_topics
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.blog_repository import blog_repository
 from bo1.utils.logging import get_logger
 
@@ -44,6 +46,7 @@ router = APIRouter(prefix="/blog", tags=["Admin - Blog"])
     responses={
         200: {"description": "Posts retrieved successfully"},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -79,6 +82,7 @@ async def list_posts(
         200: {"description": "Post created successfully"},
         400: {"description": "Invalid request", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -115,6 +119,7 @@ async def create_post(
         200: {"description": "Post retrieved successfully"},
         404: {"description": "Post not found", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -145,6 +150,7 @@ async def get_post(
         200: {"description": "Post updated successfully"},
         404: {"description": "Post not found", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -180,6 +186,7 @@ async def update_post(
         200: {"description": "Post deleted successfully"},
         404: {"description": "Post not found", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -212,6 +219,7 @@ async def delete_post(
         200: {"description": "Post generated successfully"},
         400: {"description": "Generation failed", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -264,7 +272,7 @@ async def generate_post(
     responses={
         200: {"description": "Topics discovered successfully"},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
-        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
         500: {"description": "Topic discovery failed", "model": ErrorResponse},
     },
 )
@@ -286,7 +294,14 @@ async def discover_blog_topics(
             existing_topics=existing_topics,
         )
     except TopicDiscoveryError as e:
-        logger.error(f"Topic discovery failed: {e} (type={e.error_type})")
+        log_error(
+            logger,
+            ErrorCode.LLM_API_ERROR,
+            "Topic discovery failed",
+            industry=industry,
+            error_type=e.error_type,
+            error=str(e),
+        )
         if e.error_type == "rate_limit":
             raise HTTPException(
                 status_code=429,
@@ -324,6 +339,7 @@ async def discover_blog_topics(
         200: {"description": "Post published successfully"},
         404: {"description": "Post not found", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
@@ -357,6 +373,7 @@ async def publish_post(
         400: {"description": "Invalid schedule time", "model": ErrorResponse},
         404: {"description": "Post not found", "model": ErrorResponse},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(ADMIN_RATE_LIMIT)

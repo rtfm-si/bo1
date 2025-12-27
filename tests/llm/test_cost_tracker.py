@@ -1228,3 +1228,134 @@ class TestPromptTypeField:
                 prompt_type=prompt_type,
             )
             assert record.prompt_type == prompt_type
+
+
+class TestGetCacheMetrics:
+    """Tests for unified cache metrics aggregation."""
+
+    def test_get_cache_metrics_returns_expected_structure(self):
+        """Verify get_cache_metrics returns correct dict structure."""
+        with (
+            patch("bo1.llm.cost_tracker.db_session") as mock_db,
+            patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
+            patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+        ):
+            # Mock prompt cache query (Anthropic)
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = (10, 40, 50)  # hits, misses, total
+
+            # Mock research cache
+            mock_repo.get_hit_rate_metrics.return_value = {
+                "cache_hits": 5,
+                "total_queries": 20,
+            }
+
+            # Mock LLM cache
+            mock_llm_cache.return_value.get_stats.return_value = {
+                "hits": 15,
+                "misses": 35,
+                "hit_rate": 0.30,
+            }
+
+            result = CostTracker.get_cache_metrics()
+
+        # Validate structure
+        assert "prompt" in result
+        assert "research" in result
+        assert "llm" in result
+        assert "aggregate" in result
+
+        # Validate prompt cache metrics
+        assert result["prompt"]["hits"] == 10
+        assert result["prompt"]["misses"] == 40
+        assert result["prompt"]["total"] == 50
+        assert result["prompt"]["hit_rate"] == 0.20
+
+    def test_get_cache_metrics_handles_db_error(self):
+        """Verify graceful handling when prompt cache query fails."""
+        with (
+            patch("bo1.llm.cost_tracker.db_session") as mock_db,
+            patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
+            patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+        ):
+            mock_db.side_effect = Exception("DB connection failed")
+
+            mock_repo.get_hit_rate_metrics.return_value = {
+                "cache_hits": 3,
+                "total_queries": 10,
+            }
+
+            mock_llm_cache.return_value.get_stats.return_value = {
+                "hits": 2,
+                "misses": 8,
+                "hit_rate": 0.20,
+            }
+
+            result = CostTracker.get_cache_metrics()
+
+        # Prompt should have defaults
+        assert result["prompt"]["hits"] == 0
+        assert result["prompt"]["total"] == 0
+        assert result["prompt"]["hit_rate"] == 0.0
+
+        # Other caches should work
+        assert result["research"]["hits"] == 3
+        assert result["llm"]["hits"] == 2
+
+    def test_get_cache_metrics_aggregate_calculation(self):
+        """Verify aggregate hit rate is correctly calculated."""
+        with (
+            patch("bo1.llm.cost_tracker.db_session") as mock_db,
+            patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
+            patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+        ):
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = (20, 80, 100)  # 20% hit rate
+
+            mock_repo.get_hit_rate_metrics.return_value = {
+                "cache_hits": 30,
+                "total_queries": 100,
+            }
+
+            mock_llm_cache.return_value.get_stats.return_value = {
+                "hits": 50,
+                "misses": 50,
+                "hit_rate": 0.50,
+            }
+
+            result = CostTracker.get_cache_metrics()
+
+        # Total hits: 20 + 30 + 50 = 100
+        # Total requests: 100 + 100 + 100 = 300
+        # Aggregate hit rate: 100 / 300 = 0.333...
+        assert result["aggregate"]["total_hits"] == 100
+        assert result["aggregate"]["total_requests"] == 300
+        assert abs(result["aggregate"]["hit_rate"] - (100 / 300)) < 0.001
+
+    def test_get_cache_metrics_zero_requests(self):
+        """Verify hit rate is 0 when no requests exist."""
+        with (
+            patch("bo1.llm.cost_tracker.db_session") as mock_db,
+            patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
+            patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+        ):
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = (0, 0, 0)  # No requests
+
+            mock_repo.get_hit_rate_metrics.return_value = {
+                "cache_hits": 0,
+                "total_queries": 0,
+            }
+
+            mock_llm_cache.return_value.get_stats.return_value = {
+                "hits": 0,
+                "misses": 0,
+                "hit_rate": 0.0,
+            }
+
+            result = CostTracker.get_cache_metrics()
+
+        assert result["prompt"]["hit_rate"] == 0.0
+        assert result["research"]["hit_rate"] == 0.0
+        assert result["llm"]["hit_rate"] == 0.0
+        assert result["aggregate"]["hit_rate"] == 0.0

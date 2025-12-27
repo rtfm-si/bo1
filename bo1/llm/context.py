@@ -36,6 +36,8 @@ class CostContext:
     round_number: int | None = None
     sub_problem_index: int | None = None
     persona_name: str | None = None
+    # Feature type for fair usage tracking (mentor_chat, dataset_qa, competitor_analysis, meeting)
+    feature: str | None = None
 
 
 def set_cost_context(**kwargs: Any) -> None:

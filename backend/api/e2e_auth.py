@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from supertokens_python.recipe.session.asyncio import create_new_session
 from supertokens_python.types import RecipeUserId
 
+from bo1.logging.errors import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -95,7 +97,13 @@ async def create_e2e_session(
         )
 
     except Exception as e:
-        logger.error(f"Failed to create E2E session for user {body.user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.AUTH_TOKEN_ERROR,
+            f"Failed to create E2E session for user {body.user_id}",
+            user_id=body.user_id,
+            error=str(e),
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create session: {str(e)}",

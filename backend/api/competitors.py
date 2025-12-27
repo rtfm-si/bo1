@@ -17,7 +17,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from psycopg2 import DatabaseError, OperationalError
 from pydantic import BaseModel, Field
 
@@ -29,7 +29,7 @@ from backend.api.utils.db_helpers import (
     exists,
     get_user_tier,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.config import get_settings
 from bo1.logging.errors import ErrorCode, log_error
 
@@ -288,9 +288,10 @@ async def create_competitor(
     # Check limit
     current_count = get_competitor_count(user_id)
     if current_count >= tier_config["max_competitors"]:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Competitor limit reached ({tier_config['max_competitors']}). Upgrade your plan to track more.",
+        raise http_error(
+            ErrorCode.TIER_LIMIT_EXCEEDED,
+            f"Competitor limit reached ({tier_config['max_competitors']}). Upgrade your plan to track more.",
+            403,
         )
 
     row = execute_query(
@@ -332,7 +333,7 @@ async def update_competitor(
         where="id = %s AND user_id = %s",
         params=(str(competitor_id), user_id),
     ):
-        raise HTTPException(status_code=404, detail="Competitor not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Competitor not found", 404)
 
     row = execute_query(
         """
@@ -378,7 +379,7 @@ async def delete_competitor(
         where="id = %s AND user_id = %s",
         params=(str(competitor_id), user_id),
     ):
-        raise HTTPException(status_code=404, detail="Competitor not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Competitor not found", 404)
 
     execute_query(
         "DELETE FROM competitor_profiles WHERE id = %s AND user_id = %s",
@@ -411,7 +412,7 @@ async def enrich_competitor(
         fetch="one",
     )
     if not row:
-        raise HTTPException(status_code=404, detail="Competitor not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Competitor not found", 404)
 
     try:
         # Enrich with Tavily

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import limiter
@@ -74,7 +74,7 @@ from backend.api.models import (
 )
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.degradation import check_pool_health
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.blocker_analyzer import get_blocker_analyzer
 from backend.services.gantt_service import GanttColorService
 from bo1.config import get_settings
@@ -784,11 +784,11 @@ async def get_action_detail(
     # Get action from actions table
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Verify user ownership
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Get session for problem_statement and status check
     session_id = action.get("source_session_id", "")
@@ -803,7 +803,7 @@ async def get_action_detail(
             session_status == "failed" and session.get("failure_acknowledged_at") is not None
         )
         if not is_completed and not is_acknowledged_failure:
-            raise HTTPException(status_code=404, detail="Action not found")
+            raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Format dates as ISO strings
     def to_iso(dt: datetime | None) -> str | None:
@@ -873,15 +873,17 @@ async def start_action(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Start action
     success = action_repository.start_action(action_id, user_id)
     if not success:
-        raise HTTPException(
-            status_code=400, detail="Action cannot be started (already in progress or done)"
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Action cannot be started (already in progress or done)",
+            400,
         )
 
     return ActionStartedResponse(message="Action started successfully", action_id=action_id)
@@ -919,9 +921,9 @@ async def complete_action(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Extract post-mortem data if provided
     lessons_learned = request.lessons_learned if request else None
@@ -932,7 +934,9 @@ async def complete_action(
         action_id, user_id, lessons_learned=lessons_learned, went_well=went_well
     )
     if not success:
-        raise HTTPException(status_code=400, detail="Action cannot be completed (already done)")
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Action cannot be completed (already done)", 400
+        )
 
     # Auto-unblock dependent actions
     unblocked_ids = action_repository.auto_unblock_dependents(action_id, user_id)
@@ -1040,15 +1044,15 @@ async def close_action(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Validate transition
     current_status = action.get("status", "todo")
     valid, error_msg = action_repository.validate_status_transition(current_status, request.status)
     if not valid:
-        raise HTTPException(status_code=400, detail=error_msg)
+        raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, 400)
 
     # Close action with reason
     success = action_repository.update_status(
@@ -1058,7 +1062,7 @@ async def close_action(
         cancellation_reason=request.reason,  # Reused for closure reason
     )
     if not success:
-        raise HTTPException(status_code=400, detail="Failed to close action")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to close action", 400)
 
     return ActionCloseResponse(
         action_id=action_id,
@@ -1105,9 +1109,8 @@ async def clone_replan_action(
         try:
             new_target_date = date_type.fromisoformat(request.new_target_date)
         except ValueError as err:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid date format. Use YYYY-MM-DD",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "Invalid date format. Use YYYY-MM-DD", 400
             ) from err
 
     # Replan action (creates new action, marks original as 'replanned')
@@ -1122,16 +1125,17 @@ async def clone_replan_action(
         # Check if action exists and has correct status
         action = action_repository.get(action_id)
         if not action:
-            raise HTTPException(status_code=404, detail="Action not found")
+            raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
         if action.get("user_id") != user_id:
-            raise HTTPException(status_code=404, detail="Action not found")
+            raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
         current_status = action.get("status", "")
         if current_status not in ("failed", "abandoned"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Only failed or abandoned actions can be replanned (current: {current_status})",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Only failed or abandoned actions can be replanned (current: {current_status})",
+                400,
             )
-        raise HTTPException(status_code=400, detail="Failed to replan action")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to replan action", 400)
 
     return ActionCloneReplanResponse(
         new_action_id=str(new_action["id"]),
@@ -1175,9 +1179,9 @@ async def update_action_status(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Validate status transition
     current_status = action.get("status", "todo")
@@ -1185,18 +1189,20 @@ async def update_action_status(
         current_status, status_update.status
     )
     if not is_valid:
-        raise HTTPException(status_code=400, detail=error)
+        raise http_error(ErrorCode.VALIDATION_ERROR, error, 400)
 
     # Validate blocking_reason required for blocked status
     if status_update.status == "blocked" and not status_update.blocking_reason:
-        raise HTTPException(
-            status_code=400, detail="blocking_reason required when status is 'blocked'"
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "blocking_reason required when status is 'blocked'", 400
         )
 
     # Validate cancellation_reason required for cancelled status
     if status_update.status == "cancelled" and not status_update.cancellation_reason:
-        raise HTTPException(
-            status_code=400, detail="cancellation_reason required when status is 'cancelled'"
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "cancellation_reason required when status is 'cancelled'",
+            400,
         )
 
     # Auto-set replan_suggested_at when cancelling
@@ -1217,7 +1223,7 @@ async def update_action_status(
     )
 
     if not success:
-        raise HTTPException(status_code=400, detail="Failed to update action status")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update action status", 400)
 
     # Auto-unblock dependent actions if completing
     unblocked_ids: list[str] = []
@@ -1377,9 +1383,9 @@ async def get_replan_context(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Extract context
     context = extract_replan_context(action_id)
@@ -1441,9 +1447,9 @@ async def delete_action(
     # Get action and verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Check if already deleted (idempotent delete)
     if action.get("deleted_at") is not None:
@@ -1456,7 +1462,7 @@ async def delete_action(
     # Soft delete
     success = action_repository.delete(action_id)
     if not success:
-        raise HTTPException(status_code=400, detail="Failed to delete action")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to delete action", 400)
 
     logger.info(f"Successfully soft-deleted action {action_id}")
 
@@ -1500,9 +1506,9 @@ async def get_action_dependencies(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Get dependencies
     dependencies = action_repository.get_dependencies(action_id)
@@ -1559,20 +1565,20 @@ async def add_action_dependency(
     # Verify ownership of source action
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Verify target action exists and belongs to user
     target_action = action_repository.get(dependency.depends_on_action_id)
     if not target_action:
-        raise HTTPException(status_code=400, detail="Target action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Target action not found", 400)
     if target_action.get("user_id") != user_id:
-        raise HTTPException(status_code=400, detail="Target action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Target action not found", 400)
 
     # Prevent self-dependency
     if action_id == dependency.depends_on_action_id:
-        raise HTTPException(status_code=400, detail="Action cannot depend on itself")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Action cannot depend on itself", 400)
 
     # Add dependency
     result = action_repository.add_dependency(
@@ -1584,9 +1590,10 @@ async def add_action_dependency(
     )
 
     if result is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Circular dependency detected. Adding this dependency would create a cycle.",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Circular dependency detected. Adding this dependency would create a cycle.",
+            400,
         )
 
     # Check if action was auto-blocked
@@ -1634,9 +1641,9 @@ async def remove_action_dependency(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Get current status before removal
     was_blocked = action.get("status") == "blocked"
@@ -1649,7 +1656,7 @@ async def remove_action_dependency(
     )
 
     if not success:
-        raise HTTPException(status_code=404, detail="Dependency not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Dependency not found", 404)
 
     # Check if action was auto-unblocked
     updated_action = action_repository.get(action_id)
@@ -1702,9 +1709,9 @@ async def block_action(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Block action
     success = action_repository.block_action(
@@ -1716,9 +1723,8 @@ async def block_action(
 
     if not success:
         current_status = action.get("status", "unknown")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot block action with status '{current_status}'",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, f"Cannot block action with status '{current_status}'", 400
         )
 
     return ActionBlockedResponse(
@@ -1763,13 +1769,13 @@ async def unblock_action(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Check if action is blocked
     if action.get("status") != "blocked":
-        raise HTTPException(status_code=400, detail="Action is not blocked")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Action is not blocked", 400)
 
     # Warn about incomplete dependencies (but allow unblock)
     has_incomplete, incomplete_deps = action_repository.has_incomplete_dependencies(action_id)
@@ -1782,7 +1788,7 @@ async def unblock_action(
     )
 
     if not success:
-        raise HTTPException(status_code=400, detail="Failed to unblock action")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to unblock action", 400)
 
     warning = None
     incomplete_dep_info = None
@@ -1847,15 +1853,14 @@ async def suggest_unblock_paths(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Require blocked status
     if action.get("status") != "blocked":
-        raise HTTPException(
-            status_code=400,
-            detail="Action must be blocked to suggest unblock paths",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Action must be blocked to suggest unblock paths", 400
         )
 
     # Get project name for context if available
@@ -1955,12 +1960,12 @@ async def escalate_blocker(
     except ValueError as e:
         error_msg = str(e)
         if error_msg == "Action not found" or error_msg == "Not authorized":
-            raise HTTPException(status_code=404, detail="Action not found") from None
+            raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404) from None
         if error_msg == "Action is not blocked":
-            raise HTTPException(status_code=400, detail="Action is not blocked") from None
+            raise http_error(ErrorCode.VALIDATION_ERROR, "Action is not blocked", 400) from None
         if error_msg == "Service temporarily unavailable":
-            raise HTTPException(status_code=503, detail=error_msg) from None
-        raise HTTPException(status_code=400, detail=error_msg) from None
+            raise http_error(ErrorCode.SERVICE_UNAVAILABLE, error_msg, 503) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, 400) from None
 
 
 # =============================================================================
@@ -2025,11 +2030,11 @@ async def request_replan(
     except ValueError as e:
         error_msg = str(e)
         if "not found" in error_msg.lower():
-            raise HTTPException(status_code=404, detail=error_msg) from None
+            raise http_error(ErrorCode.NOT_FOUND, error_msg, 404) from None
         elif "not blocked" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=error_msg) from None
+            raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, 400) from None
         else:
-            raise HTTPException(status_code=400, detail=error_msg) from None
+            raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, 400) from None
     except Exception as e:
         log_error(
             logger,
@@ -2039,9 +2044,10 @@ async def request_replan(
             action_id=action_id,
             user_id=user_id,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create replanning session. Please try again.",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to create replanning session. Please try again.",
+            500,
         ) from None
 
 
@@ -2087,9 +2093,9 @@ async def update_action_dates(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Parse dates
     target_start = None
@@ -2099,19 +2105,23 @@ async def update_action_dates(
         try:
             target_start = datetime.strptime(dates_update.target_start_date, "%Y-%m-%d").date()
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail="Invalid target_start_date format"
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "Invalid target_start_date format", 400
             ) from None
 
     if dates_update.target_end_date:
         try:
             target_end = datetime.strptime(dates_update.target_end_date, "%Y-%m-%d").date()
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid target_end_date format") from None
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "Invalid target_end_date format", 400
+            ) from None
 
     # Validate target_end >= target_start
     if target_start and target_end and target_end < target_start:
-        raise HTTPException(status_code=400, detail="target_end_date must be >= target_start_date")
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "target_end_date must be >= target_start_date", 400
+        )
 
     # Update timeline and estimated_duration_days if provided
     if dates_update.timeline:
@@ -2198,9 +2208,9 @@ async def recalculate_action_dates(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Trigger cascade recalculation
     updated_ids = action_repository.recalculate_dates_cascade(action_id, user_id)
@@ -2260,9 +2270,9 @@ async def get_action_updates(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Get updates
     updates = action_repository.get_updates(action_id, limit=limit)
@@ -2326,15 +2336,14 @@ async def add_action_update(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Validate progress_percent for progress updates
     if update.update_type == "progress" and update.progress_percent is None:
-        raise HTTPException(
-            status_code=400,
-            detail="progress_percent is required for progress updates",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "progress_percent is required for progress updates", 400
         )
 
     # Summarize content if enabled (clean up grammar/formatting)
@@ -2409,9 +2418,9 @@ async def get_action_tags(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Get tags
     tags = tag_repository.get_action_tags(action_id)
@@ -2462,9 +2471,9 @@ async def set_action_tags(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Set tags
     tag_repository.set_action_tags(action_id, tags_update.tag_ids)
@@ -2527,21 +2536,19 @@ async def update_action_progress(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Validate progress_value for percentage type
     if progress_update.progress_type == "percentage":
         if progress_update.progress_value is None:
-            raise HTTPException(
-                status_code=400,
-                detail="progress_value required for percentage type",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "progress_value required for percentage type", 400
             )
         if progress_update.progress_value < 0 or progress_update.progress_value > 100:
-            raise HTTPException(
-                status_code=400,
-                detail="progress_value must be 0-100 for percentage type",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "progress_value must be 0-100 for percentage type", 400
             )
 
     # Update progress in database
@@ -2558,7 +2565,7 @@ async def update_action_progress(
     # Fetch updated action
     updated = action_repository.get(action_id)
     if not updated:
-        raise HTTPException(status_code=404, detail="Action not found after update")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found after update", 404)
 
     return _action_to_detail_response(updated)
 
@@ -2596,9 +2603,9 @@ async def get_action_variance(
     # Verify ownership
     action = action_repository.get(action_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
     if action.get("user_id") != user_id:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     # Calculate variance
     variance = action_repository.calculate_variance(action_id)
@@ -2642,7 +2649,7 @@ async def get_action_reminder_settings(
 
     settings = get_reminder_settings(action_id, user_id)
     if not settings:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     return ReminderSettingsResponse(
         action_id=settings.action_id,
@@ -2695,7 +2702,7 @@ async def update_action_reminder_settings(
     )
 
     if not settings:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     return ReminderSettingsResponse(
         action_id=settings.action_id,
@@ -2746,7 +2753,7 @@ async def snooze_action_reminder(
     )
 
     if not success:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found", 404)
 
     return ReminderSnoozedResponse(
         message="Reminder snoozed successfully",

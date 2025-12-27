@@ -409,6 +409,25 @@ class PrometheusMetrics:
             ["node_name", "status"],  # status: success, error
         )
 
+        # Cache hit rate gauges (for unified cache monitoring)
+        self.cache_hit_rate = Gauge(
+            "bo1_cache_hit_rate",
+            "Cache hit rate by cache type (0.0-1.0)",
+            ["cache_type"],  # prompt, research, llm
+        )
+
+        self.cache_hits_total = Counter(
+            "bo1_cache_hits_total",
+            "Total cache hits by cache type",
+            ["cache_type"],
+        )
+
+        self.cache_misses_total = Counter(
+            "bo1_cache_misses_total",
+            "Total cache misses by cache type",
+            ["cache_type"],
+        )
+
     def record_startup_time(self, phase: str, duration_ms: float) -> None:
         """Record startup time for a specific phase.
 
@@ -641,6 +660,27 @@ class PrometheusMetrics:
         self.graph_node_total.labels(
             node_name=node_name, status="success" if success else "error"
         ).inc()
+
+    def update_cache_hit_rate(self, cache_type: str, hit_rate: float) -> None:
+        """Update cache hit rate gauge.
+
+        Args:
+            cache_type: Cache type (prompt, research, llm)
+            hit_rate: Hit rate as decimal (0.0-1.0)
+        """
+        self.cache_hit_rate.labels(cache_type=cache_type).set(hit_rate)
+
+    def record_cache_operation(self, cache_type: str, hit: bool) -> None:
+        """Record cache hit or miss for a specific cache type.
+
+        Args:
+            cache_type: Cache type (prompt, research, llm)
+            hit: True for hit, False for miss
+        """
+        if hit:
+            self.cache_hits_total.labels(cache_type=cache_type).inc()
+        else:
+            self.cache_misses_total.labels(cache_type=cache_type).inc()
 
 
 # Global Prometheus metrics instance

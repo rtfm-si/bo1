@@ -331,6 +331,7 @@ class PromptBroker:
                     node_name=cost_ctx.get("node_name"),
                     phase=cost_ctx.get("phase") or request.phase,
                     prompt_type=cost_ctx.get("prompt_type") or request.prompt_type,
+                    feature=cost_ctx.get("feature"),
                     persona_name=cost_ctx.get("persona_name"),
                     round_number=cost_ctx.get("round_number"),
                     sub_problem_index=cost_ctx.get("sub_problem_index"),
@@ -910,8 +911,8 @@ def get_model_for_phase(phase: str, round_number: int = 0, session_id: str | Non
 
     When A/B testing is enabled (HAIKU_AB_TEST_ENABLED=true), sessions are assigned
     to test/control groups based on session_id hash:
-    - Control group: Uses HAIKU_ROUND_LIMIT (default: 2) for fast tier
-    - Test group: Uses HAIKU_AB_TEST_LIMIT (default: 3) for fast tier
+    - Control group: Uses HAIKU_ROUND_LIMIT (default: 3) for fast tier
+    - Test group: Uses HAIKU_AB_TEST_LIMIT (default: 4) for fast tier
 
     Args:
         phase: The deliberation phase
@@ -927,12 +928,14 @@ def get_model_for_phase(phase: str, round_number: int = 0, session_id: str | Non
         >>> get_model_for_phase("contribution", round_number=1)
         'fast'
         >>> get_model_for_phase("contribution", round_number=3)
+        'fast'  # rounds 1-3 use fast tier by default
+        >>> get_model_for_phase("contribution", round_number=4)
         'core'
         >>> get_model_for_phase("synthesis")
         'core'
         >>> # With A/B test enabled:
-        >>> get_model_for_phase("contribution", round_number=3, session_id="test-session")
-        'fast'  # if session_id hashes to test group
+        >>> get_model_for_phase("contribution", round_number=4, session_id="test-session")
+        'fast'  # if session_id hashes to test group (extends to round 4)
     """
     from bo1.constants import ModelSelectionConfig
 

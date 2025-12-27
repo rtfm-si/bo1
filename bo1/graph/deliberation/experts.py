@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from bo1.graph.state import DeliberationGraphState
 
+from bo1.graph.state import get_discussion_state, get_metrics_state, get_participant_state
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,9 +41,13 @@ async def select_experts_for_round(
     Returns:
         List of selected PersonaProfile objects
     """
-    personas = state.get("personas", [])
-    contributions = state.get("contributions", [])
-    experts_per_round = state.get("experts_per_round", [])
+    # Use nested state accessors for grouped field access
+    participant_state = get_participant_state(state)
+    discussion_state = get_discussion_state(state)
+
+    personas = participant_state.get("personas", [])
+    contributions = discussion_state.get("contributions", [])
+    experts_per_round = participant_state.get("experts_per_round", [])
 
     # BUG FIX: Filter out experts who already contributed in this round
     experts_this_round: set[str] = set()
@@ -61,7 +67,8 @@ async def select_experts_for_round(
         return []
 
     # Get adaptive expert count from complexity assessment
-    metrics = state.get("metrics")
+    metrics_state = get_metrics_state(state)
+    metrics = metrics_state.get("metrics")
     recommended_experts = 4  # Default fallback
     if metrics and hasattr(metrics, "recommended_experts") and metrics.recommended_experts:
         recommended_experts = metrics.recommended_experts

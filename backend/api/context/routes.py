@@ -94,6 +94,7 @@ from backend.api.context.services import (
 from backend.api.context.skeptic import evaluate_competitor_relevance
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTEXT_RATE_LIMIT, limiter
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
@@ -366,6 +367,7 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
         },
         422: {"description": "Invalid URL format"},
         500: {"description": "Enrichment service error"},
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
@@ -666,6 +668,7 @@ async def dismiss_refresh_prompt(
 
     Returns a list of detected competitors with names, URLs, and descriptions.
     """,
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("detect competitors")
@@ -694,6 +697,7 @@ async def detect_competitors(
 
     Returns a list of trends with sources.
     """,
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("refresh trends")
@@ -2736,7 +2740,13 @@ async def get_goal_history_endpoint(
     try:
         history = fetch_goal_history(user_id, limit=min(limit, 50))
     except Exception as e:
-        logger.error(f"Failed to fetch goal history for user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to fetch goal history for user {user_id}",
+            user_id=user_id,
+            error=str(e),
+        )
         return GoalHistoryResponse(entries=[], count=0)
 
     entries = [
@@ -2823,6 +2833,7 @@ async def check_goal_staleness(
     - Dashboard goal banner progress display
     - Context overview progress tracking
     """,
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("get objective progress")
@@ -2884,6 +2895,7 @@ async def get_objectives_progress(
     - Dashboard progress modal save
     - Quick progress update from goal banner
     """,
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("update objective progress")
@@ -2942,6 +2954,7 @@ async def update_objective_progress(
     "/v1/context/objectives/{objective_index}/progress",
     summary="Delete objective progress",
     description="Remove progress tracking for a specific objective.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("delete objective progress")
@@ -2978,6 +2991,7 @@ async def delete_objective_progress(
     response_model=KeyMetricsResponse,
     summary="Get key metrics",
     description="Returns user's prioritized key metrics with current values and trends.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("get key metrics")
@@ -3016,6 +3030,7 @@ async def get_key_metrics(
     response_model=KeyMetricsResponse,
     summary="Update key metrics config",
     description="Update user's key metrics prioritization and configuration.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("update key metrics config")

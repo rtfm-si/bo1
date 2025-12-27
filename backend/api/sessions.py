@@ -44,9 +44,10 @@ from backend.api.models import (
     TerminationRequest,
     TerminationResponse,
 )
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.degradation import check_pool_health
-from backend.api.utils.errors import handle_api_errors, raise_api_error
+from backend.api.utils.errors import handle_api_errors, http_error, raise_api_error
 from backend.api.utils.honeypot import validate_honeypot_fields
 from backend.api.utils.pagination import make_pagination_fields
 from backend.api.utils.text import truncate_text
@@ -103,10 +104,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
                 }
             },
         },
-        429: {
-            "description": "Rate limit exceeded",
-            "model": ErrorResponse,
-        },
+        429: RATE_LIMIT_RESPONSE,
         500: {
             "description": "Internal server error",
             "model": ErrorResponse,
@@ -178,9 +176,10 @@ async def create_session(
 
             budget_result = uct.check_budget_status(user_id)
             if budget_result.should_block:
-                raise HTTPException(
-                    status_code=402,
-                    detail="Usage limit reached. Please contact support.",
+                raise http_error(
+                    ErrorCode.BUDGET_EXCEEDED,
+                    "Usage limit reached. Please contact support.",
+                    402,
                 )
         except HTTPException:
             raise
@@ -195,14 +194,13 @@ async def create_session(
             validate_problem_statement(session_request.problem_statement)
         except PromptInjectionError as e:
             # Return structured 400 error matching LLM-based detection format
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "prompt_injection_detected",
-                    "message": str(e),
-                    "source": "problem_statement",
-                    "detection_layer": "pattern",
-                },
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                str(e),
+                400,
+                error="prompt_injection_detected",
+                source="problem_statement",
+                detection_layer="pattern",
             ) from e
 
         # LAYER 2: LLM-based prompt injection audit (sophisticated, catches subtle attacks)
@@ -222,10 +220,7 @@ async def create_session(
         if session_request.dataset_id:
             dataset = dataset_repository.get_by_id(session_request.dataset_id, user_id)
             if not dataset:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Dataset not found or not owned by user",
-                )
+                raise http_error(ErrorCode.NOT_FOUND, "Dataset not found or not owned by user", 404)
             validated_dataset_id = session_request.dataset_id
 
         # Validate workspace_id membership if provided
@@ -238,9 +233,8 @@ async def create_session(
                 require_workspace_access(ws_uuid, user_id)
                 validated_workspace_id = session_request.workspace_id
             except ValueError as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid workspace_id format",
+                raise http_error(
+                    ErrorCode.VALIDATION_ERROR, "Invalid workspace_id format", 400
                 ) from e
 
         # Validate context_ids ownership if provided
@@ -253,16 +247,16 @@ async def create_session(
             if meeting_ids:
                 # Limit to 5 meetings max per plan constraints
                 if len(meeting_ids) > 5:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Maximum 5 past meetings can be attached",
+                    raise http_error(
+                        ErrorCode.VALIDATION_ERROR, "Maximum 5 past meetings can be attached", 400
                     )
                 for mid in meeting_ids:
                     session = session_repository.get(mid)
                     if not session or session.get("user_id") != user_id:
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"Meeting {mid} not found or not owned by user",
+                        raise http_error(
+                            ErrorCode.NOT_FOUND,
+                            f"Meeting {mid} not found or not owned by user",
+                            404,
                         )
                     validated_context_ids["meetings"].append(mid)
 
@@ -271,9 +265,8 @@ async def create_session(
             if action_ids:
                 # Limit to 10 actions max per plan constraints
                 if len(action_ids) > 10:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Maximum 10 actions can be attached",
+                    raise http_error(
+                        ErrorCode.VALIDATION_ERROR, "Maximum 10 actions can be attached", 400
                     )
                 from bo1.state.repositories.action_repository import ActionRepository
 
@@ -281,9 +274,8 @@ async def create_session(
                 for aid in action_ids:
                     action = action_repo.get(aid)
                     if not action or action.get("user_id") != user_id:
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"Action {aid} not found or not owned by user",
+                        raise http_error(
+                            ErrorCode.NOT_FOUND, f"Action {aid} not found or not owned by user", 404
                         )
                     validated_context_ids["actions"].append(aid)
 
@@ -292,16 +284,16 @@ async def create_session(
             if ds_ids:
                 # Limit to 3 datasets max per plan constraints
                 if len(ds_ids) > 3:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Maximum 3 datasets can be attached",
+                    raise http_error(
+                        ErrorCode.VALIDATION_ERROR, "Maximum 3 datasets can be attached", 400
                     )
                 for did in ds_ids:
                     ds = dataset_repository.get_by_id(did, user_id)
                     if not ds:
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"Dataset {did} not found or not owned by user",
+                        raise http_error(
+                            ErrorCode.NOT_FOUND,
+                            f"Dataset {did} not found or not owned by user",
+                            404,
                         )
                     validated_context_ids["datasets"].append(did)
 
@@ -433,9 +425,10 @@ async def create_session(
                 logger.warning(
                     f"Failed to clean up Redis after PostgreSQL failure: {cleanup_error}"
                 )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create session. Please try again.",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                "Failed to create session. Please try again.",
+                500,
             ) from e
 
         # Context Auto-Update: Extract business context updates from problem statement
@@ -669,9 +662,8 @@ async def list_sessions(
                     require_workspace_access(ws_uuid, user_id)
                     validated_workspace_id = workspace_id
                 except ValueError as e:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Invalid workspace_id format",
+                    raise http_error(
+                        ErrorCode.VALIDATION_ERROR, "Invalid workspace_id format", 400
                     ) from e
 
             # PRIMARY SOURCE: Query PostgreSQL for persistent session records
@@ -854,9 +846,8 @@ async def list_sessions(
                 f"Failed to list sessions: {e}",
                 user_id=user_id,
             )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to list sessions: {str(e)}",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to list sessions: {str(e)}", 500
             ) from e
 
 
@@ -1082,9 +1073,8 @@ async def get_session(
                 created_at = datetime.fromisoformat(metadata["created_at"])
                 updated_at = datetime.fromisoformat(metadata["updated_at"])
             except (KeyError, ValueError) as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Invalid session metadata: {e}",
+                raise http_error(
+                    ErrorCode.SERVICE_EXECUTION_ERROR, f"Invalid session metadata: {e}", 500
                 ) from e
 
             # Build problem details
@@ -1144,9 +1134,8 @@ async def get_session(
                 f"Failed to get session {session_id}: {e}",
                 session_id=session_id,
             )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get session: {str(e)}",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get session: {str(e)}", 500
             ) from e
 
 
@@ -1217,9 +1206,8 @@ async def delete_session(
 
             # Save updated metadata
             if not redis_manager.save_metadata(session_id, metadata):
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to update session metadata",
+                raise http_error(
+                    ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update session metadata", 500
                 )
 
             # Remove session from user's index for fast listing
@@ -1273,9 +1261,8 @@ async def delete_session(
                 session_id=session_id,
                 user_id=user_id,
             )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to delete session: {str(e)}",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to delete session: {str(e)}", 500
             ) from e
 
 
@@ -1381,9 +1368,10 @@ async def terminate_session(
         )
 
         if not result:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update session termination status",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                "Failed to update session termination status",
+                500,
             )
 
         # Update Redis metadata
@@ -1482,10 +1470,7 @@ async def extract_tasks(
         try:
             # Validate session ID format
             if not validate_session_id(session_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid session ID format",
-                )
+                raise http_error(ErrorCode.VALIDATION_ERROR, "Invalid session ID format", 400)
 
             # Unpack verified session data
             user_id, metadata = session_data
@@ -1541,10 +1526,7 @@ async def extract_tasks(
 
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
-                raise HTTPException(
-                    status_code=500,
-                    detail="AI service not configured",
-                )
+                raise http_error(ErrorCode.CONFIG_ERROR, "AI service not configured", 500)
 
             # Collect all synthesis events
             synthesis_events: list[tuple[str, int | None]] = []  # (synthesis, sub_problem_index)
@@ -1589,9 +1571,10 @@ async def extract_tasks(
                             synthesis_events.append((synthesis, None))
 
             if not synthesis_events:
-                raise HTTPException(
-                    status_code=404,
-                    detail="No synthesis found for this session. Run the deliberation to completion first.",
+                raise http_error(
+                    ErrorCode.NOT_FOUND,
+                    "No synthesis found for this session. Run the deliberation to completion first.",
+                    404,
                 )
 
             # Build sub-problem context for cross-sub-problem dependency extraction
@@ -1732,9 +1715,8 @@ async def extract_tasks(
                 f"Failed to extract tasks for session {session_id}: {e}",
                 session_id=session_id,
             )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Task extraction failed: {str(e)}",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, f"Task extraction failed: {str(e)}", 500
             ) from e
 
 
@@ -1906,7 +1888,7 @@ async def update_task_status(
             )
 
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from e
 
 
 @router.get(
@@ -1949,10 +1931,7 @@ async def get_session_costs(
     """
     # Security: Require admin access to view cost data
     if not is_admin(current_user):
-        raise HTTPException(
-            status_code=403,
-            detail="Admin access required to view cost breakdown",
-        )
+        raise http_error(ErrorCode.AUTH_ERROR, "Admin access required to view cost breakdown", 403)
 
     with track_api_call("sessions.get_costs", "GET"):
         # Validate session ID format
@@ -2069,9 +2048,9 @@ async def export_session(
         except ValueError as e:
             # Permission or not found error from SessionExporter
             if "does not own" in str(e):
-                raise HTTPException(status_code=403, detail=str(e)) from e
+                raise http_error(ErrorCode.AUTH_ERROR, str(e), 403) from e
             else:
-                raise HTTPException(status_code=404, detail=str(e)) from e
+                raise http_error(ErrorCode.NOT_FOUND, str(e), 404) from e
 
 
 @router.post(
@@ -2158,7 +2137,7 @@ async def create_share(
                 db.close()
 
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from e
 
 
 @router.get(
@@ -2242,10 +2221,7 @@ async def list_shares(
                 f"Failed to list shares for session {session_id}: {e}",
                 session_id=session_id,
             )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to list shares",
-            ) from e
+            raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to list shares", 500) from e
 
 
 @router.delete(
@@ -2294,9 +2270,8 @@ async def revoke_share(
                 success = session_repository.revoke_share(session_id, token)
 
                 if not success:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Share token not found for session {session_id}",
+                    raise http_error(
+                        ErrorCode.NOT_FOUND, f"Share token not found for session {session_id}", 404
                     )
 
                 logger.info(f"Revoked share {token} for session {session_id}")
@@ -2319,9 +2294,8 @@ async def revoke_share(
                 session_id=session_id,
                 token=token,
             )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to revoke share",
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to revoke share", 500
             ) from e
 
 
@@ -2474,9 +2448,10 @@ async def link_projects_to_session(
             project_ids=link_request.project_ids,
         )
         if not is_valid:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Projects {mismatched} are in a different workspace than session",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Projects {mismatched} are in a different workspace than session",
+                400,
             )
 
         # Link projects
@@ -2487,7 +2462,7 @@ async def link_projects_to_session(
                 relationship=link_request.relationship,
             )
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from None
+            raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from None
 
         return {
             "session_id": session_id,
@@ -2535,9 +2510,8 @@ async def unlink_project_from_session(
         )
 
         if not success:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Project {project_id} not linked to session {session_id}",
+            raise http_error(
+                ErrorCode.NOT_FOUND, f"Project {project_id} not linked to session {session_id}", 404
             )
 
         return Response(status_code=204)
@@ -2586,12 +2560,13 @@ async def suggest_projects(
         # Check session is completed (suggestions only make sense for finished meetings)
         session = session_repository.get(session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise http_error(ErrorCode.SESSION_NOT_FOUND, "Session not found", 404)
 
         if session.get("status") not in ("completed", "terminated"):
-            raise HTTPException(
-                status_code=400,
-                detail="Project suggestions are only available for completed meetings",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Project suggestions are only available for completed meetings",
+                400,
             )
 
         suggestions = await suggest_projects_from_session(
@@ -2657,7 +2632,7 @@ async def create_suggested_project(
         # Get session for workspace_id
         session = session_repository.get(session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise http_error(ErrorCode.SESSION_NOT_FOUND, "Session not found", 404)
 
         workspace_id = session.get("workspace_id")
 
@@ -2671,7 +2646,7 @@ async def create_suggested_project(
         )
 
         if not suggestion.name:
-            raise HTTPException(status_code=400, detail="Project name is required")
+            raise http_error(ErrorCode.VALIDATION_ERROR, "Project name is required", 400)
 
         # Create project
         project = await create_project_from_suggestion(

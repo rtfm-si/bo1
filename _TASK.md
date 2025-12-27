@@ -29,6 +29,78 @@ _Last updated: 2025-12-27 (rolling week view)_
 
 ---
 
+## UX/UI Audit Issues (2025-12-27)
+
+### Critical
+
+- [x] [UX][P0] Fix Context API 500 errors - 4 endpoints returning 500: `/api/v1/context`, `/api/v1/context/refresh-check`, `/api/v1/context/goal-staleness`, `/api/v1/context/objectives/progress` ✅ Fixed: added missing `strategic_objectives_progress` column to prod DB
+- [x] [UX][P0] Context page renders empty due to API failures - users see blank main content area ✅ Fixed: same root cause as above
+
+### Minor
+
+- [x] [UX][P2] Fix 404 for `/context/logo.png` - missing asset reference ✅ Fixed: changed `%sveltekit.assets%/logo.png` to absolute `/logo.png` in app.html
+
+---
+
+## Audit-derived tasks (2025-12-27)
+
+### Security (from LLM Alignment Audit) - CRITICAL
+
+- [x] [LLM][P0] Sanitize LLM outputs before re-injection into prompts (contributions, summaries, recommendations) ✅ Done: sanitization in persona_executor.py
+- [x] [LLM][P0] Sanitize third-party API results (Brave, Tavily) before AND after LLM summarization ✅ Done: researcher agent sanitization
+- [x] [LLM][P1] Sanitize user interjection and clarification answers before prompt interpolation ✅ Done
+- [x] [LLM][P1] Sanitize database-stored user content (business context, strategic objectives, saved clarifications) ✅ Done
+
+### Reliability (from Reliability Audit) - CRITICAL
+
+- [x] [REL][P0] Implement LangGraph checkpoint recovery - failed sessions cannot resume ✅ Done: resume_session_from_checkpoint + "Retry Session" UI (FailedMeetingAlert.svelte)
+- [x] [REL][P0] Fix replanning service rollback - partial failure creates orphaned sessions ✅ Done: cleanup on link/update failures + tests
+- [x] [REL][P0] Validate LLM provider fallback with chaos test (Anthropic outage → OpenAI fallback) ✅ Done: tests/chaos/test_llm_chaos.py
+
+### Performance (from Performance Audit)
+
+- [x] [PERF][P0] Increase database connection pool from 20 → 75 (POOL_MAX_CONNECTIONS) ✅ Done: constants.py
+- [x] [PERF][P1] Add composite indexes: idx_session_events_session_created, idx_api_costs_session_created, idx_sessions_user_created_desc ✅ Already present: covering indexes with additional INCLUDE columns
+- [x] [PERF][P1] Optimize action tag filtering query (rewrite subquery to CTE + JOIN in action_repository.py) ✅ Done: CTE + JOIN pattern at action_repository.py:192-221
+- [x] [PERF][P1] Enable pg_stat_statements monitoring in production ✅ Done: migration z16 + admin/queries.py API
+
+### Data Model (from Data Model Audit)
+
+- [x] [DATA][P0] Add user_id FK to recommendations table (required for RLS) ✅ Done: migration z14
+- [x] [DATA][P1] Add workspace_id field to Session Pydantic model ✅ Done: bo1/models/session.py:54
+- [x] [DATA][P1] Add session_id, sub_problem_index, id, created_at to Recommendation model ✅ Done: bo1/models/recommendations.py:23-27
+- [x] [DATA][P1] Fix Session nullable field consistency ✅ Done: fields have proper defaults in model
+- [x] [DATA][P2] Add CI check for TypeScript type sync ✅ Done: .github/workflows/ci.yml:92-93 npm run check:types-fresh
+
+### Observability (from Observability Audit)
+
+- [x] [OBS][P1] Add request_id (correlation ID) to DeliberationGraphState and propagate through node logs ✅ Done: state.py + node logs
+- [x] [OBS][P1] Expose circuit breaker state as Prometheus metrics (circuit_breaker_state{provider, state}) ✅ Done: metrics.py bo1_circuit_breaker_state_labeled
+- [x] [OBS][P1] Add event persistence metrics: batch_size, duration_seconds, retry_queue_depth ✅ Done
+- [x] [OBS][P1] Add Redis connection pool metrics ✅ Done: redis_manager.py:get_pool_health(), metrics.py gauges, /health/redis/pool endpoint, 16 tests
+- [x] [OBS][P2] Standardize error code usage in backend/api/*.py (replace plain logger.error with log_error + ErrorCode) ✅ Done: migrated 8 occurrences across seo/routes.py, email.py, e2e_auth.py, context/routes.py, admin/blog.py, middleware/tier_limits.py
+- [x] [OBS][P2] Configure missing Prometheus alerts ✅ Done: alert_rules.yml:98-170 (event persistence + circuit breaker alerts)
+
+### API Contract (from API Contract Audit)
+
+- [x] [API][P1] Standardize error response format (migrate from string detail to structured {error_code, message}) ✅ Done: migrated projects.py, sessions.py, actions.py, competitors.py to http_error()
+- [x] [API][P1] Centralize cost field definitions for SSE filtering ✅ Done: constants.py:94 COST_FIELDS, streaming.py:24,63-67, tests
+- [x] [API][P2] Add OpenAPI security scheme for SuperTokens session auth ✅ Done: sessionAuth + csrfToken in openapi.json
+- [x] [API][P2] Document rate limits in OpenAPI responses for all @limiter.limit decorated endpoints ✅ Added RATE_LIMIT_RESPONSE to 24 endpoints across 6 files
+
+### Cost Optimization (from Cost Audit)
+
+- [x] [COST][P1] Default to SYNTHESIS_LEAN_TEMPLATE ✅ Done: synthesis.py:162,232 + engine.py:25,200 + subgraph/nodes.py:31,640
+- [x] [COST][P2] Extend Haiku model to Round 3 (currently rounds 1-2 only) ✅ Done: HAIKU_ROUND_LIMIT=3, AB_TEST_LIMIT=4
+- [x] [COST][P2] Add cache hit rate metrics (prompt cache, research cache, LLM cache) to cost_tracker ✅ Done: CostTracker.get_cache_metrics(), Prometheus gauges, admin API endpoint, admin UI card
+- [x] [COST][P3] Reduce persona context window from last 6 → last 3 contributions (~3-5% cost reduction) ✅ Done: PersonaContextConfig.CONTRIBUTION_LIMIT=3 in constants.py, updated subgraph/nodes.py:227, 7 unit tests
+
+### Architecture (from Architecture Audit)
+
+- [x] [ARCH][P2] Migrate high-traffic read paths to use nested state accessors (get_problem_state, get_phase_state, etc.) ✅ Done: refactored experts.py and nodes/rounds.py to use get_*_state() accessors
+
+---
+
 ## Backlog (from _TODO.md, 2025-12-27)
 
 ### Auth & Login
@@ -41,12 +113,14 @@ _Last updated: 2025-12-27 (rolling week view)_
 - [x] [SEO][P1] Fix 'Discover' button in blog generate modal (topic discovery)
 - [x] [SEO][P2] Define SEO autopilot strategy: focus on high-intent-to-purchase traffic generation
 - [x] [SEO][P2] Create marketing collateral bank (images, animations, concepts) for AI content generation
+- [x] [SEO][P2] Fix SEO assets route order (/assets/suggest 404) - moved route before parameterized /{asset_id}
 
 ### Admin Dashboard
 
 - [x] [ADMIN][P2] Make dashboard cards drillable to relevant metrics (currently only waitlist is drillable)
 - [x] [ADMIN][P2] Fix rate limiting on admin endpoints causing 429 cascade during callback (email-stats, observability-links, research-cache, costs, runtime-config, extended-kpis, blog/topics)
 - [x] [ANALYTICS][P2] Investigate signup page conversion (48 unique visitors, 0 waitlist signups) - Fixed: slowapi param naming bug
+- [x] [ADMIN][P2] Fix ratings admin 401 (wrong auth dependency) + add rate limiting
 
 ### UX Improvements
 
@@ -56,7 +130,7 @@ _Last updated: 2025-12-27 (rolling week view)_
 
 - [x] [BILLING][P3] Add non-profit/charity discount tier (free or 80% off)
 - [x] [BILLING][P3] Create granular meeting tiers in Stripe (1-9 meetings @ £10 each, targeting 90% gross margin)
-- [ ] [BILLING][P2] Clarify scope of: "non-fixed costs (mentor chats, data analysis, competitor analysis) - cost analysis, fair usage caps, top 10% capping" (ambiguous item from _TODO.md)
+- [x] [BILLING][P2] Non-fixed costs fair usage caps - implemented per-feature daily cost limits with p90 heavy user detection
 
 ### Competitors
 
@@ -75,6 +149,37 @@ _Last updated: 2025-12-27 (rolling week view)_
 ## Completed Summary
 
 ### December 2025
+
+- **Admin API Bug Fixes (2025-12-27)**: Fixed multiple admin endpoint issues:
+  - Ratings admin 401: Changed `require_admin` → `require_admin_any` (correct admin middleware)
+  - Ratings admin rate limiting: Added `@limiter.limit(ADMIN_RATE_LIMIT)` to `/metrics`, `/trend`, `/negative` endpoints
+  - SEO assets route order: Moved `/assets/suggest` before `/assets/{asset_id}` to fix 404
+  - Sessions.py: Fixed duplicate 429 response key in OpenAPI spec
+
+- **Fair Usage Caps for Variable-Cost Features (2025-12-27)**: Implemented per-feature daily cost limits with p90 heavy user detection:
+  - Data model: Added `feature` column to `api_costs`, created `daily_user_feature_costs` aggregation table
+  - PlanConfig: Added `FairUsageLimits` dataclass with per-tier limits for `mentor_chat`, `dataset_qa`, `competitor_analysis`, `meeting`
+  - Service: `backend/services/fair_usage.py` with usage checking, soft/hard cap logic, p90 calculation
+  - Middleware: `backend/api/middleware/fair_usage.py` with `require_fair_usage()` dependency
+  - Admin API: `/admin/costs/fair-usage/heavy-users` and `/admin/costs/fair-usage/by-feature` endpoints
+  - User API: `GET /api/v1/user/fair-usage` endpoint for usage meter
+  - Tests: 8 PlanConfig tests + 10 FairUsageService tests
+
+- **Persona Context Window Optimization (2025-12-27)**: Reduced persona context window from 6 to 3 contributions for ~3-5% token cost savings:
+  - Config: `PersonaContextConfig.CONTRIBUTION_LIMIT = 3` in `bo1/constants.py`
+  - Implementation: Updated `bo1/graph/deliberation/subgraph/nodes.py:227` to use config constant
+  - Logging: Added debug log for contribution context size (chars/tokens) for cost tracking
+  - Tests: 7 unit tests in `tests/llm/test_persona_context.py` covering limit value, slicing, edge cases
+  - Quality preserved: Round summaries provide broader context, most recent round most relevant
+
+- **Unified Cache Metrics (2025-12-27)**: Implemented cache hit rate monitoring across all cache systems:
+  - Backend: `CostTracker.get_cache_metrics()` aggregates metrics from prompt (Anthropic), research (PostgreSQL), LLM (Redis) caches
+  - Backend: `_emit_cache_rate_gauges()` updates Prometheus gauges on each call
+  - Prometheus: `bo1_cache_hit_rate{cache_type}`, `bo1_cache_hits_total{cache_type}`, `bo1_cache_misses_total{cache_type}` gauges
+  - API: `GET /api/admin/costs/cache-metrics` endpoint returning `UnifiedCacheMetricsResponse`
+  - Admin UI: Cache Performance card on Costs page with 4-column layout (Prompt/Research/LLM/Aggregate)
+  - Tests: 4 unit tests for `TestGetCacheMetrics` class covering structure, error handling, aggregation, zero-state
+  - Models: `CacheTypeMetrics`, `AggregatedCacheMetrics`, `UnifiedCacheMetricsResponse` Pydantic models
 
 - **Marketing Collateral Bank (2025-12-27)**: Implemented marketing asset storage for AI content generation:
   - Database: `marketing_assets` table (migration zl) with file metadata, CDN URL, tags, type

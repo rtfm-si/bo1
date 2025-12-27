@@ -10,8 +10,11 @@ Provides:
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from starlette.requests import Request
 
-from backend.api.middleware.auth import get_current_user, require_admin
+from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     ErrorResponse,
     NegativeRatingItem,
@@ -118,10 +121,12 @@ async def get_rating(
         403: {"description": "Not authorized", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get rating metrics")
 async def get_rating_metrics(
+    request: Request,
     days: int = Query(30, ge=1, le=365, description="Period in days"),
-    _admin: dict[str, Any] = Depends(require_admin),
+    _admin: dict[str, Any] = Depends(require_admin_any),
 ) -> RatingMetrics:
     """Get aggregated rating metrics for admin dashboard."""
     metrics = ratings_repository.get_metrics(days=days)
@@ -138,10 +143,12 @@ async def get_rating_metrics(
         403: {"description": "Not authorized", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get rating trend")
 async def get_rating_trend(
+    request: Request,
     days: int = Query(7, ge=1, le=90, description="Period in days"),
-    _admin: dict[str, Any] = Depends(require_admin),
+    _admin: dict[str, Any] = Depends(require_admin_any),
 ) -> list[RatingTrendItem]:
     """Get daily rating trend for admin dashboard."""
     trend = ratings_repository.get_trend(days=days)
@@ -158,10 +165,12 @@ async def get_rating_trend(
         403: {"description": "Not authorized", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get negative ratings")
 async def get_negative_ratings(
+    request: Request,
     limit: int = Query(10, ge=1, le=100, description="Max items to return"),
-    _admin: dict[str, Any] = Depends(require_admin),
+    _admin: dict[str, Any] = Depends(require_admin_any),
 ) -> NegativeRatingsResponse:
     """Get recent negative ratings for admin triage."""
     items = ratings_repository.get_recent_negative(limit=limit)

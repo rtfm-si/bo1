@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import MENTOR_RATE_LIMIT, limiter
 from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.honeypot import HoneypotMixin, validate_honeypot_fields
 from backend.services.mention_parser import parse_mentions
@@ -462,6 +463,7 @@ async def _stream_mentor_response(
                 "text/event-stream": {"example": 'event: response\ndata: {"content": "..."}\n\n'}
             },
         },
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @limiter.limit(MENTOR_RATE_LIMIT)
@@ -948,6 +950,7 @@ async def get_failure_patterns(
     response_model=ImprovementPlanResponse,
     summary="Get improvement plan",
     description="Generate a proactive improvement plan based on detected patterns",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(MENTOR_RATE_LIMIT)
 @handle_api_errors("get improvement plan")

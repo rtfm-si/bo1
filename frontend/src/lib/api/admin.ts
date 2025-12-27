@@ -1192,6 +1192,10 @@ class AdminApiClient {
 		return this.fetch<DailySummaryResponse>(`/api/admin/costs/daily-summary?days=${days}`);
 	}
 
+	async getUnifiedCacheMetrics(): Promise<UnifiedCacheMetricsResponse> {
+		return this.fetch<UnifiedCacheMetricsResponse>('/api/admin/costs/cache-metrics');
+	}
+
 	// =========================================================================
 	// Email Stats
 	// =========================================================================
@@ -1518,6 +1522,30 @@ export interface CacheMetricsResponse {
 	recommendation_confidence: 'low' | 'medium' | 'high';
 	total_cached_results: number;
 	cost_savings_30d: number;
+}
+
+// =============================================================================
+// Unified Cache Metrics Types
+// =============================================================================
+
+export interface CacheTypeMetrics {
+	hit_rate: number;
+	hits: number;
+	misses: number;
+	total: number;
+}
+
+export interface AggregatedCacheMetrics {
+	hit_rate: number;
+	total_hits: number;
+	total_requests: number;
+}
+
+export interface UnifiedCacheMetricsResponse {
+	prompt: CacheTypeMetrics;
+	research: CacheTypeMetrics;
+	llm: CacheTypeMetrics;
+	aggregate: AggregatedCacheMetrics;
 }
 
 // =============================================================================

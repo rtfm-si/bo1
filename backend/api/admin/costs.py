@@ -15,13 +15,19 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from backend.api.admin.models import (
+    AggregatedCacheMetrics,
+    CacheTypeMetrics,
     CostsByProviderResponse,
     CreateFixedCostRequest,
     DailyResearchCost,
     DailySummaryItem,
     DailySummaryResponse,
+    FeatureCostBreakdown,
+    FeatureCostBreakdownResponse,
     FixedCostItem,
     FixedCostsResponse,
+    HeavyUserItem,
+    HeavyUsersResponse,
     MeetingCostResponse,
     PerUserCostItem,
     PerUserCostResponse,
@@ -29,6 +35,7 @@ from backend.api.admin.models import (
     ResearchCostItem,
     ResearchCostsByPeriod,
     ResearchCostsResponse,
+    UnifiedCacheMetricsResponse,
     UpdateFixedCostRequest,
 )
 from backend.api.middleware.admin import require_admin_any
@@ -472,6 +479,36 @@ async def get_daily_summary(
 
 
 # ==============================================================================
+# Unified Cache Metrics
+# ==============================================================================
+
+
+@router.get(
+    "/cache-metrics",
+    response_model=UnifiedCacheMetricsResponse,
+    summary="Unified cache metrics",
+    description="Get aggregated cache metrics across prompt, research, and LLM caches.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get cache metrics")
+async def get_cache_metrics(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+) -> UnifiedCacheMetricsResponse:
+    """Get unified cache metrics from all cache systems."""
+    from bo1.llm.cost_tracker import CostTracker
+
+    metrics = CostTracker.get_cache_metrics()
+
+    return UnifiedCacheMetricsResponse(
+        prompt=CacheTypeMetrics(**metrics["prompt"]),
+        research=CacheTypeMetrics(**metrics["research"]),
+        llm=CacheTypeMetrics(**metrics["llm"]),
+        aggregate=AggregatedCacheMetrics(**metrics["aggregate"]),
+    )
+
+
+# ==============================================================================
 # Research Costs (Brave + Tavily)
 # ==============================================================================
 
@@ -591,4 +628,87 @@ async def get_research_costs(
         total_queries=brave.query_count + tavily.query_count,
         by_period=by_period,
         daily_trend=daily_trend,
+    )
+
+
+# ==============================================================================
+# Fair Usage Analytics
+# ==============================================================================
+
+
+@router.get(
+    "/fair-usage/heavy-users",
+    response_model=HeavyUsersResponse,
+    summary="Heavy users list",
+    description="Get users exceeding p90 cost threshold for LLM features.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get heavy users")
+async def get_heavy_users(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+    feature: str | None = Query(None, description="Filter by feature name"),
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
+    limit: int = Query(50, ge=1, le=200, description="Max users to return"),
+) -> HeavyUsersResponse:
+    """Get users exceeding p90 cost threshold."""
+    from backend.services.fair_usage import get_fair_usage_service
+
+    service = get_fair_usage_service()
+    heavy_users = service.get_heavy_users(feature=feature, days=days, limit=limit)
+
+    return HeavyUsersResponse(
+        heavy_users=[
+            HeavyUserItem(
+                user_id=u.user_id,
+                email=u.email,
+                feature=u.feature,
+                total_cost_7d=u.total_cost_7d,
+                avg_daily_cost=u.avg_daily_cost,
+                p90_threshold=u.p90_threshold,
+                exceeds_p90_by=u.exceeds_p90_by,
+            )
+            for u in heavy_users
+        ],
+        total=len(heavy_users),
+        period_days=days,
+    )
+
+
+@router.get(
+    "/fair-usage/by-feature",
+    response_model=FeatureCostBreakdownResponse,
+    summary="Cost breakdown by feature",
+    description="Get cost breakdown by feature for fair usage analysis.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get feature cost breakdown")
+async def get_feature_cost_breakdown(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
+) -> FeatureCostBreakdownResponse:
+    """Get cost breakdown by feature."""
+    from backend.services.fair_usage import get_fair_usage_service
+
+    service = get_fair_usage_service()
+    breakdown = service.get_feature_cost_breakdown(days=days)
+
+    features = [
+        FeatureCostBreakdown(
+            feature=feature,
+            total_cost=stats["total_cost"],
+            user_count=stats["user_count"],
+            avg_per_user=stats["avg_per_user"],
+            p90_daily=stats["p90_daily"],
+        )
+        for feature, stats in breakdown.items()
+    ]
+
+    total_cost = sum(f.total_cost for f in features)
+
+    return FeatureCostBreakdownResponse(
+        features=features,
+        period_days=days,
+        total_cost=total_cost,
     )

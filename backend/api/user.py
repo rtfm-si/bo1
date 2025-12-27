@@ -975,6 +975,89 @@ async def get_tier_info(
 
 
 # =============================================================================
+# Fair Usage
+# =============================================================================
+
+
+class FairUsageFeatureStatus(BaseModel):
+    """Fair usage status for a single feature."""
+
+    feature: str = Field(..., description="Feature name")
+    current_cost: float = Field(..., description="Current daily cost (USD)")
+    daily_limit: float = Field(..., description="Daily limit (USD), -1 = unlimited")
+    percent_used: float = Field(..., description="Percentage of limit used (0-1)")
+    remaining: float = Field(..., description="Amount remaining until cap (USD), -1 = unlimited")
+    status: str = Field(..., description="Status: allowed, soft_warning, hard_blocked")
+
+
+class FairUsageStatusResponse(BaseModel):
+    """User's current fair usage status across features."""
+
+    tier: str = Field(..., description="User's subscription tier")
+    features: list[FairUsageFeatureStatus] = Field(..., description="Status per feature")
+
+
+@router.get(
+    "/fair-usage",
+    summary="Get fair usage status",
+    description="Get current daily usage and limits for LLM-intensive features.",
+    response_model=FairUsageStatusResponse,
+    responses={
+        200: {"description": "Fair usage status retrieved successfully"},
+        401: {"description": "Authentication required", "model": ErrorResponse},
+        500: {"description": "Failed to get fair usage", "model": ErrorResponse},
+    },
+)
+async def get_fair_usage_status(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> FairUsageStatusResponse:
+    """Get user's fair usage status across all LLM features."""
+    from backend.services.fair_usage import get_fair_usage_service
+
+    user_id = user["user_id"]
+    base_tier = user.get("subscription_tier", "free")
+    effective_tier = get_effective_tier(user_id, base_tier)
+
+    try:
+        service = get_fair_usage_service()
+
+        # Check all fair usage features
+        features_to_check = ["mentor_chat", "dataset_qa", "competitor_analysis", "meeting"]
+        feature_statuses = []
+
+        for feature in features_to_check:
+            result = service.check_fair_usage(
+                user_id=user_id,
+                feature=feature,
+                tier=effective_tier,
+            )
+            feature_statuses.append(
+                FairUsageFeatureStatus(
+                    feature=feature,
+                    current_cost=result.current_cost,
+                    daily_limit=result.daily_limit,
+                    percent_used=result.percent_used,
+                    remaining=result.remaining,
+                    status=result.status.value,
+                )
+            )
+
+        return FairUsageStatusResponse(
+            tier=effective_tier,
+            features=feature_statuses,
+        )
+
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get fair usage for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to get fair usage") from e
+
+
+# =============================================================================
 # Promotions
 # =============================================================================
 

@@ -505,7 +505,11 @@ async def resend_webhook(request: Request) -> WebhookResponse:
     # Verify signature if secret is configured
     if settings.resend_webhook_secret:
         if Webhook is None:
-            logger.error("svix library not installed - cannot verify webhook signature")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_UNAVAILABLE,
+                "svix library not installed - cannot verify webhook signature",
+            )
             raise HTTPException(
                 status_code=500, detail="Webhook verification unavailable"
             ) from None
@@ -529,7 +533,7 @@ async def resend_webhook(request: Request) -> WebhookResponse:
     try:
         event_data = json.loads(payload)
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid webhook JSON payload: {e}")
+        log_error(logger, ErrorCode.VALIDATION_ERROR, "Invalid webhook JSON payload", error=str(e))
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
 
     event_type = event_data.get("type", "")

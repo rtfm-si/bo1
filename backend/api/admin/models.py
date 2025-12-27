@@ -1547,3 +1547,132 @@ class NonprofitStatusResponse(BaseModel):
     nonprofit_verified_at: str | None = Field(None, description="Verification date (ISO 8601)")
     promo_applied: bool = Field(False, description="Whether promo code was applied")
     message: str = Field(..., description="Human-readable message")
+
+
+# ==============================================================================
+# Unified Cache Metrics Models
+# ==============================================================================
+
+
+class CacheTypeMetrics(BaseModel):
+    """Metrics for a single cache type.
+
+    Attributes:
+        hit_rate: Cache hit rate (0.0-1.0)
+        hits: Total cache hits
+        misses: Total cache misses
+        total: Total requests
+    """
+
+    hit_rate: float = Field(..., description="Cache hit rate (0.0-1.0)")
+    hits: int = Field(..., description="Total cache hits")
+    misses: int = Field(..., description="Total cache misses")
+    total: int = Field(..., description="Total requests")
+
+
+class AggregatedCacheMetrics(BaseModel):
+    """Aggregated metrics across all cache types.
+
+    Attributes:
+        hit_rate: Combined cache hit rate (0.0-1.0)
+        total_hits: Total hits across all caches
+        total_requests: Total requests across all caches
+    """
+
+    hit_rate: float = Field(..., description="Combined cache hit rate (0.0-1.0)")
+    total_hits: int = Field(..., description="Total hits across all caches")
+    total_requests: int = Field(..., description="Total requests across all caches")
+
+
+class UnifiedCacheMetricsResponse(BaseModel):
+    """Response model for unified cache metrics across all cache systems.
+
+    Aggregates metrics from:
+    - Prompt cache: Anthropic native prompt caching
+    - Research cache: PostgreSQL semantic similarity cache
+    - LLM cache: Redis deterministic response cache
+
+    Attributes:
+        prompt: Anthropic prompt cache metrics (24h window)
+        research: Research semantic cache metrics (24h window)
+        llm: LLM response cache metrics (in-memory since startup)
+        aggregate: Combined metrics across all caches
+    """
+
+    prompt: CacheTypeMetrics = Field(..., description="Anthropic prompt cache metrics")
+    research: CacheTypeMetrics = Field(..., description="Research semantic cache metrics")
+    llm: CacheTypeMetrics = Field(..., description="LLM response cache metrics")
+    aggregate: AggregatedCacheMetrics = Field(..., description="Combined cache metrics")
+
+
+# ==============================================================================
+# Fair Usage Models
+# ==============================================================================
+
+
+class HeavyUserItem(BaseModel):
+    """A user identified as heavy user for a feature.
+
+    Attributes:
+        user_id: User identifier
+        email: User email (if available)
+        feature: Feature name (mentor_chat, dataset_qa, etc.)
+        total_cost_7d: Total cost over 7-day period
+        avg_daily_cost: Average daily cost
+        p90_threshold: p90 threshold for this feature
+        exceeds_p90_by: How much they exceed p90
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    email: str | None = Field(None, description="User email")
+    feature: str = Field(..., description="Feature name")
+    total_cost_7d: float = Field(..., description="Total cost over 7 days (USD)")
+    avg_daily_cost: float = Field(..., description="Average daily cost (USD)")
+    p90_threshold: float = Field(..., description="p90 threshold for this feature (USD)")
+    exceeds_p90_by: float = Field(..., description="Amount exceeding p90 (USD)")
+
+
+class HeavyUsersResponse(BaseModel):
+    """Response model for heavy users list.
+
+    Attributes:
+        heavy_users: List of heavy users
+        total: Total count of heavy users
+        period_days: Number of days in analysis period
+    """
+
+    heavy_users: list[HeavyUserItem] = Field(..., description="List of heavy users")
+    total: int = Field(..., description="Total count")
+    period_days: int = Field(..., description="Analysis period in days")
+
+
+class FeatureCostBreakdown(BaseModel):
+    """Cost breakdown for a single feature.
+
+    Attributes:
+        feature: Feature name
+        total_cost: Total cost over period (USD)
+        user_count: Number of unique users
+        avg_per_user: Average cost per user (USD)
+        p90_daily: p90 daily cost threshold (USD)
+    """
+
+    feature: str = Field(..., description="Feature name")
+    total_cost: float = Field(..., description="Total cost over period (USD)")
+    user_count: int = Field(..., description="Number of unique users")
+    avg_per_user: float = Field(..., description="Average cost per user (USD)")
+    p90_daily: float = Field(..., description="p90 daily cost threshold (USD)")
+
+
+class FeatureCostBreakdownResponse(BaseModel):
+    """Response model for feature cost breakdown.
+
+    Attributes:
+        features: List of feature breakdowns
+        period_days: Number of days in analysis period
+        total_cost: Total cost across all features
+    """
+
+    features: list[FeatureCostBreakdown] = Field(..., description="Feature breakdowns")
+    period_days: int = Field(..., description="Analysis period in days")
+    total_cost: float = Field(..., description="Total cost across all features (USD)")

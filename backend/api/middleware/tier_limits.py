@@ -31,6 +31,7 @@ from backend.services.usage_tracking import (
     increment_usage,
 )
 from bo1.constants import UsageMetrics
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +179,13 @@ def _get_meeting_credits(user_id: str) -> int:
                 row = cur.fetchone()
                 return row[0] if row else 0
     except Exception as e:
-        logger.error(f"Failed to get meeting credits for user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get meeting credits for user {user_id}",
+            user_id=user_id,
+            error=str(e),
+        )
         return 0
 
 
@@ -212,7 +219,13 @@ def _decrement_meeting_credit(user_id: str) -> int:
                 )
                 return new_credits
     except Exception as e:
-        logger.error(f"Failed to decrement meeting credit for user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to decrement meeting credit for user {user_id}",
+            user_id=user_id,
+            error=str(e),
+        )
         return 0
 
 

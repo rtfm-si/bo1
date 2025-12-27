@@ -26,6 +26,19 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class FairUsageLimits:
+    """Daily cost limits per feature for fair usage capping.
+
+    All values in USD. -1.0 = unlimited.
+    """
+
+    mentor_chat: float  # Daily limit for mentor chat LLM costs
+    dataset_qa: float  # Daily limit for dataset Q&A LLM costs
+    competitor_analysis: float  # Daily limit for competitor detection/enrichment
+    meeting: float  # Daily limit per meeting (not total)
+
+
+@dataclass(frozen=True)
 class TierConfig:
     """Configuration for a single subscription tier."""
 
@@ -48,6 +61,9 @@ class TierConfig:
     # Cost limits
     cost_per_session: float
 
+    # Fair usage daily cost limits per feature
+    fair_usage: FairUsageLimits
+
     # Feature flags
     features: dict[str, bool]
 
@@ -66,6 +82,11 @@ class PlanConfig:
 
     Single source of truth for all tier limits, features, and pricing.
     """
+
+    # Fair usage soft warning threshold (percentage of daily limit)
+    FAIR_USAGE_SOFT_CAP_PCT: float = 0.80  # Warn at 80%
+    # Fair usage hard cap threshold (percentage of daily limit)
+    FAIR_USAGE_HARD_CAP_PCT: float = 1.00  # Block at 100%
 
     TIERS: dict[str, TierConfig] = {
         "free": TierConfig(
@@ -86,6 +107,12 @@ class PlanConfig:
             peer_benchmarks_visible=3,
             marketing_assets_total=10,
             cost_per_session=0.50,
+            fair_usage=FairUsageLimits(
+                mentor_chat=0.50,  # $0.50/day for mentor chat
+                dataset_qa=0.25,  # $0.25/day for dataset Q&A
+                competitor_analysis=0.10,  # $0.10/day for competitor analysis
+                meeting=0.50,  # $0.50/meeting
+            ),
             features={
                 "meetings": True,
                 "datasets": True,
@@ -119,6 +146,12 @@ class PlanConfig:
             peer_benchmarks_visible=5,
             marketing_assets_total=50,
             cost_per_session=1.00,
+            fair_usage=FairUsageLimits(
+                mentor_chat=2.00,  # $2/day for mentor chat
+                dataset_qa=1.00,  # $1/day for dataset Q&A
+                competitor_analysis=0.50,  # $0.50/day for competitor analysis
+                meeting=1.00,  # $1/meeting
+            ),
             features={
                 "meetings": True,
                 "datasets": True,
@@ -153,6 +186,12 @@ class PlanConfig:
             peer_benchmarks_visible=-1,  # Unlimited
             marketing_assets_total=500,
             cost_per_session=2.00,
+            fair_usage=FairUsageLimits(
+                mentor_chat=10.00,  # $10/day for mentor chat
+                dataset_qa=5.00,  # $5/day for dataset Q&A
+                competitor_analysis=2.00,  # $2/day for competitor analysis
+                meeting=2.00,  # $2/meeting
+            ),
             features={
                 "meetings": True,
                 "datasets": True,
@@ -187,6 +226,12 @@ class PlanConfig:
             peer_benchmarks_visible=-1,  # Unlimited
             marketing_assets_total=-1,  # Unlimited
             cost_per_session=10.00,
+            fair_usage=FairUsageLimits(
+                mentor_chat=-1.0,  # Unlimited
+                dataset_qa=-1.0,  # Unlimited
+                competitor_analysis=-1.0,  # Unlimited
+                meeting=-1.0,  # Unlimited per meeting
+            ),
             features={
                 "meetings": True,
                 "datasets": True,
@@ -444,3 +489,42 @@ class PlanConfig:
             if env_price and env_price == price_id:
                 return bundle.meetings
         return None
+
+    @classmethod
+    def get_fair_usage_limits(cls, tier: str) -> FairUsageLimits:
+        """Get fair usage limits for a tier.
+
+        Args:
+            tier: Subscription tier
+
+        Returns:
+            FairUsageLimits with daily cost caps per feature
+        """
+        config = cls.get_tier(tier)
+        return config.fair_usage
+
+    @classmethod
+    def get_fair_usage_limit(cls, tier: str, feature: str) -> float:
+        """Get fair usage daily limit for a specific feature.
+
+        Args:
+            tier: Subscription tier
+            feature: Feature name (mentor_chat, dataset_qa, competitor_analysis, meeting)
+
+        Returns:
+            Daily cost limit in USD (-1.0 for unlimited)
+        """
+        limits = cls.get_fair_usage_limits(tier)
+        return getattr(limits, feature, -1.0)
+
+    @classmethod
+    def is_fair_usage_unlimited(cls, limit: float) -> bool:
+        """Check if a fair usage limit is unlimited.
+
+        Args:
+            limit: Limit value
+
+        Returns:
+            True if limit is -1.0 (unlimited)
+        """
+        return limit < 0

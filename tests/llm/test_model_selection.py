@@ -43,14 +43,19 @@ class TestGetModelForPhaseDefault:
         result = get_model_for_phase("contribution", round_number=2)
         assert result == "fast"
 
-    def test_contribution_round_3_returns_core(self) -> None:
-        """Round 3 contributions use core tier by default (challenge phase)."""
+    def test_contribution_round_3_returns_fast(self) -> None:
+        """Round 3 contributions use fast tier by default."""
         result = get_model_for_phase("contribution", round_number=3)
-        assert result == "core"
+        assert result == "fast"
 
     def test_contribution_round_4_returns_core(self) -> None:
         """Round 4 contributions use core tier."""
         result = get_model_for_phase("contribution", round_number=4)
+        assert result == "core"
+
+    def test_contribution_round_5_returns_core(self) -> None:
+        """Round 5 contributions use core tier."""
+        result = get_model_for_phase("contribution", round_number=5)
         assert result == "core"
 
 
@@ -60,15 +65,14 @@ class TestGetModelForPhaseABDisabled:
     @patch.dict(os.environ, {"HAIKU_AB_TEST_ENABLED": "false"}, clear=False)
     def test_ignores_session_id_when_disabled(self) -> None:
         """Session ID is ignored when A/B test is disabled."""
-        # Clear any cached values
-        result = get_model_for_phase("contribution", round_number=3, session_id="test-session-123")
-        # Default limit is 2, so round 3 should use core
+        # Default limit is 3, so round 4 should use core
+        result = get_model_for_phase("contribution", round_number=4, session_id="test-session-123")
         assert result == "core"
 
     @patch.dict(os.environ, {"HAIKU_AB_TEST_ENABLED": ""}, clear=False)
     def test_empty_env_disables_ab_test(self) -> None:
         """Empty HAIKU_AB_TEST_ENABLED disables A/B testing."""
-        result = get_model_for_phase("contribution", round_number=3, session_id="test-session-123")
+        result = get_model_for_phase("contribution", round_number=4, session_id="test-session-123")
         assert result == "core"
 
 
@@ -79,7 +83,7 @@ class TestGetModelForPhaseABTestGroup:
         os.environ,
         {
             "HAIKU_AB_TEST_ENABLED": "true",
-            "HAIKU_AB_TEST_LIMIT": "3",
+            "HAIKU_AB_TEST_LIMIT": "4",
             "HAIKU_AB_TEST_PERCENTAGE": "50",
         },
         clear=False,
@@ -92,15 +96,15 @@ class TestGetModelForPhaseABTestGroup:
         ab_group = ModelSelectionConfig.get_ab_group(test_session)
 
         if ab_group == "test":
-            result = get_model_for_phase("contribution", round_number=3, session_id=test_session)
-            # Test group should use fast tier for round 3
+            result = get_model_for_phase("contribution", round_number=4, session_id=test_session)
+            # Test group should use fast tier for round 4
             assert result == "fast"
 
     @patch.dict(
         os.environ,
         {
             "HAIKU_AB_TEST_ENABLED": "true",
-            "HAIKU_AB_TEST_LIMIT": "3",
+            "HAIKU_AB_TEST_LIMIT": "4",
             "HAIKU_AB_TEST_PERCENTAGE": "50",
         },
         clear=False,
@@ -112,8 +116,8 @@ class TestGetModelForPhaseABTestGroup:
         ab_group = ModelSelectionConfig.get_ab_group(control_session)
 
         if ab_group == "control":
-            result = get_model_for_phase("contribution", round_number=3, session_id=control_session)
-            # Control group should use core tier for round 3
+            result = get_model_for_phase("contribution", round_number=4, session_id=control_session)
+            # Control group should use core tier for round 4
             assert result == "core"
 
 
@@ -205,9 +209,9 @@ class TestModelSelectionConfigEnvVars:
 
     @patch.dict(os.environ, {}, clear=True)
     def test_default_haiku_round_limit(self) -> None:
-        """Default HAIKU_ROUND_LIMIT is 2."""
+        """Default HAIKU_ROUND_LIMIT is 3."""
         result = ModelSelectionConfig.get_haiku_round_limit()
-        assert result == 2
+        assert result == 3
 
     @patch.dict(os.environ, {"HAIKU_AB_TEST_LIMIT": "5"}, clear=False)
     def test_custom_ab_test_limit(self) -> None:
@@ -217,9 +221,9 @@ class TestModelSelectionConfigEnvVars:
 
     @patch.dict(os.environ, {}, clear=True)
     def test_default_ab_test_limit(self) -> None:
-        """Default HAIKU_AB_TEST_LIMIT is 3."""
+        """Default HAIKU_AB_TEST_LIMIT is 4."""
         result = ModelSelectionConfig.get_ab_test_limit()
-        assert result == 3
+        assert result == 4
 
     @patch.dict(os.environ, {"HAIKU_AB_TEST_PERCENTAGE": "75"}, clear=False)
     def test_custom_ab_test_percentage(self) -> None:

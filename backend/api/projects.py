@@ -19,7 +19,7 @@ import logging
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
@@ -42,7 +42,7 @@ from backend.api.models import (
     SessionResponse,
     UnassignedCountResponse,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.pagination import make_page_pagination_fields
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.project_repository import ProjectRepository
@@ -186,10 +186,10 @@ async def get_project(
 
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
 
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     return _format_project_response(project)
 
@@ -212,9 +212,9 @@ async def update_project(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     # Parse dates if provided
     target_start = None
@@ -235,7 +235,7 @@ async def update_project(
     )
 
     if not updated:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
 
     return _format_project_response(updated)
 
@@ -256,7 +256,7 @@ async def delete_project(
 
     success = project_repository.delete(project_id, user_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
 
     return None
 
@@ -283,10 +283,10 @@ async def update_project_status(
             user_id=user_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from None
 
     if not updated:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
 
     return _format_project_response(updated)
 
@@ -316,10 +316,10 @@ async def create_project_version(
             user_id=user_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from None
 
     if not new_project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
 
     return _format_project_response(new_project)
 
@@ -349,9 +349,9 @@ async def get_project_actions(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     total, actions = project_repository.get_actions(
         project_id=project_id,
@@ -417,7 +417,7 @@ async def assign_action_to_project(
     )
 
     if not success:
-        raise HTTPException(status_code=404, detail="Action or project not found, or access denied")
+        raise http_error(ErrorCode.NOT_FOUND, "Action or project not found, or access denied", 404)
 
     return None
 
@@ -442,7 +442,7 @@ async def remove_action_from_project(
     )
 
     if not success:
-        raise HTTPException(status_code=404, detail="Action not found or access denied")
+        raise http_error(ErrorCode.NOT_FOUND, "Action not found or access denied", 404)
 
     return None
 
@@ -469,9 +469,9 @@ async def get_gantt_data(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     gantt_data = project_repository.get_gantt_data(project_id)
 
@@ -500,9 +500,9 @@ async def link_session_to_project(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     link = project_repository.link_session(
         project_id=project_id,
@@ -534,13 +534,13 @@ async def unlink_session_from_project(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     success = project_repository.unlink_session(project_id, session_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Session link not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Session link not found", 404)
 
     return None
 
@@ -560,9 +560,9 @@ async def get_project_sessions(
     # Verify ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     sessions = project_repository.get_sessions(project_id)
 
@@ -606,9 +606,9 @@ async def create_project_meeting(
     # Verify project ownership
     project = project_repository.get(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise http_error(ErrorCode.NOT_FOUND, "Project not found", 404)
     if project["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise http_error(ErrorCode.AUTH_ERROR, "Access denied", 403)
 
     # Build problem statement if not provided
     problem_statement = request.problem_statement
@@ -644,7 +644,7 @@ async def create_project_meeting(
     # Create session
     redis_manager = get_redis_manager()
     if not redis_manager.is_available:
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        raise http_error(ErrorCode.SERVICE_UNAVAILABLE, "Service temporarily unavailable", 503)
 
     # Generate session ID via Redis manager
     session_id = redis_manager.create_session()
@@ -658,7 +658,7 @@ async def create_project_meeting(
     )
 
     if not session:
-        raise HTTPException(status_code=500, detail="Failed to create session")
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to create session", 500)
 
     # Link session to project
     project_repository.link_session(

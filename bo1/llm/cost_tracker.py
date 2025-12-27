@@ -335,6 +335,9 @@ class CostRecord:
     # Valid values: persona_contribution, facilitator_decision, synthesis, decomposition,
     # context_collection, clarification, research_summary, task_extraction, embedding, search
     prompt_type: str | None = None
+    # Feature type for fair usage tracking
+    # Valid values: mentor_chat, dataset_qa, competitor_analysis, meeting
+    feature: str | None = None
 
     # Performance
     latency_ms: int | None = None
@@ -679,6 +682,7 @@ class CostTracker:
                 with conn.cursor() as cur:
                     # Build batch insert data
                     insert_data = []
+                    daily_aggregates: dict[tuple[str, str, str], tuple[float, int]] = {}
                     for record in to_flush:
                         request_id = record.metadata.get("request_id", str(uuid.uuid4()))
                         # Merge prompt_type into metadata for per-prompt-type cache analysis
@@ -715,8 +719,21 @@ class CostTracker:
                                 record.status,
                                 record.error_message,
                                 json.dumps(metadata),
+                                record.feature,  # Feature for fair usage tracking
                             )
                         )
+                        # Aggregate for daily_user_feature_costs upsert
+                        if record.user_id and record.feature:
+                            date_str = record.created_at.strftime("%Y-%m-%d")
+                            key = (record.user_id, record.feature, date_str)
+                            if key in daily_aggregates:
+                                existing_cost, existing_count = daily_aggregates[key]
+                                daily_aggregates[key] = (
+                                    existing_cost + record.total_cost,
+                                    existing_count + 1,
+                                )
+                            else:
+                                daily_aggregates[key] = (record.total_cost, 1)
 
                     # IDEMPOTENCY FIX: Use ON CONFLICT DO NOTHING to prevent double-tracking
                     # on graph retries. The api_costs table is partitioned by created_at, so the
@@ -733,7 +750,7 @@ class CostTracker:
                             input_cost, output_cost, cache_write_cost, cache_read_cost, total_cost,
                             optimization_type, cost_without_optimization,
                             latency_ms, status, error_message,
-                            metadata
+                            metadata, feature
                         ) VALUES (
                             %s, %s, %s, %s,
                             %s, %s, %s,
@@ -743,12 +760,32 @@ class CostTracker:
                             %s, %s, %s, %s, %s,
                             %s, %s,
                             %s, %s, %s,
-                            %s
+                            %s, %s
                         )
                         ON CONFLICT (request_id, created_at) DO NOTHING
                         """,
                         insert_data,
                     )
+
+                    # Upsert daily user feature costs for fair usage tracking
+                    if daily_aggregates:
+                        daily_upsert_data = [
+                            (user_id, feature, date, cost, count)
+                            for (user_id, feature, date), (cost, count) in daily_aggregates.items()
+                        ]
+                        cur.executemany(
+                            """
+                            INSERT INTO daily_user_feature_costs
+                                (user_id, feature, date, total_cost, request_count)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (user_id, feature, date)
+                            DO UPDATE SET
+                                total_cost = daily_user_feature_costs.total_cost + EXCLUDED.total_cost,
+                                request_count = daily_user_feature_costs.request_count + EXCLUDED.request_count,
+                                updated_at = NOW()
+                            """,
+                            daily_upsert_data,
+                        )
 
             # Record metrics on success
             flush_duration = time.perf_counter() - flush_start
@@ -1249,6 +1286,7 @@ class CostTracker:
         node_name: str | None = None,
         phase: str | None = None,
         prompt_type: str | None = None,
+        feature: str | None = None,
         **context: Any,
     ) -> Generator[CostRecord, None, None]:
         """Context manager to track an API call.
@@ -1267,6 +1305,8 @@ class CostTracker:
                 persona_contribution, facilitator_decision, synthesis, decomposition,
                 context_collection, clarification, research_summary, task_extraction,
                 embedding, search
+            feature: Feature type for fair usage tracking (optional). Valid values:
+                mentor_chat, dataset_qa, competitor_analysis, meeting
             **context: Additional context fields (persona_name, round_number, etc.)
 
         Yields:
@@ -1280,7 +1320,8 @@ class CostTracker:
             ...     session_id=session_id,
             ...     node_name="parallel_round_node",
             ...     phase="deliberation",
-            ...     prompt_type="persona_contribution"
+            ...     prompt_type="persona_contribution",
+            ...     feature="meeting"
             ... ) as record:
             ...     response = await client.call(...)
             ...     record.input_tokens = response.usage.input_tokens
@@ -1296,6 +1337,7 @@ class CostTracker:
             node_name=node_name,
             phase=phase,
             prompt_type=prompt_type,
+            feature=feature,
             persona_name=context.get("persona_name"),
             round_number=context.get("round_number"),
             sub_problem_index=context.get("sub_problem_index"),
@@ -1607,6 +1649,129 @@ class CostTracker:
             True if entry was invalidated, False if not cached
         """
         return _session_costs_cache.invalidate(session_id)
+
+    @classmethod
+    def get_cache_metrics(cls) -> dict[str, Any]:
+        """Get aggregated cache metrics across all cache systems.
+
+        Aggregates from:
+        - Prompt cache: Anthropic native cache (from api_costs table)
+        - Research cache: PostgreSQL semantic cache (from cache_repository)
+        - LLM cache: Redis deterministic cache (from get_llm_cache)
+
+        Returns:
+            Unified cache metrics dict:
+            {
+                "prompt": {"hit_rate": float, "hits": int, "misses": int, "total": int},
+                "research": {"hit_rate": float, "hits": int, "misses": int, "total": int},
+                "llm": {"hit_rate": float, "hits": int, "misses": int, "total": int},
+                "aggregate": {"hit_rate": float, "total_hits": int, "total_requests": int}
+            }
+        """
+        result: dict[str, Any] = {
+            "prompt": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
+            "research": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
+            "llm": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
+            "aggregate": {"hit_rate": 0.0, "total_hits": 0, "total_requests": 0},
+        }
+
+        # 1. Prompt cache (Anthropic native) - query from api_costs (24h window)
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT
+                            COUNT(*) FILTER (WHERE cache_hit = true) as hits,
+                            COUNT(*) FILTER (WHERE cache_hit = false) as misses,
+                            COUNT(*) as total
+                        FROM api_costs
+                        WHERE provider = 'anthropic'
+                          AND created_at >= NOW() - INTERVAL '24 hours'
+                        """
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        hits = row[0] or 0
+                        misses = row[1] or 0
+                        total = row[2] or 0
+                        result["prompt"] = {
+                            "hit_rate": hits / total if total > 0 else 0.0,
+                            "hits": hits,
+                            "misses": misses,
+                            "total": total,
+                        }
+        except Exception as e:
+            logger.debug(f"Failed to get prompt cache metrics: {e}")
+
+        # 2. Research cache (PostgreSQL semantic)
+        try:
+            from bo1.state.repositories.cache_repository import cache_repository
+
+            research_stats = cache_repository.get_hit_rate_metrics(1)  # 1 day
+            hits = research_stats.get("cache_hits", 0)
+            total = research_stats.get("total_queries", 0)
+            misses = total - hits
+            result["research"] = {
+                "hit_rate": hits / total if total > 0 else 0.0,
+                "hits": hits,
+                "misses": misses,
+                "total": total,
+            }
+        except Exception as e:
+            logger.debug(f"Failed to get research cache metrics: {e}")
+
+        # 3. LLM cache (Redis deterministic)
+        try:
+            from bo1.llm.cache import get_llm_cache
+
+            llm_cache = get_llm_cache()
+            llm_stats = llm_cache.get_stats()
+            hits = llm_stats.get("hits", 0)
+            misses = llm_stats.get("misses", 0)
+            total = hits + misses
+            result["llm"] = {
+                "hit_rate": llm_stats.get("hit_rate", 0.0),
+                "hits": hits,
+                "misses": misses,
+                "total": total,
+            }
+        except Exception as e:
+            logger.debug(f"Failed to get LLM cache metrics: {e}")
+
+        # Aggregate
+        total_hits = result["prompt"]["hits"] + result["research"]["hits"] + result["llm"]["hits"]
+        total_requests = (
+            result["prompt"]["total"] + result["research"]["total"] + result["llm"]["total"]
+        )
+        result["aggregate"] = {
+            "hit_rate": total_hits / total_requests if total_requests > 0 else 0.0,
+            "total_hits": total_hits,
+            "total_requests": total_requests,
+        }
+
+        # Emit Prometheus gauge updates
+        cls._emit_cache_rate_gauges(result)
+
+        return result
+
+    @staticmethod
+    def _emit_cache_rate_gauges(metrics: dict[str, Any]) -> None:
+        """Emit Prometheus gauge values for cache hit rates.
+
+        Args:
+            metrics: Cache metrics dict from get_cache_metrics()
+        """
+        try:
+            from backend.api.metrics import prom_metrics
+
+            for cache_type in ("prompt", "research", "llm"):
+                if cache_type in metrics:
+                    prom_metrics.update_cache_hit_rate(cache_type, metrics[cache_type]["hit_rate"])
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit cache rate gauges: {e}")
 
     @staticmethod
     def get_subproblem_costs(session_id: str) -> list[dict[str, Any]]:

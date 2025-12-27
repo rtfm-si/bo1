@@ -10,7 +10,8 @@
 		TrendingUp,
 		PieChart,
 		Server,
-		Plus
+		Plus,
+		Zap
 	} from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
@@ -21,7 +22,8 @@
 		type DailyCostsResponse,
 		type CostsByProviderResponse,
 		type FixedCostsResponse,
-		type PerUserCostResponse
+		type PerUserCostResponse,
+		type UnifiedCacheMetricsResponse
 	} from '$lib/api/admin';
 
 	// State
@@ -31,6 +33,7 @@
 	let providerCosts = $state<CostsByProviderResponse | null>(null);
 	let fixedCosts = $state<FixedCostsResponse | null>(null);
 	let perUserCosts = $state<PerUserCostResponse | null>(null);
+	let cacheMetrics = $state<UnifiedCacheMetricsResponse | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let activeTab = $state<'overview' | 'providers' | 'fixed'>('overview');
@@ -50,14 +53,15 @@
 	async function loadData() {
 		try {
 			loading = true;
-			const [summaryData, usersData, dailyData, providerData, fixedData, perUserData] =
+			const [summaryData, usersData, dailyData, providerData, fixedData, perUserData, cacheData] =
 				await Promise.all([
 					adminApi.getCostSummary(),
 					adminApi.getUserCosts({ limit: 10 }),
 					adminApi.getDailyCosts(),
 					adminApi.getCostsByProvider(30),
 					adminApi.getFixedCosts(),
-					adminApi.getPerUserCosts({ days: 30, limit: 20 })
+					adminApi.getPerUserCosts({ days: 30, limit: 20 }),
+					adminApi.getUnifiedCacheMetrics().catch(() => null)
 				]);
 			summary = summaryData;
 			userCosts = usersData;
@@ -65,6 +69,7 @@
 			providerCosts = providerData;
 			fixedCosts = fixedData;
 			perUserCosts = perUserData;
+			cacheMetrics = cacheData;
 			error = null;
 
 			// Calculate max for chart scaling
@@ -76,6 +81,10 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function formatPercent(value: number): string {
+		return `${(value * 100).toFixed(1)}%`;
 	}
 
 	async function seedFixedCosts() {
@@ -308,6 +317,66 @@
 							</p>
 							<p class="text-sm text-neutral-500">
 								{perUserCosts.total_users} active users (30d)
+							</p>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Cache Performance Card -->
+			{#if cacheMetrics}
+				<div
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-8"
+				>
+					<div class="flex items-center gap-3 mb-4">
+						<Zap class="w-5 h-5 text-amber-500" />
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-white">
+							Cache Performance (24h)
+						</h3>
+					</div>
+
+					<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+						<!-- Prompt Cache -->
+						<div class="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+							<p class="text-xs text-neutral-500 mb-1">Prompt Cache</p>
+							<p class="text-xl font-semibold text-orange-600 dark:text-orange-400">
+								{formatPercent(cacheMetrics.prompt.hit_rate)}
+							</p>
+							<p class="text-xs text-neutral-500 mt-1">
+								{cacheMetrics.prompt.hits.toLocaleString()} / {cacheMetrics.prompt.total.toLocaleString()}
+							</p>
+						</div>
+
+						<!-- Research Cache -->
+						<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+							<p class="text-xs text-neutral-500 mb-1">Research Cache</p>
+							<p class="text-xl font-semibold text-blue-600 dark:text-blue-400">
+								{formatPercent(cacheMetrics.research.hit_rate)}
+							</p>
+							<p class="text-xs text-neutral-500 mt-1">
+								{cacheMetrics.research.hits.toLocaleString()} / {cacheMetrics.research.total.toLocaleString()}
+							</p>
+						</div>
+
+						<!-- LLM Cache -->
+						<div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+							<p class="text-xs text-neutral-500 mb-1">LLM Cache</p>
+							<p class="text-xl font-semibold text-green-600 dark:text-green-400">
+								{formatPercent(cacheMetrics.llm.hit_rate)}
+							</p>
+							<p class="text-xs text-neutral-500 mt-1">
+								{cacheMetrics.llm.hits.toLocaleString()} / {cacheMetrics.llm.total.toLocaleString()}
+							</p>
+						</div>
+
+						<!-- Aggregate -->
+						<div class="p-4 bg-brand-50 dark:bg-brand-900/20 rounded-lg">
+							<p class="text-xs text-neutral-500 mb-1">Aggregate</p>
+							<p class="text-xl font-semibold text-brand-600 dark:text-brand-400">
+								{formatPercent(cacheMetrics.aggregate.hit_rate)}
+							</p>
+							<p class="text-xs text-neutral-500 mt-1">
+								{cacheMetrics.aggregate.total_hits.toLocaleString()} / {cacheMetrics.aggregate.total_requests.toLocaleString()}
 							</p>
 						</div>
 					</div>

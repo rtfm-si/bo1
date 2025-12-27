@@ -19,12 +19,13 @@ from backend.api.middleware.rate_limit import (
     SEO_GENERATE_RATE_LIMIT,
     limiter,
 )
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors
 from bo1.agents.researcher import ResearcherAgent
 from bo1.billing import PlanConfig
-from bo1.logging.errors import ErrorCode  # noqa: F401
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -405,7 +406,9 @@ async def _perform_trend_analysis(
 # =============================================================================
 
 
-@router.post("/analyze-trends", response_model=TrendAnalysisResponse)
+@router.post(
+    "/analyze-trends", response_model=TrendAnalysisResponse, responses={429: RATE_LIMIT_RESPONSE}
+)
 @handle_api_errors("analyze trends")
 @limiter.limit(SEO_ANALYZE_RATE_LIMIT)
 async def analyze_trends(
@@ -819,7 +822,12 @@ def _get_monthly_article_usage(user_id: str) -> int:
 # =============================================================================
 
 
-@router.post("/topics/{topic_id}/generate", response_model=SeoBlogArticle, status_code=201)
+@router.post(
+    "/topics/{topic_id}/generate",
+    response_model=SeoBlogArticle,
+    status_code=201,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
 @handle_api_errors("generate article")
 @limiter.limit(SEO_GENERATE_RATE_LIMIT)
 async def generate_article(
@@ -880,7 +888,13 @@ async def generate_article(
     try:
         blog_content = await generate_blog_post(keyword, [keyword])
     except ValueError as e:
-        logger.error(f"Blog generation failed for topic {topic_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.LLM_API_ERROR,
+            f"Blog generation failed for topic {topic_id}",
+            topic_id=topic_id,
+            error=str(e),
+        )
         raise HTTPException(status_code=500, detail=f"Article generation failed: {e}") from e
 
     # Get workspace ID if in workspace context
@@ -1284,7 +1298,12 @@ class ArticleAnalyticsListResponse(BaseModel):
 SEO_EVENT_RATE_LIMIT = "30/minute"
 
 
-@router.post("/articles/{article_id}/events", status_code=201, response_model=None)
+@router.post(
+    "/articles/{article_id}/events",
+    status_code=201,
+    response_model=None,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
 @handle_api_errors("record article event")
 @limiter.limit(SEO_EVENT_RATE_LIMIT)
 async def record_article_event(
@@ -1869,7 +1888,9 @@ async def reject_article(
 SEO_UPLOAD_RATE_LIMIT = "10/minute"
 
 
-@router.post("/assets", response_model=MarketingAsset, status_code=201)
+@router.post(
+    "/assets", response_model=MarketingAsset, status_code=201, responses={429: RATE_LIMIT_RESPONSE}
+)
 @handle_api_errors("upload asset")
 @limiter.limit(SEO_UPLOAD_RATE_LIMIT)
 async def upload_asset(
@@ -2022,6 +2043,69 @@ async def list_assets(
     )
 
 
+@router.get("/assets/suggest", response_model=AssetSuggestionsResponse)
+@handle_api_errors("suggest assets")
+async def suggest_assets_for_article(
+    request: Request,
+    article_id: int = Query(..., description="Article ID to get suggestions for"),
+    user: dict = Depends(get_current_user),
+) -> AssetSuggestionsResponse:
+    """Get suggested assets for an article based on keyword matching.
+
+    Analyzes article title and content to find matching assets from the collateral bank.
+    """
+    from backend.services import marketing_assets as asset_service
+
+    user_id = extract_user_id(user)
+
+    # Get article to extract keywords
+    with db_session() as session:
+        result = session.execute(
+            text("""
+                SELECT a.title, a.content, t.keyword
+                FROM seo_blog_articles a
+                LEFT JOIN seo_topics t ON a.topic_id = t.id
+                WHERE a.id = :id AND a.user_id = :user_id
+            """),
+            {"id": article_id, "user_id": user_id},
+        )
+        row = result.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        title, content, topic_keyword = row
+
+    # Extract keywords from title and topic
+    keywords = []
+    if topic_keyword:
+        keywords.append(topic_keyword)
+    if title:
+        # Simple keyword extraction from title
+        title_words = [w.lower() for w in title.split() if len(w) > 3]
+        keywords.extend(title_words[:10])
+
+    if not keywords:
+        return AssetSuggestionsResponse(suggestions=[], article_keywords=[])
+
+    # Get suggestions
+    suggestions = asset_service.suggest_for_article(user_id, keywords, limit=5)
+
+    return AssetSuggestionsResponse(
+        suggestions=[
+            AssetSuggestion(
+                id=s.asset.id,
+                title=s.asset.title,
+                cdn_url=s.asset.cdn_url,
+                asset_type=s.asset.asset_type,
+                relevance_score=s.relevance_score,
+                matching_tags=s.matching_tags,
+            )
+            for s in suggestions
+        ],
+        article_keywords=keywords,
+    )
+
+
 @router.get("/assets/{asset_id}", response_model=MarketingAsset)
 @handle_api_errors("get asset")
 async def get_asset(
@@ -2095,69 +2179,6 @@ async def update_asset(
         mime_type=record.mime_type,
         created_at=record.created_at,
         updated_at=record.updated_at,
-    )
-
-
-@router.get("/assets/suggest", response_model=AssetSuggestionsResponse)
-@handle_api_errors("suggest assets")
-async def suggest_assets_for_article(
-    request: Request,
-    article_id: int = Query(..., description="Article ID to get suggestions for"),
-    user: dict = Depends(get_current_user),
-) -> AssetSuggestionsResponse:
-    """Get suggested assets for an article based on keyword matching.
-
-    Analyzes article title and content to find matching assets from the collateral bank.
-    """
-    from backend.services import marketing_assets as asset_service
-
-    user_id = extract_user_id(user)
-
-    # Get article to extract keywords
-    with db_session() as session:
-        result = session.execute(
-            text("""
-                SELECT a.title, a.content, t.keyword
-                FROM seo_blog_articles a
-                LEFT JOIN seo_topics t ON a.topic_id = t.id
-                WHERE a.id = :id AND a.user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        title, content, topic_keyword = row
-
-    # Extract keywords from title and topic
-    keywords = []
-    if topic_keyword:
-        keywords.append(topic_keyword)
-    if title:
-        # Simple keyword extraction from title
-        title_words = [w.lower() for w in title.split() if len(w) > 3]
-        keywords.extend(title_words[:10])
-
-    if not keywords:
-        return AssetSuggestionsResponse(suggestions=[], article_keywords=[])
-
-    # Get suggestions
-    suggestions = asset_service.suggest_for_article(user_id, keywords, limit=5)
-
-    return AssetSuggestionsResponse(
-        suggestions=[
-            AssetSuggestion(
-                id=s.asset.id,
-                title=s.asset.title,
-                cdn_url=s.asset.cdn_url,
-                asset_type=s.asset.asset_type,
-                relevance_score=s.relevance_score,
-                matching_tags=s.matching_tags,
-            )
-            for s in suggestions
-        ],
-        article_keywords=keywords,
     )
 
 

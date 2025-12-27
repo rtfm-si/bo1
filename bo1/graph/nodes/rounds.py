@@ -25,7 +25,14 @@ from bo1.graph.nodes.utils import (
     phase_prompt_short,
 )
 from bo1.graph.quality.stopping_rules import update_stalled_disagreement_counter
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_discussion_state,
+    get_participant_state,
+    get_phase_state,
+    get_problem_state,
+    get_research_state,
+)
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
@@ -102,8 +109,14 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     dlog = get_deliberation_logger(session_id, user_id, "initial_round_node")
     dlog.info("Starting initial round")
 
+    # Use nested state accessors for grouped field access
+    discussion_state = get_discussion_state(state)
+    participant_state = get_participant_state(state)
+    phase_state = get_phase_state(state)
+    problem_state = get_problem_state(state)
+
     # GUARD: Check if round 1 already has contributions (prevents double-contribution bug)
-    existing_contributions = state.get("contributions", [])
+    existing_contributions = discussion_state.get("contributions", [])
     round_contributions = []
     for c in existing_contributions:
         c_round = (
@@ -127,11 +140,11 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             "phase": DeliberationPhase.DISCUSSION,
         }
 
-    # Get personas and sub-problem results
-    personas = state.get("personas", [])
-    sub_problem_results = state.get("sub_problem_results", [])
-    max_rounds = state.get("max_rounds", 6)
-    problem = state.get("problem")
+    # Get personas and sub-problem results from accessors
+    personas = participant_state.get("personas", [])
+    sub_problem_results = problem_state.get("sub_problem_results", [])
+    max_rounds = phase_state.get("max_rounds", 6)
+    problem = problem_state.get("problem")
 
     # Build cross-sub-problem memories for experts
     expert_memories = _build_cross_subproblem_memories(personas, sub_problem_results)
@@ -344,9 +357,16 @@ async def _generate_parallel_contributions(
     from bo1.orchestration.deliberation import DeliberationEngine
 
     engine = DeliberationEngine(state=state)
-    problem = state.get("problem")
-    contributions = state.get("contributions", [])
-    personas = state.get("personas", [])
+
+    # Use nested state accessors for grouped field access
+    problem_state = get_problem_state(state)
+    discussion_state = get_discussion_state(state)
+    participant_state = get_participant_state(state)
+    research_state = get_research_state(state)
+
+    problem = problem_state.get("problem")
+    contributions = discussion_state.get("contributions", [])
+    personas = participant_state.get("personas", [])
     participant_list = ", ".join([p.name for p in personas])
     speaker_prompt = get_phase_prompt(phase, round_number)
 
@@ -355,10 +375,10 @@ async def _generate_parallel_contributions(
         ContributionType.INITIAL if contribution_type == "initial" else ContributionType.RESPONSE
     )
 
-    # Build context
-    sub_problem_results = state.get("sub_problem_results", [])
-    current_sub_problem_raw = state.get("current_sub_problem")
-    research_results = state.get("research_results", [])
+    # Build context from accessors
+    sub_problem_results = problem_state.get("sub_problem_results", [])
+    current_sub_problem_raw = problem_state.get("current_sub_problem")
+    research_results = research_state.get("research_results", [])
 
     # Validate current_sub_problem - may be dict after checkpoint restore
     current_sub_problem = None
@@ -743,18 +763,23 @@ def _build_round_state_update(
     """
     from bo1.llm.response_parser import ResponseParser
 
+    # Use nested state accessors for grouped field access
+    discussion_state = get_discussion_state(state)
+    participant_state = get_participant_state(state)
+    research_state = get_research_state(state)
+
     # Update contributions
-    all_contributions = list(state.get("contributions", []))
+    all_contributions = list(discussion_state.get("contributions", []))
     all_contributions.extend(filtered_contributions)
 
     # Track which experts contributed this round
-    experts_per_round = list(state.get("experts_per_round", []))
+    experts_per_round = list(participant_state.get("experts_per_round", []))
     round_experts = [c.persona_code for c in filtered_contributions]
     experts_per_round.append(round_experts)
 
     next_round = round_number + 1
 
-    # NEW: Count meta-discussion contributions for context sufficiency detection
+    # Count meta-discussion contributions for context sufficiency detection
     meta_discussion_count = state.get("meta_discussion_count", 0)
     total_contributions_checked = state.get("total_contributions_checked", 0)
 
@@ -772,7 +797,7 @@ def _build_round_state_update(
     consecutive_research_without_improvement = state.get(
         "consecutive_research_without_improvement", 0
     )
-    research_results = state.get("research_results", [])
+    research_results = research_state.get("research_results", [])
 
     if total_contributions_checked > 0:
         meta_ratio = meta_discussion_count / total_contributions_checked
@@ -866,12 +891,16 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     dlog = get_deliberation_logger(session_id, user_id, "parallel_round_node")
     dlog.info("Starting parallel round with multiple experts")
 
-    # Get current round and phase
-    round_number = state.get("round_number", 1)
+    # Use nested state accessors for grouped field access
+    phase_state = get_phase_state(state)
+    discussion_state = get_discussion_state(state)
+
+    # Get current round and phase from accessor
+    round_number = phase_state.get("round_number", 1)
 
     # GUARD: Check if this round already has contributions (prevents double-contribution bug)
     # This can happen due to graph retries or checkpoint edge cases
-    existing_contributions = state.get("contributions", [])
+    existing_contributions = discussion_state.get("contributions", [])
     round_contributions = []
     for c in existing_contributions:
         # Handle both ContributionMessage objects and dicts (from checkpoint deserialization)
@@ -896,7 +925,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             "round_number": round_number + 1,
             "current_node": "parallel_round_skipped",
         }
-    max_rounds = state.get("max_rounds", 6)
+    max_rounds = phase_state.get("max_rounds", 6)
     current_phase = _determine_phase(round_number, max_rounds)
     dlog.info(
         "Round phase determined",
@@ -925,8 +954,9 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Apply semantic deduplication
     filtered_contributions = await _apply_semantic_deduplication(contributions)
 
-    # Get problem context (handle dict from checkpoint deserialization)
-    problem = state.get("problem")
+    # Get problem context using accessor (handle dict from checkpoint deserialization)
+    problem_state = get_problem_state(state)
+    problem = problem_state.get("problem")
     problem_description = get_problem_description(problem)
     problem_context = problem_description or "No problem context available"
     problem_statement = problem_description or None

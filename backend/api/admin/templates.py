@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.api.middleware.auth import require_admin
+from backend.api.middleware.admin import require_admin_any
 from backend.api.models import (
     MeetingTemplate,
     MeetingTemplateCreate,
@@ -56,7 +56,7 @@ def _format_template_response(template: dict[str, Any]) -> MeetingTemplate:
         200: {"description": "Templates retrieved successfully"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("list templates admin")
 async def list_templates_admin(
@@ -92,7 +92,7 @@ async def list_templates_admin(
         400: {"description": "Slug already exists"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("create template")
 async def create_template(
@@ -146,7 +146,7 @@ async def create_template(
         404: {"description": "Template not found"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("update template")
 async def update_template(
@@ -190,7 +190,7 @@ async def update_template(
         404: {"description": "Template not found"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("delete template")
 async def delete_template(
@@ -239,7 +239,7 @@ async def delete_template(
         404: {"description": "Template not found"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("activate template")
 async def activate_template(
@@ -270,7 +270,7 @@ async def activate_template(
         200: {"description": "Stats retrieved successfully"},
         403: {"description": "Admin access required"},
     },
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @handle_api_errors("get template stats")
 async def get_template_stats() -> dict[str, Any]:

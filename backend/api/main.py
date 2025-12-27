@@ -84,9 +84,9 @@ from backend.api import (  # noqa: E402
     workspaces,
 )
 from backend.api.integrations import calendar_router  # noqa: E402
+from backend.api.middleware.admin import require_admin_any  # noqa: E402
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware  # noqa: E402
 from backend.api.middleware.audit_logging import AuditLoggingMiddleware  # noqa: E402
-from backend.api.middleware.auth import require_admin  # noqa: E402
 from backend.api.middleware.correlation_id import CorrelationIdMiddleware  # noqa: E402
 from backend.api.middleware.csrf import CSRFMiddleware  # noqa: E402
 from backend.api.middleware.degraded_mode import DegradedModeMiddleware  # noqa: E402
@@ -887,7 +887,7 @@ async def api_version() -> dict[str, str]:
 
 
 @app.get("/admin/info")
-async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+async def admin_info(user: dict[str, Any] = Depends(require_admin_any)) -> dict[str, Any]:
     """Admin-only API information endpoint.
 
     Args:
@@ -916,7 +916,7 @@ async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str,
 
 
 @app.get("/api/v1/docs", response_class=HTMLResponse, include_in_schema=False)
-async def api_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+async def api_docs(user: dict[str, Any] = Depends(require_admin_any)) -> HTMLResponse:
     """Admin-only Swagger UI documentation.
 
     Args:
@@ -933,7 +933,7 @@ async def api_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLRespons
 
 
 @app.get("/api/v1/redoc", response_class=HTMLResponse, include_in_schema=False)
-async def api_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+async def api_redoc(user: dict[str, Any] = Depends(require_admin_any)) -> HTMLResponse:
     """Admin-only ReDoc documentation.
 
     Args:
@@ -1010,7 +1010,7 @@ app.openapi = custom_openapi  # type: ignore[method-assign]
 
 
 @app.get("/api/v1/openapi.json", include_in_schema=False)
-async def api_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+async def api_openapi(user: dict[str, Any] = Depends(require_admin_any)) -> dict[str, Any]:
     """Admin-only OpenAPI specification with version metadata.
 
     Args:

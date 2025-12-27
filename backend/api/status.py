@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from backend.api.middleware.auth import require_admin
+from backend.api.middleware.admin import require_admin_any
 from backend.services.service_monitor import (
     get_detailed_status,
     get_system_status,
@@ -193,7 +193,7 @@ async def get_public_status() -> PublicStatusResponse:
     - Recent incidents (last 24h)
     """,
     tags=["admin"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 async def get_admin_status() -> AdminStatusResponse:
     """Get detailed service status for admin dashboard.

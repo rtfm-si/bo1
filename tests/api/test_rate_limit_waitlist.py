@@ -119,21 +119,23 @@ class TestWaitlistEndpointSignatures:
     """Test that waitlist endpoints have correct signatures for rate limiting."""
 
     def test_add_to_waitlist_has_request_param(self):
-        """add_to_waitlist should have http_request param for rate limiting."""
+        """add_to_waitlist should have request param for rate limiting (slowapi requirement)."""
         import inspect
 
         from backend.api.waitlist import add_to_waitlist
 
         sig = inspect.signature(add_to_waitlist)
         param_names = list(sig.parameters.keys())
-        assert "http_request" in param_names
+        # slowapi requires first param to be named 'request' (not 'http_request')
+        assert "request" in param_names
 
     def test_check_whitelist_has_request_param(self):
-        """check_whitelist should have http_request param for rate limiting."""
+        """check_whitelist should have request param for rate limiting (slowapi requirement)."""
         import inspect
 
         from backend.api.waitlist import check_whitelist
 
         sig = inspect.signature(check_whitelist)
         param_names = list(sig.parameters.keys())
-        assert "http_request" in param_names
+        # slowapi requires first param to be named 'request' (not 'http_request')
+        assert "request" in param_names

@@ -85,13 +85,13 @@ def is_whitelisted(email: str) -> bool:
 @limiter.limit(RateLimits.WAITLIST)
 @handle_api_errors("add to waitlist")
 async def add_to_waitlist(
-    http_request: Request, request: WaitlistRequest, background_tasks: BackgroundTasks
+    request: Request, body: WaitlistRequest, background_tasks: BackgroundTasks
 ) -> WaitlistResponse:
     """Add email to waitlist.
 
     Args:
-        http_request: FastAPI request object (used for rate limiting)
-        request: Waitlist signup request with email
+        request: FastAPI request object (used for rate limiting)
+        body: Waitlist signup request with email
         background_tasks: FastAPI background tasks for async notifications
 
     Returns:
@@ -100,7 +100,7 @@ async def add_to_waitlist(
     Raises:
         HTTPException: If database operation fails
     """
-    email = request.email.lower()  # Normalize email
+    email = body.email.lower()  # Normalize email
 
     # Validate email format
     if not is_valid_email(email):
@@ -160,16 +160,14 @@ async def add_to_waitlist(
 )
 @limiter.limit(RateLimits.WAITLIST)
 @handle_api_errors("check whitelist")
-async def check_whitelist(
-    http_request: Request, request: WaitlistRequest
-) -> WhitelistCheckResponse:
+async def check_whitelist(request: Request, body: WaitlistRequest) -> WhitelistCheckResponse:
     """Check if email is whitelisted for closed beta.
 
     Args:
-        http_request: FastAPI request object (used for rate limiting)
-        request: Request with email to check
+        request: FastAPI request object (used for rate limiting)
+        body: Request with email to check
 
     Returns:
         WhitelistCheckResponse with is_whitelisted boolean
     """
-    return WhitelistCheckResponse(is_whitelisted=is_whitelisted(request.email.lower()))
+    return WhitelistCheckResponse(is_whitelisted=is_whitelisted(body.email.lower()))

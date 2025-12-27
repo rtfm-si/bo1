@@ -24,7 +24,13 @@ USE_MOCK_TOPIC_DISCOVERY = os.getenv("USE_MOCK_TOPIC_DISCOVERY", "").lower() == 
 class TopicDiscoveryError(Exception):
     """Raised when topic discovery fails."""
 
-    def __init__(self, message: str, error_type: str = "unknown"):
+    def __init__(self, message: str, error_type: str = "unknown") -> None:
+        """Initialize TopicDiscoveryError.
+
+        Args:
+            message: Error message
+            error_type: Type of error (rate_limit, parse_error, unknown)
+        """
         super().__init__(message)
         self.error_type = error_type
 

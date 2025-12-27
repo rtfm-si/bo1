@@ -202,7 +202,7 @@ class SEOAutopilotService:
     3. Queue for review or auto-publish based on config
     """
 
-    def __init__(self, user_id: str, workspace_id: str | None = None):
+    def __init__(self, user_id: str, workspace_id: str | None = None) -> None:
         """Initialize autopilot service.
 
         Args:

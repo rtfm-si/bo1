@@ -6792,6 +6792,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seo/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Assets
+         * @description List user's marketing assets with optional filtering.
+         *
+         *     Supports filtering by asset type, tags, and text search.
+         */
+        get: operations["list_assets_api_v1_seo_assets_get"];
+        put?: never;
+        /**
+         * Upload Asset
+         * @description Upload a marketing asset to the collateral bank.
+         *
+         *     Accepts multipart form data with file and metadata.
+         *     Validates file type (png, jpg, gif, webp, svg, mp4, webm) and size (max 10MB images, 50MB video).
+         *
+         *     Rate limited to 10 uploads per minute.
+         *     Tier limits: free=10 total, starter=50, pro=500, enterprise=unlimited.
+         */
+        post: operations["upload_asset_api_v1_seo_assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/assets/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Assets For Article
+         * @description Get suggested assets for an article based on keyword matching.
+         *
+         *     Analyzes article title and content to find matching assets from the collateral bank.
+         */
+        get: operations["suggest_assets_for_article_api_v1_seo_assets_suggest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Asset
+         * @description Get a single marketing asset by ID.
+         */
+        get: operations["get_asset_api_v1_seo_assets__asset_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Asset
+         * @description Delete a marketing asset.
+         *
+         *     Removes the asset from storage and database.
+         */
+        delete: operations["delete_asset_api_v1_seo_assets__asset_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Asset
+         * @description Update marketing asset metadata.
+         *
+         *     Can update title, description, and tags.
+         */
+        patch: operations["update_asset_api_v1_seo_assets__asset_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/seo/autopilot/articles/{article_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Article
+         * @description Approve a pending article for publishing.
+         *
+         *     Changes status from 'pending_review' to 'published'.
+         */
+        post: operations["approve_article_api_v1_seo_autopilot_articles__article_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/autopilot/articles/{article_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Article
+         * @description Reject a pending article.
+         *
+         *     Changes status from 'pending_review' to 'rejected'.
+         */
+        post: operations["reject_article_api_v1_seo_autopilot_articles__article_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/autopilot/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Autopilot Config
+         * @description Get current SEO autopilot configuration.
+         *
+         *     Returns autopilot settings and status (next run, articles this week, pending).
+         */
+        get: operations["get_autopilot_config_api_v1_seo_autopilot_config_get"];
+        /**
+         * Update Autopilot Config
+         * @description Update SEO autopilot configuration.
+         *
+         *     Configure automated topic discovery and article generation settings.
+         */
+        put: operations["update_autopilot_config_api_v1_seo_autopilot_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/autopilot/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pending Articles
+         * @description Get articles pending review from autopilot.
+         *
+         *     Returns all articles with status 'pending_review'.
+         */
+        get: operations["get_pending_articles_api_v1_seo_autopilot_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seo/history": {
         parameters: {
             query?: never;
@@ -10803,6 +10983,58 @@ export interface components {
              * @description Question about the dataset
              */
             question: string;
+        };
+        /**
+         * AssetSuggestion
+         * @description A suggested asset for article content.
+         */
+        AssetSuggestion: {
+            /**
+             * Asset Type
+             * @description Asset type
+             */
+            asset_type: string;
+            /**
+             * Cdn Url
+             * @description CDN URL for embedding
+             */
+            cdn_url: string;
+            /**
+             * Id
+             * @description Asset ID
+             */
+            id: number;
+            /**
+             * Matching Tags
+             * @description Tags that matched
+             */
+            matching_tags?: string[];
+            /**
+             * Relevance Score
+             * @description Relevance to article keywords
+             */
+            relevance_score: number;
+            /**
+             * Title
+             * @description Asset title
+             */
+            title: string;
+        };
+        /**
+         * AssetSuggestionsResponse
+         * @description Response containing suggested assets for an article.
+         */
+        AssetSuggestionsResponse: {
+            /**
+             * Article Keywords
+             * @description Keywords used for matching
+             */
+            article_keywords?: string[];
+            /**
+             * Suggestions
+             * @description Suggested assets
+             */
+            suggestions?: components["schemas"]["AssetSuggestion"][];
         };
         /**
          * AutogenCreateRequest
@@ -17929,6 +18161,111 @@ export interface components {
             trend: string;
         };
         /**
+         * MarketingAsset
+         * @description A marketing asset in the collateral bank.
+         */
+        MarketingAsset: {
+            /**
+             * Asset Type
+             * @description Asset type: image, animation, concept, template
+             */
+            asset_type: string;
+            /**
+             * Cdn Url
+             * @description CDN URL for embedding
+             */
+            cdn_url: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When asset was uploaded
+             */
+            created_at: string;
+            /**
+             * Description
+             * @description Optional description
+             */
+            description?: string | null;
+            /**
+             * File Size
+             * @description File size in bytes
+             */
+            file_size: number;
+            /**
+             * Filename
+             * @description Original filename
+             */
+            filename: string;
+            /**
+             * Id
+             * @description Asset ID
+             */
+            id: number;
+            /**
+             * Mime Type
+             * @description MIME type
+             */
+            mime_type: string;
+            /**
+             * Tags
+             * @description Tags for search
+             */
+            tags?: string[];
+            /**
+             * Title
+             * @description User-friendly title
+             */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When asset was last updated
+             */
+            updated_at: string;
+        };
+        /**
+         * MarketingAssetListResponse
+         * @description Response containing list of marketing assets.
+         */
+        MarketingAssetListResponse: {
+            /**
+             * Assets
+             * @description User's assets
+             */
+            assets?: components["schemas"]["MarketingAsset"][];
+            /**
+             * Remaining
+             * @description Remaining asset slots (-1 for unlimited)
+             */
+            remaining: number;
+            /**
+             * Total
+             * @description Total number of assets
+             */
+            total: number;
+        };
+        /**
+         * MarketingAssetUpdate
+         * @description Request to update a marketing asset.
+         */
+        MarketingAssetUpdate: {
+            /**
+             * Description
+             * @description Updated description
+             */
+            description?: string | null;
+            /**
+             * Tags
+             * @description Updated tags
+             */
+            tags?: string[] | null;
+            /**
+             * Title
+             * @description Updated title
+             */
+            title?: string | null;
+        };
+        /**
          * MeetingCostResponse
          * @description Cost breakdown for a single meeting/session.
          */
@@ -19128,6 +19465,55 @@ export interface components {
              * @description User's current value
              */
             user_value?: number | null;
+        };
+        /**
+         * PendingArticle
+         * @description An article pending review from autopilot.
+         */
+        PendingArticle: {
+            /**
+             * Created At
+             * Format: date-time
+             * @description When article was generated
+             */
+            created_at: string;
+            /**
+             * Excerpt
+             * @description Article excerpt
+             */
+            excerpt?: string | null;
+            /**
+             * Id
+             * @description Article ID
+             */
+            id: number;
+            /**
+             * Keyword
+             * @description Source keyword/topic
+             */
+            keyword?: string | null;
+            /**
+             * Title
+             * @description Article title
+             */
+            title: string;
+        };
+        /**
+         * PendingArticlesResponse
+         * @description Response containing articles pending review.
+         */
+        PendingArticlesResponse: {
+            /**
+             * Articles
+             * @description Articles pending review
+             */
+            articles?: components["schemas"]["PendingArticle"][];
+            /**
+             * Count
+             * @description Number of pending articles
+             * @default 0
+             */
+            count: number;
         };
         /**
          * PendingUpdatesResponse
@@ -21141,6 +21527,74 @@ export interface components {
              * @description Config items
              */
             items: components["schemas"]["RuntimeConfigItem"][];
+        };
+        /**
+         * SEOAutopilotConfig
+         * @description Configuration for SEO autopilot content scheduling.
+         *
+         *     Stores user preferences for automated topic discovery and article generation.
+         */
+        SEOAutopilotConfig: {
+            /**
+             * Auto Publish
+             * @description Automatically publish generated articles (vs review queue)
+             * @default false
+             */
+            auto_publish: boolean;
+            /**
+             * Enabled
+             * @description Whether autopilot is enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Frequency Per Week
+             * @description Number of articles to generate per week (1-7)
+             * @default 1
+             */
+            frequency_per_week: number;
+            /**
+             * Purchase Intent Only
+             * @description Only target high-intent keywords (transactional, comparison, etc.)
+             * @default true
+             */
+            purchase_intent_only: boolean;
+            /**
+             * Require Approval
+             * @description Require manual approval before publishing (default: True for new users)
+             * @default true
+             */
+            require_approval: boolean;
+            /**
+             * Target Keywords
+             * @description Keywords to focus on for topic discovery
+             */
+            target_keywords?: string[];
+        };
+        /**
+         * SEOAutopilotConfigResponse
+         * @description Response for autopilot config retrieval.
+         */
+        SEOAutopilotConfigResponse: {
+            /**
+             * Articles Pending Review
+             * @description Articles awaiting approval
+             * @default 0
+             */
+            articles_pending_review: number;
+            /**
+             * Articles This Week
+             * @description Articles generated this week
+             * @default 0
+             */
+            articles_this_week: number;
+            /** @description Current autopilot configuration */
+            config: components["schemas"]["SEOAutopilotConfig"];
+            /**
+             * Next Run
+             * @description Next scheduled autopilot run
+             */
+            next_run?: string | null;
         };
         /**
          * SendEmailRequest
@@ -39010,6 +39464,326 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_assets_api_v1_seo_assets_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by type */
+                asset_type?: string | null;
+                /** @description Filter by tags (comma-separated) */
+                tags?: string | null;
+                /** @description Search in title/description */
+                search?: string | null;
+                /** @description Max results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingAssetListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_asset_api_v1_seo_assets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingAsset"];
+                };
+            };
+        };
+    };
+    suggest_assets_for_article_api_v1_seo_assets_suggest_get: {
+        parameters: {
+            query: {
+                /** @description Article ID to get suggestions for */
+                article_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetSuggestionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_asset_api_v1_seo_assets__asset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_asset_api_v1_seo_assets__asset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_asset_api_v1_seo_assets__asset_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketingAssetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_article_api_v1_seo_autopilot_articles__article_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticle"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_article_api_v1_seo_autopilot_articles__article_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_autopilot_config_api_v1_seo_autopilot_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SEOAutopilotConfigResponse"];
+                };
+            };
+        };
+    };
+    update_autopilot_config_api_v1_seo_autopilot_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SEOAutopilotConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SEOAutopilotConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pending_articles_api_v1_seo_autopilot_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingArticlesResponse"];
                 };
             };
         };

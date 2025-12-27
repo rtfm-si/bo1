@@ -2793,6 +2793,78 @@
         "title": "AskRequest",
         "type": "object"
       },
+      "AssetSuggestion": {
+        "description": "A suggested asset for article content.",
+        "properties": {
+          "asset_type": {
+            "description": "Asset type",
+            "title": "Asset Type",
+            "type": "string"
+          },
+          "cdn_url": {
+            "description": "CDN URL for embedding",
+            "title": "Cdn Url",
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "matching_tags": {
+            "description": "Tags that matched",
+            "items": {
+              "type": "string"
+            },
+            "title": "Matching Tags",
+            "type": "array"
+          },
+          "relevance_score": {
+            "description": "Relevance to article keywords",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance Score",
+            "type": "number"
+          },
+          "title": {
+            "description": "Asset title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "cdn_url",
+          "asset_type",
+          "relevance_score"
+        ],
+        "title": "AssetSuggestion",
+        "type": "object"
+      },
+      "AssetSuggestionsResponse": {
+        "description": "Response containing suggested assets for an article.",
+        "properties": {
+          "article_keywords": {
+            "description": "Keywords used for matching",
+            "items": {
+              "type": "string"
+            },
+            "title": "Article Keywords",
+            "type": "array"
+          },
+          "suggestions": {
+            "description": "Suggested assets",
+            "items": {
+              "$ref": "#/components/schemas/AssetSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "title": "AssetSuggestionsResponse",
+        "type": "object"
+      },
       "AutogenCreateRequest": {
         "description": "Request model for creating projects from suggestions.\n\nAttributes:\n    suggestions: List of suggestions to create\n    workspace_id: Optional workspace for created projects",
         "properties": {
@@ -13747,6 +13819,169 @@
         "title": "MarketTrend",
         "type": "object"
       },
+      "MarketingAsset": {
+        "description": "A marketing asset in the collateral bank.",
+        "properties": {
+          "asset_type": {
+            "description": "Asset type: image, animation, concept, template",
+            "title": "Asset Type",
+            "type": "string"
+          },
+          "cdn_url": {
+            "description": "CDN URL for embedding",
+            "title": "Cdn Url",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When asset was uploaded",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional description",
+            "title": "Description"
+          },
+          "file_size": {
+            "description": "File size in bytes",
+            "title": "File Size",
+            "type": "integer"
+          },
+          "filename": {
+            "description": "Original filename",
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "mime_type": {
+            "description": "MIME type",
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Tags for search",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "User-friendly title",
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When asset was last updated",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "cdn_url",
+          "asset_type",
+          "title",
+          "file_size",
+          "mime_type",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MarketingAsset",
+        "type": "object"
+      },
+      "MarketingAssetListResponse": {
+        "description": "Response containing list of marketing assets.",
+        "properties": {
+          "assets": {
+            "description": "User's assets",
+            "items": {
+              "$ref": "#/components/schemas/MarketingAsset"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "remaining": {
+            "description": "Remaining asset slots (-1 for unlimited)",
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of assets",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "remaining"
+        ],
+        "title": "MarketingAssetListResponse",
+        "type": "object"
+      },
+      "MarketingAssetUpdate": {
+        "description": "Request to update a marketing asset.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated description",
+            "title": "Description"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated tags",
+            "title": "Tags"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated title",
+            "title": "Title"
+          }
+        },
+        "title": "MarketingAssetUpdate",
+        "type": "object"
+      },
       "MeetingCostResponse": {
         "description": "Cost breakdown for a single meeting/session.",
         "properties": {
@@ -15732,6 +15967,80 @@
           "sample_count"
         ],
         "title": "PeerMetric",
+        "type": "object"
+      },
+      "PendingArticle": {
+        "description": "An article pending review from autopilot.",
+        "properties": {
+          "created_at": {
+            "description": "When article was generated",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article excerpt",
+            "title": "Excerpt"
+          },
+          "id": {
+            "description": "Article ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source keyword/topic",
+            "title": "Keyword"
+          },
+          "title": {
+            "description": "Article title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at"
+        ],
+        "title": "PendingArticle",
+        "type": "object"
+      },
+      "PendingArticlesResponse": {
+        "description": "Response containing articles pending review.",
+        "properties": {
+          "articles": {
+            "description": "Articles pending review",
+            "items": {
+              "$ref": "#/components/schemas/PendingArticle"
+            },
+            "title": "Articles",
+            "type": "array"
+          },
+          "count": {
+            "default": 0,
+            "description": "Number of pending articles",
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "title": "PendingArticlesResponse",
         "type": "object"
       },
       "PendingUpdatesResponse": {
@@ -18546,6 +18855,95 @@
           "count"
         ],
         "title": "RuntimeConfigResponse",
+        "type": "object"
+      },
+      "SEOAutopilotConfig": {
+        "description": "Configuration for SEO autopilot content scheduling.\n\nStores user preferences for automated topic discovery and article generation.",
+        "properties": {
+          "auto_publish": {
+            "default": false,
+            "description": "Automatically publish generated articles (vs review queue)",
+            "title": "Auto Publish",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": false,
+            "description": "Whether autopilot is enabled",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "frequency_per_week": {
+            "default": 1,
+            "description": "Number of articles to generate per week (1-7)",
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Frequency Per Week",
+            "type": "integer"
+          },
+          "purchase_intent_only": {
+            "default": true,
+            "description": "Only target high-intent keywords (transactional, comparison, etc.)",
+            "title": "Purchase Intent Only",
+            "type": "boolean"
+          },
+          "require_approval": {
+            "default": true,
+            "description": "Require manual approval before publishing (default: True for new users)",
+            "title": "Require Approval",
+            "type": "boolean"
+          },
+          "target_keywords": {
+            "description": "Keywords to focus on for topic discovery",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Target Keywords",
+            "type": "array"
+          }
+        },
+        "title": "SEOAutopilotConfig",
+        "type": "object"
+      },
+      "SEOAutopilotConfigResponse": {
+        "description": "Response for autopilot config retrieval.",
+        "properties": {
+          "articles_pending_review": {
+            "default": 0,
+            "description": "Articles awaiting approval",
+            "minimum": 0.0,
+            "title": "Articles Pending Review",
+            "type": "integer"
+          },
+          "articles_this_week": {
+            "default": 0,
+            "description": "Articles generated this week",
+            "minimum": 0.0,
+            "title": "Articles This Week",
+            "type": "integer"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SEOAutopilotConfig",
+            "description": "Current autopilot configuration"
+          },
+          "next_run": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next scheduled autopilot run",
+            "title": "Next Run"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "SEOAutopilotConfigResponse",
         "type": "object"
       },
       "SendEmailRequest": {
@@ -44885,6 +45283,488 @@
           }
         },
         "summary": "Record Article Event",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/assets": {
+      "get": {
+        "description": "List user's marketing assets with optional filtering.\n\nSupports filtering by asset type, tags, and text search.",
+        "operationId": "list_assets_api_v1_seo_assets_get",
+        "parameters": [
+          {
+            "description": "Filter by type",
+            "in": "query",
+            "name": "asset_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by type",
+              "title": "Asset Type"
+            }
+          },
+          {
+            "description": "Filter by tags (comma-separated)",
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by tags (comma-separated)",
+              "title": "Tags"
+            }
+          },
+          {
+            "description": "Search in title/description",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search in title/description",
+              "title": "Search"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max results",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination offset",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingAssetListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Assets",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "post": {
+        "description": "Upload a marketing asset to the collateral bank.\n\nAccepts multipart form data with file and metadata.\nValidates file type (png, jpg, gif, webp, svg, mp4, webm) and size (max 10MB images, 50MB video).\n\nRate limited to 10 uploads per minute.\nTier limits: free=10 total, starter=50, pro=500, enterprise=unlimited.",
+        "operationId": "upload_asset_api_v1_seo_assets_post",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Upload Asset",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/assets/suggest": {
+      "get": {
+        "description": "Get suggested assets for an article based on keyword matching.\n\nAnalyzes article title and content to find matching assets from the collateral bank.",
+        "operationId": "suggest_assets_for_article_api_v1_seo_assets_suggest_get",
+        "parameters": [
+          {
+            "description": "Article ID to get suggestions for",
+            "in": "query",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "description": "Article ID to get suggestions for",
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetSuggestionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suggest Assets For Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/assets/{asset_id}": {
+      "delete": {
+        "description": "Delete a marketing asset.\n\nRemoves the asset from storage and database.",
+        "operationId": "delete_asset_api_v1_seo_assets__asset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Asset",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "get": {
+        "description": "Get a single marketing asset by ID.",
+        "operationId": "get_asset_api_v1_seo_assets__asset_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Asset",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "patch": {
+        "description": "Update marketing asset metadata.\n\nCan update title, description, and tags.",
+        "operationId": "update_asset_api_v1_seo_assets__asset_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketingAssetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Asset",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/autopilot/articles/{article_id}/approve": {
+      "post": {
+        "description": "Approve a pending article for publishing.\n\nChanges status from 'pending_review' to 'published'.",
+        "operationId": "approve_article_api_v1_seo_autopilot_articles__article_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/autopilot/articles/{article_id}/reject": {
+      "post": {
+        "description": "Reject a pending article.\n\nChanges status from 'pending_review' to 'rejected'.",
+        "operationId": "reject_article_api_v1_seo_autopilot_articles__article_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/autopilot/config": {
+      "get": {
+        "description": "Get current SEO autopilot configuration.\n\nReturns autopilot settings and status (next run, articles this week, pending).",
+        "operationId": "get_autopilot_config_api_v1_seo_autopilot_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SEOAutopilotConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Autopilot Config",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "put": {
+        "description": "Update SEO autopilot configuration.\n\nConfigure automated topic discovery and article generation settings.",
+        "operationId": "update_autopilot_config_api_v1_seo_autopilot_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SEOAutopilotConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SEOAutopilotConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Autopilot Config",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/autopilot/pending": {
+      "get": {
+        "description": "Get articles pending review from autopilot.\n\nReturns all articles with status 'pending_review'.",
+        "operationId": "get_pending_articles_api_v1_seo_autopilot_pending_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingArticlesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Pending Articles",
         "tags": [
           "seo",
           "seo"

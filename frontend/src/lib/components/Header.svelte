@@ -27,6 +27,7 @@
 		{ href: '/datasets', label: 'Datasets' },
 		{ href: '/analysis', label: 'Analysis' },
 		{ href: '/mentor', label: 'Mentor' },
+		{ href: '/seo', label: 'SEO Tools' },
 	];
 
 	// Context navigation (business context settings)
@@ -35,6 +36,7 @@
 		{ href: '/context/metrics', label: 'Metrics' },
 		{ href: '/context/strategic', label: 'Strategic' },
 		{ href: '/context/insights', label: 'Insights' },
+		{ href: '/context/peer-benchmarks', label: 'Peer Benchmarks' },
 	];
 
 	// Reports navigation (intelligence features)

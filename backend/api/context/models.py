@@ -1143,3 +1143,72 @@ class ActionMetricTriggersResponse(BaseModel):
         description="Active triggers pending for metric refresh",
     )
     count: int = Field(0, description="Number of active triggers")
+
+
+# =============================================================================
+# Strategic Objective Progress Models
+# =============================================================================
+
+
+class ObjectiveProgress(BaseModel):
+    """Progress data for a single strategic objective.
+
+    Stores current and target values as flexible strings to support
+    various formats (e.g., "$5K", "50%", "100 customers").
+    """
+
+    current: str = Field(
+        ...,
+        max_length=50,
+        description="Current value (e.g., '$5K', '50%', '100')",
+    )
+    target: str = Field(
+        ...,
+        max_length=50,
+        description="Target value (e.g., '$10K', '80%', '500')",
+    )
+    unit: str | None = Field(
+        None,
+        max_length=20,
+        description="Optional unit label (e.g., 'MRR', '%', 'customers')",
+    )
+    updated_at: datetime = Field(..., description="When progress was last updated")
+
+
+class ObjectiveProgressUpdate(BaseModel):
+    """Request to update progress for a strategic objective."""
+
+    current: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Current value",
+    )
+    target: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Target value",
+    )
+    unit: str | None = Field(
+        None,
+        max_length=20,
+        description="Optional unit label",
+    )
+
+
+class ObjectiveProgressResponse(BaseModel):
+    """Response for a single objective's progress."""
+
+    objective_index: int = Field(..., description="Index of the objective (0-4)")
+    objective_text: str = Field(..., description="Text of the objective")
+    progress: ObjectiveProgress | None = Field(None, description="Progress data (null if not set)")
+
+
+class ObjectiveProgressListResponse(BaseModel):
+    """Response for listing all objective progress."""
+
+    objectives: list[ObjectiveProgressResponse] = Field(
+        default_factory=list, description="Progress for each objective"
+    )
+    count: int = Field(0, description="Number of objectives with progress set")

@@ -40,6 +40,9 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     session_id = state.get("session_id")
     # Extract subscription tier from state (populated via init_state from user data)
     subscription_tier = state.get("subscription_tier") or "free"
+    # Extract user context for research sharing
+    user_id = state.get("user_id")
+    sharing_consented = state.get("research_sharing_consented", False)
 
     # PROACTIVE RESEARCH: Check for pending queries first
     pending_queries = state.get("pending_research_queries", [])
@@ -76,6 +79,8 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             category="general",
             research_depth=research_depth,
             user_tier=subscription_tier,
+            user_id=user_id,
+            sharing_consented=sharing_consented,
         )
 
         # Add to state context
@@ -95,6 +100,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
                     "round": state.get("round_number", 0),
                     "depth": research_depth,
                     "proactive": True,  # Mark as proactively triggered
+                    "shared": result.get("shared", False),  # From cross-user sharing
                 }
             )
 
@@ -242,6 +248,8 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         category="general",
         research_depth=facilitator_research_depth,
         user_tier=subscription_tier,
+        user_id=user_id,
+        sharing_consented=sharing_consented,
     )
 
     if not results:
@@ -267,6 +275,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             "cost": result.get("cost", 0.0),
             "round": state.get("round_number", 0),
             "depth": facilitator_research_depth,
+            "shared": result.get("shared", False),  # From cross-user sharing
         }
     )
 

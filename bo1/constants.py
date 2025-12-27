@@ -351,7 +351,7 @@ class RateLimits:
     SESSION_ENTERPRISE = "100/minute"
     """Session creation for enterprise tier users"""
 
-    STREAMING = "20/minute"
+    STREAMING = "30/minute"
     """SSE streaming endpoints (allows reconnection during network issues)"""
 
     UPLOAD = "10/hour"
@@ -371,6 +371,46 @@ class RateLimits:
     # Public unauthenticated endpoints (CSRF-exempt, need extra protection)
     WAITLIST = "5/minute"
     """Waitlist signup endpoint (IP-based, prevents spam signups)"""
+
+    # Authenticated user endpoints (added per rate limits audit)
+    CONTEXT = "60/minute"
+    """Business context CRUD operations"""
+
+    USER = "60/minute"
+    """User profile operations"""
+
+    PROJECTS = "60/minute"
+    """Project management operations"""
+
+    MENTOR = "20/minute"
+    """LLM-heavy mentor chat (expensive operations)"""
+
+    BUSINESS_METRICS = "30/minute"
+    """Business metrics endpoints"""
+
+    COMPETITORS = "30/minute"
+    """Competitor research endpoints"""
+
+    ONBOARDING = "30/minute"
+    """Onboarding flow endpoints"""
+
+    TAGS = "60/minute"
+    """Tag management operations"""
+
+    BILLING = "30/minute"
+    """Billing operations"""
+
+    WORKSPACES = "60/minute"
+    """Workspace management operations"""
+
+    SEO_ANALYZE = "5/minute"
+    """SEO trend analysis (expensive LLM+research operation)"""
+
+    SEO_GENERATE = "2/minute"
+    """SEO article generation (LLM-heavy operation)"""
+
+    PEER_BENCHMARKS = "30/minute"
+    """Peer benchmarking endpoints (consent toggle + data fetch)"""
 
 
 # =============================================================================
@@ -836,11 +876,16 @@ class IndustrySegments:
 
 # =============================================================================
 # TIER LIMITS CONFIGURATION
+# DEPRECATED: Use bo1.billing.config.PlanConfig instead
+# These classes are kept for backward compatibility during migration
 # =============================================================================
 
 
 class TierLimits:
-    """Per-tier usage limits for meetings, datasets, and mentor chats."""
+    """Per-tier usage limits for meetings, datasets, and mentor chats.
+
+    DEPRECATED: Use bo1.billing.config.PlanConfig instead.
+    """
 
     # Meeting limits (per month)
     MEETINGS_FREE = 3
@@ -923,7 +968,10 @@ class TierLimits:
 
 
 class TierFeatureFlags:
-    """Feature flags enabled per tier."""
+    """Feature flags enabled per tier.
+
+    DEPRECATED: Use bo1.billing.config.PlanConfig instead.
+    """
 
     # Features available by tier
     FEATURES = {
@@ -937,6 +985,8 @@ class TierFeatureFlags:
             "custom_personas": False,
             "session_export": True,
             "session_sharing": True,
+            "seo_tools": True,
+            "peer_benchmarks": True,
         },
         "starter": {
             "meetings": True,
@@ -948,6 +998,8 @@ class TierFeatureFlags:
             "custom_personas": False,
             "session_export": True,
             "session_sharing": True,
+            "seo_tools": True,
+            "peer_benchmarks": True,
         },
         "pro": {
             "meetings": True,
@@ -959,6 +1011,8 @@ class TierFeatureFlags:
             "custom_personas": True,
             "session_export": True,
             "session_sharing": True,
+            "seo_tools": True,
+            "peer_benchmarks": True,
         },
         "enterprise": {
             "meetings": True,
@@ -970,6 +1024,8 @@ class TierFeatureFlags:
             "custom_personas": True,
             "session_export": True,
             "session_sharing": True,
+            "seo_tools": True,
+            "peer_benchmarks": True,
         },
     }
 

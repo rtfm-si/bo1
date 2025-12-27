@@ -15,7 +15,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.api.context.auto_detect import (
     get_auto_detect_status,
@@ -53,6 +53,10 @@ from backend.api.context.models import (
     ManagedCompetitorListResponse,
     ManagedCompetitorResponse,
     ManagedCompetitorUpdate,
+    ObjectiveProgress,
+    ObjectiveProgressListResponse,
+    ObjectiveProgressResponse,
+    ObjectiveProgressUpdate,
     PendingUpdatesResponse,
     RefreshCheckResponse,
     StaleFieldSummary,
@@ -83,6 +87,7 @@ from backend.api.context.services import (
     update_benchmark_timestamps,
 )
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import CONTEXT_RATE_LIMIT, limiter
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
@@ -357,20 +362,22 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
         500: {"description": "Enrichment service error"},
     },
 )
+@limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("enrich context")
 async def enrich_context(
-    request: EnrichmentRequest,
+    request: Request,
+    body: EnrichmentRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> EnrichmentResponse:
     """Enrich business context from website URL and auto-save."""
     try:
         user_id = extract_user_id(user)
-        logger.info(f"Enriching context from {request.website_url} for user {user_id}")
+        logger.info(f"Enriching context from {body.website_url} for user {user_id}")
 
         # Run enrichment
         service = EnrichmentService()
         try:
-            enriched = await service.enrich_from_url(request.website_url)
+            enriched = await service.enrich_from_url(body.website_url)
         finally:
             await service.close()
 
@@ -407,7 +414,7 @@ async def enrich_context(
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Enrichment failed: {e}",
             user_id=user_id,
-            url=request.website_url,
+            url=body.website_url,
         )
         return EnrichmentResponse(
             success=False,
@@ -654,15 +661,17 @@ async def dismiss_refresh_prompt(
     Returns a list of detected competitors with names, URLs, and descriptions.
     """,
 )
+@limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("detect competitors")
 async def detect_competitors(
-    request: CompetitorDetectRequest | None = None,
+    request: Request,
+    body: CompetitorDetectRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> CompetitorDetectResponse:
     """Detect competitors using Tavily Search API and auto-save to Competitor Watch."""
     user_id = extract_user_id(user)
-    industry = request.industry if request else None
-    product_description = request.product_description if request else None
+    industry = body.industry if body else None
+    product_description = body.product_description if body else None
 
     return await detect_competitors_for_user(user_id, industry, product_description)
 
@@ -680,14 +689,16 @@ async def detect_competitors(
     Returns a list of trends with sources.
     """,
 )
+@limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("refresh trends")
 async def refresh_trends(
-    request: TrendsRefreshRequest | None = None,
+    request: Request,
+    body: TrendsRefreshRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> TrendsRefreshResponse:
     """Refresh market trends using Brave Search."""
     user_id = extract_user_id(user)
-    industry = request.industry if request else None
+    industry = body.industry if body else None
 
     return await refresh_market_trends(user_id, industry)
 
@@ -2766,3 +2777,167 @@ async def check_goal_staleness(
         should_prompt=should_prompt,
         last_goal=current_goal,
     )
+
+
+# =============================================================================
+# Strategic Objective Progress Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/objectives/progress",
+    response_model=ObjectiveProgressListResponse,
+    summary="Get all objective progress",
+    description="""
+    Get progress for all strategic objectives.
+
+    Returns each objective with its current progress data (if set).
+    Progress includes current value, target value, and optional unit.
+
+    **Use Cases:**
+    - Dashboard goal banner progress display
+    - Context overview progress tracking
+    """,
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get objective progress")
+async def get_objectives_progress(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ObjectiveProgressListResponse:
+    """Get progress for all strategic objectives."""
+    user_id = extract_user_id(user)
+
+    # Get context data
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return ObjectiveProgressListResponse(objectives=[], count=0)
+
+    objectives = context_data.get("strategic_objectives") or []
+    progress_data = context_data.get("strategic_objectives_progress") or {}
+
+    # Build response
+    result = []
+    progress_count = 0
+    for idx, objective_text in enumerate(objectives):
+        idx_str = str(idx)
+        progress = None
+        if idx_str in progress_data:
+            try:
+                progress = ObjectiveProgress(**progress_data[idx_str])
+                progress_count += 1
+            except Exception:
+                logger.warning(f"Invalid progress data for objective {idx}")
+
+        result.append(
+            ObjectiveProgressResponse(
+                objective_index=idx,
+                objective_text=objective_text,
+                progress=progress,
+            )
+        )
+
+    return ObjectiveProgressListResponse(objectives=result, count=progress_count)
+
+
+@router.put(
+    "/v1/context/objectives/{objective_index}/progress",
+    response_model=ObjectiveProgressResponse,
+    summary="Update objective progress",
+    description="""
+    Update progress for a specific strategic objective.
+
+    **Path Parameters:**
+    - `objective_index`: Index of the objective (0-4)
+
+    **Request Body:**
+    - `current`: Current value (e.g., "$5K", "50%")
+    - `target`: Target value (e.g., "$10K", "80%")
+    - `unit`: Optional unit label (e.g., "MRR", "%")
+
+    **Use Cases:**
+    - Dashboard progress modal save
+    - Quick progress update from goal banner
+    """,
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update objective progress")
+async def update_objective_progress(
+    request: Request,
+    objective_index: int,
+    body: ObjectiveProgressUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ObjectiveProgressResponse:
+    """Update progress for a specific objective."""
+    user_id = extract_user_id(user)
+
+    # Validate index
+    if objective_index < 0 or objective_index > 4:
+        raise HTTPException(status_code=400, detail="Objective index must be 0-4")
+
+    # Get current context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    objectives = context_data.get("strategic_objectives") or []
+    if objective_index >= len(objectives):
+        raise HTTPException(
+            status_code=404, detail=f"Objective at index {objective_index} not found"
+        )
+
+    # Update progress
+    progress_data = context_data.get("strategic_objectives_progress") or {}
+    now = datetime.now(UTC)
+
+    progress_entry = {
+        "current": body.current,
+        "target": body.target,
+        "unit": body.unit,
+        "updated_at": now.isoformat(),
+    }
+    progress_data[str(objective_index)] = progress_entry
+
+    # Save to database
+    user_repository.save_context(user_id, {"strategic_objectives_progress": progress_data})
+
+    return ObjectiveProgressResponse(
+        objective_index=objective_index,
+        objective_text=objectives[objective_index],
+        progress=ObjectiveProgress(
+            current=body.current,
+            target=body.target,
+            unit=body.unit,
+            updated_at=now,
+        ),
+    )
+
+
+@router.delete(
+    "/v1/context/objectives/{objective_index}/progress",
+    summary="Delete objective progress",
+    description="Remove progress tracking for a specific objective.",
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("delete objective progress")
+async def delete_objective_progress(
+    request: Request,
+    objective_index: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, bool]:
+    """Delete progress for a specific objective."""
+    user_id = extract_user_id(user)
+
+    # Get current context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return {"success": True}
+
+    progress_data = context_data.get("strategic_objectives_progress") or {}
+    idx_str = str(objective_index)
+
+    if idx_str in progress_data:
+        del progress_data[idx_str]
+        user_repository.save_context(user_id, {"strategic_objectives_progress": progress_data})
+
+    return {"success": True}

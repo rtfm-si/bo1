@@ -28,6 +28,8 @@ class CacheRepository(BaseRepository):
         category: str | None = None,
         industry: str | None = None,
         max_age_days: int | None = None,
+        include_shared: bool = True,
+        user_id: str | None = None,
     ) -> dict[str, Any] | None:
         """Find cached research result using vector similarity search.
 
@@ -39,9 +41,12 @@ class CacheRepository(BaseRepository):
             category: Optional category filter
             industry: Optional industry filter
             max_age_days: Maximum age in days
+            include_shared: Include shared research from other users (default True)
+            user_id: Current user's ID (for filtering own results)
 
         Returns:
-            Cached research result with highest similarity, or None
+            Cached research result with highest similarity, or None.
+            Includes 'shared' flag (True if result is from another user).
         """
         if max_age_days is not None:
             self._validate_positive_int(max_age_days, "max_age_days")
@@ -51,6 +56,8 @@ class CacheRepository(BaseRepository):
             similarity_threshold=similarity_threshold,
             limit=100,
             max_age_days=max_age_days,
+            include_shared=include_shared,
+            user_id=user_id,
         )
 
         if not similar_results:
@@ -71,6 +78,8 @@ class CacheRepository(BaseRepository):
         similarity_threshold: float = SimilarityCacheThresholds.RESEARCH_CACHE,
         limit: int = 5,
         max_age_days: int | None = None,
+        include_shared: bool = True,
+        user_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Find similar research questions using vector similarity search.
 
@@ -81,12 +90,19 @@ class CacheRepository(BaseRepository):
             similarity_threshold: Minimum cosine similarity (0.0-1.0)
             limit: Maximum number of results
             max_age_days: Only return results from last N days
+            include_shared: Include shared research from other users
+            user_id: Current user's ID (for filtering own results)
 
         Returns:
-            List of similar research results, ordered by similarity
+            List of similar research results, ordered by similarity.
+            Each result includes 'shared' flag (True if from another user).
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Build sharing filter based on include_shared and user_id
+                # - User's own results: always included (user_id matches)
+                # - Shared results: included if is_shareable=true AND include_shared=true
+                # - Legacy results (no user_id): treated as shared (backwards compatible)
                 query = """
                     SELECT
                         id, question, answer_summary, confidence, sources,
@@ -95,7 +111,9 @@ class CacheRepository(BaseRepository):
                         access_count, last_accessed_at,
                         90 AS freshness_days,
                         tokens_used, research_cost_usd,
-                        1 - (question_embedding <=> %s::vector) AS similarity
+                        1 - (question_embedding <=> %s::vector) AS similarity,
+                        user_id AS cache_user_id,
+                        is_shareable
                     FROM research_cache
                     WHERE question_embedding IS NOT NULL
                 """
@@ -106,6 +124,20 @@ class CacheRepository(BaseRepository):
                     query += " AND research_date > NOW() - INTERVAL '%s days'"
                     params.append(max_age_days)
 
+                # Add sharing filter
+                if user_id and include_shared:
+                    # User's own results OR shareable results from others
+                    query += " AND (user_id = %s OR user_id IS NULL OR is_shareable = true)"
+                    params.append(user_id)
+                elif user_id and not include_shared:
+                    # Only user's own results
+                    query += " AND user_id = %s"
+                    params.append(user_id)
+                elif include_shared:
+                    # All shareable results (no user context)
+                    query += " AND (user_id IS NULL OR is_shareable = true)"
+                # else: no filter (all results including non-shareable)
+
                 query += """
                     AND (1 - (question_embedding <=> %s::vector)) >= %s
                     ORDER BY question_embedding <=> %s::vector
@@ -114,7 +146,15 @@ class CacheRepository(BaseRepository):
                 params.extend([question_embedding, similarity_threshold, question_embedding, limit])
 
                 cur.execute(query, params)
-                return [dict(row) for row in cur.fetchall()]
+                results = []
+                for row in cur.fetchall():
+                    row_dict = dict(row)
+                    # Add 'shared' flag: true if result is from another user
+                    cache_user = row_dict.pop("cache_user_id", None)
+                    row_dict.pop("is_shareable", None)
+                    row_dict["shared"] = cache_user is not None and cache_user != user_id
+                    results.append(row_dict)
+                return results
 
     def save(
         self,
@@ -127,6 +167,8 @@ class CacheRepository(BaseRepository):
         industry: str | None = None,
         tokens_used: int | None = None,
         research_cost_usd: float | None = None,
+        user_id: str | None = None,
+        is_shareable: bool = True,
     ) -> dict[str, Any]:
         """Save research result to cache.
 
@@ -140,6 +182,8 @@ class CacheRepository(BaseRepository):
             industry: Industry (e.g., 'saas')
             tokens_used: Number of tokens used
             research_cost_usd: Cost of research in USD
+            user_id: User who created this research (None = anonymous/shared)
+            is_shareable: Whether this research can be shared with others
 
         Returns:
             Saved research record
@@ -151,9 +195,10 @@ class CacheRepository(BaseRepository):
                     INSERT INTO research_cache (
                         question, question_embedding, answer_summary, confidence,
                         sources, category, industry,
-                        tokens_used, research_cost_usd
+                        tokens_used, research_cost_usd,
+                        user_id, is_shareable
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, question, answer_summary, confidence, sources,
                               COALESCE(jsonb_array_length(sources), 0) AS source_count,
                               category, industry, research_date,
@@ -171,6 +216,8 @@ class CacheRepository(BaseRepository):
                         industry,
                         tokens_used,
                         research_cost_usd,
+                        user_id,
+                        is_shareable,
                     ),
                 )
                 result = cur.fetchone()
@@ -550,6 +597,46 @@ class CacheRepository(BaseRepository):
                         entry["research_date"] = entry["research_date"].isoformat()
 
                 return entries
+
+    def mark_user_research_non_shareable(self, user_id: str) -> int:
+        """Mark all of a user's research as non-shareable.
+
+        Called when user revokes research sharing consent.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Number of entries updated
+        """
+        return self._execute_count(
+            """
+            UPDATE research_cache
+            SET is_shareable = false
+            WHERE user_id = %s AND is_shareable = true
+            """,
+            (user_id,),
+        )
+
+    def mark_user_research_shareable(self, user_id: str) -> int:
+        """Mark all of a user's research as shareable.
+
+        Called when user gives research sharing consent.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Number of entries updated
+        """
+        return self._execute_count(
+            """
+            UPDATE research_cache
+            SET is_shareable = true
+            WHERE user_id = %s AND is_shareable = false
+            """,
+            (user_id,),
+        )
 
 
 # Singleton instance for convenience

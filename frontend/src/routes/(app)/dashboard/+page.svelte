@@ -15,6 +15,8 @@
 	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
 	import FailedMeetingAlert from '$lib/components/dashboard/FailedMeetingAlert.svelte';
 	import GoalBanner from '$lib/components/dashboard/GoalBanner.svelte';
+	import ObjectiveProgressModal from '$lib/components/dashboard/ObjectiveProgressModal.svelte';
+	import type { ObjectiveProgress } from '$lib/api/types';
 	import WeeklyPlanView from '$lib/components/dashboard/WeeklyPlanView.svelte';
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
@@ -54,6 +56,14 @@
 	}
 	let goalStaleness = $state<GoalStaleness | null>(null);
 
+	// Objective progress state
+	let objectivesProgress = $state<Record<string, ObjectiveProgress>>({});
+	let progressModalOpen = $state(false);
+	let progressModalLoading = $state(false);
+	let selectedObjectiveIndex = $state(0);
+	let selectedObjectiveText = $state('');
+	let selectedObjectiveProgress = $state<ObjectiveProgress | null>(null);
+
 	// Derived state for template compatibility
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
 	const isLoading = $derived(sessionsData.isLoading);
@@ -87,6 +97,38 @@
 		} catch (err) {
 			console.error('Failed to save onboarding dismissal:', err);
 		}
+	}
+
+	// Objective progress handlers
+	function handleEditProgress(index: number, objective: string, progress: ObjectiveProgress | null) {
+		selectedObjectiveIndex = index;
+		selectedObjectiveText = objective;
+		selectedObjectiveProgress = progress;
+		progressModalOpen = true;
+	}
+
+	async function handleSaveProgress(index: number, current: string, target: string, unit: string | null) {
+		progressModalLoading = true;
+		try {
+			const response = await apiClient.updateObjectiveProgress(index, { current, target, unit });
+			if (response.progress) {
+				objectivesProgress = {
+					...objectivesProgress,
+					[String(index)]: response.progress
+				};
+			}
+			progressModalOpen = false;
+			toast.success('Progress updated');
+		} catch (err) {
+			log.error('Failed to save progress:', err);
+			toast.error('Failed to save progress');
+		} finally {
+			progressModalLoading = false;
+		}
+	}
+
+	function handleCloseProgressModal() {
+		progressModalOpen = false;
 	}
 
 	// Outstanding actions (todo + in_progress, sorted by priority)
@@ -154,6 +196,21 @@
 			log.error('Failed to fetch goal staleness:', e);
 		}
 
+		// Fetch objective progress
+		try {
+			const progressRes = await apiClient.getObjectivesProgress();
+			// Convert array to keyed object for GoalBanner
+			const progressMap: Record<string, ObjectiveProgress> = {};
+			for (const obj of progressRes.objectives) {
+				if (obj.progress) {
+					progressMap[String(obj.objective_index)] = obj.progress;
+				}
+			}
+			objectivesProgress = progressMap;
+		} catch (e) {
+			log.error('Failed to fetch objective progress:', e);
+		}
+
 		// Check if user needs onboarding tour
 		if (browser) {
 			const needsTour = await checkOnboardingStatus();
@@ -185,10 +242,14 @@
 				injectTourStyles();
 				setTimeout(() => {
 					setTourActive(true);
-					startOnboardingTour(() => {
+					startOnboardingTour(async () => {
 						setTourActive(false);
 						cleanupTour();
-						completeTour();
+						const freshCompletion = await completeTour();
+						if (freshCompletion) {
+							// Redirect to context overview after tour completion
+							goto('/context/overview');
+						}
 					});
 				}, 300);
 			}
@@ -285,8 +346,21 @@
 		<GoalBanner
 			northStarGoal={contextData.data?.context?.north_star_goal}
 			strategicObjectives={contextData.data?.context?.strategic_objectives}
+			{objectivesProgress}
 			daysSinceChange={goalStaleness?.days_since_change}
 			shouldPromptReview={goalStaleness?.should_prompt ?? false}
+			onEditProgress={handleEditProgress}
+		/>
+
+		<!-- Objective Progress Modal -->
+		<ObjectiveProgressModal
+			bind:open={progressModalOpen}
+			objectiveIndex={selectedObjectiveIndex}
+			objectiveText={selectedObjectiveText}
+			progress={selectedObjectiveProgress}
+			loading={progressModalLoading}
+			onSave={handleSaveProgress}
+			onClose={handleCloseProgressModal}
 		/>
 
 		<!-- Quick Actions Panel -->

@@ -1,0 +1,309 @@
+<script lang="ts">
+	/**
+	 * Peer Benchmarks - Compare your metrics against industry peers
+	 *
+	 * Features:
+	 * - Consent toggle for data sharing
+	 * - Percentile cards showing p25/p50/p75 with user position
+	 * - Tier-gated metrics (locked indicators for upgrade)
+	 */
+	import { onMount } from 'svelte';
+	import { apiClient } from '$lib/api/client';
+	import type { PeerBenchmarkConsentStatus, PeerBenchmarksResponse, PeerBenchmarkMetric } from '$lib/api/types';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import BoCard from '$lib/components/ui/BoCard.svelte';
+	import BoButton from '$lib/components/ui/BoButton.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
+
+	// State
+	let consent = $state<PeerBenchmarkConsentStatus | null>(null);
+	let benchmarks = $state<PeerBenchmarksResponse | null>(null);
+	let isLoading = $state(true);
+	let isToggling = $state(false);
+	let error = $state<string | null>(null);
+
+	onMount(async () => {
+		await loadData();
+	});
+
+	async function loadData() {
+		isLoading = true;
+		error = null;
+
+		try {
+			// Load consent status first
+			consent = await apiClient.getPeerBenchmarkConsent();
+
+			// Try to load benchmarks (may fail if no industry set)
+			try {
+				benchmarks = await apiClient.getPeerBenchmarks();
+			} catch (e) {
+				// Industry not set is expected - don't treat as error
+				if (e instanceof Error && e.message.includes('industry')) {
+					benchmarks = null;
+				} else {
+					throw e;
+				}
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to load peer benchmarks';
+			console.error('Failed to load peer benchmarks:', e);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function toggleConsent() {
+		if (!consent) return;
+
+		isToggling = true;
+		try {
+			if (consent.consented) {
+				consent = await apiClient.optOutPeerBenchmarks();
+			} else {
+				consent = await apiClient.optInPeerBenchmarks();
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update consent';
+		} finally {
+			isToggling = false;
+		}
+	}
+
+	function formatValue(value: number | null): string {
+		if (value === null) return '-';
+		if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+		if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+		if (value < 1 && value > 0) return value.toFixed(2);
+		return value.toLocaleString();
+	}
+
+	function getPercentileColor(percentile: number | null): string {
+		if (percentile === null) return 'bg-neutral-100 dark:bg-neutral-800';
+		if (percentile >= 75) return 'bg-green-100 dark:bg-green-900/30';
+		if (percentile >= 50) return 'bg-blue-100 dark:bg-blue-900/30';
+		if (percentile >= 25) return 'bg-amber-100 dark:bg-amber-900/30';
+		return 'bg-red-100 dark:bg-red-900/30';
+	}
+
+	function getPercentileLabel(percentile: number | null): string {
+		if (percentile === null) return 'N/A';
+		if (percentile >= 90) return 'Top 10%';
+		if (percentile >= 75) return 'Top 25%';
+		if (percentile >= 50) return 'Above median';
+		if (percentile >= 25) return 'Below median';
+		return 'Bottom 25%';
+	}
+</script>
+
+<svelte:head>
+	<title>Peer Benchmarks | Bo1</title>
+</svelte:head>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+	<!-- Header -->
+	<div class="flex items-center justify-between">
+		<div>
+			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Peer Benchmarks</h1>
+			<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+				Compare your metrics against similar businesses in your industry
+			</p>
+		</div>
+	</div>
+
+	{#if isLoading}
+		<div class="flex items-center justify-center py-12">
+			<Spinner size="lg" />
+		</div>
+	{:else if error}
+		<Alert variant="error">
+			<p>{error}</p>
+			<button
+				class="mt-2 text-sm font-medium text-red-700 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200"
+				onclick={loadData}
+			>
+				Try again
+			</button>
+		</Alert>
+	{:else}
+		<!-- Consent Card -->
+		<BoCard>
+			<div class="p-4 sm:p-6">
+				<div class="flex items-start justify-between gap-4">
+					<div class="flex-1">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+							Data Sharing Consent
+						</h2>
+						<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+							{#if consent?.consented}
+								Your anonymized metrics are included in industry benchmarks. Your data helps other businesses and improves comparison accuracy.
+							{:else}
+								Opt in to share your anonymized metrics and see how you compare to peers. No personal or company-identifying information is shared.
+							{/if}
+						</p>
+						<p class="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
+							Privacy: Metrics are aggregated with k-anonymity protection (min 5 peers). Industry-level only, no PII.
+						</p>
+					</div>
+					<div class="flex-shrink-0">
+						<BoButton
+							variant={consent?.consented ? 'secondary' : 'brand'}
+							loading={isToggling}
+							onclick={toggleConsent}
+						>
+							{consent?.consented ? 'Opt Out' : 'Opt In'}
+						</BoButton>
+					</div>
+				</div>
+			</div>
+		</BoCard>
+
+		<!-- No Industry Warning -->
+		{#if !benchmarks}
+			<Alert variant="warning">
+				<p>
+					<strong>No industry set.</strong> Please update your
+					<a href="/context/overview" class="font-medium underline">business context</a>
+					to select an industry and see peer comparisons.
+				</p>
+			</Alert>
+		{:else}
+			<!-- Industry Header -->
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+						{benchmarks.industry} Benchmarks
+					</h2>
+					{#if benchmarks.updated_at}
+						<p class="text-xs text-neutral-400 dark:text-neutral-500">
+							Last updated: {new Date(benchmarks.updated_at).toLocaleDateString()}
+						</p>
+					{/if}
+				</div>
+				<div class="text-sm text-neutral-500 dark:text-neutral-400">
+					Min {benchmarks.k_anonymity_threshold} peers for data
+				</div>
+			</div>
+
+			<!-- Metrics Grid -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+				{#each benchmarks.metrics as metric (metric.metric)}
+					<BoCard class={metric.locked ? 'opacity-60' : ''}>
+						<div class="p-4">
+							<!-- Metric Header -->
+							<div class="flex items-center justify-between mb-3">
+								<h3 class="font-medium text-neutral-900 dark:text-neutral-100">
+									{metric.display_name}
+								</h3>
+								{#if metric.locked}
+									<span class="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 rounded-full">
+										Upgrade to unlock
+									</span>
+								{:else if metric.sample_count < 5}
+									<span class="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
+										Insufficient data
+									</span>
+								{/if}
+							</div>
+
+							{#if metric.locked}
+								<!-- Locked State -->
+								<div class="h-24 flex items-center justify-center">
+									<div class="text-center text-neutral-400">
+										<svg class="w-8 h-8 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+										</svg>
+										<span class="text-xs">Pro feature</span>
+									</div>
+								</div>
+							{:else if metric.sample_count < 5}
+								<!-- Insufficient Data State -->
+								<div class="h-24 flex items-center justify-center text-center">
+									<p class="text-sm text-neutral-400 dark:text-neutral-500">
+										Need {5 - metric.sample_count} more peers
+									</p>
+								</div>
+							{:else}
+								<!-- Percentile Bar -->
+								<div class="space-y-3">
+									<!-- User Value & Percentile -->
+									{#if metric.user_value !== null}
+										<div class={`p-2 rounded-lg ${getPercentileColor(metric.user_percentile)}`}>
+											<div class="flex items-center justify-between">
+												<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+													Your value: {formatValue(metric.user_value)}
+												</span>
+												<span class="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+													{getPercentileLabel(metric.user_percentile)}
+												</span>
+											</div>
+										</div>
+									{:else}
+										<div class="p-2 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+											<span class="text-sm text-neutral-400 dark:text-neutral-500">
+												No data - add to context
+											</span>
+										</div>
+									{/if}
+
+									<!-- Percentile Range -->
+									<div class="relative pt-2">
+										<!-- Bar -->
+										<div class="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+											<div
+												class="h-full bg-gradient-to-r from-red-400 via-yellow-400 via-50% to-green-400"
+												style="width: 100%"
+											></div>
+										</div>
+
+										<!-- Markers -->
+										<div class="flex justify-between mt-1 text-xs text-neutral-400">
+											<span>p10: {formatValue(metric.p10)}</span>
+											<span>p50: {formatValue(metric.p50)}</span>
+											<span>p90: {formatValue(metric.p90)}</span>
+										</div>
+
+										<!-- User position marker -->
+										{#if metric.user_percentile !== null}
+											<div
+												class="absolute top-2 w-0.5 h-2 bg-brand-600 dark:bg-brand-400"
+												style="left: {metric.user_percentile}%"
+											>
+												<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-brand-600 dark:bg-brand-400"></div>
+											</div>
+										{/if}
+									</div>
+
+									<!-- Sample Size -->
+									<p class="text-xs text-neutral-400 dark:text-neutral-500 text-right">
+										{metric.sample_count} peers
+									</p>
+								</div>
+							{/if}
+						</div>
+					</BoCard>
+				{/each}
+			</div>
+
+			<!-- Upgrade CTA if metrics are locked -->
+			{#if benchmarks.metrics.some(m => m.locked)}
+				<BoCard>
+					<div class="p-6 text-center">
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+							Unlock All Benchmarks
+						</h3>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+							Upgrade to Pro to see all peer comparison metrics and get unlimited insights.
+						</p>
+						<a
+							href="/settings/billing"
+							class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors"
+						>
+							View Plans
+						</a>
+					</div>
+				</BoCard>
+			{/if}
+		{/if}
+	{/if}
+</div>

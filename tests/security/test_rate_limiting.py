@@ -818,11 +818,23 @@ class TestRateLimitConstants:
         assert RateLimits.SESSION_FREE == "5/minute"
         assert RateLimits.SESSION_PRO == "20/minute"
         assert RateLimits.SESSION_ENTERPRISE == "100/minute"
-        assert RateLimits.STREAMING == "20/minute"
+        assert RateLimits.STREAMING == "30/minute"  # Raised from 20 per audit
         assert RateLimits.UPLOAD == "10/hour"
         assert RateLimits.GENERAL == "60/minute"
         assert RateLimits.CONTROL == "20/minute"
         assert RateLimits.ADMIN == "1200/minute"
+
+        # Authenticated user endpoint limits (added per rate limits audit)
+        assert RateLimits.CONTEXT == "60/minute"
+        assert RateLimits.USER == "60/minute"
+        assert RateLimits.PROJECTS == "60/minute"
+        assert RateLimits.MENTOR == "20/minute"
+        assert RateLimits.BUSINESS_METRICS == "30/minute"
+        assert RateLimits.COMPETITORS == "30/minute"
+        assert RateLimits.ONBOARDING == "30/minute"
+        assert RateLimits.TAGS == "60/minute"
+        assert RateLimits.BILLING == "30/minute"
+        assert RateLimits.WORKSPACES == "60/minute"
 
     def test_rate_limit_format_valid(self):
         """Rate limit format should be parseable (N/unit)."""

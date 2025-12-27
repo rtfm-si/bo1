@@ -275,6 +275,7 @@ class DeliberationGraphState(TypedDict, total=False):
     user_input: str | None
     user_id: str | None  # For context persistence
     subscription_tier: str | None  # For cost limit enforcement
+    research_sharing_consented: bool  # For cross-user research sharing
 
     # Visualization
     current_node: str
@@ -372,6 +373,7 @@ def create_initial_state(
     skip_clarification: bool = False,
     context_ids: dict[str, list[str]] | None = None,
     subscription_tier: str | None = None,
+    research_sharing_consented: bool = False,
     request_id: str | None = None,
     persona_count_variant: int | None = None,
 ) -> DeliberationGraphState:
@@ -387,6 +389,7 @@ def create_initial_state(
         skip_clarification: Whether to skip pre-meeting clarifying questions (default: False)
         context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
         subscription_tier: User's subscription tier for cost limit enforcement (default: "free")
+        research_sharing_consented: Whether user consented to share research (default: False)
         request_id: HTTP request ID for log correlation across graph nodes
         persona_count_variant: A/B test variant (3 or 5 personas)
 
@@ -418,6 +421,7 @@ def create_initial_state(
         comparison_type="",
         user_id=user_id,
         subscription_tier=subscription_tier or "free",  # Default to free tier
+        research_sharing_consented=research_sharing_consented,
         current_node="start",
         votes=[],
         synthesis=None,

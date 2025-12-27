@@ -80,6 +80,8 @@ class ResearcherAgent:
         research_depth: Literal["basic", "deep"] = "basic",
         enable_consolidation: bool = True,
         user_tier: str = "free",
+        user_id: str | None = None,
+        sharing_consented: bool = False,
     ) -> list[dict[str, Any]]:
         """Research external questions with semantic cache.
 
@@ -91,6 +93,8 @@ class ResearcherAgent:
             research_depth: Depth of research - "basic" for quick facts, "deep" for comprehensive analysis
             enable_consolidation: Enable request consolidation (P2-RESEARCH-3)
             user_tier: User's subscription tier - "free", "starter", "pro", or "enterprise"
+            user_id: User identifier for research cache ownership
+            sharing_consented: Whether user has consented to share research
 
         Returns:
             List of research results with cache metadata:
@@ -102,7 +106,8 @@ class ResearcherAgent:
                     "confidence": "high|medium|low",
                     "cached": True|False,
                     "cache_age_days": 15 (if cached),
-                    "cost": 0.00006 (if cached) or 0.05-0.10 (if not)
+                    "cost": 0.00006 (if cached) or 0.05-0.10 (if not),
+                    "shared": True|False  # True if from another user's shared research
                 }
             ]
 
@@ -135,7 +140,13 @@ class ResearcherAgent:
         batch_results = []
         for batch in batches:
             result_items, cost = await self._process_batch_with_retry(
-                batch, category, industry, research_depth, user_tier=user_tier
+                batch,
+                category,
+                industry,
+                research_depth,
+                user_tier=user_tier,
+                user_id=user_id,
+                sharing_consented=sharing_consented,
             )
             batch_results.append((result_items, cost))
 
@@ -156,6 +167,8 @@ class ResearcherAgent:
         research_depth: Literal["basic", "deep"],
         max_retries: int = 3,
         user_tier: str = "free",
+        user_id: str | None = None,
+        sharing_consented: bool = False,
     ) -> tuple[list[dict[str, Any]], float]:
         """Process a batch with exponential backoff on rate limit errors.
 
@@ -166,6 +179,8 @@ class ResearcherAgent:
             research_depth: Research depth
             max_retries: Maximum retry attempts for rate limit errors
             user_tier: User's subscription tier
+            user_id: User identifier for cache ownership
+            sharing_consented: Whether user has consented to share research
 
         Returns:
             Tuple of (result_items, total_cost)
@@ -183,7 +198,13 @@ class ResearcherAgent:
         for attempt in range(max_retries):
             try:
                 result = await self._research_single_question(
-                    question_data, category, industry, research_depth, user_tier=user_tier
+                    question_data,
+                    category,
+                    industry,
+                    research_depth,
+                    user_tier=user_tier,
+                    user_id=user_id,
+                    sharing_consented=sharing_consented,
                 )
 
                 # Check if result indicates rate limit failure
@@ -247,6 +268,8 @@ class ResearcherAgent:
         industry: str | None,
         research_depth: Literal["basic", "deep"],
         user_tier: str = "free",
+        user_id: str | None = None,
+        sharing_consented: bool = False,
     ) -> dict[str, Any]:
         """Research a single question (internal method).
 
@@ -259,9 +282,11 @@ class ResearcherAgent:
             industry: Industry filter
             research_depth: Research depth
             user_tier: User's subscription tier
+            user_id: User identifier for cache ownership
+            sharing_consented: Whether user has consented to share research
 
         Returns:
-            Research result dict
+            Research result dict with 'shared' flag if from another user
         """
         start_time = time.time()
         question = question_data.get("question", "")
@@ -291,6 +316,7 @@ class ResearcherAgent:
             }
 
         # Step 2: Check cache with similarity threshold
+        # Include shared research from other consenting users
         freshness_days = self._get_freshness_days(category)
         try:
             cached_result = cache_repository.find_by_embedding(
@@ -299,6 +325,8 @@ class ResearcherAgent:
                 category=category,
                 industry=industry,
                 max_age_days=freshness_days,
+                include_shared=True,  # Always include shared research when looking up
+                user_id=user_id,
             )
         except Exception as e:
             logger.warning(f"Cache lookup failed for '{question[:50]}...': {e}")
@@ -382,6 +410,7 @@ class ResearcherAgent:
                 "cached": True,
                 "cache_age_days": age_days,
                 "cost": embedding_cost,  # Only embedding cost for cache hit
+                "shared": cached_result.get("shared", False),  # True if from another user
             }
 
         else:
@@ -409,6 +438,8 @@ class ResearcherAgent:
                         category=category,
                         industry=industry,
                         tokens_used=research_result.get("tokens_used", 0),
+                        user_id=user_id,
+                        is_shareable=sharing_consented,
                         research_cost_usd=research_result["cost"],
                     )
                     logger.info(f"Saved research result to cache for '{question[:50]}...'")
@@ -455,6 +486,7 @@ class ResearcherAgent:
                 "confidence": research_result["confidence"],
                 "cached": False,
                 "cost": total_research_cost,
+                "shared": False,  # Fresh research is never shared
             }
 
     def _get_freshness_days(self, category: str | None) -> int:

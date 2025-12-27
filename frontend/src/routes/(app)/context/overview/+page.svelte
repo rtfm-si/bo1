@@ -4,7 +4,9 @@
 	 * Moved from /settings/context/+page.svelte
 	 */
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { apiClient } from '$lib/api/client';
+	import { CONTEXT_WELCOME_KEY } from '$lib/stores/tour';
 	import type { UserContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -34,6 +36,7 @@
 	let saveSuccess = $state(false);
 	let enrichedFields = $state<string[]>([]);
 	let lastUpdated = $state<string | null>(null);
+	let showWelcomeBanner = $state(false);
 
 	// Strategic fields from enrichment (to be saved with context)
 	let enrichedStrategicFields = $state<{
@@ -62,6 +65,14 @@
 	];
 
 	onMount(async () => {
+		// Check for welcome banner flag (set after tour completion)
+		if (browser) {
+			const welcomeFlag = localStorage.getItem(CONTEXT_WELCOME_KEY);
+			if (welcomeFlag === 'true') {
+				showWelcomeBanner = true;
+			}
+		}
+
 		try {
 			const response = await apiClient.getUserContext();
 			if (response.exists && response.context) {
@@ -86,6 +97,13 @@
 			isLoading = false;
 		}
 	});
+
+	function dismissWelcomeBanner() {
+		showWelcomeBanner = false;
+		if (browser) {
+			localStorage.removeItem(CONTEXT_WELCOME_KEY);
+		}
+	}
 
 	async function enrichFromWebsite() {
 		if (!websiteUrl.trim()) return;
@@ -269,6 +287,45 @@
 	<div class="space-y-6">
 		<!-- Context Refresh Banner -->
 		<ContextRefreshBanner />
+
+		<!-- Welcome Banner (shown after onboarding tour) -->
+		{#if showWelcomeBanner}
+			<div class="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg p-4">
+				<div class="flex items-start gap-3">
+					<svg
+						class="w-6 h-6 text-brand-600 dark:text-brand-400 flex-shrink-0 mt-0.5"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+						/>
+					</svg>
+					<div class="flex-1">
+						<h3 class="text-base font-semibold text-brand-900 dark:text-brand-100 mb-1">
+							Welcome! Set up your business context
+						</h3>
+						<p class="text-sm text-brand-700 dark:text-brand-300">
+							Adding your business context helps our AI experts provide tailored advice specific to your situation.
+							Fill in your company details below to get more personalized recommendations.
+						</p>
+					</div>
+					<button
+						onclick={dismissWelcomeBanner}
+						class="p-1 text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-200 rounded transition-colors"
+						aria-label="Dismiss welcome message"
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Alerts -->
 		{#if saveSuccess}

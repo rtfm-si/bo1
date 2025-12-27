@@ -70,6 +70,10 @@ import type {
 	// Pending Updates types (Phase 6)
 	PendingUpdatesResponse,
 	ApproveUpdateResponse,
+	// Objective Progress types
+	ObjectiveProgressListResponse,
+	ObjectiveProgressResponse,
+	ObjectiveProgressUpdate,
 	// Action Stats types
 	ActionStatsResponse,
 	// Action Reminder types
@@ -170,7 +174,24 @@ import type {
 	RatingResponse,
 	RatingMetricsResponse,
 	RatingTrendItem,
-	NegativeRatingsResponse
+	NegativeRatingsResponse,
+	// SEO Tools types
+	SeoTrendAnalysisResponse,
+	SeoHistoryResponse,
+	SeoTopic,
+	SeoTopicCreate,
+	SeoTopicUpdate,
+	SeoTopicListResponse,
+	// SEO Blog Article types
+	SeoBlogArticle,
+	SeoBlogArticleUpdate,
+	SeoBlogArticleListResponse,
+	// Peer Benchmarking types
+	PeerBenchmarkConsentStatus,
+	PeerBenchmarksResponse,
+	PeerComparisonResponse,
+	// Research Sharing types
+	ResearchSharingConsentStatus
 } from './types';
 
 // Re-export types that are used by other modules
@@ -923,6 +944,28 @@ export class ApiClient {
 
 	async getGoalHistory(limit = 10): Promise<{ entries: Array<{ goal_text: string; changed_at: string; previous_goal: string | null }> }> {
 		return this.fetch<{ entries: Array<{ goal_text: string; changed_at: string; previous_goal: string | null }> }>(`/api/v1/context/goal-history?limit=${limit}`);
+	}
+
+	// ==========================================================================
+	// Objective Progress Endpoints
+	// ==========================================================================
+
+	async getObjectivesProgress(): Promise<ObjectiveProgressListResponse> {
+		return this.fetch<ObjectiveProgressListResponse>('/api/v1/context/objectives/progress');
+	}
+
+	async updateObjectiveProgress(
+		objectiveIndex: number,
+		data: ObjectiveProgressUpdate
+	): Promise<ObjectiveProgressResponse> {
+		return this.put<ObjectiveProgressResponse>(
+			`/api/v1/context/objectives/${objectiveIndex}/progress`,
+			data
+		);
+	}
+
+	async deleteObjectiveProgress(objectiveIndex: number): Promise<{ success: boolean }> {
+		return this.delete<{ success: boolean }>(`/api/v1/context/objectives/${objectiveIndex}/progress`);
 	}
 
 	async getValueMetrics(): Promise<ValueMetricsResponse> {
@@ -3120,6 +3163,170 @@ export class ApiClient {
 	 */
 	async getNegativeRatings(limit: number = 10): Promise<NegativeRatingsResponse> {
 		return this.fetch<NegativeRatingsResponse>(`/api/v1/admin/ratings/negative?limit=${limit}`);
+	}
+
+	// ============================================================================
+	// SEO Tools Endpoints
+	// ============================================================================
+
+	/**
+	 * Analyze SEO trends for given keywords
+	 */
+	async analyzeSeoTrends(data: {
+		keywords: string[];
+		industry?: string;
+	}): Promise<SeoTrendAnalysisResponse> {
+		return this.post<SeoTrendAnalysisResponse>('/api/v1/seo/analyze-trends', data);
+	}
+
+	/**
+	 * Get SEO trend analysis history
+	 */
+	async getSeoHistory(params?: {
+		limit?: number;
+		offset?: number;
+	}): Promise<SeoHistoryResponse> {
+		const endpoint = withQueryString('/api/v1/seo/history', params || {});
+		return this.fetch<SeoHistoryResponse>(endpoint);
+	}
+
+	/**
+	 * Get SEO topics list
+	 */
+	async getSeoTopics(params?: {
+		limit?: number;
+		offset?: number;
+	}): Promise<SeoTopicListResponse> {
+		const endpoint = withQueryString('/api/v1/seo/topics', params || {});
+		return this.fetch<SeoTopicListResponse>(endpoint);
+	}
+
+	/**
+	 * Create an SEO topic
+	 */
+	async createSeoTopic(data: SeoTopicCreate): Promise<SeoTopic> {
+		return this.post<SeoTopic>('/api/v1/seo/topics', data);
+	}
+
+	/**
+	 * Update an SEO topic
+	 */
+	async updateSeoTopic(topicId: number, data: SeoTopicUpdate): Promise<SeoTopic> {
+		return this.patch<SeoTopic>(`/api/v1/seo/topics/${topicId}`, data);
+	}
+
+	/**
+	 * Delete an SEO topic
+	 */
+	async deleteSeoTopic(topicId: number): Promise<void> {
+		return this.delete<void>(`/api/v1/seo/topics/${topicId}`);
+	}
+
+	// ============================================================================
+	// SEO Blog Article Methods
+	// ============================================================================
+
+	/**
+	 * Generate a blog article from a topic
+	 */
+	async generateSeoArticle(topicId: number): Promise<SeoBlogArticle> {
+		return this.post<SeoBlogArticle>(`/api/v1/seo/topics/${topicId}/generate`, {});
+	}
+
+	/**
+	 * Get paginated list of SEO articles
+	 */
+	async getSeoArticles(params?: {
+		limit?: number;
+		offset?: number;
+	}): Promise<SeoBlogArticleListResponse> {
+		const endpoint = withQueryString('/api/v1/seo/articles', params || {});
+		return this.fetch<SeoBlogArticleListResponse>(endpoint);
+	}
+
+	/**
+	 * Get a single SEO article by ID
+	 */
+	async getSeoArticle(articleId: number): Promise<SeoBlogArticle> {
+		return this.fetch<SeoBlogArticle>(`/api/v1/seo/articles/${articleId}`);
+	}
+
+	/**
+	 * Update an SEO article
+	 */
+	async updateSeoArticle(articleId: number, data: SeoBlogArticleUpdate): Promise<SeoBlogArticle> {
+		return this.patch<SeoBlogArticle>(`/api/v1/seo/articles/${articleId}`, data);
+	}
+
+	/**
+	 * Delete an SEO article
+	 */
+	async deleteSeoArticle(articleId: number): Promise<void> {
+		return this.delete<void>(`/api/v1/seo/articles/${articleId}`);
+	}
+
+	// ============================================================================
+	// Peer Benchmarking Methods
+	// ============================================================================
+
+	/**
+	 * Get peer benchmark consent status
+	 */
+	async getPeerBenchmarkConsent(): Promise<PeerBenchmarkConsentStatus> {
+		return this.fetch<PeerBenchmarkConsentStatus>('/api/v1/peer-benchmarks/consent');
+	}
+
+	/**
+	 * Opt in to peer benchmarking
+	 */
+	async optInPeerBenchmarks(): Promise<PeerBenchmarkConsentStatus> {
+		return this.post<PeerBenchmarkConsentStatus>('/api/v1/peer-benchmarks/consent', {});
+	}
+
+	/**
+	 * Opt out of peer benchmarking
+	 */
+	async optOutPeerBenchmarks(): Promise<PeerBenchmarkConsentStatus> {
+		return this.delete<PeerBenchmarkConsentStatus>('/api/v1/peer-benchmarks/consent');
+	}
+
+	/**
+	 * Get peer benchmarks for user's industry
+	 */
+	async getPeerBenchmarks(): Promise<PeerBenchmarksResponse> {
+		return this.fetch<PeerBenchmarksResponse>('/api/v1/peer-benchmarks');
+	}
+
+	/**
+	 * Get user's comparison vs peers
+	 */
+	async getPeerComparison(): Promise<PeerComparisonResponse> {
+		return this.fetch<PeerComparisonResponse>('/api/v1/peer-benchmarks/compare');
+	}
+
+	// ============================================================================
+	// Research Sharing Methods
+	// ============================================================================
+
+	/**
+	 * Get research sharing consent status
+	 */
+	async getResearchSharingConsent(): Promise<ResearchSharingConsentStatus> {
+		return this.fetch<ResearchSharingConsentStatus>('/api/v1/research-sharing/consent');
+	}
+
+	/**
+	 * Opt in to research sharing
+	 */
+	async optInResearchSharing(): Promise<ResearchSharingConsentStatus> {
+		return this.post<ResearchSharingConsentStatus>('/api/v1/research-sharing/consent', {});
+	}
+
+	/**
+	 * Opt out of research sharing
+	 */
+	async optOutResearchSharing(): Promise<ResearchSharingConsentStatus> {
+		return this.delete<ResearchSharingConsentStatus>('/api/v1/research-sharing/consent');
 	}
 }
 

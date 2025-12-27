@@ -13,11 +13,12 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import MENTOR_RATE_LIMIT, limiter
 from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.honeypot import HoneypotMixin, validate_honeypot_fields
@@ -463,8 +464,10 @@ async def _stream_mentor_response(
         },
     },
 )
+@limiter.limit(MENTOR_RATE_LIMIT)
 async def mentor_chat(
-    request: MentorChatRequest,
+    request: Request,
+    body: MentorChatRequest,
     user: dict = Depends(get_current_user),
     tier_usage: UsageResult = Depends(require_mentor_limit),
 ) -> StreamingResponse:
@@ -473,7 +476,7 @@ async def mentor_chat(
     Returns SSE events: thinking, context, response, done, error.
     """
     # Honeypot validation (cheap first-pass bot filter)
-    validate_honeypot_fields(request, "mentor.chat")
+    validate_honeypot_fields(body, "mentor.chat")
 
     user_id = user.get("user_id")
     if not user_id:
@@ -489,9 +492,9 @@ async def mentor_chat(
     return StreamingResponse(
         _stream_mentor_response(
             user_id,
-            request.message,
-            request.conversation_id,
-            request.persona,
+            body.message,
+            body.conversation_id,
+            body.persona,
         ),
         media_type="text/event-stream",
         headers={
@@ -946,8 +949,10 @@ async def get_failure_patterns(
     summary="Get improvement plan",
     description="Generate a proactive improvement plan based on detected patterns",
 )
+@limiter.limit(MENTOR_RATE_LIMIT)
 @handle_api_errors("get improvement plan")
 async def get_improvement_plan(
+    request: Request,
     days: int = Query(30, ge=7, le=90, description="Days to look back (7-90)"),
     force_refresh: bool = Query(False, description="Bypass cache and regenerate"),
     user: dict = Depends(get_current_user),

@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from bo1.constants import TierLimits, UsageMetrics
+from bo1.billing import PlanConfig
+from bo1.constants import UsageMetrics
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -145,10 +146,10 @@ def check_limit(user_id: str, metric: str, tier: str) -> UsageResult:
     if not limit_key:
         return UsageResult(allowed=True, current=0, limit=-1, remaining=-1)
 
-    limit = TierLimits.get_limit(tier, limit_key)
+    limit = PlanConfig.get_limit(tier, limit_key)
 
     # Unlimited check
-    if TierLimits.is_unlimited(limit):
+    if PlanConfig.is_unlimited(limit):
         current = get_usage(user_id, metric)
         return UsageResult(allowed=True, current=current, limit=-1, remaining=-1)
 

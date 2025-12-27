@@ -34,6 +34,8 @@ import tourStore, {
 	getPersistedTourPage,
 	clearTourPage,
 	allowTourNavigation,
+	completeTour,
+	CONTEXT_WELCOME_KEY,
 	type TourPage,
 } from './tour';
 
@@ -268,6 +270,51 @@ describe('tour store', () => {
 
 				allowTourNavigation();
 				expect(get(tourStore).isActive).toBe(false);
+			});
+		});
+
+		describe('completeTour', () => {
+			it('sets context welcome flag in localStorage', async () => {
+				tourStore.set({
+					isActive: true,
+					isCompleted: false,
+					needsOnboarding: true,
+					isLoading: false,
+					error: null,
+					currentPage: 'dashboard',
+				});
+
+				const result = await completeTour();
+
+				expect(result).toBe(true);
+				expect(localStorage.setItem).toHaveBeenCalledWith(CONTEXT_WELCOME_KEY, 'true');
+			});
+
+			it('clears tour page state after completion', async () => {
+				localStorageMock['bo1_tour_page'] = 'projects';
+
+				await completeTour();
+
+				expect(localStorage.removeItem).toHaveBeenCalledWith('bo1_tour_page');
+			});
+
+			it('updates store to completed state', async () => {
+				tourStore.set({
+					isActive: true,
+					isCompleted: false,
+					needsOnboarding: true,
+					isLoading: false,
+					error: null,
+					currentPage: 'dashboard',
+				});
+
+				await completeTour();
+
+				const state = get(tourStore);
+				expect(state.isActive).toBe(false);
+				expect(state.isCompleted).toBe(true);
+				expect(state.needsOnboarding).toBe(false);
+				expect(state.currentPage).toBeNull();
 			});
 		});
 	});

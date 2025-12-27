@@ -635,6 +635,7 @@ async def start_deliberation(
         # Load user preferences (skip_clarification, subscription_tier)
         skip_clarification = False
         subscription_tier = "free"
+        research_sharing_consented = False
         try:
             from bo1.state.database import db_session
 
@@ -652,6 +653,14 @@ async def start_deliberation(
                         if row.get("subscription_tier"):
                             subscription_tier = row["subscription_tier"]
                             logger.info(f"User {user_id} tier={subscription_tier}")
+                    # Check research sharing consent
+                    cur.execute(
+                        """SELECT consented_at IS NOT NULL AND revoked_at IS NULL as consented
+                           FROM research_sharing_consent WHERE user_id = %s""",
+                        (user_id,),
+                    )
+                    consent_row = cur.fetchone()
+                    research_sharing_consented = consent_row["consented"] if consent_row else False
         except Exception as e:
             logger.debug(f"Could not load user preferences: {e}")
 
@@ -685,6 +694,7 @@ async def start_deliberation(
             skip_clarification=skip_clarification,
             context_ids=context_ids,
             subscription_tier=subscription_tier,
+            research_sharing_consented=research_sharing_consented,
             request_id=request_id,
             persona_count_variant=persona_count_variant,
         )

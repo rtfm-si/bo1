@@ -19,6 +19,9 @@ export type TourPage = 'dashboard' | 'actions' | 'projects' | null;
 /** localStorage key for tour page state */
 const TOUR_PAGE_KEY = 'bo1_tour_page';
 
+/** localStorage key for showing welcome banner on context page */
+export const CONTEXT_WELCOME_KEY = 'bo1_show_context_welcome';
+
 export interface TourState {
 	/** Whether tour is currently running */
 	isActive: boolean;
@@ -135,11 +138,16 @@ export function clearTourPage(): void {
 
 /**
  * Mark tour as complete
+ * Returns true if this was a fresh completion (for redirect handling)
  */
-export async function completeTour(): Promise<void> {
+export async function completeTour(): Promise<boolean> {
 	try {
 		await apiClient.completeTour();
 		clearTourPage();
+		// Set flag for welcome banner on context page
+		if (browser) {
+			localStorage.setItem(CONTEXT_WELCOME_KEY, 'true');
+		}
 		tourStore.update((state) => ({
 			...state,
 			isActive: false,
@@ -147,8 +155,10 @@ export async function completeTour(): Promise<void> {
 			needsOnboarding: false,
 			currentPage: null,
 		}));
+		return true;
 	} catch (error) {
 		console.error('Failed to complete tour:', error);
+		return false;
 	}
 }
 

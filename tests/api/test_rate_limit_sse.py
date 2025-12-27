@@ -20,13 +20,13 @@ class TestSSERateLimitConstants:
     def test_streaming_rate_limit_defined(self):
         """STREAMING rate limit should be defined."""
         assert hasattr(RateLimits, "STREAMING")
-        assert RateLimits.STREAMING == "20/minute"
+        assert RateLimits.STREAMING == "30/minute"
 
     def test_streaming_rate_limit_exported(self):
         """STREAMING_RATE_LIMIT should be exported from rate_limit module."""
         from backend.api.middleware.rate_limit import STREAMING_RATE_LIMIT
 
-        assert STREAMING_RATE_LIMIT == "20/minute"
+        assert STREAMING_RATE_LIMIT == "30/minute"
 
 
 class TestSSERateLimitDecorator:
@@ -89,7 +89,7 @@ class TestSSERateLimitBehavior:
         """Test that STREAMING_RATE_LIMIT is imported in streaming module."""
         from backend.api.streaming import STREAMING_RATE_LIMIT
 
-        assert STREAMING_RATE_LIMIT == "20/minute"
+        assert STREAMING_RATE_LIMIT == "30/minute"
 
 
 class TestRateLimitFailOpen:

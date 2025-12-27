@@ -22,6 +22,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_email, extract_user_id
 from backend.api.utils.db_helpers import get_single_value
 from backend.api.utils.errors import handle_api_errors
+from bo1.billing import PlanConfig
 from bo1.config import get_settings
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
@@ -90,56 +91,11 @@ class CheckoutResponse(BaseModel):
 
 
 # =============================================================================
-# Plan Configuration
+# Plan Configuration (from centralized bo1.billing.config)
 # =============================================================================
 
-PLAN_CONFIG = {
-    "free": {
-        "name": "Free",
-        "price_monthly": 0,
-        "meetings_limit": 3,
-        "features": [
-            "3 meetings per month",
-            "Basic expert panel",
-            "Community support",
-        ],
-    },
-    "starter": {
-        "name": "Starter",
-        "price_monthly": 2900,  # $29.00
-        "meetings_limit": 20,
-        "features": [
-            "20 meetings per month",
-            "All expert personas",
-            "Email support",
-            "Priority processing",
-        ],
-    },
-    "pro": {
-        "name": "Pro",
-        "price_monthly": 9900,  # $99.00
-        "meetings_limit": None,  # Unlimited
-        "features": [
-            "Unlimited meetings",
-            "All expert personas",
-            "Priority support",
-            "API access",
-            "Custom expert personas",
-        ],
-    },
-    "enterprise": {
-        "name": "Enterprise",
-        "price_monthly": 0,  # Custom pricing
-        "meetings_limit": None,
-        "features": [
-            "Everything in Pro",
-            "Dedicated support",
-            "SLA guarantee",
-            "Custom integrations",
-            "On-premise option",
-        ],
-    },
-}
+# Use centralized config - get_plan_config() returns compatible format
+PLAN_CONFIG = PlanConfig.get_plan_config()
 
 
 # =============================================================================

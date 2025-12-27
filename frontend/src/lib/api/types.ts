@@ -104,6 +104,31 @@ export type ContextUpdateSuggestion = components['schemas']['ContextUpdateSugges
 export type PendingUpdatesResponse = components['schemas']['PendingUpdatesResponse'];
 export type ApproveUpdateResponse = components['schemas']['ApproveUpdateResponse'];
 
+// ---- Objective Progress Types (manual until next type generation) ----
+export interface ObjectiveProgress {
+	current: string;
+	target: string;
+	unit?: string | null;
+	updated_at: string;
+}
+
+export interface ObjectiveProgressUpdate {
+	current: string;
+	target: string;
+	unit?: string | null;
+}
+
+export interface ObjectiveProgressResponse {
+	objective_index: number;
+	objective_text: string;
+	progress: ObjectiveProgress | null;
+}
+
+export interface ObjectiveProgressListResponse {
+	objectives: ObjectiveProgressResponse[];
+	count: number;
+}
+
 // ---- Admin Types ----
 export type UserInfo = components['schemas']['UserInfo'];
 export type UserListResponse = components['schemas']['UserListResponse'];
@@ -1145,4 +1170,225 @@ export interface NegativeRatingItem {
  */
 export interface NegativeRatingsResponse {
 	items: NegativeRatingItem[];
+}
+
+// =============================================================================
+// SEO Tools Types
+// =============================================================================
+
+/**
+ * SEO trend opportunity
+ */
+export interface SeoTrendOpportunity {
+	topic: string;
+	trend_direction: string;
+	relevance_score: number;
+	description: string;
+}
+
+/**
+ * SEO trend threat
+ */
+export interface SeoTrendThreat {
+	topic: string;
+	threat_type: string;
+	severity: string;
+	description: string;
+}
+
+/**
+ * SEO trend analysis result
+ */
+export interface SeoTrendAnalysisResult {
+	executive_summary: string;
+	key_trends: string[];
+	opportunities: SeoTrendOpportunity[];
+	threats: SeoTrendThreat[];
+	keywords_analyzed: string[];
+	industry: string | null;
+	sources: string[];
+}
+
+/**
+ * SEO trend analysis response
+ */
+export interface SeoTrendAnalysisResponse {
+	id: number;
+	results: SeoTrendAnalysisResult;
+	created_at: string;
+	remaining_analyses: number;
+}
+
+/**
+ * SEO history entry
+ */
+export interface SeoHistoryEntry {
+	id: number;
+	keywords: string[];
+	industry: string | null;
+	executive_summary: string;
+	created_at: string;
+}
+
+/**
+ * SEO history response
+ */
+export interface SeoHistoryResponse {
+	analyses: SeoHistoryEntry[];
+	total: number;
+	remaining_this_month: number;
+}
+
+/**
+ * SEO topic status
+ */
+export type SeoTopicStatus = 'researched' | 'writing' | 'published';
+
+/**
+ * SEO topic for blog generation workflow
+ */
+export interface SeoTopic {
+	id: number;
+	keyword: string;
+	status: SeoTopicStatus;
+	source_analysis_id: number | null;
+	notes: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * SEO topic create request
+ */
+export interface SeoTopicCreate {
+	keyword: string;
+	source_analysis_id?: number | null;
+	notes?: string | null;
+}
+
+/**
+ * SEO topic update request
+ */
+export interface SeoTopicUpdate {
+	status?: SeoTopicStatus;
+	notes?: string | null;
+}
+
+/**
+ * SEO topic list response
+ */
+export interface SeoTopicListResponse {
+	topics: SeoTopic[];
+	total: number;
+}
+
+/**
+ * SEO blog article status
+ */
+export type SeoBlogArticleStatus = 'draft' | 'published';
+
+/**
+ * SEO blog article
+ */
+export interface SeoBlogArticle {
+	id: number;
+	topic_id: number | null;
+	title: string;
+	excerpt: string | null;
+	content: string;
+	meta_title: string | null;
+	meta_description: string | null;
+	status: SeoBlogArticleStatus;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * SEO blog article update request
+ */
+export interface SeoBlogArticleUpdate {
+	title?: string;
+	excerpt?: string;
+	content?: string;
+	meta_title?: string;
+	meta_description?: string;
+	status?: SeoBlogArticleStatus;
+}
+
+/**
+ * SEO blog article list response
+ */
+export interface SeoBlogArticleListResponse {
+	articles: SeoBlogArticle[];
+	total: number;
+	remaining_this_month: number;
+}
+
+// =============================================================================
+// Peer Benchmarking Types
+// =============================================================================
+
+/**
+ * Consent status for peer benchmarking.
+ */
+export interface PeerBenchmarkConsentStatus {
+	consented: boolean;
+	consented_at: string | null;
+	revoked_at: string | null;
+}
+
+/**
+ * Consent status for research sharing.
+ */
+export interface ResearchSharingConsentStatus {
+	consented: boolean;
+	consented_at: string | null;
+	revoked_at: string | null;
+}
+
+/**
+ * A single peer benchmark metric with percentiles.
+ */
+export interface PeerBenchmarkMetric {
+	metric: string;
+	display_name: string;
+	p10: number | null;
+	p25: number | null;
+	p50: number | null;
+	p75: number | null;
+	p90: number | null;
+	sample_count: number;
+	user_value: number | null;
+	user_percentile: number | null;
+	locked: boolean;
+}
+
+/**
+ * Response containing peer benchmark data.
+ */
+export interface PeerBenchmarksResponse {
+	industry: string;
+	metrics: PeerBenchmarkMetric[];
+	updated_at: string | null;
+	k_anonymity_threshold: number;
+}
+
+/**
+ * User's comparison for a single metric.
+ */
+export interface PeerComparisonMetric {
+	metric: string;
+	display_name: string;
+	user_value: number | null;
+	user_percentile: number | null;
+	p50: number | null;
+	sample_count: number;
+}
+
+/**
+ * Response containing user's peer comparison.
+ */
+export interface PeerComparisonResponse {
+	industry: string;
+	comparisons: PeerComparisonMetric[];
 }

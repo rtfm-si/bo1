@@ -281,6 +281,21 @@ GENERAL_RATE_LIMIT = RateLimits.GENERAL
 CONTROL_RATE_LIMIT = RateLimits.CONTROL
 ADMIN_RATE_LIMIT = RateLimits.ADMIN  # Higher limit for admin dashboard endpoints
 
+# Authenticated user endpoint limits (added per rate limits audit)
+CONTEXT_RATE_LIMIT = RateLimits.CONTEXT
+USER_RATE_LIMIT = RateLimits.USER
+PROJECTS_RATE_LIMIT = RateLimits.PROJECTS
+MENTOR_RATE_LIMIT = RateLimits.MENTOR
+BUSINESS_METRICS_RATE_LIMIT = RateLimits.BUSINESS_METRICS
+COMPETITORS_RATE_LIMIT = RateLimits.COMPETITORS
+ONBOARDING_RATE_LIMIT = RateLimits.ONBOARDING
+TAGS_RATE_LIMIT = RateLimits.TAGS
+BILLING_RATE_LIMIT = RateLimits.BILLING
+WORKSPACES_RATE_LIMIT = RateLimits.WORKSPACES
+SEO_ANALYZE_RATE_LIMIT = RateLimits.SEO_ANALYZE
+SEO_GENERATE_RATE_LIMIT = RateLimits.SEO_GENERATE
+PEER_BENCHMARKS_RATE_LIMIT = RateLimits.PEER_BENCHMARKS
+
 
 def get_tiered_session_limit(request: Request) -> str:
     """Get session creation limit based on user's subscription tier.

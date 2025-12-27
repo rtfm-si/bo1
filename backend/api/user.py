@@ -33,7 +33,7 @@ from backend.services.audit import (
 from backend.services.gdpr import GDPRError, collect_user_data, delete_user_data
 from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
 from backend.services.usage_tracking import get_all_usage, get_effective_tier
-from bo1.constants import TierFeatureFlags, TierLimits
+from bo1.billing import PlanConfig
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
@@ -922,7 +922,7 @@ async def get_usage(
             )
 
         # Get feature flags
-        features = TierFeatureFlags.get_features(effective_tier)
+        features = PlanConfig.get_features(effective_tier)
 
         return UsageResponse(
             tier=base_tier,
@@ -969,8 +969,8 @@ async def get_tier_info(
 
     return TierLimitsResponse(
         tier=effective_tier,
-        limits=TierLimits.get_limits(effective_tier),
-        features=TierFeatureFlags.get_features(effective_tier),
+        limits=PlanConfig.get_limits(effective_tier),
+        features=PlanConfig.get_features(effective_tier),
     )
 
 

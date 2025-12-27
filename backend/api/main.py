@@ -67,8 +67,11 @@ from backend.api import (  # noqa: E402
     mentor,
     onboarding,
     page_analytics,
+    peer_benchmarks,
     projects,
     ratings,
+    research_sharing,
+    seo,
     sessions,
     share,
     status,
@@ -587,6 +590,9 @@ app.include_router(calendar_router, prefix="/api", tags=["integrations"])
 app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
+app.include_router(seo.router, prefix="/api", tags=["seo"])
+app.include_router(peer_benchmarks.router, prefix="/api", tags=["peer-benchmarks"])
+app.include_router(research_sharing.router, prefix="/api", tags=["research-sharing"])
 app.include_router(templates.router, prefix="/api", tags=["templates"])
 app.include_router(terms.terms_router, prefix="/api", tags=["terms"])
 app.include_router(terms.user_terms_router, prefix="/api", tags=["user"])

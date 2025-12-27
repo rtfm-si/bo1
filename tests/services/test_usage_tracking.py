@@ -1,4 +1,9 @@
-"""Tests for usage tracking service."""
+"""Tests for usage tracking service.
+
+Note: TestTierLimits and TestTierFeatureFlags test the deprecated classes in
+bo1.constants for backward compatibility. The canonical source of truth is
+now bo1.billing.PlanConfig, which has its own tests in tests/billing/test_plan_config.py.
+"""
 
 from unittest.mock import MagicMock, patch
 
@@ -6,7 +11,7 @@ from bo1.constants import TierFeatureFlags, TierLimits, UsageMetrics
 
 
 class TestTierLimits:
-    """Tests for TierLimits configuration."""
+    """Tests for deprecated TierLimits (backward compat)."""
 
     def test_get_limits_free(self):
         """Free tier should have base limits."""
@@ -58,7 +63,7 @@ class TestTierLimits:
 
 
 class TestTierFeatureFlags:
-    """Tests for TierFeatureFlags configuration."""
+    """Tests for deprecated TierFeatureFlags (backward compat)."""
 
     def test_free_tier_features(self):
         """Free tier should have limited features."""

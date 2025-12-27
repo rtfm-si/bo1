@@ -195,6 +195,8 @@ class UserRepository(BaseRepository):
         "trend_insights",
         # Action-triggered metric staleness (28-day delay)
         "action_metric_triggers",
+        # Strategic objective progress tracking
+        "strategic_objectives_progress",
     ]
 
     @classmethod

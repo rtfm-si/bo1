@@ -462,6 +462,7 @@ class TestFieldCount:
             "facilitator_decision",
             "facilitator_guidance",
             "persona_count_variant",
+            "research_sharing_consented",
         }
 
         # Combine all fields

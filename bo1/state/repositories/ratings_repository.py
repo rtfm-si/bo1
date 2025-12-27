@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 class RatingsRepository(BaseRepository):
     """Repository for the user_ratings table."""
 
+    @staticmethod
+    def _normalize_entity_id(entity_id: str) -> str:
+        """Strip bo1_ prefix from session IDs to get raw UUID.
+
+        The sessions table uses VARCHAR IDs with bo1_ prefix,
+        but user_ratings.entity_id is UUID type.
+        """
+        if entity_id.startswith("bo1_"):
+            return entity_id[4:]  # Strip 'bo1_' prefix
+        return entity_id
+
     def upsert_rating(
         self,
         user_id: str,
@@ -41,6 +52,7 @@ class RatingsRepository(BaseRepository):
         """
         self._validate_id(user_id, "user_id")
         self._validate_id(entity_id, "entity_id")
+        normalized_entity_id = self._normalize_entity_id(entity_id)
 
         if entity_type not in ("meeting", "action"):
             raise ValueError(f"entity_type must be 'meeting' or 'action', got '{entity_type}'")
@@ -58,7 +70,7 @@ class RatingsRepository(BaseRepository):
         """
         return self._execute_returning(
             query,
-            (user_id, entity_type, entity_id, rating, comment),
+            (user_id, entity_type, normalized_entity_id, rating, comment),
             user_id=user_id,
         )
 
@@ -80,13 +92,16 @@ class RatingsRepository(BaseRepository):
         """
         self._validate_id(user_id, "user_id")
         self._validate_id(entity_id, "entity_id")
+        normalized_entity_id = self._normalize_entity_id(entity_id)
 
         query = """
             SELECT id, user_id, entity_type, entity_id, rating, comment, created_at
             FROM user_ratings
             WHERE user_id = %s AND entity_type = %s AND entity_id = %s
         """
-        return self._execute_one(query, (user_id, entity_type, entity_id), user_id=user_id)
+        return self._execute_one(
+            query, (user_id, entity_type, normalized_entity_id), user_id=user_id
+        )
 
     def get_metrics(
         self,
@@ -233,6 +248,7 @@ class RatingsRepository(BaseRepository):
             Dict with up and down counts
         """
         self._validate_id(entity_id, "entity_id")
+        normalized_entity_id = self._normalize_entity_id(entity_id)
 
         query = """
             SELECT
@@ -241,7 +257,7 @@ class RatingsRepository(BaseRepository):
             FROM user_ratings
             WHERE entity_type = %s AND entity_id = %s
         """
-        result = self._execute_one(query, (entity_type, entity_id))
+        result = self._execute_one(query, (entity_type, normalized_entity_id))
         return (
             {"up": result["up"] or 0, "down": result["down"] or 0}
             if result

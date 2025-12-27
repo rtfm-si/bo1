@@ -1201,6 +1201,16 @@ class AdminApiClient {
 	}
 
 	// =========================================================================
+	// SEO Analytics
+	// =========================================================================
+
+	async getSeoAnalytics(topLimit: number = 10): Promise<AdminSeoAnalyticsResponse> {
+		return this.fetch<AdminSeoAnalyticsResponse>(
+			`/api/admin/seo/analytics?top_limit=${topLimit}`
+		);
+	}
+
+	// =========================================================================
 	// Runtime Config (Emergency Toggles)
 	// =========================================================================
 
@@ -1326,6 +1336,39 @@ export interface Topic {
 
 export interface TopicsResponse {
 	topics: Topic[];
+}
+
+// =============================================================================
+// SEO Analytics Types
+// =============================================================================
+
+export interface SeoTopArticle {
+	article_id: number;
+	title: string;
+	user_email: string | null;
+	views: number;
+	clicks: number;
+	signups: number;
+	ctr: number;
+	signup_rate: number;
+}
+
+export interface SeoAnalyticsSummary {
+	total_articles: number;
+	total_views: number;
+	total_clicks: number;
+	total_signups: number;
+	overall_ctr: number;
+	overall_signup_rate: number;
+	views_today: number;
+	views_this_week: number;
+	views_this_month: number;
+}
+
+export interface AdminSeoAnalyticsResponse {
+	summary: SeoAnalyticsSummary;
+	top_by_views: SeoTopArticle[];
+	top_by_conversion: SeoTopArticle[];
 }
 
 // =============================================================================

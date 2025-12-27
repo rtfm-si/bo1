@@ -27,7 +27,7 @@ from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors
 from backend.services.insight_staleness import get_stale_benchmarks
-from bo1.constants import IndustryBenchmarkLimits
+from bo1.billing import PlanConfig
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
@@ -399,7 +399,7 @@ def get_stub_insights(industry: str, tier: str = "free") -> tuple[list[IndustryI
         Tuple of (insights list, locked_count)
     """
     now = datetime.now(UTC)
-    limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
+    limit = PlanConfig.get_benchmark_limit(tier)
 
     # Get benchmarks for industry
     benchmarks = get_benchmarks_for_industry(industry)
@@ -715,7 +715,7 @@ async def compare_benchmarks(
 
         # Get user's tier
         tier = get_user_tier(user_id)
-        limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
+        limit = PlanConfig.get_benchmark_limit(tier)
 
         # Get benchmarks for industry
         benchmarks = get_benchmarks_for_industry(industry)

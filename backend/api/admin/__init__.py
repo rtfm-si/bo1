@@ -43,6 +43,7 @@ from backend.api.admin import (
     queries,
     research_cache,
     runtime_config,
+    seo_analytics,
     session_control,
     templates,
     terms,
@@ -83,6 +84,7 @@ router.include_router(queries.router)
 router.include_router(templates.router)
 router.include_router(dashboard.router)
 router.include_router(terms.router)
+router.include_router(seo_analytics.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

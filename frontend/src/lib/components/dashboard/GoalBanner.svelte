@@ -1,18 +1,31 @@
 <script lang="ts">
 	/**
-	 * GoalBanner - Displays north star goal and strategic objectives
+	 * GoalBanner - Displays north star goal and strategic objectives with progress
 	 * Shows prominent goal at dashboard top with edit link
 	 * Optionally shows staleness prompt when goal unchanged >30 days
+	 * Supports per-objective progress tracking with edit capability
 	 */
+	import type { ObjectiveProgress } from '$lib/api/types';
 
 	interface Props {
 		northStarGoal: string | null | undefined;
 		strategicObjectives: string[] | null | undefined;
+		/** Progress data keyed by objective index (as string) */
+		objectivesProgress?: Record<string, ObjectiveProgress>;
 		daysSinceChange?: number | null;
 		shouldPromptReview?: boolean;
+		/** Callback when user clicks to edit progress for an objective */
+		onEditProgress?: (index: number, objective: string, progress: ObjectiveProgress | null) => void;
 	}
 
-	let { northStarGoal, strategicObjectives = [], daysSinceChange = null, shouldPromptReview = false }: Props = $props();
+	let {
+		northStarGoal,
+		strategicObjectives = [],
+		objectivesProgress = {},
+		daysSinceChange = null,
+		shouldPromptReview = false,
+		onEditProgress
+	}: Props = $props();
 
 	// Limit display to first 3 objectives
 	const displayObjectives = $derived((strategicObjectives ?? []).slice(0, 3));
@@ -26,6 +39,24 @@
 		if (daysSinceChange === 1) return 'Updated yesterday';
 		return `Updated ${daysSinceChange} days ago`;
 	});
+
+	// Get progress for an objective by index
+	function getProgress(index: number): ObjectiveProgress | null {
+		return objectivesProgress[String(index)] || null;
+	}
+
+	// Format progress display
+	function formatProgress(progress: ObjectiveProgress): string {
+		const unit = progress.unit ? ` ${progress.unit}` : '';
+		return `${progress.current}${unit} → ${progress.target}${unit}`;
+	}
+
+	// Handle progress click
+	function handleProgressClick(index: number, objective: string) {
+		if (onEditProgress) {
+			onEditProgress(index, objective, getProgress(index));
+		}
+	}
 </script>
 
 {#if hasGoal}
@@ -70,13 +101,40 @@
 				{#if displayObjectives.length > 0}
 					<div class="mt-3 pt-3 border-t border-brand-200/50 dark:border-brand-700/50">
 						<span class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block">Strategic Objectives</span>
-						<ul class="space-y-1">
+						<ul class="space-y-2">
 							{#each displayObjectives as objective, idx (idx)}
+								{@const progress = getProgress(idx)}
 								<li class="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
 									<svg class="w-4 h-4 text-brand-500 dark:text-brand-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 									</svg>
-									<span>{objective}</span>
+									<div class="flex-1 min-w-0">
+										<span>{objective}</span>
+										<!-- Progress indicator -->
+										{#if progress}
+											<button
+												type="button"
+												onclick={() => handleProgressClick(idx, objective)}
+												class="ml-2 inline-flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full transition-colors"
+											>
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+												</svg>
+												{formatProgress(progress)}
+											</button>
+										{:else if onEditProgress}
+											<button
+												type="button"
+												onclick={() => handleProgressClick(idx, objective)}
+												class="ml-2 inline-flex items-center gap-1 text-xs text-neutral-400 dark:text-neutral-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+											>
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+												</svg>
+												Track progress
+											</button>
+										{/if}
+									</div>
 								</li>
 							{/each}
 						</ul>

@@ -1,11 +1,12 @@
 <script lang="ts">
 	/**
-	 * Privacy Settings - GDPR data export, account deletion, email preferences, data retention
+	 * Privacy Settings - GDPR data export, account deletion, email preferences, data retention, research sharing
 	 */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import type { EmailPreferences, ConsentHistoryItem } from '$lib/api/client';
+	import type { ResearchSharingConsentStatus } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
@@ -37,10 +38,12 @@
 	let retentionDays = $state<number>(730);
 	let deletionRemindersSuppressed = $state<boolean>(false);
 	let consentHistory = $state<ConsentHistoryItem[]>([]);
+	let researchSharingConsent = $state<ResearchSharingConsentStatus | null>(null);
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isSavingRetention = $state(false);
 	let isSavingReminderSuppression = $state(false);
+	let isSavingResearchSharing = $state(false);
 	let isExporting = $state(false);
 	let isDeleting = $state(false);
 	let error = $state<string | null>(null);
@@ -54,20 +57,22 @@
 	let deleteConfirmText = $state('');
 	let deleteError = $state<string | null>(null);
 
-	// Load email preferences, retention setting, and consent history
+	// Load email preferences, retention setting, consent history, and research sharing consent
 	onMount(async () => {
 		try {
-			const [emailResponse, retentionResponse, reminderResponse, consentResponse] =
+			const [emailResponse, retentionResponse, reminderResponse, consentResponse, researchResponse] =
 				await Promise.all([
 					apiClient.getEmailPreferences(),
 					apiClient.getRetentionSetting(),
 					apiClient.getRetentionReminderSettings(),
-					apiClient.getTermsConsentStatus()
+					apiClient.getTermsConsentStatus(),
+					apiClient.getResearchSharingConsent()
 				]);
 			emailPrefs = emailResponse.preferences;
 			retentionDays = retentionResponse.data_retention_days;
 			deletionRemindersSuppressed = reminderResponse.deletion_reminder_suppressed;
 			consentHistory = consentResponse.consents || [];
+			researchSharingConsent = researchResponse;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load settings';
 			// Set defaults if load fails
@@ -79,6 +84,7 @@
 			retentionDays = 730;
 			deletionRemindersSuppressed = false;
 			consentHistory = [];
+			researchSharingConsent = { consented: false, consented_at: null, revoked_at: null };
 		} finally {
 			isLoading = false;
 		}
@@ -184,6 +190,24 @@
 		deleteError = null;
 	}
 
+	// Toggle research sharing consent
+	async function toggleResearchSharing() {
+		isSavingResearchSharing = true;
+		try {
+			if (researchSharingConsent?.consented) {
+				const response = await apiClient.optOutResearchSharing();
+				researchSharingConsent = response;
+			} else {
+				const response = await apiClient.optInResearchSharing();
+				researchSharingConsent = response;
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update research sharing settings';
+		} finally {
+			isSavingResearchSharing = false;
+		}
+	}
+
 	// Toggle deletion reminder suppression
 	async function toggleDeletionReminders() {
 		isSavingReminderSuppression = true;
@@ -272,6 +296,49 @@
 						No consent records found.
 					</p>
 				{/if}
+			</div>
+		</div>
+
+		<!-- Research Sharing -->
+		<div
+			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+		>
+			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Research Sharing</h2>
+			<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+				Help improve research for the community by sharing anonymized insights with similar businesses.
+			</p>
+
+			<label class="flex items-center justify-between cursor-pointer">
+				<div>
+					<p class="font-medium text-slate-900 dark:text-white">Share research insights</p>
+					<p class="text-sm text-slate-500 dark:text-slate-400">
+						Anonymized research results help businesses with similar contexts
+					</p>
+				</div>
+				<button
+					type="button"
+					role="switch"
+					aria-checked={researchSharingConsent?.consented}
+					aria-label="Toggle research sharing"
+					disabled={isSavingResearchSharing}
+					class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 {researchSharingConsent?.consented
+						? 'bg-brand-600'
+						: 'bg-slate-300 dark:bg-slate-600'}"
+					onclick={toggleResearchSharing}
+				>
+					<span
+						class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {researchSharingConsent?.consented
+							? 'translate-x-6'
+							: 'translate-x-1'}"
+					></span>
+				</button>
+			</label>
+
+			<div class="mt-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+				<p class="text-sm text-blue-800 dark:text-blue-200">
+					<strong>Privacy first:</strong> Only research findings are shared - never your personal information,
+					business name, or identifiable data. You can still benefit from shared research even if you opt out.
+				</p>
 			</div>
 		</div>
 

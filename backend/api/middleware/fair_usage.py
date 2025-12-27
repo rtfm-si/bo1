@@ -5,7 +5,8 @@ fair usage limits before allowing expensive operations.
 """
 
 import logging
-from typing import Annotated
+from collections.abc import Callable, Coroutine
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException
 
@@ -95,7 +96,9 @@ async def _check_fair_usage_impl(
     return result
 
 
-def require_fair_usage(feature: str, estimated_cost: float = 0.0):
+def require_fair_usage(
+    feature: str, estimated_cost: float = 0.0
+) -> Callable[..., Coroutine[Any, Any, UsageCheckResult]]:
     """Create a dependency that checks fair usage for a feature.
 
     Usage:
@@ -126,7 +129,9 @@ def require_fair_usage(feature: str, estimated_cost: float = 0.0):
     return dependency
 
 
-def require_fair_usage_strict(feature: str, estimated_cost: float = 0.0):
+def require_fair_usage_strict(
+    feature: str, estimated_cost: float = 0.0
+) -> Callable[..., Coroutine[Any, Any, UsageCheckResult]]:
     """Create a dependency that blocks at soft warning threshold.
 
     Same as require_fair_usage but blocks at 80% instead of 100%.

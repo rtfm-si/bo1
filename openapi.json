@@ -2119,6 +2119,33 @@
         "title": "AggregateSpec",
         "type": "object"
       },
+      "AggregatedCacheMetrics": {
+        "description": "Aggregated metrics across all cache types.\n\nAttributes:\n    hit_rate: Combined cache hit rate (0.0-1.0)\n    total_hits: Total hits across all caches\n    total_requests: Total requests across all caches",
+        "properties": {
+          "hit_rate": {
+            "description": "Combined cache hit rate (0.0-1.0)",
+            "title": "Hit Rate",
+            "type": "number"
+          },
+          "total_hits": {
+            "description": "Total hits across all caches",
+            "title": "Total Hits",
+            "type": "integer"
+          },
+          "total_requests": {
+            "description": "Total requests across all caches",
+            "title": "Total Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hit_rate",
+          "total_hits",
+          "total_requests"
+        ],
+        "title": "AggregatedCacheMetrics",
+        "type": "object"
+      },
       "AlertHistoryItem": {
         "description": "Response model for a single alert history entry.\n\nAttributes:\n    id: Alert ID\n    alert_type: Type of alert (e.g., runaway_session, auth_failure_spike)\n    severity: Alert severity (info, warning, high, urgent, critical)\n    title: Alert title\n    message: Alert message body\n    metadata: Additional context (session_id, user_id, IP, etc.)\n    delivered: Whether ntfy delivery succeeded\n    created_at: When alert was created\n    updated_at: When the record was last updated",
         "properties": {
@@ -4630,6 +4657,39 @@
           "cost_savings_30d"
         ],
         "title": "CacheMetricsResponse",
+        "type": "object"
+      },
+      "CacheTypeMetrics": {
+        "description": "Metrics for a single cache type.\n\nAttributes:\n    hit_rate: Cache hit rate (0.0-1.0)\n    hits: Total cache hits\n    misses: Total cache misses\n    total: Total requests",
+        "properties": {
+          "hit_rate": {
+            "description": "Cache hit rate (0.0-1.0)",
+            "title": "Hit Rate",
+            "type": "number"
+          },
+          "hits": {
+            "description": "Total cache hits",
+            "title": "Hits",
+            "type": "integer"
+          },
+          "misses": {
+            "description": "Total cache misses",
+            "title": "Misses",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total requests",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hit_rate",
+          "hits",
+          "misses",
+          "total"
+        ],
+        "title": "CacheTypeMetrics",
         "type": "object"
       },
       "CalendarStatusResponse": {
@@ -10581,6 +10641,144 @@
         "title": "FailurePatternsResponse",
         "type": "object"
       },
+      "FairUsageFeatureStatus": {
+        "description": "Fair usage status for a single feature.",
+        "properties": {
+          "current_cost": {
+            "description": "Current daily cost (USD)",
+            "title": "Current Cost",
+            "type": "number"
+          },
+          "daily_limit": {
+            "description": "Daily limit (USD), -1 = unlimited",
+            "title": "Daily Limit",
+            "type": "number"
+          },
+          "feature": {
+            "description": "Feature name",
+            "title": "Feature",
+            "type": "string"
+          },
+          "percent_used": {
+            "description": "Percentage of limit used (0-1)",
+            "title": "Percent Used",
+            "type": "number"
+          },
+          "remaining": {
+            "description": "Amount remaining until cap (USD), -1 = unlimited",
+            "title": "Remaining",
+            "type": "number"
+          },
+          "status": {
+            "description": "Status: allowed, soft_warning, hard_blocked",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature",
+          "current_cost",
+          "daily_limit",
+          "percent_used",
+          "remaining",
+          "status"
+        ],
+        "title": "FairUsageFeatureStatus",
+        "type": "object"
+      },
+      "FairUsageStatusResponse": {
+        "description": "User's current fair usage status across features.",
+        "properties": {
+          "features": {
+            "description": "Status per feature",
+            "items": {
+              "$ref": "#/components/schemas/FairUsageFeatureStatus"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "tier": {
+            "description": "User's subscription tier",
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tier",
+          "features"
+        ],
+        "title": "FairUsageStatusResponse",
+        "type": "object"
+      },
+      "FeatureCostBreakdown": {
+        "description": "Cost breakdown for a single feature.\n\nAttributes:\n    feature: Feature name\n    total_cost: Total cost over period (USD)\n    user_count: Number of unique users\n    avg_per_user: Average cost per user (USD)\n    p90_daily: p90 daily cost threshold (USD)",
+        "properties": {
+          "avg_per_user": {
+            "description": "Average cost per user (USD)",
+            "title": "Avg Per User",
+            "type": "number"
+          },
+          "feature": {
+            "description": "Feature name",
+            "title": "Feature",
+            "type": "string"
+          },
+          "p90_daily": {
+            "description": "p90 daily cost threshold (USD)",
+            "title": "P90 Daily",
+            "type": "number"
+          },
+          "total_cost": {
+            "description": "Total cost over period (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "user_count": {
+            "description": "Number of unique users",
+            "title": "User Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feature",
+          "total_cost",
+          "user_count",
+          "avg_per_user",
+          "p90_daily"
+        ],
+        "title": "FeatureCostBreakdown",
+        "type": "object"
+      },
+      "FeatureCostBreakdownResponse": {
+        "description": "Response model for feature cost breakdown.\n\nAttributes:\n    features: List of feature breakdowns\n    period_days: Number of days in analysis period\n    total_cost: Total cost across all features",
+        "properties": {
+          "features": {
+            "description": "Feature breakdowns",
+            "items": {
+              "$ref": "#/components/schemas/FeatureCostBreakdown"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "period_days": {
+            "description": "Analysis period in days",
+            "title": "Period Days",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost across all features (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "features",
+          "period_days",
+          "total_cost"
+        ],
+        "title": "FeatureCostBreakdownResponse",
+        "type": "object"
+      },
       "FeatureFlagItem": {
         "description": "Feature flag item.",
         "properties": {
@@ -11930,6 +12128,93 @@
           "timestamp"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HeavyUserItem": {
+        "description": "A user identified as heavy user for a feature.\n\nAttributes:\n    user_id: User identifier\n    email: User email (if available)\n    feature: Feature name (mentor_chat, dataset_qa, etc.)\n    total_cost_7d: Total cost over 7-day period\n    avg_daily_cost: Average daily cost\n    p90_threshold: p90 threshold for this feature\n    exceeds_p90_by: How much they exceed p90",
+        "properties": {
+          "avg_daily_cost": {
+            "description": "Average daily cost (USD)",
+            "title": "Avg Daily Cost",
+            "type": "number"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User email",
+            "title": "Email"
+          },
+          "exceeds_p90_by": {
+            "description": "Amount exceeding p90 (USD)",
+            "title": "Exceeds P90 By",
+            "type": "number"
+          },
+          "feature": {
+            "description": "Feature name",
+            "title": "Feature",
+            "type": "string"
+          },
+          "p90_threshold": {
+            "description": "p90 threshold for this feature (USD)",
+            "title": "P90 Threshold",
+            "type": "number"
+          },
+          "total_cost_7d": {
+            "description": "Total cost over 7 days (USD)",
+            "title": "Total Cost 7D",
+            "type": "number"
+          },
+          "user_id": {
+            "description": "User identifier",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "feature",
+          "total_cost_7d",
+          "avg_daily_cost",
+          "p90_threshold",
+          "exceeds_p90_by"
+        ],
+        "title": "HeavyUserItem",
+        "type": "object"
+      },
+      "HeavyUsersResponse": {
+        "description": "Response model for heavy users list.\n\nAttributes:\n    heavy_users: List of heavy users\n    total: Total count of heavy users\n    period_days: Number of days in analysis period",
+        "properties": {
+          "heavy_users": {
+            "description": "List of heavy users",
+            "items": {
+              "$ref": "#/components/schemas/HeavyUserItem"
+            },
+            "title": "Heavy Users",
+            "type": "array"
+          },
+          "period_days": {
+            "description": "Analysis period in days",
+            "title": "Period Days",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "heavy_users",
+          "total",
+          "period_days"
+        ],
+        "title": "HeavyUsersResponse",
         "type": "object"
       },
       "HistoryEntry": {
@@ -22387,6 +22672,35 @@
         "title": "UnblockSuggestionModel",
         "type": "object"
       },
+      "UnifiedCacheMetricsResponse": {
+        "description": "Response model for unified cache metrics across all cache systems.\n\nAggregates metrics from:\n- Prompt cache: Anthropic native prompt caching\n- Research cache: PostgreSQL semantic similarity cache\n- LLM cache: Redis deterministic response cache\n\nAttributes:\n    prompt: Anthropic prompt cache metrics (24h window)\n    research: Research semantic cache metrics (24h window)\n    llm: LLM response cache metrics (in-memory since startup)\n    aggregate: Combined metrics across all caches",
+        "properties": {
+          "aggregate": {
+            "$ref": "#/components/schemas/AggregatedCacheMetrics",
+            "description": "Combined cache metrics"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/CacheTypeMetrics",
+            "description": "LLM response cache metrics"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/CacheTypeMetrics",
+            "description": "Anthropic prompt cache metrics"
+          },
+          "research": {
+            "$ref": "#/components/schemas/CacheTypeMetrics",
+            "description": "Research semantic cache metrics"
+          }
+        },
+        "required": [
+          "prompt",
+          "research",
+          "llm",
+          "aggregate"
+        ],
+        "title": "UnifiedCacheMetricsResponse",
+        "type": "object"
+      },
       "UpdateBudgetSettingsRequest": {
         "description": "Request to update user budget settings (admin only).\n\nAttributes:\n    monthly_cost_limit_cents: Monthly limit in cents (null = unlimited)\n    alert_threshold_pct: Percentage threshold for alerting\n    hard_limit_enabled: Whether to block when limit exceeded",
         "properties": {
@@ -25329,27 +25643,6 @@
         "summary": "Root"
       }
     },
-    "/admin/info": {
-      "get": {
-        "description": "Admin-only API information endpoint.\n\nArgs:\n    user: Admin user data\n\nReturns:\n    Detailed API information for admins",
-        "operationId": "admin_info_admin_info_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Admin Info Admin Info Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Admin Info"
-      }
-    },
     "/api/admin/alerts/history": {
       "get": {
         "description": "Get paginated list of sent alerts with optional type filter.",
@@ -27843,6 +28136,51 @@
         ]
       }
     },
+    "/api/admin/costs/cache-metrics": {
+      "get": {
+        "description": "Get aggregated cache metrics across prompt, research, and LLM caches.",
+        "operationId": "get_cache_metrics_api_admin_costs_cache_metrics_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnifiedCacheMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unified cache metrics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
     "/api/admin/costs/daily-summary": {
       "get": {
         "description": "Get aggregated daily cost totals.",
@@ -27895,6 +28233,156 @@
           }
         },
         "summary": "Daily cost summary",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/costs/fair-usage/by-feature": {
+      "get": {
+        "description": "Get cost breakdown by feature for fair usage analysis.",
+        "operationId": "get_feature_cost_breakdown_api_admin_costs_fair_usage_by_feature_get",
+        "parameters": [
+          {
+            "description": "Number of days to analyze",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Number of days to analyze",
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureCostBreakdownResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cost breakdown by feature",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/costs/fair-usage/heavy-users": {
+      "get": {
+        "description": "Get users exceeding p90 cost threshold for LLM features.",
+        "operationId": "get_heavy_users_api_admin_costs_fair_usage_heavy_users_get",
+        "parameters": [
+          {
+            "description": "Filter by feature name",
+            "in": "query",
+            "name": "feature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by feature name",
+              "title": "Feature"
+            }
+          },
+          {
+            "description": "Number of days to analyze",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Number of days to analyze",
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Max users to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max users to return",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeavyUsersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Heavy users list",
         "tags": [
           "admin",
           "admin",
@@ -30748,6 +31236,48 @@
         ]
       }
     },
+    "/api/admin/info": {
+      "get": {
+        "description": "Admin-only API information endpoint.\n\nArgs:\n    user: Admin user data\n\nReturns:\n    Detailed API information for admins",
+        "operationId": "admin_info_api_admin_info_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Info Api Admin Info Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Info"
+      }
+    },
     "/api/admin/metrics": {
       "get": {
         "description": "Get all system metrics including API endpoint performance, LLM usage, and cache hit rates.\n\n    Returns:\n    - Counters: Success/error counts for API endpoints and LLM calls\n    - Histograms: Latency distributions, token usage, costs\n\n    Metrics reset on server restart.",
@@ -33083,6 +33613,17 @@
       "get": {
         "description": "Detailed service status for admin dashboard. Requires admin authentication.\n\n    Includes:\n    - Per-service metrics (error rate, latency percentiles)\n    - Circuit breaker states\n    - LLM provider health\n    - Recent incidents (last 24h)",
         "operationId": "get_admin_status_api_admin_services_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -33093,6 +33634,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Admin service status",
@@ -33709,6 +34260,15 @@
               "title": "Include Inactive",
               "type": "boolean"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -33746,6 +34306,17 @@
       "post": {
         "description": "Create a new meeting template.",
         "operationId": "create_template_api_admin_templates_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -33796,6 +34367,17 @@
       "get": {
         "description": "Get usage statistics for all templates.",
         "operationId": "get_template_stats_api_admin_templates_stats_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -33811,6 +34393,16 @@
           },
           "403": {
             "description": "Admin access required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Get template usage statistics",
@@ -33843,6 +34435,15 @@
               "default": false,
               "title": "Hard Delete",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
             }
           }
         ],
@@ -33893,6 +34494,15 @@
             "required": true,
             "schema": {
               "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
               "type": "string"
             }
           }
@@ -33954,6 +34564,15 @@
             "required": true,
             "schema": {
               "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
               "type": "string"
             }
           }
@@ -38727,6 +39346,15 @@
               "title": "Days",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -38786,6 +39414,15 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -38844,6 +39481,15 @@
               "minimum": 1,
               "title": "Days",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
             }
           }
         ],
@@ -49900,6 +50546,49 @@
           }
         },
         "summary": "Export user data (GDPR Art. 15)",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/fair-usage": {
+      "get": {
+        "description": "Get current daily usage and limits for LLM-intensive features.",
+        "operationId": "get_fair_usage_status_api_v1_user_fair_usage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FairUsageStatusResponse"
+                }
+              }
+            },
+            "description": "Fair usage status retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to get fair usage"
+          }
+        },
+        "summary": "Get fair usage status",
         "tags": [
           "user",
           "user"

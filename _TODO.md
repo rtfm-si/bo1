@@ -32,3 +32,8 @@ https://boardof.one/api/v1/admin/ratings/metrics?days=30
 same for admin/feedback
 
 check ALL admin routes for valid 200 responses
+
+local still fails
+fix all social logins
+
+'clean' prod server (storage etc). set it up to clean every day?

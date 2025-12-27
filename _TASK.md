@@ -150,11 +150,27 @@ _Last updated: 2025-12-27 (rolling week view)_
 
 ### December 2025
 
+- **Nginx 502 Fix (2025-12-27, 22:41 UTC)**: Fixed production 502 errors:
+  - Root cause: nginx was pointing to green ports (8001/3001) but only blue containers running (8000/3000)
+  - Fix: Updated `/etc/nginx/sites-available/boardofone` upstream servers to 8000/3000
+  - Verified: `curl https://boardof.one/api/health` returns `git_commit: f339c3d`
+
+- **Production Deployment (2025-12-27, 22:16 UTC)**: Deployed fair usage caps + admin endpoint fixes to production:
+  - Commit `f339c3d`: browser-based admin auth fix (templates, main, status endpoints)
+  - Commit `9ef207c`: fair usage caps, admin endpoint fixes, persona context optimization
+  - Migration `zm_add_fair_usage_tracking`: Added feature column + daily_user_feature_costs table
+  - API image rebuilt and deployed: verified via `/api/health` showing `git_commit: f339c3d`
+  - All tests pass locally (ratings: 16, admin feedback: 11, SEO: 16)
+
 - **Admin API Bug Fixes (2025-12-27)**: Fixed multiple admin endpoint issues:
   - Ratings admin 401: Changed `require_admin` → `require_admin_any` (correct admin middleware)
   - Ratings admin rate limiting: Added `@limiter.limit(ADMIN_RATE_LIMIT)` to `/metrics`, `/trend`, `/negative` endpoints
   - SEO assets route order: Moved `/assets/suggest` before `/assets/{asset_id}` to fix 404
   - Sessions.py: Fixed duplicate 429 response key in OpenAPI spec
+  - Admin info 404: Fixed `/admin/info` route path to `/api/admin/info` (nginx passes `/api/` prefix)
+  - Admin templates: Changed all 6 endpoints from `require_admin` → `require_admin_any` for browser access
+  - Admin status: Changed `get_admin_status` from `require_admin` → `require_admin_any` for browser access
+  - Main.py: Changed `/admin/info`, `/api/v1/docs`, `/api/v1/redoc`, `/api/v1/openapi.json` from `require_admin` → `require_admin_any`
 
 - **Fair Usage Caps for Variable-Cost Features (2025-12-27)**: Implemented per-feature daily cost limits with p90 heavy user detection:
   - Data model: Added `feature` column to `api_costs`, created `daily_user_feature_costs` aggregation table

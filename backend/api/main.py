@@ -886,7 +886,7 @@ async def api_version() -> dict[str, str]:
     }
 
 
-@app.get("/admin/info")
+@app.get("/api/admin/info")
 async def admin_info(user: dict[str, Any] = Depends(require_admin_any)) -> dict[str, Any]:
     """Admin-only API information endpoint.
 

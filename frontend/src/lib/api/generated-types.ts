@@ -27,32 +27,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Admin Info
-         * @description Admin-only API information endpoint.
-         *
-         *     Args:
-         *         user: Admin user data
-         *
-         *     Returns:
-         *         Detailed API information for admins
-         */
-        get: operations["admin_info_admin_info_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/alerts/history": {
         parameters: {
             query?: never;
@@ -549,6 +523,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/costs/cache-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unified cache metrics
+         * @description Get aggregated cache metrics across prompt, research, and LLM caches.
+         */
+        get: operations["get_cache_metrics_api_admin_costs_cache_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/costs/daily-summary": {
         parameters: {
             query?: never;
@@ -561,6 +555,46 @@ export interface paths {
          * @description Get aggregated daily cost totals.
          */
         get: operations["get_daily_summary_api_admin_costs_daily_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/fair-usage/by-feature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost breakdown by feature
+         * @description Get cost breakdown by feature for fair usage analysis.
+         */
+        get: operations["get_feature_cost_breakdown_api_admin_costs_fair_usage_by_feature_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/fair-usage/heavy-users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Heavy users list
+         * @description Get users exceeding p90 cost threshold for LLM features.
+         */
+        get: operations["get_heavy_users_api_admin_costs_fair_usage_heavy_users_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1229,6 +1263,32 @@ export interface paths {
          * @description Start impersonating a target user. Admin will see the app as that user.
          */
         post: operations["start_impersonation_endpoint_api_admin_impersonate__user_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Info
+         * @description Admin-only API information endpoint.
+         *
+         *     Args:
+         *         user: Admin user data
+         *
+         *     Returns:
+         *         Detailed API information for admins
+         */
+        get: operations["admin_info_api_admin_info_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7976,6 +8036,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/fair-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get fair usage status
+         * @description Get current daily usage and limits for LLM-intensive features.
+         */
+        get: operations["get_fair_usage_status_api_v1_user_fair_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/gdpr-consent": {
         parameters: {
             query?: never;
@@ -10508,6 +10588,32 @@ export interface components {
             function: string;
         };
         /**
+         * AggregatedCacheMetrics
+         * @description Aggregated metrics across all cache types.
+         *
+         *     Attributes:
+         *         hit_rate: Combined cache hit rate (0.0-1.0)
+         *         total_hits: Total hits across all caches
+         *         total_requests: Total requests across all caches
+         */
+        AggregatedCacheMetrics: {
+            /**
+             * Hit Rate
+             * @description Combined cache hit rate (0.0-1.0)
+             */
+            hit_rate: number;
+            /**
+             * Total Hits
+             * @description Total hits across all caches
+             */
+            total_hits: number;
+            /**
+             * Total Requests
+             * @description Total requests across all caches
+             */
+            total_requests: number;
+        };
+        /**
          * AlertHistoryItem
          * @description Response model for a single alert history entry.
          *
@@ -12063,6 +12169,38 @@ export interface components {
              * @description Total queries in last 7 days
              */
             total_queries_7d: number;
+        };
+        /**
+         * CacheTypeMetrics
+         * @description Metrics for a single cache type.
+         *
+         *     Attributes:
+         *         hit_rate: Cache hit rate (0.0-1.0)
+         *         hits: Total cache hits
+         *         misses: Total cache misses
+         *         total: Total requests
+         */
+        CacheTypeMetrics: {
+            /**
+             * Hit Rate
+             * @description Cache hit rate (0.0-1.0)
+             */
+            hit_rate: number;
+            /**
+             * Hits
+             * @description Total cache hits
+             */
+            hits: number;
+            /**
+             * Misses
+             * @description Total cache misses
+             */
+            misses: number;
+            /**
+             * Total
+             * @description Total requests
+             */
+            total: number;
         };
         /**
          * CalendarStatusResponse
@@ -15951,6 +16089,122 @@ export interface components {
             total_actions: number;
         };
         /**
+         * FairUsageFeatureStatus
+         * @description Fair usage status for a single feature.
+         */
+        FairUsageFeatureStatus: {
+            /**
+             * Current Cost
+             * @description Current daily cost (USD)
+             */
+            current_cost: number;
+            /**
+             * Daily Limit
+             * @description Daily limit (USD), -1 = unlimited
+             */
+            daily_limit: number;
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * Percent Used
+             * @description Percentage of limit used (0-1)
+             */
+            percent_used: number;
+            /**
+             * Remaining
+             * @description Amount remaining until cap (USD), -1 = unlimited
+             */
+            remaining: number;
+            /**
+             * Status
+             * @description Status: allowed, soft_warning, hard_blocked
+             */
+            status: string;
+        };
+        /**
+         * FairUsageStatusResponse
+         * @description User's current fair usage status across features.
+         */
+        FairUsageStatusResponse: {
+            /**
+             * Features
+             * @description Status per feature
+             */
+            features: components["schemas"]["FairUsageFeatureStatus"][];
+            /**
+             * Tier
+             * @description User's subscription tier
+             */
+            tier: string;
+        };
+        /**
+         * FeatureCostBreakdown
+         * @description Cost breakdown for a single feature.
+         *
+         *     Attributes:
+         *         feature: Feature name
+         *         total_cost: Total cost over period (USD)
+         *         user_count: Number of unique users
+         *         avg_per_user: Average cost per user (USD)
+         *         p90_daily: p90 daily cost threshold (USD)
+         */
+        FeatureCostBreakdown: {
+            /**
+             * Avg Per User
+             * @description Average cost per user (USD)
+             */
+            avg_per_user: number;
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * P90 Daily
+             * @description p90 daily cost threshold (USD)
+             */
+            p90_daily: number;
+            /**
+             * Total Cost
+             * @description Total cost over period (USD)
+             */
+            total_cost: number;
+            /**
+             * User Count
+             * @description Number of unique users
+             */
+            user_count: number;
+        };
+        /**
+         * FeatureCostBreakdownResponse
+         * @description Response model for feature cost breakdown.
+         *
+         *     Attributes:
+         *         features: List of feature breakdowns
+         *         period_days: Number of days in analysis period
+         *         total_cost: Total cost across all features
+         */
+        FeatureCostBreakdownResponse: {
+            /**
+             * Features
+             * @description Feature breakdowns
+             */
+            features: components["schemas"]["FeatureCostBreakdown"][];
+            /**
+             * Period Days
+             * @description Analysis period in days
+             */
+            period_days: number;
+            /**
+             * Total Cost
+             * @description Total cost across all features (USD)
+             */
+            total_cost: number;
+        };
+        /**
          * FeatureFlagItem
          * @description Feature flag item.
          */
@@ -16961,6 +17215,82 @@ export interface components {
              * @description ISO 8601 timestamp of health check
              */
             timestamp: string;
+        };
+        /**
+         * HeavyUserItem
+         * @description A user identified as heavy user for a feature.
+         *
+         *     Attributes:
+         *         user_id: User identifier
+         *         email: User email (if available)
+         *         feature: Feature name (mentor_chat, dataset_qa, etc.)
+         *         total_cost_7d: Total cost over 7-day period
+         *         avg_daily_cost: Average daily cost
+         *         p90_threshold: p90 threshold for this feature
+         *         exceeds_p90_by: How much they exceed p90
+         */
+        HeavyUserItem: {
+            /**
+             * Avg Daily Cost
+             * @description Average daily cost (USD)
+             */
+            avg_daily_cost: number;
+            /**
+             * Email
+             * @description User email
+             */
+            email?: string | null;
+            /**
+             * Exceeds P90 By
+             * @description Amount exceeding p90 (USD)
+             */
+            exceeds_p90_by: number;
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * P90 Threshold
+             * @description p90 threshold for this feature (USD)
+             */
+            p90_threshold: number;
+            /**
+             * Total Cost 7D
+             * @description Total cost over 7 days (USD)
+             */
+            total_cost_7d: number;
+            /**
+             * User Id
+             * @description User identifier
+             */
+            user_id: string;
+        };
+        /**
+         * HeavyUsersResponse
+         * @description Response model for heavy users list.
+         *
+         *     Attributes:
+         *         heavy_users: List of heavy users
+         *         total: Total count of heavy users
+         *         period_days: Number of days in analysis period
+         */
+        HeavyUsersResponse: {
+            /**
+             * Heavy Users
+             * @description List of heavy users
+             */
+            heavy_users: components["schemas"]["HeavyUserItem"][];
+            /**
+             * Period Days
+             * @description Analysis period in days
+             */
+            period_days: number;
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
         };
         /**
          * HistoryEntry
@@ -23991,6 +24321,31 @@ export interface components {
             rationale: string;
         };
         /**
+         * UnifiedCacheMetricsResponse
+         * @description Response model for unified cache metrics across all cache systems.
+         *
+         *     Aggregates metrics from:
+         *     - Prompt cache: Anthropic native prompt caching
+         *     - Research cache: PostgreSQL semantic similarity cache
+         *     - LLM cache: Redis deterministic response cache
+         *
+         *     Attributes:
+         *         prompt: Anthropic prompt cache metrics (24h window)
+         *         research: Research semantic cache metrics (24h window)
+         *         llm: LLM response cache metrics (in-memory since startup)
+         *         aggregate: Combined metrics across all caches
+         */
+        UnifiedCacheMetricsResponse: {
+            /** @description Combined cache metrics */
+            aggregate: components["schemas"]["AggregatedCacheMetrics"];
+            /** @description LLM response cache metrics */
+            llm: components["schemas"]["CacheTypeMetrics"];
+            /** @description Anthropic prompt cache metrics */
+            prompt: components["schemas"]["CacheTypeMetrics"];
+            /** @description Research semantic cache metrics */
+            research: components["schemas"]["CacheTypeMetrics"];
+        };
+        /**
          * UpdateBudgetSettingsRequest
          * @description Request to update user budget settings (admin only).
          *
@@ -25843,28 +26198,6 @@ export interface operations {
             };
         };
     };
-    admin_info_admin_info_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     get_alert_history_api_admin_alerts_history_get: {
         parameters: {
             query?: {
@@ -27337,6 +27670,37 @@ export interface operations {
             };
         };
     };
+    get_cache_metrics_api_admin_costs_cache_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedCacheMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_daily_summary_api_admin_costs_daily_summary_get: {
         parameters: {
             query?: {
@@ -27358,6 +27722,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailySummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_feature_cost_breakdown_api_admin_costs_fair_usage_by_feature_get: {
+        parameters: {
+            query?: {
+                /** @description Number of days to analyze */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureCostBreakdownResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_heavy_users_api_admin_costs_fair_usage_heavy_users_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by feature name */
+                feature?: string | null;
+                /** @description Number of days to analyze */
+                days?: number;
+                /** @description Max users to return */
+                limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeavyUsersResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29172,6 +29608,39 @@ export interface operations {
             };
         };
     };
+    admin_info_api_admin_info_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_metrics_api_admin_metrics_get: {
         parameters: {
             query?: never;
@@ -30719,7 +31188,9 @@ export interface operations {
     get_admin_status_api_admin_services_status_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -30732,6 +31203,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -31138,7 +31618,9 @@ export interface operations {
             query?: {
                 include_inactive?: boolean;
             };
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -31174,7 +31656,9 @@ export interface operations {
     create_template_api_admin_templates_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -31221,7 +31705,9 @@ export interface operations {
     get_template_stats_api_admin_templates_stats_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -31245,6 +31731,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     delete_template_api_admin_templates__template_id__delete: {
@@ -31252,7 +31747,9 @@ export interface operations {
             query?: {
                 hard_delete?: boolean;
             };
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path: {
                 template_id: string;
             };
@@ -31299,7 +31796,9 @@ export interface operations {
     update_template_api_admin_templates__template_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path: {
                 template_id: string;
             };
@@ -31348,7 +31847,9 @@ export interface operations {
     activate_template_api_admin_templates__template_id__activate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path: {
                 template_id: string;
             };
@@ -34785,7 +35286,9 @@ export interface operations {
                 /** @description Period in days */
                 days?: number;
             };
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -34826,7 +35329,9 @@ export interface operations {
                 /** @description Max items to return */
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -34867,7 +35372,9 @@ export interface operations {
                 /** @description Period in days */
                 days?: number;
             };
-            header?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -42790,6 +43297,44 @@ export interface operations {
                 };
             };
             /** @description Export failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_fair_usage_status_api_v1_user_fair_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fair usage status retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FairUsageStatusResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Failed to get fair usage */
             500: {
                 headers: {
                     [name: string]: unknown;

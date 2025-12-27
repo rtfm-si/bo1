@@ -644,7 +644,7 @@ async def delete_topic(
     request: Request,
     topic_id: int,
     user: dict = Depends(get_current_user),
-):
+) -> None:
     """Delete an SEO topic.
 
     Permanently removes the topic.
@@ -1068,7 +1068,7 @@ async def delete_article(
     request: Request,
     article_id: int,
     user: dict = Depends(get_current_user),
-):
+) -> None:
     """Delete an SEO article.
 
     Permanently removes the article. Topic status remains unchanged.
@@ -1153,7 +1153,7 @@ async def record_article_event(
     request: Request,
     article_id: int,
     body: ArticleEventCreate,
-):
+) -> None:
     """Record an analytics event for an article.
 
     Public endpoint for tracking article views, clicks, and signups.

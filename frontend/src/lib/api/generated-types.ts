@@ -1974,6 +1974,32 @@ export interface paths {
         patch: operations["set_runtime_config_api_admin_runtime_config__key__patch"];
         trace?: never;
     };
+    "/api/admin/seo/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Seo Analytics
+         * @description Get global SEO content performance analytics.
+         *
+         *     Returns:
+         *     - Overall summary: total views, clicks, signups, CTR, signup rate
+         *     - Time-based metrics: views today, this week, this month
+         *     - Top articles by views
+         *     - Top articles by signup conversion rate (min 10 views)
+         */
+        get: operations["get_admin_seo_analytics_api_admin_seo_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/services/status": {
         parameters: {
             query?: never;
@@ -4614,6 +4640,69 @@ export interface paths {
         patch: operations["update_managed_competitor_api_v1_context_managed_competitors__name__patch"];
         trace?: never;
     };
+    "/api/v1/context/objectives/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get all objective progress
+         * @description Get progress for all strategic objectives.
+         *
+         *         Returns each objective with its current progress data (if set).
+         *         Progress includes current value, target value, and optional unit.
+         *
+         *         **Use Cases:**
+         *         - Dashboard goal banner progress display
+         *         - Context overview progress tracking
+         */
+        get: operations["get_objectives_progress_api_v1_context_objectives_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/objectives/{objective_index}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update objective progress
+         * @description Update progress for a specific strategic objective.
+         *
+         *         **Path Parameters:**
+         *         - `objective_index`: Index of the objective (0-4)
+         *
+         *         **Request Body:**
+         *         - `current`: Current value (e.g., "$5K", "50%")
+         *         - `target`: Target value (e.g., "$10K", "80%")
+         *         - `unit`: Optional unit label (e.g., "MRR", "%")
+         *
+         *         **Use Cases:**
+         *         - Dashboard progress modal save
+         *         - Quick progress update from goal banner
+         */
+        put: operations["update_objective_progress_api_v1_context_objectives__objective_index__progress_put"];
+        post?: never;
+        /**
+         * Delete objective progress
+         * @description Remove progress tracking for a specific objective.
+         */
+        delete: operations["delete_objective_progress_api_v1_context_objectives__objective_index__progress_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/pending-updates": {
         parameters: {
             query?: never;
@@ -5968,6 +6057,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/peer-benchmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Benchmarks
+         * @description Get industry peer benchmarks for user's industry.
+         *
+         *     Returns percentile data (p10/p25/p50/p75/p90) for each metric.
+         *     Metrics are tier-gated: free=3, starter=5, pro=unlimited.
+         */
+        get: operations["get_benchmarks_api_v1_peer_benchmarks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/peer-benchmarks/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Comparison
+         * @description Get user's percentile rank vs peers for each metric.
+         *
+         *     Only includes metrics where user has a value and sufficient peer data.
+         */
+        get: operations["get_comparison_api_v1_peer_benchmarks_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/peer-benchmarks/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Consent
+         * @description Get user's current peer benchmark consent status.
+         */
+        get: operations["get_consent_api_v1_peer_benchmarks_consent_get"];
+        put?: never;
+        /**
+         * Opt In
+         * @description Opt in to peer benchmarking.
+         *
+         *     User's anonymized metrics will be included in industry aggregates.
+         */
+        post: operations["opt_in_api_v1_peer_benchmarks_consent_post"];
+        /**
+         * Opt Out
+         * @description Opt out of peer benchmarking.
+         *
+         *     User's data is immediately excluded from future aggregations.
+         */
+        delete: operations["opt_out_api_v1_peer_benchmarks_consent_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -6306,6 +6472,297 @@ export interface paths {
         get: operations["get_rating_api_v1_ratings__entity_type___entity_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/research-sharing/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Consent
+         * @description Get user's current research sharing consent status.
+         */
+        get: operations["get_consent_api_v1_research_sharing_consent_get"];
+        put?: never;
+        /**
+         * Opt In
+         * @description Opt in to research sharing.
+         *
+         *     Your anonymized research insights will be shared with similar businesses.
+         *     No personal information is shared - only the research findings.
+         */
+        post: operations["opt_in_api_v1_research_sharing_consent_post"];
+        /**
+         * Opt Out
+         * @description Opt out of research sharing.
+         *
+         *     Your existing research is immediately marked as non-shareable.
+         *     You can still benefit from shared research from other users.
+         */
+        delete: operations["opt_out_api_v1_research_sharing_consent_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get All Analytics
+         * @description Get aggregated analytics for all user's articles.
+         *
+         *     Returns per-article analytics plus overall totals.
+         */
+        get: operations["get_all_analytics_api_v1_seo_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/analyze-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Trends
+         * @description Analyze SEO trends for given keywords.
+         *
+         *     Performs deep research using Brave Search to identify:
+         *     - Current trends and search patterns
+         *     - Opportunities for content creation
+         *     - Competitive threats and market saturation
+         *
+         *     Rate limited to 5 requests per minute.
+         *     Tier limits: free=1/month, starter=5/month, pro=unlimited.
+         */
+        post: operations["analyze_trends_api_v1_seo_analyze_trends_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Articles
+         * @description List user's SEO blog articles.
+         *
+         *     Returns paginated list of generated articles.
+         */
+        get: operations["list_articles_api_v1_seo_articles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/articles/{article_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Article
+         * @description Get a single article by ID.
+         */
+        get: operations["get_article_api_v1_seo_articles__article_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Article
+         * @description Delete an SEO article.
+         *
+         *     Permanently removes the article. Topic status remains unchanged.
+         */
+        delete: operations["delete_article_api_v1_seo_articles__article_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Article
+         * @description Update an SEO article.
+         *
+         *     Can update content, metadata, and status.
+         *     When status changes to 'published', also updates the linked topic status.
+         */
+        patch: operations["update_article_api_v1_seo_articles__article_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/seo/articles/{article_id}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Article Analytics
+         * @description Get analytics for a single article.
+         *
+         *     Returns view/click/signup counts and calculated rates.
+         *     Only accessible by the article owner.
+         */
+        get: operations["get_article_analytics_api_v1_seo_articles__article_id__analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/articles/{article_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Article Event
+         * @description Record an analytics event for an article.
+         *
+         *     Public endpoint for tracking article views, clicks, and signups.
+         *     Rate limited to 30 requests per minute per IP.
+         *
+         *     No authentication required - used by public blog pages.
+         */
+        post: operations["record_article_event_api_v1_seo_articles__article_id__events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get History
+         * @description Get user's past SEO trend analyses.
+         *
+         *     Returns paginated list of previous analyses with summaries.
+         */
+        get: operations["get_history_api_v1_seo_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Topics
+         * @description List user's SEO topics.
+         *
+         *     Returns paginated list of topics with status tracking.
+         */
+        get: operations["list_topics_api_v1_seo_topics_get"];
+        put?: never;
+        /**
+         * Create Topic
+         * @description Create a new SEO topic.
+         *
+         *     Creates a topic from a keyword, optionally linked to a trend analysis.
+         */
+        post: operations["create_topic_api_v1_seo_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/topics/{topic_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Topic
+         * @description Delete an SEO topic.
+         *
+         *     Permanently removes the topic.
+         */
+        delete: operations["delete_topic_api_v1_seo_topics__topic_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Topic
+         * @description Update an SEO topic.
+         *
+         *     Updates status and/or notes for a topic.
+         */
+        patch: operations["update_topic_api_v1_seo_topics__topic_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/seo/topics/{topic_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Article
+         * @description Generate a blog article from a topic.
+         *
+         *     Uses AI to generate SEO-optimized content based on the topic keyword.
+         *     Stores as draft and updates topic status to 'writing'.
+         *
+         *     Rate limited to 2 requests per minute.
+         *     Tier limits: free=1/month, starter=5/month, pro=unlimited.
+         */
+        post: operations["generate_article_api_v1_seo_topics__topic_id__generate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9613,6 +10070,24 @@ export interface components {
             notes?: string | null;
         };
         /**
+         * AdminSeoAnalyticsResponse
+         * @description Full admin SEO analytics response.
+         */
+        AdminSeoAnalyticsResponse: {
+            /** @description Overall summary stats */
+            summary: components["schemas"]["SeoAnalyticsSummary"];
+            /**
+             * Top By Conversion
+             * @description Top articles by signup conversion rate
+             */
+            top_by_conversion?: components["schemas"]["TopArticle"][];
+            /**
+             * Top By Views
+             * @description Top articles by view count
+             */
+            top_by_views?: components["schemas"]["TopArticle"][];
+        };
+        /**
          * AdminStatsResponse
          * @description Response model for admin dashboard statistics.
          *
@@ -10058,6 +10533,129 @@ export interface components {
              * @description Whether added to whitelist
              */
             whitelist_added: boolean;
+        };
+        /**
+         * ArticleAnalytics
+         * @description Analytics for a single article.
+         */
+        ArticleAnalytics: {
+            /**
+             * Article Id
+             * @description Article ID
+             */
+            article_id: number;
+            /**
+             * Clicks
+             * @description Total clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Ctr
+             * @description Click-through rate (clicks/views)
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Signup Rate
+             * @description Signup rate (signups/views)
+             * @default 0
+             */
+            signup_rate: number;
+            /**
+             * Signups
+             * @description Total signups
+             * @default 0
+             */
+            signups: number;
+            /**
+             * Title
+             * @description Article title
+             */
+            title: string;
+            /**
+             * Views
+             * @description Total views
+             * @default 0
+             */
+            views: number;
+        };
+        /**
+         * ArticleAnalyticsListResponse
+         * @description Response containing analytics for all user's articles.
+         */
+        ArticleAnalyticsListResponse: {
+            /**
+             * Articles
+             * @description Article analytics
+             */
+            articles?: components["schemas"]["ArticleAnalytics"][];
+            /**
+             * Overall Ctr
+             * @description Overall CTR
+             * @default 0
+             */
+            overall_ctr: number;
+            /**
+             * Overall Signup Rate
+             * @description Overall signup rate
+             * @default 0
+             */
+            overall_signup_rate: number;
+            /**
+             * Total Clicks
+             * @description Total clicks across all articles
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Signups
+             * @description Total signups across all articles
+             * @default 0
+             */
+            total_signups: number;
+            /**
+             * Total Views
+             * @description Total views across all articles
+             * @default 0
+             */
+            total_views: number;
+        };
+        /**
+         * ArticleEventCreate
+         * @description Request to record an article event.
+         */
+        ArticleEventCreate: {
+            /**
+             * Event Type
+             * @description Event type: view, click, signup
+             */
+            event_type: string;
+            /**
+             * Referrer
+             * @description HTTP referrer
+             */
+            referrer?: string | null;
+            /**
+             * Session Id
+             * @description Browser session ID
+             */
+            session_id?: string | null;
+            /**
+             * Utm Campaign
+             * @description UTM campaign
+             */
+            utm_campaign?: string | null;
+            /**
+             * Utm Medium
+             * @description UTM medium
+             */
+            utm_medium?: string | null;
+            /**
+             * Utm Source
+             * @description UTM source
+             */
+            utm_source?: string | null;
         };
         /**
          * AskRequest
@@ -11848,6 +12446,58 @@ export interface components {
             value_field: string;
         };
         /**
+         * ComparisonMetric
+         * @description User's comparison for a single metric.
+         */
+        ComparisonMetric: {
+            /**
+             * Display Name
+             * @description Human-readable metric name
+             */
+            display_name: string;
+            /**
+             * Metric
+             * @description Metric identifier
+             */
+            metric: string;
+            /**
+             * P50
+             * @description Industry median for context
+             */
+            p50?: number | null;
+            /**
+             * Sample Count
+             * @description Sample size
+             */
+            sample_count: number;
+            /**
+             * User Percentile
+             * @description Percentile rank (0-100)
+             */
+            user_percentile?: number | null;
+            /**
+             * User Value
+             * @description User's value
+             */
+            user_value?: number | null;
+        };
+        /**
+         * ComparisonResponse
+         * @description Response containing user's peer comparison.
+         */
+        ComparisonResponse: {
+            /**
+             * Comparisons
+             * @description Metric comparisons
+             */
+            comparisons?: components["schemas"]["ComparisonMetric"][];
+            /**
+             * Industry
+             * @description Industry segment
+             */
+            industry: string;
+        };
+        /**
          * CompetitorCreateRequest
          * @description Request to create a competitor.
          */
@@ -12333,38 +12983,6 @@ export interface components {
              * @description UUID of T&C version being accepted
              */
             terms_version_id: string;
-        };
-        /**
-         * ConsentStatusResponse
-         * @description Response model for consent status check.
-         */
-        ConsentStatusResponse: {
-            /** Consented At */
-            consented_at?: string | null;
-            /** Consented Version */
-            consented_version?: string | null;
-            /**
-             * Consents
-             * @description Full consent history
-             */
-            consents?: components["schemas"]["ConsentHistoryItem"][];
-            /** Current Version */
-            current_version?: string | null;
-            /**
-             * Has Consented
-             * @description True if all required policies consented
-             */
-            has_consented: boolean;
-            /**
-             * Missing Policies
-             * @description Policy types still needing consent
-             */
-            missing_policies?: string[];
-            /**
-             * Policies
-             * @description Status of each policy type
-             */
-            policies?: components["schemas"]["PolicyConsentStatus"][];
         };
         /**
          * ContextChoiceRequest
@@ -15963,6 +16581,59 @@ export interface components {
             timestamp: string;
         };
         /**
+         * HistoryEntry
+         * @description A historical trend analysis entry.
+         */
+        HistoryEntry: {
+            /**
+             * Created At
+             * Format: date-time
+             * @description When analysis was created
+             */
+            created_at: string;
+            /**
+             * Executive Summary
+             * @description Executive summary
+             */
+            executive_summary: string;
+            /**
+             * Id
+             * @description Analysis ID
+             */
+            id: number;
+            /**
+             * Industry
+             * @description Industry context
+             */
+            industry?: string | null;
+            /**
+             * Keywords
+             * @description Keywords analyzed
+             */
+            keywords: string[];
+        };
+        /**
+         * HistoryResponse
+         * @description Response containing analysis history.
+         */
+        HistoryResponse: {
+            /**
+             * Analyses
+             * @description Past analyses
+             */
+            analyses?: components["schemas"]["HistoryEntry"][];
+            /**
+             * Remaining This Month
+             * @description Remaining analyses this month (-1 for unlimited)
+             */
+            remaining_this_month: number;
+            /**
+             * Total
+             * @description Total number of analyses
+             */
+            total: number;
+        };
+        /**
          * ImpersonationHistoryItem
          * @description Response model for impersonation history entry.
          *
@@ -17679,6 +18350,92 @@ export interface components {
             message: string;
         };
         /**
+         * ObjectiveProgress
+         * @description Progress data for a single strategic objective.
+         *
+         *     Stores current and target values as flexible strings to support
+         *     various formats (e.g., "$5K", "50%", "100 customers").
+         */
+        ObjectiveProgress: {
+            /**
+             * Current
+             * @description Current value (e.g., '$5K', '50%', '100')
+             */
+            current: string;
+            /**
+             * Target
+             * @description Target value (e.g., '$10K', '80%', '500')
+             */
+            target: string;
+            /**
+             * Unit
+             * @description Optional unit label (e.g., 'MRR', '%', 'customers')
+             */
+            unit?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When progress was last updated
+             */
+            updated_at: string;
+        };
+        /**
+         * ObjectiveProgressListResponse
+         * @description Response for listing all objective progress.
+         */
+        ObjectiveProgressListResponse: {
+            /**
+             * Count
+             * @description Number of objectives with progress set
+             * @default 0
+             */
+            count: number;
+            /**
+             * Objectives
+             * @description Progress for each objective
+             */
+            objectives?: components["schemas"]["ObjectiveProgressResponse"][];
+        };
+        /**
+         * ObjectiveProgressResponse
+         * @description Response for a single objective's progress.
+         */
+        ObjectiveProgressResponse: {
+            /**
+             * Objective Index
+             * @description Index of the objective (0-4)
+             */
+            objective_index: number;
+            /**
+             * Objective Text
+             * @description Text of the objective
+             */
+            objective_text: string;
+            /** @description Progress data (null if not set) */
+            progress?: components["schemas"]["ObjectiveProgress"] | null;
+        };
+        /**
+         * ObjectiveProgressUpdate
+         * @description Request to update progress for a strategic objective.
+         */
+        ObjectiveProgressUpdate: {
+            /**
+             * Current
+             * @description Current value
+             */
+            current: string;
+            /**
+             * Target
+             * @description Target value
+             */
+            target: string;
+            /**
+             * Unit
+             * @description Optional unit label
+             */
+            unit?: string | null;
+        };
+        /**
          * ObservabilityLinks
          * @description External observability tool links for admin access.
          *
@@ -17897,6 +18654,95 @@ export interface components {
             message: string;
             /** Pattern Name */
             pattern_name: string;
+        };
+        /**
+         * PeerBenchmarksResponse
+         * @description Response containing peer benchmark data.
+         */
+        PeerBenchmarksResponse: {
+            /**
+             * Industry
+             * @description Industry segment
+             */
+            industry: string;
+            /**
+             * K Anonymity Threshold
+             * @description Minimum sample size for data
+             * @default 5
+             */
+            k_anonymity_threshold: number;
+            /**
+             * Metrics
+             * @description Benchmark metrics
+             */
+            metrics?: components["schemas"]["PeerMetric"][];
+            /**
+             * Updated At
+             * @description When aggregates were last updated
+             */
+            updated_at?: string | null;
+        };
+        /**
+         * PeerMetric
+         * @description A single peer benchmark metric.
+         */
+        PeerMetric: {
+            /**
+             * Display Name
+             * @description Human-readable metric name
+             */
+            display_name: string;
+            /**
+             * Locked
+             * @description Whether metric is tier-locked
+             * @default false
+             */
+            locked: boolean;
+            /**
+             * Metric
+             * @description Metric identifier
+             */
+            metric: string;
+            /**
+             * P10
+             * @description 10th percentile
+             */
+            p10?: number | null;
+            /**
+             * P25
+             * @description 25th percentile
+             */
+            p25?: number | null;
+            /**
+             * P50
+             * @description 50th percentile (median)
+             */
+            p50?: number | null;
+            /**
+             * P75
+             * @description 75th percentile
+             */
+            p75?: number | null;
+            /**
+             * P90
+             * @description 90th percentile
+             */
+            p90?: number | null;
+            /**
+             * Sample Count
+             * @description Number of data points
+             */
+            sample_count: number;
+            /**
+             * User Percentile
+             * @description User's percentile rank (0-100)
+             */
+            user_percentile?: number | null;
+            /**
+             * User Value
+             * @description User's current value
+             */
+            user_value?: number | null;
         };
         /**
          * PendingUpdatesResponse
@@ -19930,6 +20776,277 @@ export interface components {
             user_id: string;
         };
         /**
+         * SeoAnalyticsSummary
+         * @description Global SEO analytics summary.
+         */
+        SeoAnalyticsSummary: {
+            /**
+             * Overall Ctr
+             * @description Overall click-through rate
+             * @default 0
+             */
+            overall_ctr: number;
+            /**
+             * Overall Signup Rate
+             * @description Overall signup conversion rate
+             * @default 0
+             */
+            overall_signup_rate: number;
+            /**
+             * Total Articles
+             * @description Total articles across all users
+             * @default 0
+             */
+            total_articles: number;
+            /**
+             * Total Clicks
+             * @description Total clicks
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Signups
+             * @description Total signups
+             * @default 0
+             */
+            total_signups: number;
+            /**
+             * Total Views
+             * @description Total article views
+             * @default 0
+             */
+            total_views: number;
+            /**
+             * Views This Month
+             * @description Views in last 30 days
+             * @default 0
+             */
+            views_this_month: number;
+            /**
+             * Views This Week
+             * @description Views in last 7 days
+             * @default 0
+             */
+            views_this_week: number;
+            /**
+             * Views Today
+             * @description Views in last 24 hours
+             * @default 0
+             */
+            views_today: number;
+        };
+        /**
+         * SeoBlogArticle
+         * @description An SEO blog article.
+         */
+        SeoBlogArticle: {
+            /**
+             * Content
+             * @description Article content in Markdown
+             */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When article was created
+             */
+            created_at: string;
+            /**
+             * Excerpt
+             * @description Article excerpt/meta description
+             */
+            excerpt?: string | null;
+            /**
+             * Id
+             * @description Article ID
+             */
+            id: number;
+            /**
+             * Meta Description
+             * @description SEO meta description
+             */
+            meta_description?: string | null;
+            /**
+             * Meta Title
+             * @description SEO meta title
+             */
+            meta_title?: string | null;
+            /**
+             * Status
+             * @description Status: draft, published
+             */
+            status: string;
+            /**
+             * Title
+             * @description Article title
+             */
+            title: string;
+            /**
+             * Topic Id
+             * @description Source topic ID
+             */
+            topic_id?: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When article was last updated
+             */
+            updated_at: string;
+        };
+        /**
+         * SeoBlogArticleListResponse
+         * @description Response containing list of articles.
+         */
+        SeoBlogArticleListResponse: {
+            /**
+             * Articles
+             * @description User's articles
+             */
+            articles?: components["schemas"]["SeoBlogArticle"][];
+            /**
+             * Remaining This Month
+             * @description Remaining generations this month (-1 for unlimited)
+             */
+            remaining_this_month: number;
+            /**
+             * Total
+             * @description Total number of articles
+             */
+            total: number;
+        };
+        /**
+         * SeoBlogArticleUpdate
+         * @description Request to update an article.
+         */
+        SeoBlogArticleUpdate: {
+            /**
+             * Content
+             * @description Updated content
+             */
+            content?: string | null;
+            /**
+             * Excerpt
+             * @description Updated excerpt
+             */
+            excerpt?: string | null;
+            /**
+             * Meta Description
+             * @description Updated meta description
+             */
+            meta_description?: string | null;
+            /**
+             * Meta Title
+             * @description Updated meta title
+             */
+            meta_title?: string | null;
+            /**
+             * Status
+             * @description New status: draft, published
+             */
+            status?: string | null;
+            /**
+             * Title
+             * @description Updated title
+             */
+            title?: string | null;
+        };
+        /**
+         * SeoTopic
+         * @description An SEO topic for blog generation.
+         */
+        SeoTopic: {
+            /**
+             * Created At
+             * Format: date-time
+             * @description When topic was created
+             */
+            created_at: string;
+            /**
+             * Id
+             * @description Topic ID
+             */
+            id: number;
+            /**
+             * Keyword
+             * @description Primary keyword/topic
+             */
+            keyword: string;
+            /**
+             * Notes
+             * @description User notes
+             */
+            notes?: string | null;
+            /**
+             * Source Analysis Id
+             * @description Source trend analysis ID
+             */
+            source_analysis_id?: number | null;
+            /**
+             * Status
+             * @description Status: researched, writing, published
+             */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When topic was last updated
+             */
+            updated_at: string;
+        };
+        /**
+         * SeoTopicCreate
+         * @description Request to create an SEO topic.
+         */
+        SeoTopicCreate: {
+            /**
+             * Keyword
+             * @description Primary keyword/topic
+             */
+            keyword: string;
+            /**
+             * Notes
+             * @description User notes
+             */
+            notes?: string | null;
+            /**
+             * Source Analysis Id
+             * @description Source trend analysis ID
+             */
+            source_analysis_id?: number | null;
+        };
+        /**
+         * SeoTopicListResponse
+         * @description Response containing list of SEO topics.
+         */
+        SeoTopicListResponse: {
+            /**
+             * Topics
+             * @description User's SEO topics
+             */
+            topics?: components["schemas"]["SeoTopic"][];
+            /**
+             * Total
+             * @description Total number of topics
+             */
+            total: number;
+        };
+        /**
+         * SeoTopicUpdate
+         * @description Request to update an SEO topic.
+         */
+        SeoTopicUpdate: {
+            /**
+             * Notes
+             * @description Updated notes
+             */
+            notes?: string | null;
+            /**
+             * Status
+             * @description New status: researched, writing, published
+             */
+            status?: string | null;
+        };
+        /**
          * ServiceHealthSummary
          * @description Summary of a service's health status.
          */
@@ -21381,6 +22498,57 @@ export interface components {
          */
         TimePeriod: "hour" | "day" | "week" | "month" | "all";
         /**
+         * TopArticle
+         * @description Top-performing article info.
+         */
+        TopArticle: {
+            /**
+             * Article Id
+             * @description Article ID
+             */
+            article_id: number;
+            /**
+             * Clicks
+             * @description Total clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Ctr
+             * @description Click-through rate
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Signup Rate
+             * @description Signup conversion rate
+             * @default 0
+             */
+            signup_rate: number;
+            /**
+             * Signups
+             * @description Total signups
+             * @default 0
+             */
+            signups: number;
+            /**
+             * Title
+             * @description Article title
+             */
+            title: string;
+            /**
+             * User Email
+             * @description Author email
+             */
+            user_email?: string | null;
+            /**
+             * Views
+             * @description Total views
+             * @default 0
+             */
+            views: number;
+        };
+        /**
          * TopUsersCostResponse
          * @description Top users by cost (admin only, abuse detection).
          *
@@ -21497,6 +22665,87 @@ export interface components {
              * @description User ID of the new owner
              */
             new_owner_id: string;
+        };
+        /**
+         * TrendAnalysisRequest
+         * @description Request for SEO trend analysis.
+         */
+        TrendAnalysisRequest: {
+            /**
+             * Industry
+             * @description Industry context for analysis
+             */
+            industry?: string | null;
+            /**
+             * Keywords
+             * @description Keywords to analyze (1-10)
+             */
+            keywords: string[];
+        };
+        /**
+         * TrendAnalysisResponse
+         * @description Response containing trend analysis.
+         */
+        TrendAnalysisResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             * @description When analysis was created
+             */
+            created_at: string;
+            /**
+             * Id
+             * @description Analysis ID
+             */
+            id: number;
+            /**
+             * Remaining Analyses
+             * @description Remaining analyses this month (-1 for unlimited)
+             */
+            remaining_analyses: number;
+            /** @description Analysis results */
+            results: components["schemas"]["TrendAnalysisResult"];
+        };
+        /**
+         * TrendAnalysisResult
+         * @description Result of SEO trend analysis.
+         */
+        TrendAnalysisResult: {
+            /**
+             * Executive Summary
+             * @description Executive summary of trends
+             */
+            executive_summary: string;
+            /**
+             * Industry
+             * @description Industry context used
+             */
+            industry?: string | null;
+            /**
+             * Key Trends
+             * @description Key trend highlights
+             */
+            key_trends?: string[];
+            /**
+             * Keywords Analyzed
+             * @description Keywords that were analyzed
+             */
+            keywords_analyzed: string[];
+            /**
+             * Opportunities
+             * @description Identified opportunities
+             */
+            opportunities?: components["schemas"]["TrendOpportunity"][];
+            /**
+             * Sources
+             * @description Research sources
+             */
+            sources?: string[];
+            /**
+             * Threats
+             * @description Identified threats
+             */
+            threats?: components["schemas"]["TrendThreat"][];
         };
         /**
          * TrendDirection
@@ -21620,6 +22869,32 @@ export interface components {
             success: boolean;
         };
         /**
+         * TrendOpportunity
+         * @description A trend opportunity identified.
+         */
+        TrendOpportunity: {
+            /**
+             * Description
+             * @description Brief description
+             */
+            description: string;
+            /**
+             * Relevance Score
+             * @description Relevance to keywords
+             */
+            relevance_score: number;
+            /**
+             * Topic
+             * @description Topic name
+             */
+            topic: string;
+            /**
+             * Trend Direction
+             * @description rising, stable, declining
+             */
+            trend_direction: string;
+        };
+        /**
          * TrendSpec
          * @description Trend specification for time-series analysis.
          *
@@ -21652,6 +22927,32 @@ export interface components {
              * @description Value column
              */
             value_field: string;
+        };
+        /**
+         * TrendThreat
+         * @description A trend threat identified.
+         */
+        TrendThreat: {
+            /**
+             * Description
+             * @description Brief description
+             */
+            description: string;
+            /**
+             * Severity
+             * @description high, medium, low
+             */
+            severity: string;
+            /**
+             * Threat Type
+             * @description competition, saturation, regulation
+             */
+            threat_type: string;
+            /**
+             * Topic
+             * @description Topic name
+             */
+            topic: string;
         };
         /**
          * TrendsRefreshRequest
@@ -23482,6 +24783,80 @@ export interface components {
              * @description User cost items
              */
             users: components["schemas"]["backend__api__models__UserCostItem"][];
+        };
+        /**
+         * ConsentStatusResponse
+         * @description Consent status response.
+         */
+        backend__api__peer_benchmarks__routes__ConsentStatusResponse: {
+            /**
+             * Consented
+             * @description Whether user has active consent
+             */
+            consented: boolean;
+            /**
+             * Consented At
+             * @description When consent was given
+             */
+            consented_at?: string | null;
+            /**
+             * Revoked At
+             * @description When consent was revoked
+             */
+            revoked_at?: string | null;
+        };
+        /**
+         * ConsentStatusResponse
+         * @description Research sharing consent status response.
+         */
+        backend__api__research_sharing__routes__ConsentStatusResponse: {
+            /**
+             * Consented
+             * @description Whether user has active consent
+             */
+            consented: boolean;
+            /**
+             * Consented At
+             * @description When consent was given
+             */
+            consented_at?: string | null;
+            /**
+             * Revoked At
+             * @description When consent was revoked
+             */
+            revoked_at?: string | null;
+        };
+        /**
+         * ConsentStatusResponse
+         * @description Response model for consent status check.
+         */
+        backend__api__terms__ConsentStatusResponse: {
+            /** Consented At */
+            consented_at?: string | null;
+            /** Consented Version */
+            consented_version?: string | null;
+            /**
+             * Consents
+             * @description Full consent history
+             */
+            consents?: components["schemas"]["ConsentHistoryItem"][];
+            /** Current Version */
+            current_version?: string | null;
+            /**
+             * Has Consented
+             * @description True if all required policies consented
+             */
+            has_consented: boolean;
+            /**
+             * Missing Policies
+             * @description Policy types still needing consent
+             */
+            missing_policies?: string[];
+            /**
+             * Policies
+             * @description Status of each policy type
+             */
+            policies?: components["schemas"]["PolicyConsentStatus"][];
         };
         /**
          * WaitlistResponse
@@ -28250,6 +29625,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_seo_analytics_api_admin_seo_analytics_get: {
+        parameters: {
+            query?: {
+                /** @description Number of top articles to return */
+                top_limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSeoAnalyticsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -33795,6 +35204,94 @@ export interface operations {
             };
         };
     };
+    get_objectives_progress_api_v1_context_objectives_progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectiveProgressListResponse"];
+                };
+            };
+        };
+    };
+    update_objective_progress_api_v1_context_objectives__objective_index__progress_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                objective_index: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectiveProgressUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectiveProgressResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_objective_progress_api_v1_context_objectives__objective_index__progress_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                objective_index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_pending_updates_api_v1_context_pending_updates_get: {
         parameters: {
             query?: never;
@@ -35627,6 +37124,106 @@ export interface operations {
             };
         };
     };
+    get_benchmarks_api_v1_peer_benchmarks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeerBenchmarksResponse"];
+                };
+            };
+        };
+    };
+    get_comparison_api_v1_peer_benchmarks_compare_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonResponse"];
+                };
+            };
+        };
+    };
+    get_consent_api_v1_peer_benchmarks_consent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__peer_benchmarks__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    opt_in_api_v1_peer_benchmarks_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__peer_benchmarks__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    opt_out_api_v1_peer_benchmarks_consent_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__peer_benchmarks__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
     get_projects_api_v1_projects_get: {
         parameters: {
             query?: {
@@ -36319,6 +37916,510 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_consent_api_v1_research_sharing_consent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__research_sharing__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    opt_in_api_v1_research_sharing_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__research_sharing__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    opt_out_api_v1_research_sharing_consent_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__research_sharing__routes__ConsentStatusResponse"];
+                };
+            };
+        };
+    };
+    get_all_analytics_api_v1_seo_analytics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAnalyticsListResponse"];
+                };
+            };
+        };
+    };
+    analyze_trends_api_v1_seo_analyze_trends_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrendAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_articles_api_v1_seo_articles_get: {
+        parameters: {
+            query?: {
+                /** @description Number of articles to return */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticleListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_api_v1_seo_articles__article_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticle"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_article_api_v1_seo_articles__article_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_article_api_v1_seo_articles__article_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeoBlogArticleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticle"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_analytics_api_v1_seo_articles__article_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAnalytics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_article_event_api_v1_seo_articles__article_id__events_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleEventCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_history_api_v1_seo_history_get: {
+        parameters: {
+            query?: {
+                /** @description Number of entries to return */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_topics_api_v1_seo_topics_get: {
+        parameters: {
+            query?: {
+                /** @description Number of topics to return */
+                limit?: number;
+                /** @description Offset for pagination */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoTopicListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_topic_api_v1_seo_topics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeoTopicCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoTopic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_topic_api_v1_seo_topics__topic_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_topic_api_v1_seo_topics__topic_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeoTopicUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoTopic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_article_api_v1_seo_topics__topic_id__generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticle"];
                 };
             };
             /** @description Validation Error */
@@ -39424,7 +41525,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConsentStatusResponse"];
+                    "application/json": components["schemas"]["backend__api__terms__ConsentStatusResponse"];
                 };
             };
         };

@@ -1948,6 +1948,36 @@
         "title": "AddWhitelistRequest",
         "type": "object"
       },
+      "AdminSeoAnalyticsResponse": {
+        "description": "Full admin SEO analytics response.",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/SeoAnalyticsSummary",
+            "description": "Overall summary stats"
+          },
+          "top_by_conversion": {
+            "description": "Top articles by signup conversion rate",
+            "items": {
+              "$ref": "#/components/schemas/TopArticle"
+            },
+            "title": "Top By Conversion",
+            "type": "array"
+          },
+          "top_by_views": {
+            "description": "Top articles by view count",
+            "items": {
+              "$ref": "#/components/schemas/TopArticle"
+            },
+            "title": "Top By Views",
+            "type": "array"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "AdminSeoAnalyticsResponse",
+        "type": "object"
+      },
       "AdminStatsResponse": {
         "description": "Response model for admin dashboard statistics.\n\nAttributes:\n    total_users: Total number of registered users\n    total_meetings: Total number of meetings across all users\n    total_cost: Total cost across all users (USD)\n    whitelist_count: Number of whitelisted emails\n    waitlist_pending: Number of pending waitlist entries",
         "properties": {
@@ -2542,6 +2572,196 @@
           "message"
         ],
         "title": "ApproveWaitlistResponse",
+        "type": "object"
+      },
+      "ArticleAnalytics": {
+        "description": "Analytics for a single article.",
+        "properties": {
+          "article_id": {
+            "description": "Article ID",
+            "title": "Article Id",
+            "type": "integer"
+          },
+          "clicks": {
+            "default": 0,
+            "description": "Total clicks",
+            "minimum": 0.0,
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "default": 0.0,
+            "description": "Click-through rate (clicks/views)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ctr",
+            "type": "number"
+          },
+          "signup_rate": {
+            "default": 0.0,
+            "description": "Signup rate (signups/views)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Signup Rate",
+            "type": "number"
+          },
+          "signups": {
+            "default": 0,
+            "description": "Total signups",
+            "minimum": 0.0,
+            "title": "Signups",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Article title",
+            "title": "Title",
+            "type": "string"
+          },
+          "views": {
+            "default": 0,
+            "description": "Total views",
+            "minimum": 0.0,
+            "title": "Views",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "article_id",
+          "title"
+        ],
+        "title": "ArticleAnalytics",
+        "type": "object"
+      },
+      "ArticleAnalyticsListResponse": {
+        "description": "Response containing analytics for all user's articles.",
+        "properties": {
+          "articles": {
+            "description": "Article analytics",
+            "items": {
+              "$ref": "#/components/schemas/ArticleAnalytics"
+            },
+            "title": "Articles",
+            "type": "array"
+          },
+          "overall_ctr": {
+            "default": 0.0,
+            "description": "Overall CTR",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Overall Ctr",
+            "type": "number"
+          },
+          "overall_signup_rate": {
+            "default": 0.0,
+            "description": "Overall signup rate",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Overall Signup Rate",
+            "type": "number"
+          },
+          "total_clicks": {
+            "default": 0,
+            "description": "Total clicks across all articles",
+            "minimum": 0.0,
+            "title": "Total Clicks",
+            "type": "integer"
+          },
+          "total_signups": {
+            "default": 0,
+            "description": "Total signups across all articles",
+            "minimum": 0.0,
+            "title": "Total Signups",
+            "type": "integer"
+          },
+          "total_views": {
+            "default": 0,
+            "description": "Total views across all articles",
+            "minimum": 0.0,
+            "title": "Total Views",
+            "type": "integer"
+          }
+        },
+        "title": "ArticleAnalyticsListResponse",
+        "type": "object"
+      },
+      "ArticleEventCreate": {
+        "description": "Request to record an article event.",
+        "properties": {
+          "event_type": {
+            "description": "Event type: view, click, signup",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HTTP referrer",
+            "title": "Referrer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Browser session ID",
+            "title": "Session Id"
+          },
+          "utm_campaign": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTM campaign",
+            "title": "Utm Campaign"
+          },
+          "utm_medium": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTM medium",
+            "title": "Utm Medium"
+          },
+          "utm_source": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTM source",
+            "title": "Utm Source"
+          }
+        },
+        "required": [
+          "event_type"
+        ],
+        "title": "ArticleEventCreate",
         "type": "object"
       },
       "AskRequest": {
@@ -5493,6 +5713,92 @@
         "title": "CompareSpec",
         "type": "object"
       },
+      "ComparisonMetric": {
+        "description": "User's comparison for a single metric.",
+        "properties": {
+          "display_name": {
+            "description": "Human-readable metric name",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "metric": {
+            "description": "Metric identifier",
+            "title": "Metric",
+            "type": "string"
+          },
+          "p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Industry median for context",
+            "title": "P50"
+          },
+          "sample_count": {
+            "description": "Sample size",
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "user_percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percentile rank (0-100)",
+            "title": "User Percentile"
+          },
+          "user_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's value",
+            "title": "User Value"
+          }
+        },
+        "required": [
+          "metric",
+          "display_name",
+          "sample_count"
+        ],
+        "title": "ComparisonMetric",
+        "type": "object"
+      },
+      "ComparisonResponse": {
+        "description": "Response containing user's peer comparison.",
+        "properties": {
+          "comparisons": {
+            "description": "Metric comparisons",
+            "items": {
+              "$ref": "#/components/schemas/ComparisonMetric"
+            },
+            "title": "Comparisons",
+            "type": "array"
+          },
+          "industry": {
+            "description": "Industry segment",
+            "title": "Industry",
+            "type": "string"
+          }
+        },
+        "required": [
+          "industry"
+        ],
+        "title": "ComparisonResponse",
+        "type": "object"
+      },
       "CompetitorCreateRequest": {
         "description": "Request to create a competitor.",
         "properties": {
@@ -6374,78 +6680,6 @@
           "terms_version_id"
         ],
         "title": "ConsentRequest",
-        "type": "object"
-      },
-      "ConsentStatusResponse": {
-        "description": "Response model for consent status check.",
-        "properties": {
-          "consented_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consented At"
-          },
-          "consented_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consented Version"
-          },
-          "consents": {
-            "description": "Full consent history",
-            "items": {
-              "$ref": "#/components/schemas/ConsentHistoryItem"
-            },
-            "title": "Consents",
-            "type": "array"
-          },
-          "current_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Version"
-          },
-          "has_consented": {
-            "description": "True if all required policies consented",
-            "title": "Has Consented",
-            "type": "boolean"
-          },
-          "missing_policies": {
-            "description": "Policy types still needing consent",
-            "items": {
-              "type": "string"
-            },
-            "title": "Missing Policies",
-            "type": "array"
-          },
-          "policies": {
-            "description": "Status of each policy type",
-            "items": {
-              "$ref": "#/components/schemas/PolicyConsentStatus"
-            },
-            "title": "Policies",
-            "type": "array"
-          }
-        },
-        "required": [
-          "has_consented"
-        ],
-        "title": "ConsentStatusResponse",
         "type": "object"
       },
       "ContextChoiceRequest": {
@@ -11573,6 +11807,84 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "HistoryEntry": {
+        "description": "A historical trend analysis entry.",
+        "properties": {
+          "created_at": {
+            "description": "When analysis was created",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "executive_summary": {
+            "description": "Executive summary",
+            "title": "Executive Summary",
+            "type": "string"
+          },
+          "id": {
+            "description": "Analysis ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Industry context",
+            "title": "Industry"
+          },
+          "keywords": {
+            "description": "Keywords analyzed",
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "keywords",
+          "executive_summary",
+          "created_at"
+        ],
+        "title": "HistoryEntry",
+        "type": "object"
+      },
+      "HistoryResponse": {
+        "description": "Response containing analysis history.",
+        "properties": {
+          "analyses": {
+            "description": "Past analyses",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "title": "Analyses",
+            "type": "array"
+          },
+          "remaining_this_month": {
+            "description": "Remaining analyses this month (-1 for unlimited)",
+            "title": "Remaining This Month",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of analyses",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "remaining_this_month"
+        ],
+        "title": "HistoryResponse",
+        "type": "object"
+      },
       "ImpersonationHistoryItem": {
         "description": "Response model for impersonation history entry.\n\nAttributes:\n    id: Session record ID\n    admin_user_id: Admin user ID\n    admin_email: Admin user email\n    target_user_id: Target user ID\n    target_email: Target user email\n    reason: Reason for impersonation\n    is_write_mode: Whether mutations were allowed\n    started_at: When session started\n    expires_at: When session was set to expire\n    ended_at: When session actually ended (null if expired)",
         "properties": {
@@ -14286,6 +14598,140 @@
         "title": "NotFoundErrorResponse",
         "type": "object"
       },
+      "ObjectiveProgress": {
+        "description": "Progress data for a single strategic objective.\n\nStores current and target values as flexible strings to support\nvarious formats (e.g., \"$5K\", \"50%\", \"100 customers\").",
+        "properties": {
+          "current": {
+            "description": "Current value (e.g., '$5K', '50%', '100')",
+            "maxLength": 50,
+            "title": "Current",
+            "type": "string"
+          },
+          "target": {
+            "description": "Target value (e.g., '$10K', '80%', '500')",
+            "maxLength": 50,
+            "title": "Target",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional unit label (e.g., 'MRR', '%', 'customers')",
+            "title": "Unit"
+          },
+          "updated_at": {
+            "description": "When progress was last updated",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current",
+          "target",
+          "updated_at"
+        ],
+        "title": "ObjectiveProgress",
+        "type": "object"
+      },
+      "ObjectiveProgressListResponse": {
+        "description": "Response for listing all objective progress.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of objectives with progress set",
+            "title": "Count",
+            "type": "integer"
+          },
+          "objectives": {
+            "description": "Progress for each objective",
+            "items": {
+              "$ref": "#/components/schemas/ObjectiveProgressResponse"
+            },
+            "title": "Objectives",
+            "type": "array"
+          }
+        },
+        "title": "ObjectiveProgressListResponse",
+        "type": "object"
+      },
+      "ObjectiveProgressResponse": {
+        "description": "Response for a single objective's progress.",
+        "properties": {
+          "objective_index": {
+            "description": "Index of the objective (0-4)",
+            "title": "Objective Index",
+            "type": "integer"
+          },
+          "objective_text": {
+            "description": "Text of the objective",
+            "title": "Objective Text",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectiveProgress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress data (null if not set)"
+          }
+        },
+        "required": [
+          "objective_index",
+          "objective_text"
+        ],
+        "title": "ObjectiveProgressResponse",
+        "type": "object"
+      },
+      "ObjectiveProgressUpdate": {
+        "description": "Request to update progress for a strategic objective.",
+        "properties": {
+          "current": {
+            "description": "Current value",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Current",
+            "type": "string"
+          },
+          "target": {
+            "description": "Target value",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional unit label",
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "current",
+          "target"
+        ],
+        "title": "ObjectiveProgressUpdate",
+        "type": "object"
+      },
       "ObservabilityLinks": {
         "description": "External observability tool links for admin access.\n\nAttributes:\n    grafana_url: Grafana dashboard URL (optional)\n    prometheus_url: Prometheus dashboard URL (optional)\n    sentry_url: Sentry error tracking URL (optional)\n    status_url: Uptime Kuma status page URL (optional)\n    analytics_url: Umami analytics URL (optional)\n    uptimerobot_url: UptimeRobot status page URL (optional)",
         "properties": {
@@ -14682,6 +15128,165 @@
           "message"
         ],
         "title": "PatternCreateResponse",
+        "type": "object"
+      },
+      "PeerBenchmarksResponse": {
+        "description": "Response containing peer benchmark data.",
+        "properties": {
+          "industry": {
+            "description": "Industry segment",
+            "title": "Industry",
+            "type": "string"
+          },
+          "k_anonymity_threshold": {
+            "default": 5,
+            "description": "Minimum sample size for data",
+            "title": "K Anonymity Threshold",
+            "type": "integer"
+          },
+          "metrics": {
+            "description": "Benchmark metrics",
+            "items": {
+              "$ref": "#/components/schemas/PeerMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When aggregates were last updated",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "industry"
+        ],
+        "title": "PeerBenchmarksResponse",
+        "type": "object"
+      },
+      "PeerMetric": {
+        "description": "A single peer benchmark metric.",
+        "properties": {
+          "display_name": {
+            "description": "Human-readable metric name",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "locked": {
+            "default": false,
+            "description": "Whether metric is tier-locked",
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "metric": {
+            "description": "Metric identifier",
+            "title": "Metric",
+            "type": "string"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "10th percentile",
+            "title": "P10"
+          },
+          "p25": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "25th percentile",
+            "title": "P25"
+          },
+          "p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "50th percentile (median)",
+            "title": "P50"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "75th percentile",
+            "title": "P75"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "90th percentile",
+            "title": "P90"
+          },
+          "sample_count": {
+            "description": "Number of data points",
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "user_percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's percentile rank (0-100)",
+            "title": "User Percentile"
+          },
+          "user_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's current value",
+            "title": "User Value"
+          }
+        },
+        "required": [
+          "metric",
+          "display_name",
+          "sample_count"
+        ],
+        "title": "PeerMetric",
         "type": "object"
       },
       "PendingUpdatesResponse": {
@@ -17529,6 +18134,436 @@
         "title": "SendEmailResponse",
         "type": "object"
       },
+      "SeoAnalyticsSummary": {
+        "description": "Global SEO analytics summary.",
+        "properties": {
+          "overall_ctr": {
+            "default": 0.0,
+            "description": "Overall click-through rate",
+            "title": "Overall Ctr",
+            "type": "number"
+          },
+          "overall_signup_rate": {
+            "default": 0.0,
+            "description": "Overall signup conversion rate",
+            "title": "Overall Signup Rate",
+            "type": "number"
+          },
+          "total_articles": {
+            "default": 0,
+            "description": "Total articles across all users",
+            "title": "Total Articles",
+            "type": "integer"
+          },
+          "total_clicks": {
+            "default": 0,
+            "description": "Total clicks",
+            "title": "Total Clicks",
+            "type": "integer"
+          },
+          "total_signups": {
+            "default": 0,
+            "description": "Total signups",
+            "title": "Total Signups",
+            "type": "integer"
+          },
+          "total_views": {
+            "default": 0,
+            "description": "Total article views",
+            "title": "Total Views",
+            "type": "integer"
+          },
+          "views_this_month": {
+            "default": 0,
+            "description": "Views in last 30 days",
+            "title": "Views This Month",
+            "type": "integer"
+          },
+          "views_this_week": {
+            "default": 0,
+            "description": "Views in last 7 days",
+            "title": "Views This Week",
+            "type": "integer"
+          },
+          "views_today": {
+            "default": 0,
+            "description": "Views in last 24 hours",
+            "title": "Views Today",
+            "type": "integer"
+          }
+        },
+        "title": "SeoAnalyticsSummary",
+        "type": "object"
+      },
+      "SeoBlogArticle": {
+        "description": "An SEO blog article.",
+        "properties": {
+          "content": {
+            "description": "Article content in Markdown",
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When article was created",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article excerpt/meta description",
+            "title": "Excerpt"
+          },
+          "id": {
+            "description": "Article ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO meta description",
+            "title": "Meta Description"
+          },
+          "meta_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO meta title",
+            "title": "Meta Title"
+          },
+          "status": {
+            "description": "Status: draft, published",
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "description": "Article title",
+            "title": "Title",
+            "type": "string"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source topic ID",
+            "title": "Topic Id"
+          },
+          "updated_at": {
+            "description": "When article was last updated",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeoBlogArticle",
+        "type": "object"
+      },
+      "SeoBlogArticleListResponse": {
+        "description": "Response containing list of articles.",
+        "properties": {
+          "articles": {
+            "description": "User's articles",
+            "items": {
+              "$ref": "#/components/schemas/SeoBlogArticle"
+            },
+            "title": "Articles",
+            "type": "array"
+          },
+          "remaining_this_month": {
+            "description": "Remaining generations this month (-1 for unlimited)",
+            "title": "Remaining This Month",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of articles",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "remaining_this_month"
+        ],
+        "title": "SeoBlogArticleListResponse",
+        "type": "object"
+      },
+      "SeoBlogArticleUpdate": {
+        "description": "Request to update an article.",
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated content",
+            "title": "Content"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated excerpt",
+            "title": "Excerpt"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated meta description",
+            "title": "Meta Description"
+          },
+          "meta_title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated meta title",
+            "title": "Meta Title"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New status: draft, published",
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated title",
+            "title": "Title"
+          }
+        },
+        "title": "SeoBlogArticleUpdate",
+        "type": "object"
+      },
+      "SeoTopic": {
+        "description": "An SEO topic for blog generation.",
+        "properties": {
+          "created_at": {
+            "description": "When topic was created",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "description": "Topic ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "keyword": {
+            "description": "Primary keyword/topic",
+            "title": "Keyword",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User notes",
+            "title": "Notes"
+          },
+          "source_analysis_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source trend analysis ID",
+            "title": "Source Analysis Id"
+          },
+          "status": {
+            "description": "Status: researched, writing, published",
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When topic was last updated",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "keyword",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeoTopic",
+        "type": "object"
+      },
+      "SeoTopicCreate": {
+        "description": "Request to create an SEO topic.",
+        "properties": {
+          "keyword": {
+            "description": "Primary keyword/topic",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Keyword",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User notes",
+            "title": "Notes"
+          },
+          "source_analysis_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source trend analysis ID",
+            "title": "Source Analysis Id"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "title": "SeoTopicCreate",
+        "type": "object"
+      },
+      "SeoTopicListResponse": {
+        "description": "Response containing list of SEO topics.",
+        "properties": {
+          "topics": {
+            "description": "User's SEO topics",
+            "items": {
+              "$ref": "#/components/schemas/SeoTopic"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total number of topics",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "SeoTopicListResponse",
+        "type": "object"
+      },
+      "SeoTopicUpdate": {
+        "description": "Request to update an SEO topic.",
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated notes",
+            "title": "Notes"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New status: researched, writing, published",
+            "title": "Status"
+          }
+        },
+        "title": "SeoTopicUpdate",
+        "type": "object"
+      },
       "ServiceHealthSummary": {
         "description": "Summary of a service's health status.",
         "properties": {
@@ -19497,6 +20532,69 @@
         "title": "TimePeriod",
         "type": "string"
       },
+      "TopArticle": {
+        "description": "Top-performing article info.",
+        "properties": {
+          "article_id": {
+            "description": "Article ID",
+            "title": "Article Id",
+            "type": "integer"
+          },
+          "clicks": {
+            "default": 0,
+            "description": "Total clicks",
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "default": 0.0,
+            "description": "Click-through rate",
+            "title": "Ctr",
+            "type": "number"
+          },
+          "signup_rate": {
+            "default": 0.0,
+            "description": "Signup conversion rate",
+            "title": "Signup Rate",
+            "type": "number"
+          },
+          "signups": {
+            "default": 0,
+            "description": "Total signups",
+            "title": "Signups",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Article title",
+            "title": "Title",
+            "type": "string"
+          },
+          "user_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author email",
+            "title": "User Email"
+          },
+          "views": {
+            "default": 0,
+            "description": "Total views",
+            "title": "Views",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "article_id",
+          "title"
+        ],
+        "title": "TopArticle",
+        "type": "object"
+      },
       "TopUsersCostResponse": {
         "description": "Top users by cost (admin only, abuse detection).\n\nAttributes:\n    period_start: Period queried\n    users: List of users sorted by cost descending",
         "properties": {
@@ -19704,6 +20802,139 @@
           "confirm"
         ],
         "title": "TransferOwnershipRequest",
+        "type": "object"
+      },
+      "TrendAnalysisRequest": {
+        "description": "Request for SEO trend analysis.",
+        "properties": {
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Industry context for analysis",
+            "title": "Industry"
+          },
+          "keywords": {
+            "description": "Keywords to analyze (1-10)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Keywords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keywords"
+        ],
+        "title": "TrendAnalysisRequest",
+        "type": "object"
+      },
+      "TrendAnalysisResponse": {
+        "description": "Response containing trend analysis.",
+        "properties": {
+          "created_at": {
+            "description": "When analysis was created",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "description": "Analysis ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "remaining_analyses": {
+            "description": "Remaining analyses this month (-1 for unlimited)",
+            "title": "Remaining Analyses",
+            "type": "integer"
+          },
+          "results": {
+            "$ref": "#/components/schemas/TrendAnalysisResult",
+            "description": "Analysis results"
+          }
+        },
+        "required": [
+          "id",
+          "results",
+          "created_at",
+          "remaining_analyses"
+        ],
+        "title": "TrendAnalysisResponse",
+        "type": "object"
+      },
+      "TrendAnalysisResult": {
+        "description": "Result of SEO trend analysis.",
+        "properties": {
+          "executive_summary": {
+            "description": "Executive summary of trends",
+            "title": "Executive Summary",
+            "type": "string"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Industry context used",
+            "title": "Industry"
+          },
+          "key_trends": {
+            "description": "Key trend highlights",
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Trends",
+            "type": "array"
+          },
+          "keywords_analyzed": {
+            "description": "Keywords that were analyzed",
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords Analyzed",
+            "type": "array"
+          },
+          "opportunities": {
+            "description": "Identified opportunities",
+            "items": {
+              "$ref": "#/components/schemas/TrendOpportunity"
+            },
+            "title": "Opportunities",
+            "type": "array"
+          },
+          "sources": {
+            "description": "Research sources",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "threats": {
+            "description": "Identified threats",
+            "items": {
+              "$ref": "#/components/schemas/TrendThreat"
+            },
+            "title": "Threats",
+            "type": "array"
+          }
+        },
+        "required": [
+          "executive_summary",
+          "keywords_analyzed"
+        ],
+        "title": "TrendAnalysisResult",
         "type": "object"
       },
       "TrendDirection": {
@@ -19935,6 +21166,41 @@
         "title": "TrendInsightsListResponse",
         "type": "object"
       },
+      "TrendOpportunity": {
+        "description": "A trend opportunity identified.",
+        "properties": {
+          "description": {
+            "description": "Brief description",
+            "title": "Description",
+            "type": "string"
+          },
+          "relevance_score": {
+            "description": "Relevance to keywords",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance Score",
+            "type": "number"
+          },
+          "topic": {
+            "description": "Topic name",
+            "title": "Topic",
+            "type": "string"
+          },
+          "trend_direction": {
+            "description": "rising, stable, declining",
+            "title": "Trend Direction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "trend_direction",
+          "relevance_score",
+          "description"
+        ],
+        "title": "TrendOpportunity",
+        "type": "object"
+      },
       "TrendSpec": {
         "description": "Trend specification for time-series analysis.\n\nAttributes:\n    date_field: Column containing date/datetime values\n    value_field: Column to compute trends on\n    interval: Time interval for grouping\n    aggregate_function: How to aggregate values within intervals",
         "properties": {
@@ -19970,6 +21236,39 @@
           "value_field"
         ],
         "title": "TrendSpec",
+        "type": "object"
+      },
+      "TrendThreat": {
+        "description": "A trend threat identified.",
+        "properties": {
+          "description": {
+            "description": "Brief description",
+            "title": "Description",
+            "type": "string"
+          },
+          "severity": {
+            "description": "high, medium, low",
+            "title": "Severity",
+            "type": "string"
+          },
+          "threat_type": {
+            "description": "competition, saturation, regulation",
+            "title": "Threat Type",
+            "type": "string"
+          },
+          "topic": {
+            "description": "Topic name",
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "threat_type",
+          "severity",
+          "description"
+        ],
+        "title": "TrendThreat",
         "type": "object"
       },
       "TrendsRefreshRequest": {
@@ -22824,6 +24123,160 @@
           "offset"
         ],
         "title": "UserCostsResponse",
+        "type": "object"
+      },
+      "backend__api__peer_benchmarks__routes__ConsentStatusResponse": {
+        "description": "Consent status response.",
+        "properties": {
+          "consented": {
+            "description": "Whether user has active consent",
+            "title": "Consented",
+            "type": "boolean"
+          },
+          "consented_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When consent was given",
+            "title": "Consented At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When consent was revoked",
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "consented"
+        ],
+        "title": "ConsentStatusResponse",
+        "type": "object"
+      },
+      "backend__api__research_sharing__routes__ConsentStatusResponse": {
+        "description": "Research sharing consent status response.",
+        "properties": {
+          "consented": {
+            "description": "Whether user has active consent",
+            "title": "Consented",
+            "type": "boolean"
+          },
+          "consented_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When consent was given",
+            "title": "Consented At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When consent was revoked",
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "consented"
+        ],
+        "title": "ConsentStatusResponse",
+        "type": "object"
+      },
+      "backend__api__terms__ConsentStatusResponse": {
+        "description": "Response model for consent status check.",
+        "properties": {
+          "consented_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented At"
+          },
+          "consented_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented Version"
+          },
+          "consents": {
+            "description": "Full consent history",
+            "items": {
+              "$ref": "#/components/schemas/ConsentHistoryItem"
+            },
+            "title": "Consents",
+            "type": "array"
+          },
+          "current_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Version"
+          },
+          "has_consented": {
+            "description": "True if all required policies consented",
+            "title": "Has Consented",
+            "type": "boolean"
+          },
+          "missing_policies": {
+            "description": "Policy types still needing consent",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Policies",
+            "type": "array"
+          },
+          "policies": {
+            "description": "Status of each policy type",
+            "items": {
+              "$ref": "#/components/schemas/PolicyConsentStatus"
+            },
+            "title": "Policies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "has_consented"
+        ],
+        "title": "ConsentStatusResponse",
         "type": "object"
       },
       "backend__api__waitlist__WaitlistResponse": {
@@ -30412,6 +31865,65 @@
         ]
       }
     },
+    "/api/admin/seo/analytics": {
+      "get": {
+        "description": "Get global SEO content performance analytics.\n\nReturns:\n- Overall summary: total views, clicks, signups, CTR, signup rate\n- Time-based metrics: views today, this week, this month\n- Top articles by views\n- Top articles by signup conversion rate (min 10 views)",
+        "operationId": "get_admin_seo_analytics_api_admin_seo_analytics_get",
+        "parameters": [
+          {
+            "description": "Number of top articles to return",
+            "in": "query",
+            "name": "top_limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Number of top articles to return",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Top Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSeoAnalyticsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admin Seo Analytics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-seo"
+        ]
+      }
+    },
     "/api/admin/services/status": {
       "get": {
         "description": "Detailed service status for admin dashboard. Requires admin authentication.\n\n    Includes:\n    - Per-service metrics (error rate, latency percentiles)\n    - Circuit breaker states\n    - LLM provider health\n    - Recent incidents (last 24h)",
@@ -37325,7 +38837,7 @@
                     "type": "null"
                   }
                 ],
-                "title": "Request"
+                "title": "Body"
               }
             }
           }
@@ -38062,6 +39574,129 @@
         ]
       }
     },
+    "/api/v1/context/objectives/progress": {
+      "get": {
+        "description": "Get progress for all strategic objectives.\n\n    Returns each objective with its current progress data (if set).\n    Progress includes current value, target value, and optional unit.\n\n    **Use Cases:**\n    - Dashboard goal banner progress display\n    - Context overview progress tracking",
+        "operationId": "get_objectives_progress_api_v1_context_objectives_progress_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectiveProgressListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get all objective progress",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/objectives/{objective_index}/progress": {
+      "delete": {
+        "description": "Remove progress tracking for a specific objective.",
+        "operationId": "delete_objective_progress_api_v1_context_objectives__objective_index__progress_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "objective_index",
+            "required": true,
+            "schema": {
+              "title": "Objective Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Delete Objective Progress Api V1 Context Objectives  Objective Index  Progress Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete objective progress",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "put": {
+        "description": "Update progress for a specific strategic objective.\n\n    **Path Parameters:**\n    - `objective_index`: Index of the objective (0-4)\n\n    **Request Body:**\n    - `current`: Current value (e.g., \"$5K\", \"50%\")\n    - `target`: Target value (e.g., \"$10K\", \"80%\")\n    - `unit`: Optional unit label (e.g., \"MRR\", \"%\")\n\n    **Use Cases:**\n    - Dashboard progress modal save\n    - Quick progress update from goal banner",
+        "operationId": "update_objective_progress_api_v1_context_objectives__objective_index__progress_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "objective_index",
+            "required": true,
+            "schema": {
+              "title": "Objective Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectiveProgressUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectiveProgressResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update objective progress",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/pending-updates": {
       "get": {
         "description": "Get pending context update suggestions that require user approval.\n\n    These are updates extracted with < 80% confidence from:\n    - Clarification answers during meetings\n    - Problem statements when creating meetings\n    - Action completion/cancellation notes\n\n    **Use Cases:**\n    - Display \"Suggested Updates\" section in Settings > Context\n    - Allow users to review and approve/dismiss detected changes",
@@ -38474,7 +40109,7 @@
                     "type": "null"
                   }
                 ],
-                "title": "Request"
+                "title": "Body"
               }
             }
           }
@@ -40710,6 +42345,117 @@
         ]
       }
     },
+    "/api/v1/peer-benchmarks": {
+      "get": {
+        "description": "Get industry peer benchmarks for user's industry.\n\nReturns percentile data (p10/p25/p50/p75/p90) for each metric.\nMetrics are tier-gated: free=3, starter=5, pro=unlimited.",
+        "operationId": "get_benchmarks_api_v1_peer_benchmarks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerBenchmarksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Benchmarks",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      }
+    },
+    "/api/v1/peer-benchmarks/compare": {
+      "get": {
+        "description": "Get user's percentile rank vs peers for each metric.\n\nOnly includes metrics where user has a value and sufficient peer data.",
+        "operationId": "get_comparison_api_v1_peer_benchmarks_compare_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Comparison",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      }
+    },
+    "/api/v1/peer-benchmarks/consent": {
+      "delete": {
+        "description": "Opt out of peer benchmarking.\n\nUser's data is immediately excluded from future aggregations.",
+        "operationId": "opt_out_api_v1_peer_benchmarks_consent_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__peer_benchmarks__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opt Out",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      },
+      "get": {
+        "description": "Get user's current peer benchmark consent status.",
+        "operationId": "get_consent_api_v1_peer_benchmarks_consent_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__peer_benchmarks__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Consent",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      },
+      "post": {
+        "description": "Opt in to peer benchmarking.\n\nUser's anonymized metrics will be included in industry aggregates.",
+        "operationId": "opt_in_api_v1_peer_benchmarks_consent_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__peer_benchmarks__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opt In",
+        "tags": [
+          "peer-benchmarks",
+          "peer-benchmarks"
+        ]
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "description": "Get all projects for the current user with optional filtering",
@@ -41765,6 +43511,724 @@
         "tags": [
           "ratings",
           "ratings"
+        ]
+      }
+    },
+    "/api/v1/research-sharing/consent": {
+      "delete": {
+        "description": "Opt out of research sharing.\n\nYour existing research is immediately marked as non-shareable.\nYou can still benefit from shared research from other users.",
+        "operationId": "opt_out_api_v1_research_sharing_consent_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__research_sharing__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opt Out",
+        "tags": [
+          "research-sharing",
+          "research-sharing"
+        ]
+      },
+      "get": {
+        "description": "Get user's current research sharing consent status.",
+        "operationId": "get_consent_api_v1_research_sharing_consent_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__research_sharing__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Consent",
+        "tags": [
+          "research-sharing",
+          "research-sharing"
+        ]
+      },
+      "post": {
+        "description": "Opt in to research sharing.\n\nYour anonymized research insights will be shared with similar businesses.\nNo personal information is shared - only the research findings.",
+        "operationId": "opt_in_api_v1_research_sharing_consent_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__research_sharing__routes__ConsentStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opt In",
+        "tags": [
+          "research-sharing",
+          "research-sharing"
+        ]
+      }
+    },
+    "/api/v1/seo/analytics": {
+      "get": {
+        "description": "Get aggregated analytics for all user's articles.\n\nReturns per-article analytics plus overall totals.",
+        "operationId": "get_all_analytics_api_v1_seo_analytics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleAnalyticsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get All Analytics",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/analyze-trends": {
+      "post": {
+        "description": "Analyze SEO trends for given keywords.\n\nPerforms deep research using Brave Search to identify:\n- Current trends and search patterns\n- Opportunities for content creation\n- Competitive threats and market saturation\n\nRate limited to 5 requests per minute.\nTier limits: free=1/month, starter=5/month, pro=unlimited.",
+        "operationId": "analyze_trends_api_v1_seo_analyze_trends_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrendAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendAnalysisResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Trends",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/articles": {
+      "get": {
+        "description": "List user's SEO blog articles.\n\nReturns paginated list of generated articles.",
+        "operationId": "list_articles_api_v1_seo_articles_get",
+        "parameters": [
+          {
+            "description": "Number of articles to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Number of articles to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticleListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Articles",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/articles/{article_id}": {
+      "delete": {
+        "description": "Delete an SEO article.\n\nPermanently removes the article. Topic status remains unchanged.",
+        "operationId": "delete_article_api_v1_seo_articles__article_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "get": {
+        "description": "Get a single article by ID.",
+        "operationId": "get_article_api_v1_seo_articles__article_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "patch": {
+        "description": "Update an SEO article.\n\nCan update content, metadata, and status.\nWhen status changes to 'published', also updates the linked topic status.",
+        "operationId": "update_article_api_v1_seo_articles__article_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoBlogArticleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/articles/{article_id}/analytics": {
+      "get": {
+        "description": "Get analytics for a single article.\n\nReturns view/click/signup counts and calculated rates.\nOnly accessible by the article owner.",
+        "operationId": "get_article_analytics_api_v1_seo_articles__article_id__analytics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleAnalytics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Article Analytics",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/articles/{article_id}/events": {
+      "post": {
+        "description": "Record an analytics event for an article.\n\nPublic endpoint for tracking article views, clicks, and signups.\nRate limited to 30 requests per minute per IP.\n\nNo authentication required - used by public blog pages.",
+        "operationId": "record_article_event_api_v1_seo_articles__article_id__events_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Article Event",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/history": {
+      "get": {
+        "description": "Get user's past SEO trend analyses.\n\nReturns paginated list of previous analyses with summaries.",
+        "operationId": "get_history_api_v1_seo_history_get",
+        "parameters": [
+          {
+            "description": "Number of entries to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Number of entries to return",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get History",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/topics": {
+      "get": {
+        "description": "List user's SEO topics.\n\nReturns paginated list of topics with status tracking.",
+        "operationId": "list_topics_api_v1_seo_topics_get",
+        "parameters": [
+          {
+            "description": "Number of topics to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Number of topics to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Offset for pagination",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoTopicListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Topics",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "post": {
+        "description": "Create a new SEO topic.\n\nCreates a topic from a keyword, optionally linked to a trend analysis.",
+        "operationId": "create_topic_api_v1_seo_topics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoTopicCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoTopic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Topic",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/topics/{topic_id}": {
+      "delete": {
+        "description": "Delete an SEO topic.\n\nPermanently removes the topic.",
+        "operationId": "delete_topic_api_v1_seo_topics__topic_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "title": "Topic Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Topic",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      },
+      "patch": {
+        "description": "Update an SEO topic.\n\nUpdates status and/or notes for a topic.",
+        "operationId": "update_topic_api_v1_seo_topics__topic_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "title": "Topic Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoTopicUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoTopic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Topic",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/topics/{topic_id}/generate": {
+      "post": {
+        "description": "Generate a blog article from a topic.\n\nUses AI to generate SEO-optimized content based on the topic keyword.\nStores as draft and updates topic status to 'writing'.\n\nRate limited to 2 requests per minute.\nTier limits: free=1/month, starter=5/month, pro=unlimited.",
+        "operationId": "generate_article_api_v1_seo_topics__topic_id__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "title": "Topic Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Article",
+        "tags": [
+          "seo",
+          "seo"
         ]
       }
     },
@@ -45767,7 +48231,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConsentStatusResponse"
+                  "$ref": "#/components/schemas/backend__api__terms__ConsentStatusResponse"
                 }
               }
             },

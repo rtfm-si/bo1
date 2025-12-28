@@ -52,6 +52,14 @@ uv run alembic upgrade head
 ```
 Flow: Problem → Decompose → Personas (3-5) → Rounds → Synthesis
 Patterns: serialize_state_for_checkpoint() / deserialize_state_from_checkpoint(); db_session(); SSE via event_collector
+
+Production deploy (blue-green):
+- Blue: API_PORT=8000 FRONTEND_PORT=3000 -p boardofone
+- Green: API_PORT=8001 FRONTEND_PORT=3001 -p boardofone-green
+- nginx-blue.conf → ports 8000/3000; nginx-green.conf → ports 8001/3001
+- After rebuild: `API_PORT=8001 FRONTEND_PORT=3001 docker-compose -f docker-compose.app.yml -p boardofone-green up -d`
+- ALWAYS extract static assets after frontend rebuild:
+  `docker cp boardofone-green-frontend-1:/app/build/client/. /var/www/boardofone/static-green/`
 </workflows>
 
 <file_map>

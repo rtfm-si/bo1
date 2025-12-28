@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
 
 const SITE_URL = 'https://boardof.one';
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
 export const GET: RequestHandler = async () => {
 	// Static pages
@@ -15,15 +15,19 @@ export const GET: RequestHandler = async () => {
 	// Fetch published blog posts - use internal API URL for server-side
 	let blogPosts: Array<{ slug: string; published_at?: string; updated_at?: string }> = [];
 	try {
-		// Use internal API URL (docker network) - service name is "api" in docker-compose
-		const apiUrl = env.INTERNAL_API_URL || 'http://api:8000';
-		const response = await fetch(`${apiUrl}/api/v1/blog/posts?limit=100`);
+		const url = `${INTERNAL_API_URL}/api/v1/blog/posts?limit=100`;
+		console.log('Sitemap: fetching blog posts from', url);
+		const response = await fetch(url);
+		console.log('Sitemap: response status', response.status);
 		if (response.ok) {
 			const data = await response.json();
 			blogPosts = data.posts || [];
+			console.log('Sitemap: found', blogPosts.length, 'blog posts');
+		} else {
+			console.error('Sitemap: API returned', response.status, response.statusText);
 		}
 	} catch (e) {
-		console.error('Failed to fetch blog posts for sitemap:', e);
+		console.error('Sitemap: Failed to fetch blog posts:', e);
 	}
 
 	// Build XML

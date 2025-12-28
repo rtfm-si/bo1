@@ -58,35 +58,49 @@
 		return Math.max(1, Math.ceil(words / 200));
 	}
 
-	// Render markdown-ish content (basic support)
+	// Process inline markdown (bold, italic, links, code)
+	function processInline(text: string): string {
+		return text
+			// Bold: **text** or __text__
+			.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-neutral-900 dark:text-neutral-100">$1</strong>')
+			.replace(/__(.+?)__/g, '<strong class="font-semibold text-neutral-900 dark:text-neutral-100">$1</strong>')
+			// Italic: *text* or _text_
+			.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+			.replace(/_([^_]+)_/g, '<em>$1</em>')
+			// Inline code: `code`
+			.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-sm font-mono">$1</code>')
+			// Links: [text](url)
+			.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-brand-600 dark:text-brand-400 hover:underline">$1</a>');
+	}
+
+	// Render markdown content
 	function renderContent(content: string | undefined): string {
 		if (!content) return '';
-		// Convert basic markdown to HTML (very simple conversion)
 		return content
 			.split('\n\n')
 			.map((para) => {
 				// Headers
 				if (para.startsWith('### ')) {
-					return `<h3 class="text-xl font-bold mt-8 mb-4 text-neutral-900 dark:text-neutral-100">${para.slice(4)}</h3>`;
+					return `<h3 class="text-xl font-bold mt-8 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(4))}</h3>`;
 				}
 				if (para.startsWith('## ')) {
-					return `<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-100">${para.slice(3)}</h2>`;
+					return `<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(3))}</h2>`;
 				}
 				if (para.startsWith('# ')) {
-					return `<h1 class="text-3xl font-bold mt-12 mb-6 text-neutral-900 dark:text-neutral-100">${para.slice(2)}</h1>`;
+					return `<h1 class="text-3xl font-bold mt-12 mb-6 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(2))}</h1>`;
 				}
 				// Lists
 				if (para.match(/^[-*] /m)) {
 					const items = para.split('\n').map((line) => {
 						if (line.match(/^[-*] /)) {
-							return `<li class="ml-4">${line.slice(2)}</li>`;
+							return `<li class="ml-4">${processInline(line.slice(2))}</li>`;
 						}
-						return line;
+						return processInline(line);
 					});
 					return `<ul class="list-disc list-inside my-4 space-y-2 text-neutral-700 dark:text-neutral-300">${items.join('')}</ul>`;
 				}
 				// Regular paragraphs
-				return `<p class="my-4 text-neutral-700 dark:text-neutral-300 leading-relaxed">${para}</p>`;
+				return `<p class="my-4 text-neutral-700 dark:text-neutral-300 leading-relaxed">${processInline(para)}</p>`;
 			})
 			.join('');
 	}

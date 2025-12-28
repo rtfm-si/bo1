@@ -1,9 +1,9 @@
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/public';
+import { env } from '$env/dynamic/private';
 
 const SITE_URL = 'https://boardof.one';
 
-export const GET: RequestHandler = async ({ fetch }) => {
+export const GET: RequestHandler = async () => {
 	// Static pages
 	const staticPages = [
 		{ url: '/', priority: 1.0, changefreq: 'weekly' },
@@ -12,10 +12,11 @@ export const GET: RequestHandler = async ({ fetch }) => {
 		{ url: '/contact', priority: 0.6, changefreq: 'monthly' }
 	];
 
-	// Fetch published blog posts
+	// Fetch published blog posts - use internal API URL for server-side
 	let blogPosts: Array<{ slug: string; published_at?: string; updated_at?: string }> = [];
 	try {
-		const apiUrl = env.PUBLIC_API_URL || 'https://boardof.one';
+		// Use internal API URL (docker network) or fall back to public URL
+		const apiUrl = env.INTERNAL_API_URL || env.API_URL || 'http://backend:8000';
 		const response = await fetch(`${apiUrl}/api/v1/blog/posts?limit=100`);
 		if (response.ok) {
 			const data = await response.json();

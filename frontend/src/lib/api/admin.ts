@@ -454,12 +454,21 @@ export interface EmbeddingPoint {
 	preview: string;
 	metadata: Record<string, unknown>;
 	created_at: string;
+	cluster_id: number;
+}
+
+export interface ClusterInfo {
+	id: number;
+	label: string;
+	count: number;
+	centroid: { x: number; y: number };
 }
 
 export interface EmbeddingSampleResponse {
 	points: EmbeddingPoint[];
 	method: 'pca' | 'umap';
 	total_available: number;
+	clusters: ClusterInfo[];
 }
 
 // =============================================================================

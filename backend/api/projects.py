@@ -170,6 +170,33 @@ async def create_project(
     return _format_project_response(project)
 
 
+# NOTE: Static routes must come BEFORE dynamic /{project_id} routes
+@router.get(
+    "/unassigned-count",
+    response_model=UnassignedCountResponse,
+    summary="Get unassigned actions count",
+    description="Get the count of actions not assigned to any project",
+)
+@handle_api_errors("get unassigned count")
+async def get_unassigned_count(
+    user: dict = Depends(get_current_user),
+) -> UnassignedCountResponse:
+    """Get count of unassigned actions."""
+    from backend.services.project_autogen import (
+        MIN_ACTIONS_FOR_AUTOGEN,
+        get_unassigned_action_count,
+    )
+
+    user_id = user["user_id"]
+    count = get_unassigned_action_count(user_id)
+
+    return UnassignedCountResponse(
+        unassigned_count=count,
+        min_required=MIN_ACTIONS_FOR_AUTOGEN,
+        can_autogenerate=count >= MIN_ACTIONS_FOR_AUTOGEN,
+    )
+
+
 @router.get(
     "/{project_id}",
     response_model=ProjectDetailResponse,
@@ -797,32 +824,6 @@ async def create_from_autogen(
         "created_projects": formatted_projects,
         "count": len(formatted_projects),
     }
-
-
-@router.get(
-    "/unassigned-count",
-    response_model=UnassignedCountResponse,
-    summary="Get unassigned actions count",
-    description="Get the count of actions not assigned to any project",
-)
-@handle_api_errors("get unassigned count")
-async def get_unassigned_count(
-    user: dict = Depends(get_current_user),
-) -> UnassignedCountResponse:
-    """Get count of unassigned actions."""
-    from backend.services.project_autogen import (
-        MIN_ACTIONS_FOR_AUTOGEN,
-        get_unassigned_action_count,
-    )
-
-    user_id = user["user_id"]
-    count = get_unassigned_action_count(user_id)
-
-    return UnassignedCountResponse(
-        unassigned_count=count,
-        min_required=MIN_ACTIONS_FOR_AUTOGEN,
-        can_autogenerate=count >= MIN_ACTIONS_FOR_AUTOGEN,
-    )
 
 
 # =========================================================================

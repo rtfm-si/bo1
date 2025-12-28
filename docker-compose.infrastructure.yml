@@ -108,7 +108,7 @@ services:
   # Umami: Self-hosted privacy-focused analytics
   # ---------------------------------------------------------------------------
   umami:
-    image: ghcr.io/umami-software/umami:v3.0.3
+    image: ghcr.io/umami-software/umami:3.0.3
     depends_on:
       postgres:
         condition: service_healthy

@@ -15,8 +15,8 @@ export const GET: RequestHandler = async () => {
 	// Fetch published blog posts - use internal API URL for server-side
 	let blogPosts: Array<{ slug: string; published_at?: string; updated_at?: string }> = [];
 	try {
-		// Use internal API URL (docker network) or fall back to public URL
-		const apiUrl = env.INTERNAL_API_URL || env.API_URL || 'http://backend:8000';
+		// Use internal API URL (docker network) - service name is "api" in docker-compose
+		const apiUrl = env.INTERNAL_API_URL || 'http://api:8000';
 		const response = await fetch(`${apiUrl}/api/v1/blog/posts?limit=100`);
 		if (response.ok) {
 			const data = await response.json();

@@ -427,7 +427,7 @@ async def analyze_trends(
     Tier limits: free=1/month, starter=5/month, pro=unlimited.
     """
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
@@ -489,7 +489,7 @@ async def get_history(
     Returns paginated list of previous analyses with summaries.
     """
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     from sqlalchemy import text
 
@@ -848,7 +848,7 @@ async def generate_article(
     from backend.services.content_generator import generate_blog_post
 
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
@@ -962,7 +962,7 @@ async def list_articles(
     Returns paginated list of generated articles.
     """
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     from sqlalchemy import text
 
@@ -1556,7 +1556,7 @@ async def get_autopilot_config(
     Returns autopilot settings and status (next run, articles this week, pending).
     """
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
@@ -1619,7 +1619,7 @@ async def update_autopilot_config(
     Configure automated topic discovery and article generation settings.
     """
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
@@ -1910,7 +1910,7 @@ async def upload_asset(
     from backend.services import marketing_assets as asset_service
 
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
@@ -2003,7 +2003,7 @@ async def list_assets(
     from backend.services import marketing_assets as asset_service
 
     user_id = extract_user_id(user)
-    tier = await get_user_tier(user_id)
+    tier = get_user_tier(user_id)
 
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None

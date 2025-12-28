@@ -1739,6 +1739,22 @@ async def _submit_clarification_impl(
             metadata["updated_at"] = datetime.now(UTC).isoformat()
             redis_manager.save_metadata(session_id, metadata)
 
+            # Emit clarification_answered event for skip (UI state tracking)
+            from backend.api.dependencies import get_event_publisher
+
+            publisher = get_event_publisher()
+            publisher.publish_event(
+                session_id,
+                "clarification_answered",
+                {
+                    "session_id": session_id,
+                    "question": "all",
+                    "answer": "",
+                    "skipped": True,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                },
+            )
+
             return ControlResponse(
                 session_id=session_id,
                 action="clarify",
@@ -1930,6 +1946,22 @@ async def _submit_clarification_impl(
             f"Clarification submitted for session {session_id}. "
             f"Answered {len(answers_to_process)} question(s)"
         )
+
+        # Emit clarification_answered event for each answer (for UI state tracking)
+        from backend.api.dependencies import get_event_publisher
+
+        publisher = get_event_publisher()
+        for question, answer in answers_to_process.items():
+            publisher.publish_event(
+                session_id,
+                "clarification_answered",
+                {
+                    "session_id": session_id,
+                    "question": question,
+                    "answer": answer[:200] if answer else "",  # Truncate for SSE
+                    "timestamp": datetime.now(UTC).isoformat(),
+                },
+            )
 
         # Note: We return 202 but don't auto-resume. User must call /resume endpoint.
         # This gives them control over when to continue.

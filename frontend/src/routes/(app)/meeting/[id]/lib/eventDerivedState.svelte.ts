@@ -4,7 +4,7 @@
  */
 
 import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload, DecompositionCompletePayload } from '$lib/api/sse-events';
-import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isPersonaSelectedEvent, isDecompositionEvent } from '$lib/api/sse-events';
+import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isClarificationAnsweredEvent, isPersonaSelectedEvent, isDecompositionEvent } from '$lib/api/sse-events';
 import type { SubProblemResult } from '$lib/components/meeting';
 
 export interface EventDerivedStateConfig {
@@ -51,6 +51,13 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		return clarificationEvents.length > 0 ? clarificationEvents[clarificationEvents.length - 1] : undefined;
 	});
 
+	// Check if clarification was already answered (submitted or skipped)
+	const clarificationWasAnswered = $derived.by(() => {
+		const events = getEvents();
+		// If we have any clarification_answered event, clarification was handled
+		return events.some(isClarificationAnsweredEvent);
+	});
+
 	// Context insufficient event (Option D+E Hybrid)
 	const contextInsufficientEvent = $derived.by(() => {
 		const events = getEvents();
@@ -88,6 +95,12 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 	});
 
 	const needsClarification = $derived.by(() => {
+		// If clarification was already answered (submitted or skipped), don't show form
+		// This handles page refresh scenarios where local state is lost
+		if (clarificationWasAnswered) {
+			return false;
+		}
+
 		const session = getSession();
 		// Show clarification form when session is paused for clarification
 		// Status can be 'active' (legacy) or 'paused' (new behavior)
@@ -107,12 +120,9 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 			return clarificationQuestions !== undefined;
 		}
 
-		// Legacy: active session with clarification event
-		return (
-			clarificationRequiredEvent !== undefined &&
-			session?.status === 'active' &&
-			clarificationQuestions !== undefined
-		);
+		// Don't show clarification form when session is active and running
+		// The form should only appear when session is explicitly paused for clarification
+		return false;
 	});
 
 	// Context insufficient - show modal when we have the event and session is paused
@@ -257,6 +267,9 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		},
 		get needsClarification() {
 			return needsClarification;
+		},
+		get clarificationWasAnswered() {
+			return clarificationWasAnswered;
 		},
 		get needsContextChoice() {
 			return needsContextChoice;

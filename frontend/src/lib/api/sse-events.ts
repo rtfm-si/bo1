@@ -1035,6 +1035,13 @@ export function isClarificationRequiredEvent(event: SSEEvent): event is SSEEvent
 }
 
 /**
+ * Type guard for clarification_answered events
+ */
+export function isClarificationAnsweredEvent(event: SSEEvent): event is SSEEvent<'clarification_answered'> {
+	return event.event_type === 'clarification_answered';
+}
+
+/**
  * Type guard for synthesis_complete events
  */
 export function isSynthesisCompleteEvent(event: SSEEvent): event is SSEEvent<'synthesis_complete'> {

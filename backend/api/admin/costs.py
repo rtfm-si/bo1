@@ -365,7 +365,7 @@ async def get_per_user_costs(
                     COALESCE(SUM(ac.total_cost), 0) as total_cost,
                     COUNT(DISTINCT ac.session_id) as session_count
                 FROM api_costs ac
-                LEFT JOIN users u ON ac.user_id = u.user_id
+                LEFT JOIN users u ON ac.user_id = u.id
                 WHERE ac.created_at >= %s AND ac.created_at < %s + INTERVAL '1 day'
                   AND ac.user_id IS NOT NULL
                 GROUP BY ac.user_id, u.email

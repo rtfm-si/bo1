@@ -31238,7 +31238,7 @@
     },
     "/api/admin/info": {
       "get": {
-        "description": "Admin-only API information endpoint.\n\nArgs:\n    user: Admin user data\n\nReturns:\n    Detailed API information for admins",
+        "description": "Admin-only API information endpoint.\n\nArgs:\n    user_id: Admin user ID or \"api_key\" for API key auth\n\nReturns:\n    Detailed API information for admins",
         "operationId": "admin_info_api_admin_info_get",
         "parameters": [
           {

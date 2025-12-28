@@ -1281,7 +1281,7 @@ export interface paths {
          * @description Admin-only API information endpoint.
          *
          *     Args:
-         *         user: Admin user data
+         *         user_id: Admin user ID or "api_key" for API key auth
          *
          *     Returns:
          *         Detailed API information for admins

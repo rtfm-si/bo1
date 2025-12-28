@@ -99,6 +99,7 @@ from backend.api.supertokens_config import (  # noqa: E402
     init_supertokens,
 )
 from bo1.config import get_settings  # noqa: E402
+from bo1.state.repositories import user_repository  # noqa: E402
 
 # Track import time
 _import_time = (time.perf_counter() - _module_load_start) * 1000
@@ -887,21 +888,32 @@ async def api_version() -> dict[str, str]:
 
 
 @app.get("/api/admin/info")
-async def admin_info(user: dict[str, Any] = Depends(require_admin_any)) -> dict[str, Any]:
+async def admin_info(user_id: str = Depends(require_admin_any)) -> dict[str, Any]:
     """Admin-only API information endpoint.
 
     Args:
-        user: Admin user data
+        user_id: Admin user ID or "api_key" for API key auth
 
     Returns:
         Detailed API information for admins
     """
+    # Look up user info if session-based auth
+    admin_email = None
+    admin_id = None
+    if user_id != "api_key":
+        user_data = user_repository.get(user_id)
+        if user_data:
+            admin_email = user_data.get("email")
+            admin_id = user_id
+    else:
+        admin_id = "api_key"
+
     return {
         "message": "Board of One API - Admin Panel",
         "version": app.version,
         "api_version": API_VERSION,
-        "admin_user": user.get("email"),
-        "admin_id": user.get("user_id"),
+        "admin_user": admin_email,
+        "admin_id": admin_id,
         "documentation": {
             "swagger": "/api/v1/docs",
             "redoc": "/api/v1/redoc",

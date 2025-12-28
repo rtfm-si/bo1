@@ -29,6 +29,24 @@ _Last updated: 2025-12-27 (rolling week view)_
 
 ---
 
+## E2E Findings (2025-12-28)
+
+### Critical
+
+- [ ] [BUG][P0] Meeting terminate endpoint returns 500 error - End Early flow broken
+  - Source: E2E run e2e-2025-12-28-001 ISS-001
+  - Endpoint: `POST /api/v1/sessions/{id}/terminate`
+  - Repro: Start meeting → wait for deliberation → click "End Early" → "Continue with Best Effort" → "End Meeting"
+  - Error: `Failed to terminate session: ApiClientError: An unexpected error occurred`
+  - Impact: Users cannot end meetings early; must wait for natural completion
+  - Lead: Check session state validation in terminate endpoint, may be unhandled edge case in synthesis phase
+
+### Fixed
+
+- [x] [BUG][P1] Admin API `/api/admin/info` returns 500 error - user.get on string bug ✅ Fixed: backend/api/main.py - changed `user: dict` to `user_id: str` + added user lookup
+
+---
+
 ## UX/UI Audit Issues (2025-12-27)
 
 ### Critical

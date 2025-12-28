@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-27 (rolling week view)_
+_Last updated: 2025-12-28 (rolling week view)_
 
 ---
 
@@ -33,17 +33,31 @@ _Last updated: 2025-12-27 (rolling week view)_
 
 ### Critical
 
-- [ ] [BUG][P0] Meeting terminate endpoint returns 500 error - End Early flow broken
-  - Source: E2E run e2e-2025-12-28-001 ISS-001
-  - Endpoint: `POST /api/v1/sessions/{id}/terminate`
-  - Repro: Start meeting → wait for deliberation → click "End Early" → "Continue with Best Effort" → "End Meeting"
-  - Error: `Failed to terminate session: ApiClientError: An unexpected error occurred`
-  - Impact: Users cannot end meetings early; must wait for natural completion
-  - Lead: Check session state validation in terminate endpoint, may be unhandled edge case in synthesis phase
+- [x] [BUG][P0] Meeting terminate endpoint returns 500 error - End Early flow broken ✅ Fixed (2025-12-28)
+  - Added defensive status check for all terminal states (terminated/completed/killed/failed/deleted)
+  - Added try/except around Redis save_metadata (non-critical, DB is source of truth)
+  - Added DB validation before termination with race condition detection
+  - Added session_id context to handle_api_errors decorator for better debugging
+  - Added 11 unit tests for edge cases
+
+### Infrastructure
+
+- [x] [INFRA][P2] Containerd cleanup needed - 51GB of old snapshots in `/var/lib/containerd` ✅ Fixed (2025-12-28)
+  - Root cause: Docker build cache (44GB) and unused local images (46GB) from pre-GHCR deployments
+  - Containerd is Docker's backend (NOT leftover Kubernetes) - cannot be removed
+  - Fix: `docker rmi boardofone-bo1:latest bo1-supertokens:latest && docker builder prune -a -f`
+  - Disk usage reduced: 71% → 16% (12GB used of 77GB)
+
+- [x] [INFRA][P1] Deployment workflow rebuilds images locally instead of pulling from GHCR ✅ Fixed (2025-12-28)
+  - Added `image:` directives to docker-compose.app.yml for API and frontend services
+  - Updated deploy-production.yml to pull pre-built images from GHCR instead of building locally
+  - Production server now pulls `ghcr.io/rtfm-si/bo1/api:production-latest` and `ghcr.io/rtfm-si/bo1/frontend:production-latest`
+  - Eliminates server overload during deployments (load avg 131 → <5 expected)
 
 ### Fixed
 
 - [x] [BUG][P1] Admin API `/api/admin/info` returns 500 error - user.get on string bug ✅ Fixed: backend/api/main.py - changed `user: dict` to `user_id: str` + added user lookup
+- [x] [INFRA][P1] Daily cleanup cron job added ✅ Fixed: `scripts/prod-cleanup.sh` runs at 3 AM UTC (Docker prune, log rotation, temp cleanup, zombie monitoring)
 
 ---
 

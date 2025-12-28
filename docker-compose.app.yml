@@ -12,6 +12,8 @@ services:
   # FastAPI: Web API for deliberation endpoints
   # ---------------------------------------------------------------------------
   api:
+    image: ghcr.io/rtfm-si/bo1/api:${IMAGE_TAG:-latest}
+    # Build configuration (for local dev only, production pulls pre-built images)
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -96,6 +98,8 @@ services:
   # Frontend: SvelteKit Web UI
   # ---------------------------------------------------------------------------
   frontend:
+    image: ghcr.io/rtfm-si/bo1/frontend:${IMAGE_TAG:-latest}
+    # Build configuration (for local dev only, production pulls pre-built images)
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod

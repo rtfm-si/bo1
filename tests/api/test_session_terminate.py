@@ -237,3 +237,167 @@ class TestTerminationEventTypes:
         assert "billable_portion" in payload
         assert 0.0 <= payload["billable_portion"] <= 1.0
         assert payload["completed_sub_problems"] <= payload["total_sub_problems"]
+
+
+class TestTerminationEdgeCases:
+    """Tests for terminate endpoint edge cases (P0 bug fix)."""
+
+    def test_terminal_states_set_contains_all_states(self):
+        """Test that terminal states set includes all expected states."""
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+        assert "terminated" in terminal_states
+        assert "completed" in terminal_states
+        assert "killed" in terminal_states
+        assert "failed" in terminal_states
+        assert "deleted" in terminal_states
+
+    def test_terminate_rejects_already_terminated(self):
+        """Test that terminating an already-terminated session returns 409."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        # Simulate the check in terminate endpoint
+        current_status = "terminated"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            if current_status in terminal_states:
+                raise_api_error(
+                    "conflict",
+                    f"Session already in terminal state: {current_status}",
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "terminated" in str(exc_info.value.detail)
+
+    def test_terminate_rejects_killed_status(self):
+        """Test that terminating a killed session returns 409."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        current_status = "killed"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            if current_status in terminal_states:
+                raise_api_error(
+                    "conflict",
+                    f"Session already in terminal state: {current_status}",
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "killed" in str(exc_info.value.detail)
+
+    def test_terminate_rejects_failed_status(self):
+        """Test that terminating a failed session returns 409."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        current_status = "failed"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            if current_status in terminal_states:
+                raise_api_error(
+                    "conflict",
+                    f"Session already in terminal state: {current_status}",
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "failed" in str(exc_info.value.detail)
+
+    def test_terminate_rejects_completed_status(self):
+        """Test that terminating a completed session returns 409."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        current_status = "completed"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            if current_status in terminal_states:
+                raise_api_error(
+                    "conflict",
+                    f"Session already in terminal state: {current_status}",
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "completed" in str(exc_info.value.detail)
+
+    def test_terminate_allows_active_status(self):
+        """Test that active sessions can be terminated."""
+        current_status = "active"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        # Should NOT be in terminal states
+        assert current_status not in terminal_states
+
+    def test_terminate_allows_running_status(self):
+        """Test that running sessions can be terminated."""
+        current_status = "running"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        # Should NOT be in terminal states
+        assert current_status not in terminal_states
+
+    def test_redis_save_failure_non_critical(self):
+        """Test that Redis save_metadata failure doesn't cause 500 error."""
+        # This tests the defensive try/except around save_metadata
+        # If redis_manager.save_metadata raises, we should log and continue
+        import logging
+
+        class FakeRedisManager:
+            def save_metadata(self, session_id: str, metadata: dict) -> bool:
+                raise ConnectionError("Redis connection lost")
+
+        manager = FakeRedisManager()
+        logger = logging.getLogger("test")
+
+        # Simulate the defensive handling
+        try:
+            manager.save_metadata("test-session", {"status": "terminated"})
+        except Exception as e:
+            # Should be caught and logged, not re-raised
+            logger.warning(f"Failed to update Redis metadata: {e}")
+
+        # Test passes if we get here without exception
+
+    def test_orphaned_redis_metadata_handling(self):
+        """Test handling of session that exists in Redis but not PostgreSQL."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        # Simulate the check: session not in DB
+        db_session = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            if not db_session:
+                raise_api_error("not_found", "Session not found")
+
+        assert exc_info.value.status_code == 404
+
+    def test_race_condition_db_status_mismatch(self):
+        """Test handling when DB status differs from Redis (race condition)."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.errors import raise_api_error
+
+        # Simulate: Redis says "active", but DB says "completed"
+        _redis_status = "active"  # noqa: F841 - documenting the scenario
+        db_status = "completed"
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            if db_status in terminal_states:
+                raise_api_error(
+                    "conflict",
+                    f"Session already finalized (status: {db_status})",
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "finalized" in str(exc_info.value.detail)

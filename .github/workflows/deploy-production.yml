@@ -268,13 +268,15 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME_API: ${{ env.IMAGE_NAME_API }}
           IMAGE_NAME_FRONTEND: ${{ env.IMAGE_NAME_FRONTEND }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           port: ${{ secrets.PRODUCTION_SSH_PORT || '22' }}
           command_timeout: 30m
-          envs: GITHUB_SHA,REGISTRY,IMAGE_NAME_API,IMAGE_NAME_FRONTEND
+          envs: GITHUB_SHA,REGISTRY,IMAGE_NAME_API,IMAGE_NAME_FRONTEND,GHCR_TOKEN,GHCR_USER
           script: |
             set -e
 
@@ -525,31 +527,31 @@ jobs:
               TARGET_API_PORT=8000
               TARGET_FRONTEND_PORT=3000
               TARGET_PROJECT="boardofone"
-
-              echo "Building blue environment images with commit ${GIT_COMMIT_SHORT}..."
-              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build \
-                --build-arg BUILD_TIMESTAMP="${BUILD_TIMESTAMP}" \
-                --build-arg GIT_COMMIT="${GIT_COMMIT_SHORT}"
-
-              # Remove old containers (idempotent)
-              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} rm -f -s 2>/dev/null || true
-
-              echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
-              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans
             else
               # Deploy green environment (green project, ports 8001/3001)
               TARGET_API_PORT=8001
               TARGET_FRONTEND_PORT=3001
               TARGET_PROJECT="boardofone-green"
+            fi
 
-              echo "Building green environment images with commit ${GIT_COMMIT_SHORT}..."
-              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build \
-                --build-arg BUILD_TIMESTAMP="${BUILD_TIMESTAMP}" \
-                --build-arg GIT_COMMIT="${GIT_COMMIT_SHORT}"
+            # Use production-latest tag from GHCR (pushed by this workflow's build-and-push job)
+            export IMAGE_TAG="production-latest"
 
+            echo "Pulling pre-built images from GHCR (tag: ${IMAGE_TAG})..."
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+            API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} IMAGE_TAG=${IMAGE_TAG} \
+              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} pull api frontend
+
+            echo "✅ Images pulled successfully"
+
+            if [ "$TARGET_ENV" = "blue" ]; then
+              # Remove old containers (idempotent)
+              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} rm -f -s 2>/dev/null || true
+
+              echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
+              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} IMAGE_TAG=${IMAGE_TAG} \
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans
+            else
               # Stop and remove old green containers completely
               echo "Removing old green containers..."
               docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} down --remove-orphans 2>/dev/null || true
@@ -561,7 +563,7 @@ jobs:
               # Retry loop for starting green environment (handles Docker race conditions)
               for attempt in 1 2 3; do
                 echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})... attempt $attempt/3"
-                if API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                if API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} IMAGE_TAG=${IMAGE_TAG} \
                   docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans 2>&1; then
                   echo "✅ Green environment started successfully"
                   break

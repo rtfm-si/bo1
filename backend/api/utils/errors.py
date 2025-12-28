@@ -237,12 +237,17 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
                 ) from e
             except Exception as e:
                 # Unexpected errors → 500
+                # Extract session_id from kwargs if available for better debugging
+                session_id = kwargs.get("session_id")
+                extra_context: dict[str, Any] = {"operation": operation}
+                if session_id:
+                    extra_context["session_id"] = session_id
                 log_error(
                     logger,
                     ErrorCode.API_REQUEST_ERROR,
                     f"Unexpected error in {operation}: {e}",
                     exc_info=True,
-                    operation=operation,
+                    **extra_context,
                 )
                 raise HTTPException(
                     status_code=500,

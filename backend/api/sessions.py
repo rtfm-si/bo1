@@ -1313,13 +1313,17 @@ async def terminate_session(
         # Unpack verified session data
         user_id, metadata = session_data
 
-        # Check if already terminated
-        if metadata.get("status") == "terminated":
-            raise_api_error("conflict", "Session already terminated")
-
-        # Check if already completed - no need to terminate
-        if metadata.get("status") == "completed":
-            raise_api_error("conflict", "Session already completed - cannot terminate")
+        # Check for terminal states (cannot terminate an already-finalized session)
+        current_status = metadata.get("status")
+        terminal_states = {"terminated", "completed", "killed", "failed", "deleted"}
+        if current_status in terminal_states:
+            logger.warning(
+                f"Cannot terminate session {session_id}: already in terminal state '{current_status}'"
+            )
+            raise_api_error(
+                "conflict",
+                f"Session already in terminal state: {current_status}",
+            )
 
         # Load state to calculate billable portion
         state = redis_manager.load_state(session_id)
@@ -1346,6 +1350,32 @@ async def terminate_session(
         # For continue_best_effort, at least bill for what's done
         if termination_request.termination_type == "continue_best_effort":
             billable_portion = max(billable_portion, 0.25)  # Minimum 25% for effort
+
+        # Verify session exists in PostgreSQL (source of truth)
+        db_session = session_repository.get(session_id)
+        if not db_session:
+            logger.warning(
+                f"Session {session_id} exists in Redis but not PostgreSQL - "
+                "cleaning up orphaned metadata"
+            )
+            # Clean up orphaned Redis metadata
+            try:
+                redis_manager.delete_session(session_id)
+            except Exception as e:
+                logger.warning(f"Failed to clean up orphaned Redis metadata: {e}")
+            raise_api_error("not_found", "Session not found")
+
+        # Check if DB status differs from Redis (race condition detection)
+        db_status = db_session.get("status")
+        if db_status in {"terminated", "completed", "killed", "failed", "deleted"}:
+            logger.warning(
+                f"Session {session_id} status mismatch: Redis={current_status}, DB={db_status} - "
+                "session was finalized by another process"
+            )
+            raise_api_error(
+                "conflict",
+                f"Session already finalized (status: {db_status})",
+            )
 
         # Kill any active execution
         if session_id in session_manager.active_executions:
@@ -1374,13 +1404,19 @@ async def terminate_session(
                 500,
             )
 
-        # Update Redis metadata
+        # Update Redis metadata (non-critical - DB is source of truth)
         now = datetime.now(UTC)
         metadata["status"] = "terminated"
         metadata["terminated_at"] = now.isoformat()
         metadata["termination_type"] = termination_request.termination_type
         metadata["updated_at"] = now.isoformat()
-        redis_manager.save_metadata(session_id, metadata)
+        try:
+            redis_manager.save_metadata(session_id, metadata)
+        except Exception as e:
+            # Redis update is non-critical since DB is the source of truth
+            logger.warning(
+                f"Failed to update Redis metadata for terminated session {session_id}: {e}"
+            )
 
         # Invalidate cached metadata on status change
         get_session_metadata_cache().invalidate(session_id)

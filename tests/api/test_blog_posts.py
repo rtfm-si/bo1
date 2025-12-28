@@ -478,8 +478,7 @@ class TestTopicDiscoveryService:
         }
     ]
 }"""
-        # Remove leading "{" since prefill adds it
-        mock_response_body = mock_response[1:]
+        # Full JSON - client adds prefill which is included in response
 
         with patch("backend.services.topic_discovery.ClaudeClient") as mock_client_class:
             mock_client = mock_client_class.return_value
@@ -487,7 +486,7 @@ class TestTopicDiscoveryService:
             mock_usage = MagicMock()
             mock_usage.total_tokens = 100
             mock_usage.calculate_cost.return_value = 0.001
-            mock_client.call = AsyncMock(return_value=(mock_response_body, mock_usage))
+            mock_client.call = AsyncMock(return_value=(mock_response, mock_usage))
 
             topics = await discover_topics(industry="tech")
 

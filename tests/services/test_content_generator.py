@@ -23,7 +23,7 @@ class TestGenerateBlogPost:
                 "meta_title": "Meta Title",
                 "meta_description": "Meta description",
             }
-        )[1:]  # Remove leading { since prefill adds it
+        )  # Full JSON - client adds prefill which is included in response
 
         mock_usage = TokenUsage(
             input_tokens=100,
@@ -65,16 +65,9 @@ class TestGenerateBlogPost:
 
         with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
             mock_client = mock_client_cls.return_value
-            # First call fails (JSON with markdown), second call succeeds with plain JSON
-            fail_response = "```json\n" + json.dumps(inner_json) + "\n```"
-            success_response = json.dumps(inner_json)[1:]  # Remove leading {
-
-            mock_client.call = AsyncMock(
-                side_effect=[
-                    (fail_response, mock_usage),  # First attempt with markdown
-                    (success_response, mock_usage),  # Retry with clean JSON
-                ]
-            )
+            # Markdown wrapper should be handled by extract_json_from_response
+            markdown_response = "```json\n" + json.dumps(inner_json) + "\n```"
+            mock_client.call = AsyncMock(return_value=(markdown_response, mock_usage))
 
             result = await generate_blog_post("Test topic")
 
@@ -83,7 +76,7 @@ class TestGenerateBlogPost:
 
     @pytest.mark.asyncio
     async def test_json_with_trailing_text(self) -> None:
-        """Test parsing JSON with trailing explanation text."""
+        """Test parsing JSON with trailing explanation text triggers retry."""
         inner_json = {
             "title": "Clean Title",
             "excerpt": "Excerpt",
@@ -91,8 +84,9 @@ class TestGenerateBlogPost:
             "meta_title": "Meta",
             "meta_description": "Desc",
         }
-        # Response with trailing text after JSON
-        mock_response = json.dumps(inner_json)[1:] + "\n\nI hope this helps!"
+        # Response with trailing text causes parse failure, then retry succeeds
+        bad_response = json.dumps(inner_json) + "\n\nI hope this helps!"
+        good_response = json.dumps(inner_json)
 
         mock_usage = TokenUsage(
             input_tokens=100,
@@ -103,17 +97,17 @@ class TestGenerateBlogPost:
 
         with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
             mock_client = mock_client_cls.return_value
-            # First attempt with trailing text might fail, second succeeds
-            success_response = json.dumps(inner_json)[1:]
+            # First attempt with trailing text fails, retry succeeds
             mock_client.call = AsyncMock(
                 side_effect=[
-                    (mock_response, mock_usage),  # First attempt
-                    (success_response, mock_usage),  # Retry
+                    (bad_response, mock_usage),
+                    (good_response, mock_usage),
                 ]
             )
 
             result = await generate_blog_post("Test topic")
             assert isinstance(result, BlogContent)
+            assert result.title == "Clean Title"
 
     @pytest.mark.asyncio
     async def test_retry_on_parse_failure(self) -> None:
@@ -138,7 +132,7 @@ class TestGenerateBlogPost:
             mock_client.call = AsyncMock(
                 side_effect=[
                     ("not valid json at all", mock_usage),  # First attempt fails
-                    (json.dumps(valid_json)[1:], mock_usage),  # Retry succeeds
+                    (json.dumps(valid_json), mock_usage),  # Retry succeeds
                 ]
             )
 
@@ -171,7 +165,7 @@ class TestGenerateBlogPost:
             mock_client.call = AsyncMock(
                 side_effect=[
                     ("invalid", mock_usage),
-                    (json.dumps(valid_json)[1:], mock_usage),
+                    (json.dumps(valid_json), mock_usage),
                 ]
             )
 
@@ -222,7 +216,7 @@ class TestGenerateBlogPost:
 
         with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
             mock_client = mock_client_cls.return_value
-            mock_client.call = AsyncMock(return_value=(json.dumps(incomplete_json)[1:], mock_usage))
+            mock_client.call = AsyncMock(return_value=(json.dumps(incomplete_json), mock_usage))
 
             with pytest.raises(ValueError, match="missing required field"):
                 await generate_blog_post("Test topic")

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from anthropic import RateLimitError
 
 from bo1.llm.client import ClaudeClient
+from bo1.llm.response_parser import extract_json_from_response
 
 logger = logging.getLogger(__name__)
 
@@ -174,10 +175,13 @@ async def discover_topics(
                 prefill="{",
             )
 
-            json_str = "{" + response
-            logger.debug(f"Topic discovery raw response (attempt {attempt + 1}): {json_str[:500]}")
+            raw_response = response  # prefill already included by client
+            logger.info(
+                f"Topic discovery raw response (attempt {attempt + 1}): {raw_response[:500]}"
+            )
 
-            data = json.loads(json_str)
+            # Extract JSON using robust parser that handles markdown/xml wrappers
+            data = extract_json_from_response(raw_response)
 
             topics = []
             for item in data.get("topics", []):
@@ -295,7 +299,7 @@ Output as JSON:
             prefill="{",
         )
 
-        json_str = "{" + response
+        json_str = response  # prefill already included by client
         data = json.loads(json_str)
 
         topics = []

@@ -104,7 +104,7 @@ async def generate_blog_post(
             )
 
             # Parse JSON response using robust parser
-            json_str = "{" + response
+            json_str = response  # prefill already included by client
             try:
                 data = extract_json_from_response(json_str)
             except json.JSONDecodeError:
@@ -187,8 +187,8 @@ Output JSON with:
         prefill="{",
     )
 
-    json_str = "{" + response
-    data = json.loads(json_str)
+    # Extract JSON using robust parser that handles markdown/xml wrappers
+    data = extract_json_from_response(response)
 
     logger.info(
         f"Generated outline for: '{data.get('title', topic)}' (tokens: {usage.total_tokens})"
@@ -234,8 +234,8 @@ Output your response as JSON with:
         prefill="{",
     )
 
-    json_str = "{" + response
-    data = json.loads(json_str)
+    # Extract JSON using robust parser (prefill already included by client)
+    data = extract_json_from_response(response)
 
     logger.info(
         f"Improved blog post: '{data.get('title', 'Untitled')}' (tokens: {usage.total_tokens})"

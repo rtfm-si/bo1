@@ -483,10 +483,37 @@ class PromptBroker:
                     log_error(
                         logger,
                         ErrorCode.LLM_API_ERROR,
-                        f"[{request.request_id}] API error (non-retryable): {e}",
+                        f"[{request.request_id}] API error (non-retryable or retries exhausted): {e}",
                         request_id=request.request_id,
                     )
                     record_llm_request(model=model_id, provider=provider, success=False)
+
+                    # Attempt fallback on retry exhaustion with transient errors
+                    # This handles cases where retries exhaust before circuit breaker opens
+                    if (
+                        self._is_retryable(e)
+                        and settings.llm_fallback_enabled
+                        and not _used_fallback
+                    ):
+                        fallback_cb = self._get_circuit_breaker(fallback_provider)
+                        if fallback_cb.state.name.lower() != "open":
+                            logger.warning(
+                                f"[{request.request_id}] Provider fallback: "
+                                f"{provider} → {fallback_provider} (reason: retries_exhausted)"
+                            )
+                            record_provider_fallback(
+                                from_provider=provider,
+                                to_provider=fallback_provider,
+                                reason="retries_exhausted",
+                            )
+                            return await self._call_with_provider(
+                                request=request,
+                                provider=fallback_provider,
+                                start_time=start_time,
+                                cost_ctx=cost_ctx,
+                                cache=cache,
+                                _used_fallback=True,
+                            )
                     raise
 
             except CircuitBreakerOpenError as e:

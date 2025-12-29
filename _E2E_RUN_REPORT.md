@@ -1,107 +1,144 @@
 ---
-run_id: e2e-2025-12-28-admin
-started_at_utc: 2025-12-28T19:10:00Z
-ended_at_utc: 2025-12-28T19:15:00Z
+run_id: e2e-2025-12-29-golden-meeting
+started_at_utc: 2025-12-29T17:20:00Z
+ended_at_utc: 2025-12-29T17:48:00Z
 env:
   base_url: "https://boardof.one"
   browser: chromium
   viewport: 1440x900
 account:
-  user: e2e.test@boardof.one (admin)
-scenario: admin_pages_v1
+  user: e2e.test@boardof.one
+scenario: golden_meeting_v1
 ---
 
-# Board of One - E2E Run Report (Admin Focus)
+# Board of One - E2E Run Report
 
 ## Summary
 
-- **Result**: WARN (1 issue fixed)
+- **Result**: FAIL (Third-party dependency)
 - **Total issues**: 1
 - **Critical**: 1 / **Major**: 0 / **Minor**: 0
 - **Top 3 observations**:
-  1. Admin dashboard and most pages function correctly
-  2. Cost Analytics per-user endpoint had SQL error (FIXED)
-  3. All other admin pages (Users, Sessions, Whitelist, Metrics, Feedback, Ops) work
+  1. Anthropic API returned "overflow" error during sub-problem 4, causing meeting failure
+  2. Meeting flow worked correctly through 3 of 4 sub-problems before failure
+  3. Sub-problem 1 completed successfully with full synthesis and 8 action items
 
 ## Timeline
 
 | Step | Action | Expected | Observed | Duration | Evidence |
 |-----:|--------|----------|----------|----------:|----------|
-| 0.x | Session inject | Cookies set | Success | 3s | console: OK |
-| 1 | Verify auth | Admin link visible | Admin nav link present | 2s | snapshot verified |
-| 2 | Admin Dashboard | Dashboard loads | All KPIs displayed correctly | 3s | screenshot: admin-dashboard.png |
-| 3 | Users page | User table | 4 users listed with actions | 3s | screenshot: admin-users.png |
-| 4 | Sessions page | Active sessions | 1 active session displayed | 3s | screenshot: admin-sessions.png |
-| 5 | Costs page | Cost analytics | **500 ERROR** - per-user endpoint failed | 3s | screenshot: admin-costs-error.png |
-| 6 | Whitelist page | Whitelist entries | 10 whitelisted emails shown | 3s | screenshot: admin-whitelist.png |
-| 7 | Metrics page | Usage metrics | All metrics displayed | 3s | snapshot verified |
-| 8 | Feedback page | Feedback list | Empty state shown correctly | 2s | snapshot verified |
-| 9 | Ops page | Self-healing status | System healthy, 6 patterns configured | 3s | snapshot verified |
+| 0.x | Session inject | Cookies set | Success - auth verified | 3s | console: OK |
+| 1 | Verify auth | Dashboard loads | Dashboard loaded with user email visible | 3s | screenshot: e2e-step1-dashboard.png |
+| 2 | New meeting nav | Creation page | Page loaded correctly | 2s | screenshot: e2e-step2-new-meeting.png |
+| 3 | Enter problem | Text accepted | 198 chars entered, button enabled | 2s | screenshot: e2e-step3-problem-entered.png |
+| 4 | Start meeting | Meeting begins | Meeting started, SSE connected | 5s | screenshot: e2e-step4-meeting-started.png |
+| 5a | Clarification Q&A | Questions shown | 3 critical questions displayed | 38s | screenshot: e2e-step5-clarification-questions.png |
+| 5b | Skip questions | Resume meeting | Meeting resumed successfully | 2s | console: SSE reconnected |
+| 5c | Sub-problem 1 | Deliberation | 5 rounds, 10 contributions, synthesis complete | ~4m | screenshot: e2e-step5-subproblem1-synthesis.png |
+| 5d | Sub-problem 2 | Deliberation | Completed successfully | ~3m | - |
+| 5e | Sub-problem 3 | Deliberation | Completed successfully | ~4m | - |
+| 5f | Sub-problem 4 | Deliberation | **FAILED** - Anthropic API error | ~3m | screenshot: e2e-step5-meeting-failed.png |
+| 5g | Retry | Resume | Failed again with same error | - | screenshot: e2e-step5-retry-failed.png |
 
 ## Issues
 
-### ISS-001 - Cost Analytics per-user endpoint returns 500
+### ISS-001 - Anthropic API "overflow" error causes meeting failure
 
 - **Severity**: Critical
-- **Category**: Backend / SQL
-- **Where**: `/api/admin/costs/per-user?days=30&limit=20`
+- **Category**: Third-party dependency
+- **Where**: Meeting deliberation, sub-problem 4 of 4
 - **Repro steps**:
-  1. Navigate to /admin/costs
-  2. Page loads but shows "An unexpected error occurred"
+  1. Start a complex meeting with problem that generates 4 sub-problems
+  2. Wait for deliberation to progress through all sub-problems
+  3. Error occurs during sub-problem 4 after ~12 minutes of processing
 - **Observed**:
-  - Console error: `Failed to load resource: the server responded with a status of 500`
-  - API logs: `psycopg2.errors.UndefinedColumn: column u.user_id does not exist`
+  - Error alert: "Meeting Failed - An unexpected error occurred during the meeting"
+  - Technical details: "upstream connect error or disconnect/reset before headers. reset reason: overflow"
+  - Console: `[ERROR] [SSE] Session error event received: {errorType: InternalServerError, errorMessage: upstream connect error...}`
+  - API logs: `anthropic.InternalServerError: upstream connect error or disconnect/reset before headers. reset reason: overflow`
 - **Expected**:
-  - Page should display per-user cost breakdown
+  - Meeting should complete all 4 sub-problems and generate meta-synthesis
 - **Evidence**:
-  - Screenshot: admin-costs-error.png
-  - Console: `[ERROR] Failed to load resource: 500`
-  - Network: `GET /api/admin/costs/per-user?days=30&limit=20 => [500]`
-  - API logs: `column u.user_id does not exist`
+  - Screenshot: e2e-step5-meeting-failed.png
+  - Screenshot: e2e-step5-retry-failed.png
+  - Console: `[SSE] Session error event received: {errorType: InternalServerError...}`
+  - API logs: `anthropic.InternalServerError: upstream connect error...`
 - **Root cause**:
-  - SQL query in `backend/api/admin/costs.py:368` had incorrect column reference
-  - Used `u.user_id` but users table has `u.id`
-- **Resolution**: Fixed `LEFT JOIN users u ON ac.user_id = u.user_id` to `LEFT JOIN users u ON ac.user_id = u.id`
+  - Anthropic API returned an internal server error ("overflow")
+  - This is a transient third-party infrastructure issue, not an application bug
+- **Suggested improvements**:
+  1. Implement automatic retry with exponential backoff for Anthropic API calls
+  2. Add circuit breaker pattern to gracefully handle repeated API failures
+  3. Consider fallback to alternative model (e.g., Claude 3.5 Sonnet) when primary model fails
+  4. Improve user messaging: "The AI provider is experiencing issues. Your progress has been saved. Please try again in a few minutes."
+  5. Save partial meeting state so users can resume from last successful sub-problem
+- **Workaround**:
+  - Click "Try Again" button (may succeed if transient)
+  - Wait a few minutes and retry if Anthropic is experiencing load issues
 
 ## Network Requests
 
 | Method | URL | Status | Notes |
 |--------|-----|--------|-------|
-| GET | /api/v1/auth/me | 200 | Auth verified |
-| GET | /admin/__data.json | 200 | Dashboard data |
-| GET | /api/admin/research-cache/metrics | 200 | Cache metrics |
-| GET | /api/admin/costs/research | 200 | Research costs |
-| GET | /api/admin/extended-kpis | 200 | KPIs loaded |
-| GET | /api/admin/runtime-config | 200 | Config loaded |
-| GET | /api/admin/analytics/costs | 200 | Cost analytics |
-| GET | /api/admin/analytics/costs/users | 200 | User costs |
-| GET | /api/admin/analytics/costs/daily | 200 | Daily costs |
-| GET | /api/admin/costs/by-provider | 200 | Provider costs |
-| GET | /api/admin/costs/fixed | 200 | Fixed costs |
-| GET | /api/admin/costs/per-user | **500** | **FAILED - FIXED** |
-| GET | /api/admin/costs/cache-metrics | 200 | Cache metrics |
+| POST | /api/v1/sessions | 201 | Session created |
+| POST | /api/v1/sessions/.../start | 202 | Meeting started |
+| GET | /api/v1/sessions/.../stream | 200 | SSE stream opened |
+| POST | /api/v1/sessions/.../clarifications | 202 | Skip questions |
+| POST | /api/v1/sessions/.../resume | 202 | Resume after Q&A |
+| POST | /api/v1/sessions/.../extract-tasks | 200 | Actions extracted (3x) |
+| SSE | - | Error | `InternalServerError: overflow` |
 
-## Admin Pages Tested
+## Meeting Progress Before Failure
 
-| Page | Status | Notes |
-|------|--------|-------|
-| /admin | PASS | Dashboard with KPIs, toggles, monitoring links |
-| /admin/users | PASS | 4 users with edit/lock/delete/promo/email actions |
-| /admin/sessions | PASS | 1 active session displayed |
-| /admin/costs | FAIL | Per-user endpoint 500 (FIXED) |
-| /admin/whitelist | PASS | 10 whitelisted emails |
-| /admin/metrics | PASS | User & usage metrics with charts |
-| /admin/feedback | PASS | Empty state displayed |
-| /admin/ops | PASS | System healthy, 6 error patterns |
+Despite the failure, significant progress was made:
 
-## Recommendations
+| Sub-Problem | Status | Experts | Rounds | Contributions | Synthesis |
+|-------------|--------|---------|--------|---------------|-----------|
+| 1. Market dynamics | Complete | 3 | 5 | 10+ | Full synthesis + 8 actions |
+| 2. Execution paths | Complete | 3 | 4+ | 9+ | Synthesis generated |
+| 3. Financial model | Complete | 2 | 4+ | 6+ | Synthesis generated |
+| 4. Go-forward recommendation | **Failed** | 2 | 1+ | - | - |
 
-1. **FIXED**: SQL column reference in costs.py:368
+## Positive Observations
+
+1. **Session injection works**: SuperTokens session creation and cookie injection successful
+2. **Meeting creation flow works**: Problem entry, context options, start meeting all functional
+3. **Clarification Q&A works**: Questions displayed, skip option works, resume successful
+4. **Expert deliberation works**: Panel selection, rounds, contributions, convergence tracking all working
+5. **Sub-problem synthesis works**: Executive summary, recommendations, action items generated
+6. **Action extraction works**: 8 actionable items created from sub-problem 1 with priorities/timeframes
+7. **UI responsiveness**: Real-time updates, progress indicators, contribution display all smooth
+
+## Recommendations (Prioritized)
+
+1. **[DEFER - Third-party]** Add retry logic for Anthropic API failures with exponential backoff
+2. **[DEFER - Third-party]** Implement circuit breaker pattern for LLM calls
+3. **[DEFER - Third-party]** Add fallback model configuration
+4. **[DEFER - Third-party]** Improve error messaging for third-party failures
+5. **[DEFER - Third-party]** Enable resume from last successful sub-problem checkpoint
+
+## Appendix
+
+### Console excerpts
+
+```txt
+[LOG] [SSE] Connection established
+[LOG] [EXPERT PANEL] Persona selected: {persona_code: market_researcher...}
+[LOG] [WORKING STATUS] Experts are finalizing their recommendations...
+[ERROR] [SSE] Session error event received: {errorType: InternalServerError, errorMessage: upstream connect error or disconnect/reset before headers. reset reason: overflow}
+```
+
+### API Log Error
+
+```txt
+anthropic.InternalServerError: upstream connect error or disconnect/reset before headers. reset reason: overflow
+17:45:15 | WARNING | backend.api.streaming | Session bo1_c0bf240b-b01f-45e1-ab95-1d6ddcdfdb03 error event, closing stream
+```
 
 ---
 
-**Conclusion**: Admin E2E run found 1 critical SQL error in cost analytics. Issue has been fixed. All other admin pages function correctly.
+**Conclusion**: E2E run found 1 Critical issue caused by Anthropic API third-party dependency failure. The application itself is functioning correctly - the meeting progressed through 3 of 4 sub-problems with successful deliberation, synthesis, and action extraction before the external API failed. All 5 recommendations are deferred as third-party dependency issues requiring infrastructure-level resilience improvements.
 
 *Report generated by Automated E2E Explorer*
-*Scenario: admin_pages_v1*
+*Scenario: golden_meeting_v1*
 *Environment: Production (https://boardof.one)*

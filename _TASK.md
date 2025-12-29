@@ -23,6 +23,25 @@ _Last updated: 2025-12-29_
 - [ ] [DATA][P2] DuckDB backend for large datasets - defer until >100K rows
 - [ ] [BILLING][P4] Upgrade prompts near usage limit - nice-to-have
 
+### E2E Findings (2025-12-29)
+
+- [ ] [INFRA][P2] Add retry logic for Anthropic API failures with exponential backoff
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Deferred: Third-party dependency (Anthropic API "overflow" error)
+  - Lead: Meeting failed on sub-problem 4 of 4; 3 sub-problems completed successfully before failure
+- [ ] [INFRA][P2] Implement circuit breaker pattern for LLM calls
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Deferred: Third-party dependency - requires infrastructure resilience work
+- [ ] [INFRA][P3] Add fallback model configuration (e.g., Claude 3.5 Sonnet when primary fails)
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Deferred: Third-party dependency
+- [ ] [UX][P3] Improve error messaging for third-party API failures
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Deferred: Current message is generic; could be more helpful
+- [ ] [INFRA][P2] Enable resume from last successful sub-problem checkpoint
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Deferred: Complex feature requiring checkpoint management
+
 ### User-Owned
 
 - [ ] [DOCS][P3] Help pages content review (Si's todo)

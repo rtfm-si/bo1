@@ -671,10 +671,10 @@ SERVICE_CONFIGS: dict[str, dict[str, int]] = {
         "failure_threshold": 5,
         "recovery_timeout": 60,
         "success_threshold": 2,
-        # Transient-focused (API reliability)
-        "transient_failure_threshold": 5,
+        # Transient-focused (API reliability) - tuned for overflow errors
+        "transient_failure_threshold": 8,  # Increased: allow more transient failures before opening
         "permanent_failure_threshold": 3,
-        "transient_recovery_timeout": 60,
+        "transient_recovery_timeout": 120,  # Increased: wait longer for API to recover
         "permanent_recovery_timeout": 300,
     },
     "openai": {

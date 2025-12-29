@@ -16,6 +16,7 @@ backend/api/sessions.py  # TODO: P4 - 5 violations, session detail responses
 # Admin endpoints (lower priority)
 backend/api/admin/costs.py  # TODO: P4 - 6 violations
 backend/api/admin/drilldown.py  # TODO: P4 - 1 violation - drill-down response
+backend/api/admin/experiments.py  # TODO: P4 - 4 violations - experiment response
 backend/api/admin/cost_analytics.py  # TODO: P4 - 6 violations
 backend/api/admin/helpers.py  # TODO: P4 - 2 violations, admin formatting helper
 backend/api/admin/feature_flags.py  # TODO: P4 - 2 violations
@@ -51,3 +52,6 @@ backend/api/terms.py  # TODO: P4 - 3 violations - T&C consent responses
 # Middleware (acceptable - rate limit response headers)
 backend/api/middleware/rate_limit.py  # 1 violation - rate limit headers
 backend/api/middleware/tier_limits.py  # 1 violation - tier limit response
+
+# Error handling
+backend/api/utils/errors.py  # 1 violation - error timestamp

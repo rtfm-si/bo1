@@ -61,6 +61,36 @@ make auth-check
 
 ## Troubleshooting
 
+### "The running SuperTokens core version is not compatible with this python SDK"
+
+SuperTokens Core and Python SDK have strict version compatibility requirements based on CDI (Core Driver Interface) versions.
+
+**Current compatibility:**
+- Python SDK 0.30.x requires CDI 5.3 → SuperTokens Core 10.x+
+- Python SDK 0.29.x requires CDI 5.2 → SuperTokens Core 9.x
+
+**Fix**: Update SuperTokens Core to match the Python SDK version:
+
+1. Check installed Python SDK version:
+   ```bash
+   docker exec bo1-api uv pip show supertokens-python | grep Version
+   ```
+
+2. Update `supertokens.Dockerfile` to compatible Core version:
+   ```dockerfile
+   # For Python SDK 0.30.x - use Core 10.1.4+
+   FROM registry.supertokens.io/supertokens/supertokens-postgresql:10.1.4
+   ```
+
+3. Rebuild and restart:
+   ```bash
+   docker-compose build supertokens
+   docker-compose up -d supertokens
+   docker-compose restart api
+   ```
+
+See [SuperTokens Compatibility Table](https://supertokens.com/docs/references/compatibility-table) for details.
+
 ### "SuperTokens Core not reachable"
 
 SuperTokens container isn't running or hasn't started yet.
@@ -131,6 +161,48 @@ curl -X POST http://localhost:8000/api/admin/beta-whitelist \
   -d '{"email": "your@email.com"}'
 ```
 
+## Additional OAuth Providers
+
+### GitHub OAuth Setup
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click **New OAuth App**
+3. Configure:
+   - **Application name**: `Bo1 Local Dev`
+   - **Homepage URL**: `http://localhost:5173`
+   - **Authorization callback URL**: `http://localhost:8000/api/auth/callback/github`
+4. Copy Client ID and generate a Client Secret
+5. Add to `.env`:
+   ```bash
+   GITHUB_OAUTH_ENABLED=true
+   GITHUB_OAUTH_CLIENT_ID=your_client_id
+   GITHUB_OAUTH_CLIENT_SECRET=your_client_secret
+   ```
+
+### LinkedIn OAuth Setup
+
+1. Go to [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps)
+2. Create a new app
+3. Under **Auth** tab, configure:
+   - **Authorized redirect URLs**: `http://localhost:8000/api/auth/callback/linkedin`
+4. Request the following products: **Sign In with LinkedIn using OpenID Connect**
+5. Copy Client ID and Client Secret
+6. Add to `.env`:
+   ```bash
+   LINKEDIN_OAUTH_ENABLED=true
+   LINKEDIN_OAUTH_CLIENT_ID=your_client_id
+   LINKEDIN_OAUTH_CLIENT_SECRET=your_client_secret
+   ```
+
+### Production OAuth Configuration
+
+For production, update callback URLs in each provider's dashboard:
+- **Google**: `https://boardof.one/api/auth/callback/google`
+- **GitHub**: `https://boardof.one/api/auth/callback/github`
+- **LinkedIn**: `https://boardof.one/api/auth/callback/linkedin`
+
+Ensure `SUPERTOKENS_API_DOMAIN=https://boardof.one` is set in production.
+
 ## Environment Variables Reference
 
 | Variable | Required | Default | Description |
@@ -144,9 +216,17 @@ curl -X POST http://localhost:8000/api/admin/beta-whitelist \
 | `GOOGLE_OAUTH_CLIENT_ID` | Yes* | - | Google OAuth client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Yes* | - | Google OAuth client secret |
 | `GOOGLE_OAUTH_ENABLED` | No | `true` | Enable Google OAuth |
+| `GITHUB_OAUTH_CLIENT_ID` | Yes** | - | GitHub OAuth client ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | Yes** | - | GitHub OAuth client secret |
+| `GITHUB_OAUTH_ENABLED` | No | `false` | Enable GitHub OAuth |
+| `LINKEDIN_OAUTH_CLIENT_ID` | Yes*** | - | LinkedIn OAuth client ID |
+| `LINKEDIN_OAUTH_CLIENT_SECRET` | Yes*** | - | LinkedIn OAuth client secret |
+| `LINKEDIN_OAUTH_ENABLED` | No | `false` | Enable LinkedIn OAuth |
 | `CLOSED_BETA_MODE` | No | `false` | Require email whitelist |
 
 *Required if Google OAuth is enabled
+**Required if GitHub OAuth is enabled
+***Required if LinkedIn OAuth is enabled
 
 ## Architecture
 
@@ -171,8 +251,42 @@ curl -X POST http://localhost:8000/api/admin/beta-whitelist \
 7. SuperTokens creates session, sets httpOnly cookies
 8. User is redirected to frontend with session active
 
+## Common OAuth Errors
+
+### "invalid_client" Error
+
+The OAuth app client ID or secret is incorrect.
+
+**Fix**: Double-check your credentials in `.env` match exactly what's shown in the provider's dashboard.
+
+### "invalid_grant" Error
+
+The authorization code has expired or already been used.
+
+**Fix**: This is usually transient. Try the login flow again. If persistent, check that your server time is synchronized.
+
+### "access_denied" Error
+
+The user denied permission or the app doesn't have required scopes.
+
+**Fix**:
+- Ensure your OAuth app has the required scopes enabled
+- For LinkedIn: Verify "Sign In with LinkedIn using OpenID Connect" product is approved
+- For GitHub: Check the app has `read:user` and `user:email` scopes
+
+### Provider-specific callback URL formats
+
+Each provider has specific requirements for callback URLs:
+
+| Provider | Format | Notes |
+|----------|--------|-------|
+| Google | `http://localhost:8000/api/auth/callback/google` | Supports localhost |
+| GitHub | `http://localhost:8000/api/auth/callback/github` | Supports localhost |
+| LinkedIn | `http://localhost:8000/api/auth/callback/linkedin` | May require HTTPS in some cases |
+
 ## See Also
 
 - `.env.example` - Full environment variable documentation
 - `backend/api/supertokens_config.py` - SuperTokens initialization
 - `backend/api/startup_validation.py` - Auth validation logic
+- `supertokens.Dockerfile` - SuperTokens Core version configuration

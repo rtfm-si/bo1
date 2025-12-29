@@ -1,19 +1,22 @@
 <script lang="ts">
 	/**
-	 * Blog Post Page - Individual post with SEO meta tags
+	 * Blog Post Page - Individual post with SEO meta tags and JSON-LD structured data
 	 */
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
 	import DOMPurify from 'isomorphic-dompurify';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { PublicBlogPost } from '$lib/api/types';
+	import { createArticleSchema, serializeJsonLd } from '$lib/utils/jsonld';
 
 	// State
 	let post = $state<PublicBlogPost | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let viewTracked = $state(false);
 
 	// Get slug from route params
 	const slug = $derived($page.params.slug);
@@ -23,6 +26,9 @@
 	const pageDescription = $derived(
 		post?.meta_description || post?.excerpt || 'Read this article on Board of One.'
 	);
+
+	// JSON-LD structured data
+	const articleJsonLd = $derived(post ? serializeJsonLd(createArticleSchema(post)) : null);
 
 	async function loadPost() {
 		if (!slug) return;
@@ -56,6 +62,34 @@
 		if (!content) return 3;
 		const words = content.split(/\s+/).length;
 		return Math.max(1, Math.ceil(words / 200));
+	}
+
+	// Track view once per session per post
+	async function trackView() {
+		if (!browser || !slug || viewTracked) return;
+
+		// Use sessionStorage to track views per session
+		const viewKey = `blog_view_${slug}`;
+		if (sessionStorage.getItem(viewKey)) return;
+
+		try {
+			await apiClient.trackBlogView(slug);
+			sessionStorage.setItem(viewKey, '1');
+			viewTracked = true;
+		} catch {
+			// Silently fail - analytics shouldn't break the page
+		}
+	}
+
+	// Track CTA click
+	async function trackClick() {
+		if (!browser || !slug) return;
+
+		try {
+			await apiClient.trackBlogClick(slug);
+		} catch {
+			// Silently fail
+		}
 	}
 
 	// Process inline markdown (bold, italic, links, code)
@@ -109,6 +143,13 @@
 		loadPost();
 	});
 
+	// Track view when post loads successfully
+	$effect(() => {
+		if (post && !viewTracked) {
+			trackView();
+		}
+	});
+
 	// Reload when slug changes
 	$effect(() => {
 		if (slug) {
@@ -138,6 +179,10 @@
 	{/if}
 	<!-- Canonical URL -->
 	<link rel="canonical" href="https://boardof.one/blog/{slug}" />
+	<!-- JSON-LD Structured Data -->
+	{#if articleJsonLd}
+		{@html `<script type="application/ld+json">${articleJsonLd}</script>`}
+	{/if}
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">
@@ -281,6 +326,7 @@
 					</p>
 					<a
 						href="/"
+						onclick={trackClick}
 						class="inline-flex items-center px-6 py-3 bg-brand-600 text-white font-semibold rounded-lg hover:bg-brand-700 transition-colors"
 					>
 						Get Started Free

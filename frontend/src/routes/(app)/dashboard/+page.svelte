@@ -15,12 +15,14 @@
 	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
 	import FailedMeetingAlert from '$lib/components/dashboard/FailedMeetingAlert.svelte';
 	import GoalBanner from '$lib/components/dashboard/GoalBanner.svelte';
+	import SmartFocusBanner, { type FocusState } from '$lib/components/dashboard/SmartFocusBanner.svelte';
 	import ObjectiveProgressModal from '$lib/components/dashboard/ObjectiveProgressModal.svelte';
 	import type { ObjectiveProgress } from '$lib/api/types';
 	import WeeklyPlanView from '$lib/components/dashboard/WeeklyPlanView.svelte';
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
+	import RecentMeetingsWidget from '$lib/components/dashboard/RecentMeetingsWidget.svelte';
+	import ResearchInsightsWidget from '$lib/components/dashboard/ResearchInsightsWidget.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
-	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
@@ -47,6 +49,10 @@
 	const statsData = useDataFetch(() => apiClient.getActionStats(365));
 	// Fetch user context for onboarding checklist
 	const contextData = useDataFetch(() => apiClient.getUserContext());
+	// Fetch working pattern for activity heatmap
+	const workingPatternData = useDataFetch(() => apiClient.getWorkingPattern());
+	// Fetch heatmap depth preference
+	const heatmapDepthData = useDataFetch(() => apiClient.getHeatmapDepth());
 
 	// Goal staleness state (fetched separately as it's a new endpoint)
 	interface GoalStaleness {
@@ -79,9 +85,7 @@
 	// Onboarding state
 	let onboardingDismissed = $state(false);
 
-	// Delete operation state
-	let deletingSessionId = $state<string | null>(null);
-
+	
 	// Show onboarding only for new users who haven't dismissed or completed it
 	const showOnboarding = $derived(
 		!onboardingDismissed &&
@@ -175,8 +179,48 @@
 			});
 	});
 
-	// Check if user is admin for cost display
-	const isAdmin = $derived($user?.is_admin ?? false);
+	// Count overdue and due-today actions
+	const overdueCount = $derived.by<number>(() => {
+		if (!actionsData.data?.sessions) return 0;
+		const allTasks = actionsData.data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		return allTasks.filter((t) =>
+			(t.status === 'todo' || t.status === 'in_progress') &&
+			getDueDateStatus(t.suggested_completion_date) === 'overdue'
+		).length;
+	});
+
+	const dueTodayCount = $derived.by<number>(() => {
+		if (!actionsData.data?.sessions) return 0;
+		const allTasks = actionsData.data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		return allTasks.filter((t) =>
+			(t.status === 'todo' || t.status === 'in_progress') &&
+			getDueDateStatus(t.suggested_completion_date) === 'due-today'
+		).length;
+	});
+
+	// Derive focus state for SmartFocusBanner (priority-ordered)
+	const focusState = $derived.by<FocusState>(() => {
+		const hasGoal = !!contextData.data?.context?.north_star_goal;
+		const goalStale = goalStaleness?.should_prompt ?? false;
+		const hasContext = !!(contextData.data?.context?.product_description || contextData.data?.context?.industry);
+
+		// Priority order:
+		// 1. No goal set
+		if (!hasGoal) return 'no_goal';
+		// 2. Goal is stale (>30 days)
+		if (goalStale) return 'stale_goal';
+		// 3. Overdue actions
+		if (overdueCount > 0) return 'overdue_actions';
+		// 4. Actions due today
+		if (dueTodayCount > 0) return 'due_today';
+		// 5. No business context
+		if (!hasContext) return 'stale_context';
+		// 6. Default: ready to decide
+		return 'ready';
+	});
+
+	// Loading state for SmartFocusBanner
+	const focusBannerLoading = $derived(actionsData.isLoading || contextData.isLoading);
 
 	onMount(async () => {
 		log.log('Loading sessions for user:', $user?.email);
@@ -184,7 +228,20 @@
 		sessionsData.fetch();
 		actionsData.fetch();
 		statsData.fetch();
-		contextData.fetch();
+
+		// Fetch context first to check if new user needs redirect
+		await contextData.fetch();
+
+		// Check if new user needs redirect to context setup
+		const ctx = contextData.data?.context;
+		const hasNoContext = !ctx?.product_description && !ctx?.business_model && !ctx?.industry;
+		const notOnboarded = !ctx?.onboarding_completed;
+		// Only redirect if truly new (no context set, not onboarded, and no sessions yet)
+		if (hasNoContext && notOnboarded && sessions.length === 0) {
+			log.log('New user detected, redirecting to context setup');
+			goto('/context/overview?welcome=true');
+			return;
+		}
 
 		// Fetch goal staleness (new endpoint)
 		try {
@@ -257,63 +314,14 @@
 	});
 
 	async function loadSessions() {
-		await sessionsData.fetch();
+		// Refresh both sessions and actions lists
+		// (deleting a session cascade soft-deletes its associated actions)
+		await Promise.all([sessionsData.fetch(), actionsData.fetch()]);
 	}
 
 	function truncateProblem(problem: string, maxLength: number = 80): string {
 		if (problem.length <= maxLength) return problem;
 		return problem.substring(0, maxLength) + '...';
-	}
-
-	/**
-	 * Humanize phase names for user-friendly display
-	 * Phases: decomposition, selection, exploration, challenge, convergence, voting, synthesis
-	 */
-	function humanizePhase(phase: string | null): string {
-		if (!phase) return 'Starting';
-
-		const phaseMap: Record<string, string> = {
-			// Main deliberation phases
-			decomposition: 'Analyzing',
-			decompose: 'Analyzing',
-			problem_decomposition: 'Analyzing', // Legacy DB default
-			selection: 'Selecting Experts',
-			exploration: 'Exploring Ideas',
-			challenge: 'Deep Analysis',
-			convergence: 'Building Consensus',
-			voting: 'Collecting Votes',
-			synthesis: 'Synthesizing',
-			meta_synthesis: 'Final Synthesis',
-			// Status-like phases
-			complete: 'Completed',
-			completed: 'Completed',
-			failed: 'Failed',
-			killed: 'Stopped',
-		};
-
-		return phaseMap[phase.toLowerCase()] || phase.replace(/_/g, ' ');
-	}
-
-	async function handleDelete(sessionId: string, event: MouseEvent) {
-		event.preventDefault(); // Prevent navigation
-		event.stopPropagation(); // Stop event bubbling
-
-		if (!confirm('Are you sure you want to delete this meeting? This cannot be undone.')) {
-			return;
-		}
-
-		deletingSessionId = sessionId;
-		try {
-			await apiClient.deleteSession(sessionId);
-			// Refresh both sessions and actions lists after successful delete
-			// (deleting a session cascade soft-deletes its associated actions)
-			await Promise.all([sessionsData.fetch(), actionsData.fetch()]);
-		} catch (err) {
-			console.error('Failed to delete session:', err);
-			toast.error(err instanceof Error ? err.message : 'Failed to delete meeting');
-		} finally {
-			deletingSessionId = null;
-		}
 	}
 </script>
 
@@ -342,7 +350,7 @@
 		<!-- Failed meeting alert -->
 		<FailedMeetingAlert class="mb-6" />
 
-		<!-- Goal Banner -->
+		<!-- Goal Banner - Primary visual element -->
 		<GoalBanner
 			northStarGoal={contextData.data?.context?.north_star_goal}
 			strategicObjectives={contextData.data?.context?.strategic_objectives}
@@ -363,69 +371,57 @@
 			onClose={handleCloseProgressModal}
 		/>
 
-		<!-- Quick Actions Panel -->
-		<div class="mb-8">
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-				<!-- New Meeting -->
-				<a
-					href="/meeting/new"
-					data-tour="new-meeting"
-					class="group flex items-center gap-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
-				>
-					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 group-hover:bg-brand-200 dark:group-hover:bg-brand-800 transition-colors">
-						<svg class="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-						</svg>
-					</div>
-					<div class="flex-1 min-w-0">
-						<h3 class="text-sm font-semibold text-brand-900 dark:text-brand-100">Start New Meeting</h3>
-						<p class="text-xs text-brand-600 dark:text-brand-400">Get expert perspectives on a decision</p>
-					</div>
-					<svg class="w-5 h-5 text-brand-400 dark:text-brand-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-					</svg>
-				</a>
+		<!-- Smart Focus Banner - Context-aware primary CTA -->
+		<SmartFocusBanner
+			{focusState}
+			{overdueCount}
+			{dueTodayCount}
+			daysSinceGoalChange={goalStaleness?.days_since_change}
+			hasBusinessContext={!!(contextData.data?.context?.product_description || contextData.data?.context?.industry)}
+			loading={focusBannerLoading}
+		/>
 
-				<!-- View Actions -->
-				<a
-					href="/actions"
-					data-tour="actions-view"
-					class="group flex items-center gap-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200"
-				>
-					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-600 transition-colors">
-						<svg class="w-6 h-6 text-neutral-600 dark:text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-						</svg>
-					</div>
-					<div class="flex-1 min-w-0">
-						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">View All Actions</h3>
-						<p class="text-xs text-neutral-500 dark:text-neutral-400">Track and manage your tasks</p>
-					</div>
-					<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-					</svg>
-				</a>
-
-				<!-- Settings -->
-				<a
-					href="/settings"
-					class="group flex items-center gap-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200"
-				>
-					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-600 transition-colors">
-						<svg class="w-6 h-6 text-neutral-600 dark:text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-						</svg>
-					</div>
-					<div class="flex-1 min-w-0">
-						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">Settings</h3>
-						<p class="text-xs text-neutral-500 dark:text-neutral-400">Configure your business context</p>
-					</div>
-					<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-					</svg>
-				</a>
-			</div>
+		<!-- Secondary Quick Links - Smaller, less prominent -->
+		<div class="mb-6 flex flex-wrap items-center gap-3 text-sm" data-tour="new-meeting">
+			<span class="text-neutral-500 dark:text-neutral-400">Quick links:</span>
+			<a
+				href="/meeting/new"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+				</svg>
+				New Meeting
+			</a>
+			<a
+				href="/actions"
+				data-tour="actions-view"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+				</svg>
+				Actions
+			</a>
+			<a
+				href="/context/overview"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+				</svg>
+				Context
+			</a>
+			<a
+				href="/settings"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+				</svg>
+				Settings
+			</a>
 		</div>
 
 		<!-- Pending Reminders Panel -->
@@ -447,34 +443,38 @@
 			</div>
 		{:else if statsData.data?.daily && statsData.data.daily.length > 0}
 			<div class="mb-8">
-				<div class="flex items-center justify-between mb-4">
-					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
-						<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+						<svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
 						</svg>
 						Completion Trends
 					</h2>
-					<div class="flex items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">
-						<span class="flex items-center gap-1.5">
-							<span class="font-medium text-brand-600 dark:text-brand-400">{statsData.data.totals.completed}</span>
-							completed
+					<div class="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
+						<span class="flex items-center gap-1">
+							<span class="font-semibold text-success-600 dark:text-success-400">{statsData.data.totals.completed}</span>
+							<span class="hidden sm:inline">done</span>
 						</span>
-						<span class="flex items-center gap-1.5">
-							<span class="font-medium text-warning-600 dark:text-warning-400">{statsData.data.totals.in_progress}</span>
-							in progress
+						<span class="flex items-center gap-1">
+							<span class="font-semibold text-amber-600 dark:text-amber-400">{statsData.data.totals.in_progress}</span>
+							<span class="hidden sm:inline">active</span>
 						</span>
-						<span class="flex items-center gap-1.5">
-							<span class="font-medium text-neutral-600 dark:text-neutral-300">{statsData.data.totals.todo}</span>
-							to do
+						<span class="flex items-center gap-1">
+							<span class="font-semibold text-neutral-600 dark:text-neutral-300">{statsData.data.totals.todo}</span>
+							<span class="hidden sm:inline">todo</span>
 						</span>
 					</div>
 				</div>
 
-				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4">
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-3 sm:p-4">
 					{#if statsData.isLoading}
 						<ShimmerSkeleton type="chart" />
 					{:else if statsData.data}
-						<ActivityHeatmap data={statsData.data.daily} />
+						<ActivityHeatmap
+							data={statsData.data.daily}
+							workingDays={workingPatternData.data?.pattern.working_days ?? [1, 2, 3, 4, 5]}
+							historyMonths={heatmapDepthData.data?.depth.history_months ?? 3}
+						/>
 					{:else}
 						<div class="text-center text-neutral-500 dark:text-neutral-400 py-8">No data available</div>
 					{/if}
@@ -484,7 +484,10 @@
 
 		<!-- Weekly Plan View -->
 		<div class="mb-8">
-			<WeeklyPlanView actionsData={actionsData.data} />
+			<WeeklyPlanView
+				actionsData={actionsData.data}
+				workingPattern={workingPatternData.data?.pattern.working_days ?? [1, 2, 3, 4, 5]}
+			/>
 		</div>
 
 		<!-- Value Metrics Panel -->
@@ -492,8 +495,27 @@
 			<ValueMetricsPanel />
 		</div>
 
+		<!-- Research Insights Widget -->
+		<div class="mb-8">
+			<ResearchInsightsWidget />
+		</div>
+
 		<!-- Daily Activities / Today's Focus -->
 		<DailyActivities actionsData={actionsData.data} />
+
+		<!-- Recent Meetings Widget -->
+		{#if sessionsData.isLoading}
+			<div class="mb-8">
+				<ShimmerSkeleton type="card" />
+			</div>
+		{:else}
+			<div class="mb-8">
+				<RecentMeetingsWidget
+					sessions={sessions}
+					onDelete={loadSessions}
+				/>
+			</div>
+		{/if}
 
 		<!-- Actions Needing Attention (overdue + due today) -->
 		{#if actionsData.isLoading}
@@ -687,149 +709,5 @@
 			</div>
 		{/if}
 
-		{#if isLoading}
-			<!-- Loading State -->
-			<div class="space-y-4">
-				{#each Array(3) as _, i (i)}
-					<ShimmerSkeleton type="card" />
-				{/each}
-			</div>
-		{:else if sessions.length === 0}
-			<!-- Empty State -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-				<svg class="w-16 h-16 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-				</svg>
-				<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
-					No meetings yet
-				</h2>
-				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
-					Get started by creating your first strategic decision meeting. Our AI board will analyze your decision from multiple expert perspectives.
-				</p>
-				<a href="/meeting/new">
-					<Button variant="brand" size="lg">
-						{#snippet children()}
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-							</svg>
-							Start Your First Meeting
-						{/snippet}
-					</Button>
-				</a>
-			</div>
-		{:else}
-			<!-- Sessions List -->
-			<div class="space-y-4">
-				<div class="flex items-center justify-between mb-4">
-					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white">
-						Your Meetings ({sessions.length})
-					</h2>
-				</div>
-
-				{#each sessions as session (session.id)}
-					<a
-						href="/meeting/{session.id}"
-						class="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
-					>
-						<div class="flex items-start justify-between gap-4">
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center gap-3 mb-2">
-									<span class="px-2.5 py-1 text-xs font-medium rounded-full {getSessionStatusColor(session.status)}">
-										{session.status}
-									</span>
-									<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Created">
-										Created {formatCompactRelativeTime(session.created_at)}
-									</span>
-									{#if session.last_activity_at}
-										<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Last activity">
-											<span class="inline-block w-1.5 h-1.5 bg-neutral-400 dark:bg-neutral-500 rounded-full mr-1"></span>
-											Activity {formatCompactRelativeTime(session.last_activity_at)}
-										</span>
-									{/if}
-									{#if session.status === 'active'}
-										<span class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-											<span class="inline-block w-2 h-2 bg-brand-600 dark:bg-brand-400 rounded-full animate-pulse"></span>
-											Active
-										</span>
-									{/if}
-								</div>
-
-								<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
-									{truncateProblem(session.problem_statement)}
-								</h3>
-
-								<div class="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
-									{#if session.status !== 'completed'}
-										<span class="flex items-center gap-1.5">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-											</svg>
-											{humanizePhase(session.phase ?? null)}
-										</span>
-									{/if}
-									{#if session.expert_count}
-										<span class="flex items-center gap-1.5" title="Experts consulted">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-											</svg>
-											{session.expert_count} experts
-										</span>
-									{/if}
-									{#if session.contribution_count}
-										<span class="flex items-center gap-1.5" title="Total contributions">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-											</svg>
-											{session.contribution_count} insights
-										</span>
-									{/if}
-									{#if session.task_count}
-										<span class="flex items-center gap-1.5" title="Action items">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-											</svg>
-											{session.task_count} actions
-										</span>
-									{/if}
-									{#if isAdmin && session.cost != null}
-										<span class="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-500" title="Meeting cost (admin only)">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-											</svg>
-											${session.cost.toFixed(4)}
-										</span>
-									{/if}
-								</div>
-							</div>
-
-							<div class="flex items-center gap-2 flex-shrink-0">
-								<button
-									onclick={(e) => handleDelete(session.id, e)}
-									class="p-2 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
-									title="Delete meeting"
-									aria-label="Delete meeting"
-									disabled={deletingSessionId !== null}
-								>
-									{#if deletingSessionId === session.id}
-										<svg class="w-5 h-5 text-neutral-400 animate-spin" fill="none" viewBox="0 0 24 24">
-											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-										</svg>
-									{:else}
-										<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-										</svg>
-									{/if}
-								</button>
-
-								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-								</svg>
-							</div>
-						</div>
-					</a>
-				{/each}
-			</div>
-		{/if}
 	</div>
 </div>

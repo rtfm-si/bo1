@@ -178,3 +178,118 @@ class TestHttpErrorIntegration:
         assert err.status_code == 500
         assert err.detail["error_code"] == "SERVICE_EXECUTION_ERROR"
         assert err.detail["session_id"] == "bo1_test"
+
+
+class TestPushErrorToRedis:
+    """Tests for Redis error buffer population."""
+
+    def test_push_error_to_redis_with_mocked_redis(self, monkeypatch):
+        """Test that _push_error_to_redis calls Redis correctly."""
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.errors import _push_error_to_redis
+
+        # Mock the redis manager
+        mock_redis = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.redis = mock_redis
+
+        with patch(
+            "backend.api.dependencies.get_redis_manager",
+            return_value=mock_manager,
+        ):
+            _push_error_to_redis("test operation", "Test error message", 500)
+
+        # Verify LPUSH was called
+        mock_redis.lpush.assert_called_once()
+        call_args = mock_redis.lpush.call_args
+        assert call_args[0][0] == "errors:recent"
+
+        # Verify LTRIM was called to cap buffer
+        mock_redis.ltrim.assert_called_once_with("errors:recent", 0, 999)
+
+    def test_push_error_truncates_long_messages(self, monkeypatch):
+        """Test that long error messages are truncated to 500 chars."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.errors import _push_error_to_redis
+
+        mock_redis = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.redis = mock_redis
+
+        with patch(
+            "backend.api.dependencies.get_redis_manager",
+            return_value=mock_manager,
+        ):
+            long_error = "x" * 1000
+            _push_error_to_redis("test op", long_error, 500)
+
+        # Get the pushed entry and verify truncation
+        call_args = mock_redis.lpush.call_args
+        entry = json.loads(call_args[0][1])
+        assert len(entry["error"]) == 500
+
+    def test_push_error_handles_redis_unavailable(self, monkeypatch):
+        """Test graceful handling when Redis is unavailable."""
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.errors import _push_error_to_redis
+
+        mock_manager = MagicMock()
+        mock_manager.is_available = False
+        mock_manager.redis = None
+
+        with patch(
+            "backend.api.dependencies.get_redis_manager",
+            return_value=mock_manager,
+        ):
+            # Should not raise, just silently return
+            _push_error_to_redis("test op", "test error", 500)
+
+    def test_push_error_handles_redis_exception(self, monkeypatch):
+        """Test graceful handling when Redis raises an exception."""
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.errors import _push_error_to_redis
+
+        mock_redis = MagicMock()
+        mock_redis.lpush.side_effect = Exception("Redis connection error")
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.redis = mock_redis
+
+        with patch(
+            "backend.api.dependencies.get_redis_manager",
+            return_value=mock_manager,
+        ):
+            # Should not raise, just silently return
+            _push_error_to_redis("test op", "test error", 500)
+
+    def test_push_error_includes_timestamp(self, monkeypatch):
+        """Test that pushed error includes ISO timestamp."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.errors import _push_error_to_redis
+
+        mock_redis = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.redis = mock_redis
+
+        with patch(
+            "backend.api.dependencies.get_redis_manager",
+            return_value=mock_manager,
+        ):
+            _push_error_to_redis("my_operation", "my error", 500)
+
+        call_args = mock_redis.lpush.call_args
+        entry = json.loads(call_args[0][1])
+        assert "timestamp" in entry
+        assert entry["operation"] == "my_operation"
+        assert entry["error"] == "my error"
+        assert entry["status_code"] == 500

@@ -153,10 +153,10 @@ def _get_cost_summary() -> CostSummary:
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN created_at::date = CURRENT_DATE THEN cost ELSE 0 END), 0) AS today,
-                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN cost ELSE 0 END), 0) AS week,
-                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN cost ELSE 0 END), 0) AS month,
-                    COALESCE(SUM(cost), 0) AS all_time,
+                    COALESCE(SUM(CASE WHEN created_at::date = CURRENT_DATE THEN total_cost ELSE 0 END), 0) AS today,
+                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN total_cost ELSE 0 END), 0) AS week,
+                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN total_cost ELSE 0 END), 0) AS month,
+                    COALESCE(SUM(total_cost), 0) AS all_time,
                     COALESCE(COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE), 0) AS sessions_today,
                     COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'), 0) AS sessions_week,
                     COALESCE(COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'), 0) AS sessions_month,
@@ -187,10 +187,10 @@ def _get_user_costs(limit: int = 10, offset: int = 0) -> UserCostsResponse:
                 SELECT
                     s.user_id,
                     u.email,
-                    COALESCE(SUM(s.cost), 0) AS total_cost,
+                    COALESCE(SUM(s.total_cost), 0) AS total_cost,
                     COUNT(*) AS session_count
                 FROM sessions s
-                LEFT JOIN users u ON s.user_id = u.supertokens_user_id
+                LEFT JOIN users u ON s.user_id = u.id
                 WHERE s.status = 'completed'
                 GROUP BY s.user_id, u.email
                 ORDER BY total_cost DESC
@@ -208,8 +208,10 @@ def _get_user_costs(limit: int = 10, offset: int = 0) -> UserCostsResponse:
                 for row in cur.fetchall()
             ]
 
-            cur.execute("SELECT COUNT(DISTINCT user_id) FROM sessions WHERE status = 'completed'")
-            total = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(DISTINCT user_id) AS total FROM sessions WHERE status = 'completed'"
+            )
+            total = cur.fetchone()["total"]
 
             return UserCostsResponse(users=users, total=total, limit=limit, offset=offset)
 
@@ -225,7 +227,7 @@ def _get_daily_costs(days: int = 30) -> DailyCostsResponse:
                 """
                 SELECT
                     created_at::date AS day,
-                    COALESCE(SUM(cost), 0) AS total_cost,
+                    COALESCE(SUM(total_cost), 0) AS total_cost,
                     COUNT(*) AS session_count
                 FROM sessions
                 WHERE status = 'completed'
@@ -261,9 +263,9 @@ def _get_costs_by_provider(days: int = 30) -> CostsByProviderResponse:
                 """
                 SELECT
                     provider,
-                    COALESCE(SUM(cost_usd), 0) AS amount_usd,
+                    COALESCE(SUM(total_cost), 0) AS amount_usd,
                     COUNT(*) AS request_count
-                FROM llm_api_calls
+                FROM api_costs
                 WHERE created_at >= %s
                 GROUP BY provider
                 ORDER BY amount_usd DESC
@@ -324,11 +326,11 @@ def _get_per_user_costs(days: int = 30, limit: int = 20) -> PerUserCostResponse:
                 SELECT
                     s.user_id,
                     u.email,
-                    COALESCE(SUM(s.cost), 0) AS total_cost,
+                    COALESCE(SUM(s.total_cost), 0) AS total_cost,
                     COUNT(*) AS session_count,
-                    COALESCE(AVG(s.cost), 0) AS avg_cost_per_session
+                    COALESCE(AVG(s.total_cost), 0) AS avg_cost_per_session
                 FROM sessions s
-                LEFT JOIN users u ON s.user_id = u.supertokens_user_id
+                LEFT JOIN users u ON s.user_id = u.id
                 WHERE s.status = 'completed'
                   AND s.created_at >= %s
                 GROUP BY s.user_id, u.email
@@ -354,7 +356,7 @@ def _get_per_user_costs(days: int = 30, limit: int = 20) -> PerUserCostResponse:
                     AVG(user_cost) AS overall_avg,
                     COUNT(*) AS total_users
                 FROM (
-                    SELECT user_id, SUM(cost) AS user_cost
+                    SELECT user_id, SUM(total_cost) AS user_cost
                     FROM sessions
                     WHERE status = 'completed' AND created_at >= %s
                     GROUP BY user_id

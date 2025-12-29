@@ -338,6 +338,11 @@
 									<th
 										class="px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-400"
 									>
+										Matches
+									</th>
+									<th
+										class="px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-400"
+									>
 										Last Remediation
 									</th>
 									<th
@@ -386,6 +391,20 @@
 											{pattern.threshold_count} / {pattern.threshold_window_minutes}min
 										</td>
 										<td class="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400">
+											<span
+												class="font-medium {pattern.match_count > 0
+													? 'text-warning-600 dark:text-warning-400'
+													: ''}"
+											>
+												{pattern.match_count.toLocaleString()}
+											</span>
+											{#if pattern.last_match_at}
+												<p class="text-xs text-neutral-400">
+													{formatDate(pattern.last_match_at)}
+												</p>
+											{/if}
+										</td>
+										<td class="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400">
 											{#if pattern.last_remediation}
 												{formatDate(pattern.last_remediation)}
 											{:else}
@@ -411,7 +430,7 @@
 								{:else}
 									<tr>
 										<td
-											colspan="6"
+											colspan="7"
 											class="px-4 py-8 text-center text-neutral-500 dark:text-neutral-400"
 										>
 											No error patterns configured

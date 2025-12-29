@@ -44,6 +44,8 @@ class ErrorPatternResponse(BaseModel):
     created_at: datetime
     # Stats
     recent_matches: int = 0
+    match_count: int = 0  # Total matches (persisted in DB)
+    last_match_at: datetime | None = None
     fix_count: int = 0
     last_remediation: datetime | None = None
 
@@ -146,6 +148,8 @@ async def list_error_patterns(
                         ep.id, ep.pattern_name, ep.pattern_regex, ep.error_type,
                         ep.severity, ep.description, ep.enabled, ep.threshold_count,
                         ep.threshold_window_minutes, ep.cooldown_minutes, ep.created_at,
+                        COALESCE(ep.match_count, 0) as match_count,
+                        ep.last_match_at,
                         COUNT(DISTINCT ef.id) as fix_count,
                         (
                             SELECT MAX(triggered_at)
@@ -185,6 +189,8 @@ async def list_error_patterns(
                     threshold_window_minutes=row["threshold_window_minutes"],
                     cooldown_minutes=row["cooldown_minutes"],
                     created_at=row["created_at"],
+                    match_count=row["match_count"],
+                    last_match_at=row["last_match_at"],
                     fix_count=row["fix_count"],
                     last_remediation=row["last_remediation"],
                 )
@@ -590,7 +596,7 @@ async def list_client_errors(
                     """
                     SELECT COUNT(*) FROM audit_log
                     WHERE action = 'client_error'
-                    AND created_at >= NOW() - INTERVAL '%s hours'
+                    AND timestamp >= NOW() - INTERVAL '%s hours'
                     """,
                     (hours,),
                 )
@@ -599,11 +605,11 @@ async def list_client_errors(
                 # Fetch errors
                 cur.execute(
                     """
-                    SELECT id, resource_id AS url, details, ip_address, user_agent, created_at
+                    SELECT id, resource_id AS url, details, ip_address, user_agent, timestamp AS created_at
                     FROM audit_log
                     WHERE action = 'client_error'
-                    AND created_at >= NOW() - INTERVAL '%s hours'
-                    ORDER BY created_at DESC
+                    AND timestamp >= NOW() - INTERVAL '%s hours'
+                    ORDER BY timestamp DESC
                     LIMIT %s OFFSET %s
                     """,
                     (hours, limit, offset),
@@ -660,7 +666,7 @@ async def list_api_errors(
                 count_query = """
                     SELECT COUNT(*) FROM audit_log
                     WHERE action = 'api_error'
-                    AND created_at >= NOW() - INTERVAL '%s hours'
+                    AND timestamp >= NOW() - INTERVAL '%s hours'
                 """
                 count_params: list[Any] = [hours]
 
@@ -673,10 +679,10 @@ async def list_api_errors(
 
                 # Fetch errors
                 query = """
-                    SELECT id, resource_id, details, ip_address, user_id, created_at
+                    SELECT id, resource_id, details, ip_address, user_id, timestamp AS created_at
                     FROM audit_log
                     WHERE action = 'api_error'
-                    AND created_at >= NOW() - INTERVAL '%s hours'
+                    AND timestamp >= NOW() - INTERVAL '%s hours'
                 """
                 params: list[Any] = [hours]
 
@@ -684,7 +690,7 @@ async def list_api_errors(
                     query += " AND (details->>'status_code')::int = %s"
                     params.append(status_code)
 
-                query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+                query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
                 params.extend([limit, offset])
 
                 cur.execute(query, params)
@@ -731,7 +737,7 @@ async def get_error_summary(
                     """
                     SELECT COUNT(*) FROM audit_log
                     WHERE action = 'client_error'
-                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    AND timestamp >= NOW() - INTERVAL '24 hours'
                     """
                 )
                 client_errors_24h = cur.fetchone()["count"]
@@ -741,7 +747,7 @@ async def get_error_summary(
                     """
                     SELECT COUNT(*) FROM audit_log
                     WHERE action = 'api_error'
-                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    AND timestamp >= NOW() - INTERVAL '24 hours'
                     """
                 )
                 api_errors_24h = cur.fetchone()["count"]
@@ -752,7 +758,7 @@ async def get_error_summary(
                     SELECT resource_id AS url, COUNT(*) AS count
                     FROM audit_log
                     WHERE action = 'client_error'
-                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    AND timestamp >= NOW() - INTERVAL '24 hours'
                     GROUP BY resource_id
                     ORDER BY count DESC
                     LIMIT 5
@@ -769,7 +775,7 @@ async def get_error_summary(
                         COUNT(*) AS count
                     FROM audit_log
                     WHERE action = 'api_error'
-                    AND created_at >= NOW() - INTERVAL '24 hours'
+                    AND timestamp >= NOW() - INTERVAL '24 hours'
                     GROUP BY details->>'endpoint', details->>'status_code'
                     ORDER BY count DESC
                     LIMIT 5
@@ -794,3 +800,278 @@ async def get_error_summary(
     except Exception as e:
         log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get error summary: {e}")
         raise HTTPException(status_code=500, detail="Failed to get error summary") from None
+
+
+# =============================================================================
+# Performance Monitoring Endpoints
+# =============================================================================
+
+
+class MetricStatResponse(BaseModel):
+    """Statistics for a single metric."""
+
+    metric_name: str
+    count: int
+    avg: float
+    min_val: float
+    max_val: float
+    p50: float
+    p95: float
+    p99: float
+    window_minutes: int
+
+
+class DegradationInfo(BaseModel):
+    """Degradation info for a metric."""
+
+    metric_name: str
+    degradation_score: float
+    current_avg: float
+    baseline_avg: float
+    ratio: float
+    is_degraded: bool
+    severity: str
+    details: str
+
+
+class PerformanceMetricsResponse(BaseModel):
+    """Current performance metrics summary."""
+
+    checked_at: datetime
+    metrics: list[MetricStatResponse]
+
+
+class PerformanceTrendsResponse(BaseModel):
+    """24-hour performance trend data."""
+
+    timestamp: datetime
+    overall_health: str
+    metrics: list[DegradationInfo]
+    degraded_count: int
+    critical_count: int
+
+
+class ThresholdResponse(BaseModel):
+    """Performance threshold configuration."""
+
+    metric_name: str
+    warn_value: float
+    critical_value: float
+    window_minutes: int
+    enabled: bool
+    description: str
+    unit: str
+
+
+class ThresholdListResponse(BaseModel):
+    """List of all thresholds."""
+
+    thresholds: list[ThresholdResponse]
+
+
+class UpdateThresholdRequest(BaseModel):
+    """Request to update a threshold."""
+
+    warn_value: float | None = None
+    critical_value: float | None = None
+    window_minutes: int | None = None
+    enabled: bool | None = None
+
+
+@router.get("/performance-metrics", response_model=PerformanceMetricsResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def get_performance_metrics(
+    request: Request,
+    window_minutes: int = 30,
+    _user: dict = Depends(require_admin_any),
+) -> PerformanceMetricsResponse:
+    """Get current performance metrics summary.
+
+    Args:
+        request: FastAPI request object
+        window_minutes: Time window for stats (default 30)
+        _user: Current authenticated admin user
+    """
+    from backend.services.performance_monitor import get_performance_monitor
+
+    try:
+        monitor = get_performance_monitor()
+
+        # Metrics to check
+        metric_names = [
+            "api_response_time_ms",
+            "llm_response_time_ms",
+            "error_rate_percent",
+            "queue_depth",
+            "db_pool_usage_percent",
+        ]
+
+        metrics = []
+        for name in metric_names:
+            stats = monitor.get_metric_stats(name, window_minutes)
+            if stats:
+                metrics.append(
+                    MetricStatResponse(
+                        metric_name=stats.metric_name,
+                        count=stats.count,
+                        avg=stats.avg,
+                        min_val=stats.min_val,
+                        max_val=stats.max_val,
+                        p50=stats.p50,
+                        p95=stats.p95,
+                        p99=stats.p99,
+                        window_minutes=stats.window_minutes,
+                    )
+                )
+
+        return PerformanceMetricsResponse(
+            checked_at=datetime.now(UTC),
+            metrics=metrics,
+        )
+
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get performance metrics: {e}",
+        )
+        raise HTTPException(status_code=500, detail="Failed to get performance metrics") from None
+
+
+@router.get("/performance-trends", response_model=PerformanceTrendsResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def get_performance_trends(
+    request: Request,
+    _user: dict = Depends(require_admin_any),
+) -> PerformanceTrendsResponse:
+    """Get performance trend analysis with degradation detection.
+
+    Args:
+        request: FastAPI request object
+        _user: Current authenticated admin user
+    """
+    from backend.services.performance_monitor import get_performance_monitor
+
+    try:
+        monitor = get_performance_monitor()
+        trend = monitor.analyze_trends()
+
+        metrics = []
+        for _name, degradation in trend.metrics.items():
+            metrics.append(
+                DegradationInfo(
+                    metric_name=degradation.metric_name,
+                    degradation_score=degradation.degradation_score,
+                    current_avg=degradation.current_avg,
+                    baseline_avg=degradation.baseline_avg,
+                    ratio=degradation.ratio,
+                    is_degraded=degradation.is_degraded,
+                    severity=degradation.severity,
+                    details=degradation.details,
+                )
+            )
+
+        return PerformanceTrendsResponse(
+            timestamp=trend.timestamp,
+            overall_health=trend.overall_health,
+            metrics=metrics,
+            degraded_count=trend.degraded_count,
+            critical_count=trend.critical_count,
+        )
+
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get performance trends: {e}",
+        )
+        raise HTTPException(status_code=500, detail="Failed to get performance trends") from None
+
+
+@router.get("/performance-thresholds", response_model=ThresholdListResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def get_performance_thresholds(
+    request: Request,
+    _user: dict = Depends(require_admin_any),
+) -> ThresholdListResponse:
+    """Get all performance threshold configurations.
+
+    Args:
+        request: FastAPI request object
+        _user: Current authenticated admin user
+    """
+    from backend.services.performance_thresholds import get_threshold_service
+
+    try:
+        service = get_threshold_service()
+        thresholds = service.get_all_thresholds()
+
+        return ThresholdListResponse(
+            thresholds=[
+                ThresholdResponse(
+                    metric_name=t.metric_name,
+                    warn_value=t.warn_value,
+                    critical_value=t.critical_value,
+                    window_minutes=t.window_minutes,
+                    enabled=t.enabled,
+                    description=t.description,
+                    unit=t.unit,
+                )
+                for t in thresholds
+            ]
+        )
+
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get performance thresholds: {e}",
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to get performance thresholds"
+        ) from None
+
+
+@router.put("/performance-thresholds/{metric_name}")
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def update_performance_threshold(
+    request: Request,
+    metric_name: str,
+    body: UpdateThresholdRequest,
+    _user: dict = Depends(require_admin_any),
+) -> dict[str, str]:
+    """Update a performance threshold configuration.
+
+    Args:
+        request: FastAPI request object
+        metric_name: Name of the metric to update
+        body: Threshold values to update
+        _user: Current authenticated admin user
+    """
+    from backend.services.performance_thresholds import get_threshold_service
+
+    try:
+        service = get_threshold_service()
+        result = service.update_threshold(
+            metric_name=metric_name,
+            warn_value=body.warn_value,
+            critical_value=body.critical_value,
+            window_minutes=body.window_minutes,
+            enabled=body.enabled,
+        )
+
+        if result is None:
+            raise HTTPException(status_code=500, detail="Failed to update threshold")
+
+        return {"message": f"Threshold for {metric_name} updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to update threshold: {e}",
+            metric_name=metric_name,
+        )
+        raise HTTPException(status_code=500, detail="Failed to update threshold") from None

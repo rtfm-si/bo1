@@ -161,8 +161,8 @@ class TestCostsDrillDown:
                         "user_id": "user_1",
                         "email": "user1@example.com",
                         "provider": "anthropic",
-                        "model": "claude-3-haiku",
-                        "cost_usd": 0.50,
+                        "model_name": "claude-3-haiku",
+                        "total_cost": 0.50,
                         "created_at": datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC),
                     },
                     {
@@ -170,8 +170,8 @@ class TestCostsDrillDown:
                         "user_id": "user_2",
                         "email": "user2@example.com",
                         "provider": "anthropic",
-                        "model": "claude-3-sonnet",
-                        "cost_usd": 1.00,
+                        "model_name": "claude-3-sonnet",
+                        "total_cost": 1.00,
                         "created_at": datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC),
                     },
                 ],
@@ -199,8 +199,8 @@ class TestCostsDrillDown:
                         "user_id": None,
                         "email": None,
                         "provider": "openai",
-                        "model": "gpt-4",
-                        "cost_usd": 0.10,
+                        "model_name": "gpt-4",
+                        "total_cost": 0.10,
                         "created_at": datetime(2025, 1, 15, tzinfo=UTC),
                     },
                 ],
@@ -403,3 +403,279 @@ class TestLimitValidation:
         ):
             response = client.get("/api/admin/drilldown/users?offset=-1")
             assert response.status_code == 422
+
+
+# =============================================================================
+# Insight Drill-Down Tests
+# =============================================================================
+
+
+class TestCacheEffectivenessDrillDown:
+    """Tests for GET /api/admin/drilldown/cache-effectiveness."""
+
+    def test_returns_403_without_admin(self, main_app_client: TestClient):
+        """Non-admin users should get 403."""
+        response = main_app_client.get("/api/admin/drilldown/cache-effectiveness")
+        assert response.status_code == 403
+
+    def test_returns_cache_effectiveness_data(self, client: TestClient):
+        """Admin should get cache effectiveness buckets."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            # First call: bucket aggregation, second call: overall stats
+            mock_query.side_effect = [
+                [
+                    {
+                        "bucket": 1,
+                        "session_count": 10,
+                        "avg_cost": 0.25,
+                        "total_cost": 2.50,
+                        "total_saved": 0.50,
+                        "avg_savings": 0.05,
+                        "bucket_hit_rate": 0.15,
+                    },
+                    {
+                        "bucket": 4,
+                        "session_count": 20,
+                        "avg_cost": 0.10,
+                        "total_cost": 2.00,
+                        "total_saved": 1.50,
+                        "avg_savings": 0.075,
+                        "bucket_hit_rate": 0.85,
+                    },
+                ],
+                {"hit_rate": 0.55},  # overall stats
+            ]
+
+            response = client.get("/api/admin/drilldown/cache-effectiveness?period=week")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["period"] == "week"
+            assert data["total_sessions"] == 30
+            assert len(data["buckets"]) == 2
+            assert data["buckets"][0]["bucket_label"] == "0-25%"
+            assert data["buckets"][0]["session_count"] == 10
+            assert data["overall_hit_rate"] == 0.55
+
+    def test_handles_empty_data(self, client: TestClient):
+        """Should handle empty cache data gracefully."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.side_effect = [[], {"hit_rate": None}]
+
+            response = client.get("/api/admin/drilldown/cache-effectiveness")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["total_sessions"] == 0
+            assert data["buckets"] == []
+            assert data["overall_hit_rate"] == 0
+
+
+class TestModelImpactDrillDown:
+    """Tests for GET /api/admin/drilldown/model-impact."""
+
+    def test_returns_403_without_admin(self, main_app_client: TestClient):
+        """Non-admin users should get 403."""
+        response = main_app_client.get("/api/admin/drilldown/model-impact")
+        assert response.status_code == 403
+
+    def test_returns_model_impact_data(self, client: TestClient):
+        """Admin should get model impact analysis."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.return_value = [
+                {
+                    "model_name": "claude-3-5-sonnet",
+                    "request_count": 100,
+                    "total_cost": 5.00,
+                    "avg_cost": 0.05,
+                    "cache_hit_rate": 0.40,
+                    "total_tokens": 500000,
+                },
+                {
+                    "model_name": "claude-3-haiku",
+                    "request_count": 50,
+                    "total_cost": 0.50,
+                    "avg_cost": 0.01,
+                    "cache_hit_rate": 0.60,
+                    "total_tokens": 100000,
+                },
+            ]
+
+            response = client.get("/api/admin/drilldown/model-impact?period=week")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["period"] == "week"
+            assert data["total_requests"] == 150
+            assert data["total_cost"] == 5.50
+            assert len(data["models"]) == 2
+            assert data["models"][0]["model_display"] == "Claude Sonnet"
+            assert data["cost_if_all_opus"] > data["cost_if_all_haiku"]
+            assert data["savings_from_model_mix"] > 0
+
+    def test_handles_empty_model_data(self, client: TestClient):
+        """Should handle empty model data gracefully."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.return_value = []
+
+            response = client.get("/api/admin/drilldown/model-impact")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["total_requests"] == 0
+            assert data["models"] == []
+
+
+class TestFeatureEfficiencyDrillDown:
+    """Tests for GET /api/admin/drilldown/feature-efficiency."""
+
+    def test_returns_403_without_admin(self, main_app_client: TestClient):
+        """Non-admin users should get 403."""
+        response = main_app_client.get("/api/admin/drilldown/feature-efficiency")
+        assert response.status_code == 403
+
+    def test_returns_feature_efficiency_data(self, client: TestClient):
+        """Admin should get feature efficiency stats."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.return_value = [
+                {
+                    "feature": "deliberation",
+                    "request_count": 200,
+                    "total_cost": 10.00,
+                    "avg_cost": 0.05,
+                    "cache_hit_rate": 0.35,
+                    "unique_sessions": 50,
+                },
+                {
+                    "feature": "research",
+                    "request_count": 100,
+                    "total_cost": 2.00,
+                    "avg_cost": 0.02,
+                    "cache_hit_rate": 0.70,
+                    "unique_sessions": 30,
+                },
+            ]
+
+            response = client.get("/api/admin/drilldown/feature-efficiency?period=month")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["period"] == "month"
+            assert data["total_requests"] == 300
+            assert data["total_cost"] == 12.00
+            assert len(data["features"]) == 2
+            assert data["features"][0]["feature"] == "deliberation"
+            assert data["features"][0]["cost_per_session"] == 0.20
+
+
+class TestTuningRecommendations:
+    """Tests for GET /api/admin/drilldown/tuning-recommendations."""
+
+    def test_returns_403_without_admin(self, main_app_client: TestClient):
+        """Non-admin users should get 403."""
+        response = main_app_client.get("/api/admin/drilldown/tuning-recommendations")
+        assert response.status_code == 403
+
+    def test_returns_recommendations(self, client: TestClient):
+        """Admin should get tuning recommendations."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            # Stats query, model stats query, feature stats query
+            mock_query.side_effect = [
+                {
+                    "total_requests": 1000,
+                    "total_sessions": 100,
+                    "cache_hit_rate": 0.25,
+                    "total_cost": 50.00,
+                    "total_saved": 5.00,
+                },
+                [
+                    {"model_tier": "opus", "count": 600, "cost": 45.00},
+                    {"model_tier": "sonnet", "count": 300, "cost": 4.50},
+                    {"model_tier": "haiku", "count": 100, "cost": 0.50},
+                ],
+                [],
+            ]
+
+            response = client.get("/api/admin/drilldown/tuning-recommendations")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["analysis_period_days"] == 30
+            assert data["data_quality"] == "sufficient"
+            assert len(data["recommendations"]) >= 1
+            # Should recommend improving cache hit rate since it's 25%
+            cache_recs = [r for r in data["recommendations"] if r["area"] == "cache"]
+            assert len(cache_recs) >= 1
+
+    def test_insufficient_data_quality(self, client: TestClient):
+        """Should indicate insufficient data when sample size is low."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.side_effect = [
+                {
+                    "total_requests": 50,
+                    "total_sessions": 10,
+                    "cache_hit_rate": 0.50,
+                    "total_cost": 1.00,
+                    "total_saved": 0.10,
+                },
+                [],
+                [],
+            ]
+
+            response = client.get("/api/admin/drilldown/tuning-recommendations")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["data_quality"] == "insufficient"
+
+
+class TestQualityIndicators:
+    """Tests for GET /api/admin/drilldown/quality-indicators."""
+
+    def test_returns_403_without_admin(self, main_app_client: TestClient):
+        """Non-admin users should get 403."""
+        response = main_app_client.get("/api/admin/drilldown/quality-indicators")
+        assert response.status_code == 403
+
+    def test_returns_quality_indicators(self, client: TestClient):
+        """Admin should get quality indicator stats."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.return_value = {
+                "total_sessions": 100,
+                "avg_hit_rate": 0.45,
+                "continuation_rate": 0.60,
+                "cached_continuation": 0.65,
+                "uncached_continuation": 0.55,
+            }
+
+            response = client.get("/api/admin/drilldown/quality-indicators?period=month")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["period"] == "month"
+            assert data["sample_size"] == 100
+            assert data["overall_cache_hit_rate"] == 0.45
+            assert data["session_continuation_rate"] == 0.60
+            assert data["cached_continuation_rate"] == 0.65
+            assert data["uncached_continuation_rate"] == 0.55
+            # Correlation should be positive since cached > uncached
+            assert abs(data["correlation_score"] - 0.10) < 0.001
+            assert "quality_assessment" in data
+
+    def test_handles_insufficient_data(self, client: TestClient):
+        """Should indicate insufficient data for quality assessment."""
+        with patch("backend.api.admin.drilldown.execute_query") as mock_query:
+            mock_query.return_value = {
+                "total_sessions": 20,
+                "avg_hit_rate": 0.50,
+                "continuation_rate": 0.50,
+                "cached_continuation": None,
+                "uncached_continuation": None,
+            }
+
+            response = client.get("/api/admin/drilldown/quality-indicators")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["sample_size"] == 20
+            assert "Insufficient data" in data["quality_assessment"]

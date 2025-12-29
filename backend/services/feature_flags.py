@@ -112,26 +112,29 @@ def get_flag(flag_name: str) -> FeatureFlag | None:
             logger.warning("Cache read failed for flag %s: %s", flag_name, e)
 
     # Fetch from database
-    with db_session() as session:
-        result = session.execute(
-            "SELECT id, name, description, enabled, rollout_pct, tiers, "
-            "created_at, updated_at FROM feature_flags WHERE name = :name",
-            {"name": flag_name},
-        )
-        row = result.fetchone()
-        if not row:
-            return None
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, description, enabled, rollout_pct, tiers, "
+                "created_at, updated_at FROM feature_flags WHERE name = %s",
+                (flag_name,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
 
-        flag = FeatureFlag(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            enabled=row[3],
-            rollout_pct=row[4],
-            tiers=row[5] if isinstance(row[5], list) else json.loads(row[5] or "[]"),
-            created_at=row[6],
-            updated_at=row[7],
-        )
+            flag = FeatureFlag(
+                id=row["id"],
+                name=row["name"],
+                description=row["description"],
+                enabled=row["enabled"],
+                rollout_pct=row["rollout_pct"],
+                tiers=row["tiers"]
+                if isinstance(row["tiers"], list)
+                else json.loads(row["tiers"] or "[]"),
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
 
         # Cache the result
         if redis:
@@ -163,14 +166,14 @@ def get_user_override(flag_id: UUID, user_id: str) -> bool | None:
     Returns:
         Override enabled value, or None if no override exists
     """
-    with db_session() as session:
-        result = session.execute(
-            "SELECT enabled FROM feature_flag_overrides "
-            "WHERE flag_id = :flag_id AND user_id = :user_id",
-            {"flag_id": flag_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        return row[0] if row else None
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT enabled FROM feature_flag_overrides WHERE flag_id = %s AND user_id = %s",
+                (flag_id, user_id),
+            )
+            row = cur.fetchone()
+            return row["enabled"] if row else None
 
 
 def is_enabled(
@@ -231,26 +234,29 @@ def get_all_flags() -> list[FeatureFlag]:
     Returns:
         List of all flags
     """
-    with db_session() as session:
-        result = session.execute(
-            "SELECT id, name, description, enabled, rollout_pct, tiers, "
-            "created_at, updated_at FROM feature_flags ORDER BY name"
-        )
-        flags = []
-        for row in result.fetchall():
-            flags.append(
-                FeatureFlag(
-                    id=row[0],
-                    name=row[1],
-                    description=row[2],
-                    enabled=row[3],
-                    rollout_pct=row[4],
-                    tiers=row[5] if isinstance(row[5], list) else json.loads(row[5] or "[]"),
-                    created_at=row[6],
-                    updated_at=row[7],
-                )
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, description, enabled, rollout_pct, tiers, "
+                "created_at, updated_at FROM feature_flags ORDER BY name"
             )
-        return flags
+            flags = []
+            for row in cur.fetchall():
+                flags.append(
+                    FeatureFlag(
+                        id=row["id"],
+                        name=row["name"],
+                        description=row["description"],
+                        enabled=row["enabled"],
+                        rollout_pct=row["rollout_pct"],
+                        tiers=row["tiers"]
+                        if isinstance(row["tiers"], list)
+                        else json.loads(row["tiers"] or "[]"),
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
+                    )
+                )
+            return flags
 
 
 def create_flag(
@@ -278,42 +284,34 @@ def create_flag(
     tiers = tiers or []
     now = datetime.now(UTC)
 
-    with db_session() as session:
-        # Check for existing flag
-        existing = session.execute(
-            "SELECT id FROM feature_flags WHERE name = :name", {"name": name}
-        ).fetchone()
-        if existing:
-            raise ValueError(f"Flag '{name}' already exists")
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Check for existing flag
+            cur.execute("SELECT id FROM feature_flags WHERE name = %s", (name,))
+            if cur.fetchone():
+                raise ValueError(f"Flag '{name}' already exists")
 
-        result = session.execute(
-            """
-            INSERT INTO feature_flags (name, description, enabled, rollout_pct, tiers, created_at, updated_at)
-            VALUES (:name, :description, :enabled, :rollout_pct, :tiers, :now, :now)
-            RETURNING id
-            """,
-            {
-                "name": name,
-                "description": description,
-                "enabled": enabled,
-                "rollout_pct": rollout_pct,
-                "tiers": json.dumps(tiers),
-                "now": now,
-            },
-        )
-        flag_id = result.fetchone()[0]
-        session.commit()
+            cur.execute(
+                """
+                INSERT INTO feature_flags (name, description, enabled, rollout_pct, tiers, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (name, description, enabled, rollout_pct, json.dumps(tiers), now, now),
+            )
+            flag_id = cur.fetchone()["id"]
+            conn.commit()
 
-        return FeatureFlag(
-            id=flag_id,
-            name=name,
-            description=description,
-            enabled=enabled,
-            rollout_pct=rollout_pct,
-            tiers=tiers,
-            created_at=now,
-            updated_at=now,
-        )
+            return FeatureFlag(
+                id=flag_id,
+                name=name,
+                description=description,
+                enabled=enabled,
+                rollout_pct=rollout_pct,
+                tiers=tiers,
+                created_at=now,
+                updated_at=now,
+            )
 
 
 def update_flag(
@@ -336,35 +334,39 @@ def update_flag(
         Updated flag, or None if not found
     """
     updates = []
-    params: dict[str, Any] = {"name": name, "now": datetime.now(UTC)}
+    params: list[Any] = []
+    now = datetime.now(UTC)
 
     if description is not None:
-        updates.append("description = :description")
-        params["description"] = description
+        updates.append("description = %s")
+        params.append(description)
     if enabled is not None:
-        updates.append("enabled = :enabled")
-        params["enabled"] = enabled
+        updates.append("enabled = %s")
+        params.append(enabled)
     if rollout_pct is not None:
-        updates.append("rollout_pct = :rollout_pct")
-        params["rollout_pct"] = rollout_pct
+        updates.append("rollout_pct = %s")
+        params.append(rollout_pct)
     if tiers is not None:
-        updates.append("tiers = :tiers")
-        params["tiers"] = json.dumps(tiers)
+        updates.append("tiers = %s")
+        params.append(json.dumps(tiers))
 
     if not updates:
         return get_flag(name)
 
-    updates.append("updated_at = :now")
+    updates.append("updated_at = %s")
+    params.append(now)
+    params.append(name)  # WHERE name = %s
 
-    with db_session() as session:
-        result = session.execute(
-            f"UPDATE feature_flags SET {', '.join(updates)} WHERE name = :name RETURNING id",
-            params,
-        )
-        row = result.fetchone()
-        if not row:
-            return None
-        session.commit()
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE feature_flags SET {', '.join(updates)} WHERE name = %s RETURNING id",
+                params,
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            conn.commit()
 
     # Invalidate cache
     _invalidate_cache(name)
@@ -381,16 +383,15 @@ def delete_flag(name: str) -> bool:
     Returns:
         True if deleted, False if not found
     """
-    with db_session() as session:
-        result = session.execute(
-            "DELETE FROM feature_flags WHERE name = :name RETURNING id", {"name": name}
-        )
-        row = result.fetchone()
-        if row:
-            session.commit()
-            _invalidate_cache(name)
-            return True
-        return False
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM feature_flags WHERE name = %s RETURNING id", (name,))
+            row = cur.fetchone()
+            if row:
+                conn.commit()
+                _invalidate_cache(name)
+                return True
+            return False
 
 
 def set_user_override(flag_name: str, user_id: str, enabled: bool) -> bool:
@@ -409,16 +410,17 @@ def set_user_override(flag_name: str, user_id: str, enabled: bool) -> bool:
         return False
 
     now = datetime.now(UTC)
-    with db_session() as session:
-        session.execute(
-            """
-            INSERT INTO feature_flag_overrides (flag_id, user_id, enabled, created_at, updated_at)
-            VALUES (:flag_id, :user_id, :enabled, :now, :now)
-            ON CONFLICT (flag_id, user_id) DO UPDATE SET enabled = :enabled, updated_at = :now
-            """,
-            {"flag_id": flag.id, "user_id": user_id, "enabled": enabled, "now": now},
-        )
-        session.commit()
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO feature_flag_overrides (flag_id, user_id, enabled, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (flag_id, user_id) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = EXCLUDED.updated_at
+                """,
+                (flag.id, user_id, enabled, now, now),
+            )
+            conn.commit()
     return True
 
 
@@ -436,16 +438,17 @@ def delete_user_override(flag_name: str, user_id: str) -> bool:
     if not flag:
         return False
 
-    with db_session() as session:
-        result = session.execute(
-            "DELETE FROM feature_flag_overrides WHERE flag_id = :flag_id AND user_id = :user_id RETURNING id",
-            {"flag_id": flag.id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if row:
-            session.commit()
-            return True
-        return False
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM feature_flag_overrides WHERE flag_id = %s AND user_id = %s RETURNING id",
+                (flag.id, user_id),
+            )
+            row = cur.fetchone()
+            if row:
+                conn.commit()
+                return True
+            return False
 
 
 def get_flags_for_user(user_id: str, tier: str | None = None) -> dict[str, bool]:

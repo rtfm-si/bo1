@@ -5,8 +5,11 @@
 	 */
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import { CONTEXT_WELCOME_KEY } from '$lib/stores/tour';
+	import { toast } from '$lib/stores/toast';
 	import type { UserContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -37,6 +40,7 @@
 	let enrichedFields = $state<string[]>([]);
 	let lastUpdated = $state<string | null>(null);
 	let showWelcomeBanner = $state(false);
+	let isWelcomeFlow = $state(false);
 
 	// Strategic fields from enrichment (to be saved with context)
 	let enrichedStrategicFields = $state<{
@@ -65,11 +69,18 @@
 	];
 
 	onMount(async () => {
-		// Check for welcome banner flag (set after tour completion)
+		// Check for welcome query param (from dashboard redirect for new users)
 		if (browser) {
-			const welcomeFlag = localStorage.getItem(CONTEXT_WELCOME_KEY);
-			if (welcomeFlag === 'true') {
+			const welcomeParam = $page.url.searchParams.get('welcome');
+			if (welcomeParam === 'true') {
 				showWelcomeBanner = true;
+				isWelcomeFlow = true;
+			} else {
+				// Fallback: Check for welcome banner flag (set after tour completion)
+				const welcomeFlag = localStorage.getItem(CONTEXT_WELCOME_KEY);
+				if (welcomeFlag === 'true') {
+					showWelcomeBanner = true;
+				}
 			}
 		}
 
@@ -223,6 +234,14 @@
 			// Clear enriched fields after save
 			enrichedStrategicFields = {};
 			trackEvent(AnalyticsEvents.CONTEXT_UPDATED);
+
+			// If this is the welcome flow (new user first-time setup), redirect to dashboard
+			if (isWelcomeFlow) {
+				toast.success("Business context saved! Let's start your first meeting.");
+				goto('/dashboard');
+				return;
+			}
+
 			saveSuccess = true;
 			lastUpdated = new Date().toISOString();
 
@@ -288,41 +307,54 @@
 		<!-- Context Refresh Banner -->
 		<ContextRefreshBanner />
 
-		<!-- Welcome Banner (shown after onboarding tour) -->
+		<!-- Welcome Banner (shown for new users or after onboarding tour) -->
 		{#if showWelcomeBanner}
-			<div class="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg p-4">
-				<div class="flex items-start gap-3">
-					<svg
-						class="w-6 h-6 text-brand-600 dark:text-brand-400 flex-shrink-0 mt-0.5"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-						/>
-					</svg>
-					<div class="flex-1">
-						<h3 class="text-base font-semibold text-brand-900 dark:text-brand-100 mb-1">
-							Welcome! Set up your business context
-						</h3>
-						<p class="text-sm text-brand-700 dark:text-brand-300">
-							Adding your business context helps our AI experts provide tailored advice specific to your situation.
-							Fill in your company details below to get more personalized recommendations.
-						</p>
-					</div>
-					<button
-						onclick={dismissWelcomeBanner}
-						class="p-1 text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-200 rounded transition-colors"
-						aria-label="Dismiss welcome message"
-					>
-						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+			<div class="bg-brand-50 dark:bg-brand-900/20 border-2 border-brand-300 dark:border-brand-700 rounded-lg p-5 {isWelcomeFlow ? 'ring-2 ring-brand-400 ring-offset-2 dark:ring-offset-slate-800' : ''}">
+				<div class="flex items-start gap-4">
+					<div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center">
+						<svg
+							class="w-6 h-6 text-brand-600 dark:text-brand-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+							/>
 						</svg>
-					</button>
+					</div>
+					<div class="flex-1">
+						<h3 class="text-lg font-semibold text-brand-900 dark:text-brand-100 mb-1">
+							{isWelcomeFlow ? "Welcome! Let's set up your business context" : 'Welcome! Set up your business context'}
+						</h3>
+						<p class="text-sm text-brand-700 dark:text-brand-300 mb-3">
+							{isWelcomeFlow
+								? "Before your first meeting, tell us about your business. This helps our AI experts provide advice tailored to your specific situation."
+								: "Adding your business context helps our AI experts provide tailored advice specific to your situation. Fill in your company details below to get more personalized recommendations."}
+						</p>
+						{#if isWelcomeFlow}
+							<p class="text-xs text-brand-600 dark:text-brand-400 flex items-center gap-1">
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+								Fill in at least your industry and product description, then click "Save Changes" to continue.
+							</p>
+						{/if}
+					</div>
+					{#if !isWelcomeFlow}
+						<button
+							onclick={dismissWelcomeBanner}
+							class="p-1 text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-200 rounded transition-colors"
+							aria-label="Dismiss welcome message"
+						>
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					{/if}
 				</div>
 			</div>
 		{/if}

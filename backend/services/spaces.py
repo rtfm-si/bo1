@@ -25,6 +25,19 @@ class SpacesError(Exception):
         super().__init__(f"Spaces {operation} failed: {message}")
 
 
+class SpacesConfigurationError(SpacesError):
+    """DO Spaces credentials are not configured."""
+
+    def __init__(self, missing_fields: list[str]) -> None:
+        """Initialize SpacesConfigurationError."""
+        self.missing_fields = missing_fields
+        super().__init__(
+            f"Missing credentials: {', '.join(missing_fields)}. "
+            "Set DO_SPACES_KEY, DO_SPACES_SECRET, DO_SPACES_BUCKET.",
+            operation="init",
+        )
+
+
 class SpacesClient:
     """S3-compatible client for DigitalOcean Spaces.
 
@@ -56,6 +69,17 @@ class SpacesClient:
         self._region = region or settings.do_spaces_region
         self._bucket = bucket or settings.do_spaces_bucket
         self._endpoint_url = endpoint_url or settings.do_spaces_endpoint_url
+
+        # Validate required credentials
+        missing = []
+        if not self._access_key:
+            missing.append("DO_SPACES_KEY")
+        if not self._secret_key:
+            missing.append("DO_SPACES_SECRET")
+        if not self._bucket:
+            missing.append("DO_SPACES_BUCKET")
+        if missing:
+            raise SpacesConfigurationError(missing)
 
         # Configure retry logic
         config = Config(

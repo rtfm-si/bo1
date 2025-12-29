@@ -52,7 +52,7 @@ from backend.services.csv_utils import CSVValidationError, validate_csv_structur
 from backend.services.dataframe_loader import DataFrameLoadError, load_dataframe
 from backend.services.profiler import ProfileError, profile_dataset, save_profile
 from backend.services.query_engine import QueryError, execute_query
-from backend.services.spaces import SpacesError, get_spaces_client
+from backend.services.spaces import SpacesConfigurationError, SpacesError, get_spaces_client
 from backend.services.summary_generator import generate_dataset_summary, invalidate_summary_cache
 from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
@@ -264,6 +264,18 @@ async def upload_dataset(
             },
         )
         logger.info(f"Uploaded CSV to Spaces: {file_key} ({file_size} bytes)")
+    except SpacesConfigurationError as e:
+        # Credentials not configured - admin issue
+        log_error(
+            logger,
+            ErrorCode.CONFIG_ERROR,
+            f"Spaces not configured: {e}",
+            user_id=user_id,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="File storage service is not configured. Please contact support.",
+        ) from None
     except SpacesError as e:
         log_error(
             logger,

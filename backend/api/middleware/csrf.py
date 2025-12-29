@@ -42,6 +42,7 @@ CSRF_EXEMPT_PREFIXES = (
     "/api/v1/waitlist",  # Public form submission
     "/api/v1/metrics/client",  # Browser sendBeacon for observability metrics
     "/api/v1/analytics/",  # Public page analytics (uses sendBeacon, no user data mutation)
+    "/api/v1/blog/posts/",  # Blog tracking (view/click counts, rate-limited, no user data)
     "/api/errors",  # Client error reporting (rate-limited, no auth, audit logging only)
     "/api/e2e/",  # E2E testing endpoints (protected by E2E_AUTH_SECRET)
 )

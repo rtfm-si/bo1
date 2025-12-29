@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from backend.api.admin.models import (
     AggregatedCacheMetrics,
     CacheTypeMetrics,
+    CategoryCostAggregation,
+    CostAggregationsResponse,
     CostsByProviderResponse,
     CreateFixedCostRequest,
     DailyResearchCost,
@@ -28,6 +30,9 @@ from backend.api.admin.models import (
     FixedCostsResponse,
     HeavyUserItem,
     HeavyUsersResponse,
+    InternalCostItem,
+    InternalCostsByPeriod,
+    InternalCostsResponse,
     MeetingCostResponse,
     PerUserCostItem,
     PerUserCostResponse,
@@ -711,4 +716,254 @@ async def get_feature_cost_breakdown(
         features=features,
         period_days=days,
         total_cost=total_cost,
+    )
+
+
+# ==============================================================================
+# Cost Aggregations
+# ==============================================================================
+
+
+@router.get(
+    "/aggregations",
+    response_model=CostAggregationsResponse,
+    summary="Cost aggregations",
+    description="Get total/avg per meeting/avg per user breakdowns for each cost category.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get cost aggregations")
+async def get_cost_aggregations(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+    days: int = Query(30, ge=1, le=365, description="Number of days to include"),
+) -> CostAggregationsResponse:
+    """Get cost aggregations by category with per-meeting and per-user averages."""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get costs by provider (category)
+            cur.execute(
+                """
+                SELECT
+                    provider,
+                    COALESCE(SUM(total_cost), 0) as total_cost,
+                    COUNT(DISTINCT session_id) as session_count
+                FROM api_costs
+                WHERE created_at >= %s AND created_at < %s + INTERVAL '1 day'
+                GROUP BY provider
+                ORDER BY total_cost DESC
+                """,
+                (start_date, end_date),
+            )
+            provider_rows = cur.fetchall()
+
+            # Get unique session count for the period
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT session_id) as session_count
+                FROM api_costs
+                WHERE created_at >= %s AND created_at < %s + INTERVAL '1 day'
+                  AND session_id IS NOT NULL
+                """,
+                (start_date, end_date),
+            )
+            total_sessions = cur.fetchone()["session_count"]
+
+            # Get paying users count
+            cur.execute(
+                """
+                SELECT COUNT(*) as count
+                FROM users
+                WHERE subscription_tier IN ('starter', 'pro', 'enterprise')
+                """
+            )
+            paying_users = cur.fetchone()["count"]
+
+    # Build category aggregations
+    categories: list[CategoryCostAggregation] = []
+    total_cost = 0.0
+
+    for row in provider_rows:
+        cost = float(row["total_cost"])
+        session_count = row["session_count"] or 0
+        total_cost += cost
+
+        categories.append(
+            CategoryCostAggregation(
+                category=row["provider"],
+                total_cost=cost,
+                avg_per_session=cost / session_count if session_count > 0 else None,
+                avg_per_user=cost / paying_users if paying_users > 0 else None,
+                session_count=session_count,
+                user_count=paying_users,
+            )
+        )
+
+    # Build overall aggregation
+    overall = CategoryCostAggregation(
+        category="total",
+        total_cost=total_cost,
+        avg_per_session=total_cost / total_sessions if total_sessions > 0 else None,
+        avg_per_user=total_cost / paying_users if paying_users > 0 else None,
+        session_count=total_sessions,
+        user_count=paying_users,
+    )
+
+    return CostAggregationsResponse(
+        categories=categories,
+        overall=overall,
+        period_start=start_date.isoformat(),
+        period_end=end_date.isoformat(),
+    )
+
+
+# ==============================================================================
+# Paying Users Count
+# ==============================================================================
+
+
+@router.get(
+    "/paying-users-count",
+    summary="Count paying users",
+    description="Get count of users with paid subscription tiers (starter, pro, enterprise).",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get paying users count")
+async def get_paying_users_count(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+) -> dict:
+    """Get count of paying users."""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) as count
+                FROM users
+                WHERE subscription_tier IN ('starter', 'pro', 'enterprise')
+                """
+            )
+            row = cur.fetchone()
+
+    return {"paying_users_count": row["count"] if row else 0}
+
+
+# ==============================================================================
+# Internal Costs (Non-User)
+# ==============================================================================
+
+
+@router.get(
+    "/internal",
+    response_model=InternalCostsResponse,
+    summary="Internal costs",
+    description="Get costs for internal operations (SEO, system jobs) separate from user costs.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get internal costs")
+async def get_internal_costs(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+) -> InternalCostsResponse:
+    """Get costs for internal (non-user) operations."""
+    today = date.today()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get SEO costs breakdown by prompt_type
+            cur.execute(
+                """
+                SELECT
+                    provider,
+                    metadata->>'prompt_type' as prompt_type,
+                    COALESCE(SUM(total_cost), 0) as total_cost,
+                    COUNT(*) as request_count,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens
+                FROM api_costs
+                WHERE cost_category = 'internal_seo'
+                GROUP BY provider, metadata->>'prompt_type'
+                ORDER BY total_cost DESC
+                """
+            )
+            seo_rows = cur.fetchall()
+
+            # Get system costs breakdown
+            cur.execute(
+                """
+                SELECT
+                    provider,
+                    metadata->>'prompt_type' as prompt_type,
+                    COALESCE(SUM(total_cost), 0) as total_cost,
+                    COUNT(*) as request_count,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens
+                FROM api_costs
+                WHERE cost_category = 'internal_system'
+                GROUP BY provider, metadata->>'prompt_type'
+                ORDER BY total_cost DESC
+                """
+            )
+            system_rows = cur.fetchall()
+
+            # Get period breakdown for all internal costs
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN created_at >= %s THEN total_cost ELSE 0 END), 0) as today,
+                    COALESCE(SUM(CASE WHEN created_at >= %s THEN total_cost ELSE 0 END), 0) as week,
+                    COALESCE(SUM(CASE WHEN created_at >= %s THEN total_cost ELSE 0 END), 0) as month,
+                    COALESCE(SUM(total_cost), 0) as all_time,
+                    COUNT(*) as total_requests
+                FROM api_costs
+                WHERE cost_category IN ('internal_seo', 'internal_system')
+                """,
+                (today, week_ago, month_ago),
+            )
+            period_row = cur.fetchone()
+
+    seo = [
+        InternalCostItem(
+            provider=r["provider"],
+            prompt_type=r["prompt_type"],
+            total_cost=float(r["total_cost"]),
+            request_count=r["request_count"],
+            input_tokens=r["input_tokens"],
+            output_tokens=r["output_tokens"],
+        )
+        for r in seo_rows
+    ]
+
+    system = [
+        InternalCostItem(
+            provider=r["provider"],
+            prompt_type=r["prompt_type"],
+            total_cost=float(r["total_cost"]),
+            request_count=r["request_count"],
+            input_tokens=r["input_tokens"],
+            output_tokens=r["output_tokens"],
+        )
+        for r in system_rows
+    ]
+
+    by_period = InternalCostsByPeriod(
+        today=float(period_row["today"]),
+        week=float(period_row["week"]),
+        month=float(period_row["month"]),
+        all_time=float(period_row["all_time"]),
+    )
+
+    total_cost = sum(item.total_cost for item in seo) + sum(item.total_cost for item in system)
+    total_requests = period_row["total_requests"] if period_row else 0
+
+    return InternalCostsResponse(
+        seo=seo,
+        system=system,
+        by_period=by_period,
+        total_usd=total_cost,
+        total_requests=total_requests,
     )

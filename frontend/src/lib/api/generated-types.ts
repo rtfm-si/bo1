@@ -483,6 +483,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/costs/aggregations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost aggregations
+         * @description Get total/avg per meeting/avg per user breakdowns for each cost category.
+         */
+        get: operations["get_cost_aggregations_api_admin_costs_aggregations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/costs/by-meeting/{session_id}": {
         parameters: {
             query?: never;
@@ -671,6 +691,46 @@ export interface paths {
         patch: operations["update_fixed_cost_api_admin_costs_fixed__cost_id__patch"];
         trace?: never;
     };
+    "/api/admin/costs/internal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Internal costs
+         * @description Get costs for internal operations (SEO, system jobs) separate from user costs.
+         */
+        get: operations["get_internal_costs_api_admin_costs_internal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/paying-users-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count paying users
+         * @description Get count of users with paid subscription tiers (starter, pro, enterprise).
+         */
+        get: operations["get_paying_users_count_api_admin_costs_paying_users_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/costs/per-user": {
         parameters: {
             query?: never;
@@ -739,6 +799,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/drilldown/cache-effectiveness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cache effectiveness drill-down
+         * @description Group sessions by cache hit rate buckets with cost analysis.
+         */
+        get: operations["get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/drilldown/costs": {
         parameters: {
             query?: never;
@@ -751,6 +831,86 @@ export interface paths {
          * @description Get paginated list of cost records within the specified time period.
          */
         get: operations["get_costs_drilldown_api_admin_drilldown_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/feature-efficiency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feature efficiency drill-down
+         * @description Analyze cost and cache effectiveness by feature.
+         */
+        get: operations["get_feature_efficiency_api_admin_drilldown_feature_efficiency_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/model-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model impact drill-down
+         * @description Analyze cost impact by model tier with what-if scenarios.
+         */
+        get: operations["get_model_impact_api_admin_drilldown_model_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/quality-indicators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quality correlation indicators
+         * @description Analyze correlation between cache hits and user behavior quality signals.
+         */
+        get: operations["get_quality_indicators_api_admin_drilldown_quality_indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/tuning-recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cache tuning recommendations
+         * @description Get AI-generated recommendations for cache and model optimization.
+         */
+        get: operations["get_tuning_recommendations_api_admin_drilldown_tuning_recommendations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -899,6 +1059,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List experiments
+         * @description Get all experiments, optionally filtered by status.
+         */
+        get: operations["list_experiments_api_admin_experiments_get"];
+        put?: never;
+        /**
+         * Create experiment
+         * @description Create a new experiment in draft status.
+         */
+        post: operations["create_experiment_api_admin_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/experiments/persona-count": {
         parameters: {
             query?: never;
@@ -917,6 +1101,114 @@ export interface paths {
          *         - Completion rates
          */
         get: operations["get_persona_count_experiment_api_admin_experiments_persona_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get experiment
+         * @description Get experiment details by ID.
+         */
+        get: operations["get_experiment_api_admin_experiments__experiment_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete experiment
+         * @description Delete experiment (draft status only).
+         */
+        delete: operations["delete_experiment_api_admin_experiments__experiment_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update experiment
+         * @description Update experiment (draft status only).
+         */
+        patch: operations["update_experiment_api_admin_experiments__experiment_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/conclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclude experiment
+         * @description Conclude an experiment (terminal state).
+         */
+        post: operations["conclude_experiment_api_admin_experiments__experiment_id__conclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause experiment
+         * @description Pause a running experiment.
+         */
+        post: operations["pause_experiment_api_admin_experiments__experiment_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start experiment
+         * @description Start a draft or paused experiment.
+         */
+        post: operations["start_experiment_api_admin_experiments__experiment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_name}/variant/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user variant
+         * @description Get the variant a user is assigned to in an experiment.
+         */
+        get: operations["get_user_variant_api_admin_experiments__experiment_name__variant__user_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1630,6 +1922,105 @@ export interface paths {
         patch: operations["update_pattern_api_admin_ops_patterns__pattern_id__patch"];
         trace?: never;
     };
+    "/api/admin/ops/performance-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Metrics
+         * @description Get current performance metrics summary.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         window_minutes: Time window for stats (default 30)
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_metrics_api_admin_ops_performance_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Thresholds
+         * @description Get all performance threshold configurations.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_thresholds_api_admin_ops_performance_thresholds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-thresholds/{metric_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Performance Threshold
+         * @description Update a performance threshold configuration.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         metric_name: Name of the metric to update
+         *         body: Threshold values to update
+         *         _user: Current authenticated admin user
+         */
+        put: operations["update_performance_threshold_api_admin_ops_performance_thresholds__metric_name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Trends
+         * @description Get performance trend analysis with degradation detection.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_trends_api_admin_ops_performance_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ops/remediations": {
         parameters: {
             query?: never;
@@ -2052,6 +2443,34 @@ export interface paths {
          *     - Top articles by signup conversion rate (min 10 views)
          */
         get: operations["get_admin_seo_analytics_api_admin_seo_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/seo/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blog Performance
+         * @description Get blog post performance metrics with generation costs.
+         *
+         *     Returns published blog posts with:
+         *     - View and click counts
+         *     - CTR percentage
+         *     - Generation cost (from api_costs with cost_category='internal_seo')
+         *     - Cost per view and cost per click (ROI metrics)
+         *
+         *     Sorted by the specified metric (default: views descending).
+         */
+        get: operations["get_blog_performance_api_admin_seo_performance_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4099,6 +4518,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/blog/posts/{slug}/click": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track blog post CTA click
+         * @description Increment click-through counter when user clicks CTA. Rate limited per IP.
+         */
+        post: operations["track_click_api_v1_blog_posts__slug__click_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/blog/posts/{slug}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track blog post view
+         * @description Increment view counter for a published blog post. Rate limited per IP.
+         */
+        post: operations["track_view_api_v1_blog_posts__slug__view_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/business-metrics": {
         parameters: {
             query?: never;
@@ -4634,6 +5093,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/heatmap-depth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get heatmap history depth
+         * @description Returns user's preferred activity heatmap history depth. Defaults to 3 months.
+         */
+        get: operations["get_heatmap_depth_api_v1_context_heatmap_depth_get"];
+        /**
+         * Update heatmap history depth
+         * @description Update user's preferred activity heatmap history depth (1, 3, or 6 months).
+         */
+        put: operations["update_heatmap_depth_api_v1_context_heatmap_depth_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/insights": {
         parameters: {
             query?: never;
@@ -4972,6 +5455,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/research-embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get research embeddings for visualization
+         * @description Returns user's research topics as 2D coordinates for scatter plot visualization.
+         */
+        get: operations["get_research_embeddings_api_v1_context_research_embeddings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/stale-metrics": {
         parameters: {
             query?: never;
@@ -5249,6 +5752,30 @@ export interface paths {
          */
         get: operations["get_context_with_trends_api_v1_context_with_trends_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/working-pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get working pattern
+         * @description Returns user's working days pattern for activity visualization. Defaults to Mon-Fri.
+         */
+        get: operations["get_working_pattern_api_v1_context_working_pattern_get"];
+        /**
+         * Update working pattern
+         * @description Update user's working days pattern. Used to grey out non-working days in ActivityHeatmap.
+         */
+        put: operations["update_working_pattern_api_v1_context_working_pattern_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -11565,6 +12092,41 @@ export interface components {
             title: string;
         };
         /**
+         * BlogPerformanceResponse
+         * @description Blog post performance analytics response.
+         */
+        BlogPerformanceResponse: {
+            /**
+             * Overall Ctr
+             * @description Overall CTR percentage
+             * @default 0
+             */
+            overall_ctr: number;
+            /**
+             * Posts
+             * @description Blog posts with performance metrics
+             */
+            posts?: components["schemas"]["BlogPostPerformance"][];
+            /**
+             * Total Clicks
+             * @description Total clicks across all posts
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Cost
+             * @description Total generation cost in GBP
+             * @default 0
+             */
+            total_cost: number;
+            /**
+             * Total Views
+             * @description Total views across all posts
+             * @default 0
+             */
+            total_views: number;
+        };
+        /**
          * BlogPostCreate
          * @description Request model for creating a blog post.
          *
@@ -11636,6 +12198,73 @@ export interface components {
              * @description Total count
              */
             total: number;
+        };
+        /**
+         * BlogPostPerformance
+         * @description Blog post with CTR and cost metrics.
+         */
+        BlogPostPerformance: {
+            /**
+             * Click Through Count
+             * @description Total CTA clicks
+             * @default 0
+             */
+            click_through_count: number;
+            /**
+             * Cost Per Click
+             * @description Cost per click in GBP
+             * @default 0
+             */
+            cost_per_click: number;
+            /**
+             * Cost Per View
+             * @description Cost per view in GBP
+             * @default 0
+             */
+            cost_per_view: number;
+            /**
+             * Ctr Percent
+             * @description Click-through rate percentage
+             * @default 0
+             */
+            ctr_percent: number;
+            /**
+             * Generation Cost
+             * @description LLM generation cost in GBP
+             * @default 0
+             */
+            generation_cost: number;
+            /**
+             * Id
+             * @description Post UUID
+             */
+            id: string;
+            /**
+             * Last Viewed At
+             * @description Last view timestamp
+             */
+            last_viewed_at?: string | null;
+            /**
+             * Published At
+             * @description Publication date
+             */
+            published_at?: string | null;
+            /**
+             * Slug
+             * @description URL slug
+             */
+            slug: string;
+            /**
+             * Title
+             * @description Post title
+             */
+            title: string;
+            /**
+             * View Count
+             * @description Total views
+             * @default 0
+             */
+            view_count: number;
         };
         /**
          * BlogPostResponse
@@ -12059,6 +12688,112 @@ export interface components {
          */
         BusinessStage: "idea" | "early" | "growing" | "scaling";
         /**
+         * CacheEffectivenessBucket
+         * @description Cache effectiveness bucket for drill-down.
+         *
+         *     Attributes:
+         *         bucket_label: Human-readable bucket name (e.g., "0-25%", "25-50%")
+         *         bucket_min: Minimum hit rate in bucket (0.0-1.0)
+         *         bucket_max: Maximum hit rate in bucket (0.0-1.0)
+         *         session_count: Number of sessions in this bucket
+         *         avg_cost: Average cost per session (USD)
+         *         total_cost: Total cost for sessions in bucket (USD)
+         *         total_saved: Total cost saved via cache (USD)
+         *         avg_optimization_savings: Average optimization savings per session (USD)
+         */
+        CacheEffectivenessBucket: {
+            /**
+             * Avg Cost
+             * @description Average cost per session (USD)
+             */
+            avg_cost: number;
+            /**
+             * Avg Optimization Savings
+             * @description Avg savings per session (USD)
+             */
+            avg_optimization_savings: number;
+            /**
+             * Bucket Label
+             * @description Bucket label (e.g., '0-25%')
+             */
+            bucket_label: string;
+            /**
+             * Bucket Max
+             * @description Max hit rate in bucket
+             */
+            bucket_max: number;
+            /**
+             * Bucket Min
+             * @description Min hit rate in bucket
+             */
+            bucket_min: number;
+            /**
+             * Session Count
+             * @description Number of sessions in bucket
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost for bucket (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Saved
+             * @description Total cost saved (USD)
+             */
+            total_saved: number;
+        };
+        /**
+         * CacheEffectivenessResponse
+         * @description Response model for cache effectiveness drill-down.
+         *
+         *     Attributes:
+         *         buckets: List of cache hit rate buckets with stats
+         *         overall_hit_rate: Overall cache hit rate (0.0-1.0)
+         *         total_sessions: Total sessions analyzed
+         *         total_cost: Total cost across all sessions (USD)
+         *         total_saved: Total cost saved across all sessions (USD)
+         *         period: Time period filter applied
+         *         min_sample_warning: Warning if sample size is low
+         */
+        CacheEffectivenessResponse: {
+            /**
+             * Buckets
+             * @description Hit rate buckets
+             */
+            buckets: components["schemas"]["CacheEffectivenessBucket"][];
+            /**
+             * Min Sample Warning
+             * @description Warning if sample size is low
+             */
+            min_sample_warning?: string | null;
+            /**
+             * Overall Hit Rate
+             * @description Overall cache hit rate (0.0-1.0)
+             */
+            overall_hit_rate: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Saved
+             * @description Total cost saved (USD)
+             */
+            total_saved: number;
+            /**
+             * Total Sessions
+             * @description Total sessions analyzed
+             */
+            total_sessions: number;
+        };
+        /**
          * CacheMetricsResponse
          * @description Response model for detailed research cache metrics.
          *
@@ -12240,6 +12975,50 @@ export interface components {
              * @description List of categories with counts
              */
             categories: components["schemas"]["CategoryCount"][];
+        };
+        /**
+         * CategoryCostAggregation
+         * @description Cost aggregation for a single category.
+         *
+         *     Attributes:
+         *         category: Category name (llm, research, embeddings, etc.)
+         *         total_cost: Total cost in USD
+         *         avg_per_session: Average cost per session (None if no sessions)
+         *         avg_per_user: Average cost per paying user (None if no paying users)
+         *         session_count: Number of sessions in the period
+         *         user_count: Number of paying users
+         */
+        CategoryCostAggregation: {
+            /**
+             * Avg Per Session
+             * @description Average cost per session
+             */
+            avg_per_session?: number | null;
+            /**
+             * Avg Per User
+             * @description Average cost per paying user
+             */
+            avg_per_user?: number | null;
+            /**
+             * Category
+             * @description Category name
+             */
+            category: string;
+            /**
+             * Session Count
+             * @description Number of sessions in period
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost in USD
+             */
+            total_cost: number;
+            /**
+             * User Count
+             * @description Number of paying users
+             */
+            user_count: number;
         };
         /**
          * CategoryCount
@@ -14048,6 +14827,37 @@ export interface components {
             method: string;
         };
         /**
+         * CostAggregationsResponse
+         * @description Response model for cost aggregations endpoint.
+         *
+         *     Provides per-category cost breakdowns with per-meeting and per-user averages.
+         *
+         *     Attributes:
+         *         categories: List of per-category aggregations
+         *         overall: Overall aggregation across all categories
+         *         period_start: Start of the period (ISO 8601)
+         *         period_end: End of the period (ISO 8601)
+         */
+        CostAggregationsResponse: {
+            /**
+             * Categories
+             * @description Per-category cost aggregations
+             */
+            categories: components["schemas"]["CategoryCostAggregation"][];
+            /** @description Overall aggregation */
+            overall: components["schemas"]["CategoryCostAggregation"];
+            /**
+             * Period End
+             * @description Period end date (ISO 8601)
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * @description Period start date (ISO 8601)
+             */
+            period_start: string;
+        };
+        /**
          * CostCalculatorDefaults
          * @description User defaults for meeting cost calculator widget.
          */
@@ -15081,6 +15891,28 @@ export interface components {
             user_id: string;
         };
         /**
+         * DegradationInfo
+         * @description Degradation info for a metric.
+         */
+        DegradationInfo: {
+            /** Baseline Avg */
+            baseline_avg: number;
+            /** Current Avg */
+            current_avg: number;
+            /** Degradation Score */
+            degradation_score: number;
+            /** Details */
+            details: string;
+            /** Is Degraded */
+            is_degraded: boolean;
+            /** Metric Name */
+            metric_name: string;
+            /** Ratio */
+            ratio: number;
+            /** Severity */
+            severity: string;
+        };
+        /**
          * DeleteOverrideRequest
          * @description Request to delete a user override.
          */
@@ -15752,8 +16584,15 @@ export interface components {
             fix_count: number;
             /** Id */
             id: number;
+            /** Last Match At */
+            last_match_at?: string | null;
             /** Last Remediation */
             last_remediation?: string | null;
+            /**
+             * Match Count
+             * @default 0
+             */
+            match_count: number;
             /** Pattern Name */
             pattern_name: string;
             /** Pattern Regex */
@@ -15922,6 +16761,57 @@ export interface components {
             threshold_warning: number;
         };
         /**
+         * ExperimentCreate
+         * @description Request to create an experiment.
+         */
+        ExperimentCreate: {
+            /**
+             * Description
+             * @description Experiment description
+             */
+            description?: string | null;
+            /**
+             * Metrics
+             * @description Metrics to track
+             * @example [
+             *       "conversion_rate",
+             *       "time_to_decision"
+             *     ]
+             */
+            metrics?: string[] | null;
+            /**
+             * Name
+             * @description Unique experiment name
+             * @example persona_count_test
+             */
+            name: string;
+            /**
+             * Variants
+             * @description Variants (default: control/treatment 50/50)
+             * @example [
+             *       {
+             *         "name": "control",
+             *         "weight": 50
+             *       },
+             *       {
+             *         "name": "treatment",
+             *         "weight": 50
+             *       }
+             *     ]
+             */
+            variants?: components["schemas"]["VariantModel"][] | null;
+        };
+        /**
+         * ExperimentListResponse
+         * @description List of experiments.
+         */
+        ExperimentListResponse: {
+            /** Experiments */
+            experiments: components["schemas"]["ExperimentResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * ExperimentMetricsResponse
          * @description Response model for A/B experiment metrics.
          *
@@ -15958,6 +16848,83 @@ export interface components {
              * @description Per-variant stats
              */
             variants: components["schemas"]["ExperimentVariantStats"][];
+        };
+        /**
+         * ExperimentResponse
+         * @description Experiment response.
+         */
+        ExperimentResponse: {
+            /**
+             * Created At
+             * @description Created timestamp (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Description
+             * @description Description
+             */
+            description?: string | null;
+            /**
+             * End Date
+             * @description When experiment concluded (ISO 8601)
+             */
+            end_date?: string | null;
+            /**
+             * Id
+             * @description Experiment UUID
+             */
+            id: string;
+            /**
+             * Metrics
+             * @description Metrics to track
+             */
+            metrics: string[];
+            /**
+             * Name
+             * @description Experiment name
+             */
+            name: string;
+            /**
+             * Start Date
+             * @description When experiment started (ISO 8601)
+             */
+            start_date?: string | null;
+            /**
+             * Status
+             * @description Status: draft, running, paused, concluded
+             */
+            status: string;
+            /**
+             * Updated At
+             * @description Updated timestamp (ISO 8601)
+             */
+            updated_at: string;
+            /**
+             * Variants
+             * @description Variants
+             */
+            variants: components["schemas"]["VariantModel"][];
+        };
+        /**
+         * ExperimentUpdate
+         * @description Request to update an experiment (draft only).
+         */
+        ExperimentUpdate: {
+            /**
+             * Description
+             * @description New description
+             */
+            description?: string | null;
+            /**
+             * Metrics
+             * @description New metrics
+             */
+            metrics?: string[] | null;
+            /**
+             * Variants
+             * @description New variants
+             */
+            variants?: components["schemas"]["VariantModel"][] | null;
         };
         /**
          * ExperimentVariantStats
@@ -16203,6 +17170,88 @@ export interface components {
              * @description Total cost across all features (USD)
              */
             total_cost: number;
+        };
+        /**
+         * FeatureEfficiencyItem
+         * @description Feature efficiency stats for a single feature.
+         *
+         *     Attributes:
+         *         feature: Feature name
+         *         request_count: Number of API requests
+         *         total_cost: Total cost (USD)
+         *         avg_cost: Average cost per request (USD)
+         *         cache_hit_rate: Cache hit rate for this feature (0.0-1.0)
+         *         unique_sessions: Number of unique sessions using feature
+         *         cost_per_session: Average cost per session using feature (USD)
+         */
+        FeatureEfficiencyItem: {
+            /**
+             * Avg Cost
+             * @description Avg cost per request (USD)
+             */
+            avg_cost: number;
+            /**
+             * Cache Hit Rate
+             * @description Cache hit rate (0.0-1.0)
+             */
+            cache_hit_rate: number;
+            /**
+             * Cost Per Session
+             * @description Avg cost per session (USD)
+             */
+            cost_per_session: number;
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * Request Count
+             * @description Number of API requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Unique Sessions
+             * @description Unique sessions using feature
+             */
+            unique_sessions: number;
+        };
+        /**
+         * FeatureEfficiencyResponse
+         * @description Response model for feature efficiency drill-down.
+         *
+         *     Attributes:
+         *         features: List of per-feature stats
+         *         total_cost: Total cost across all features (USD)
+         *         total_requests: Total API requests
+         *         period: Time period filter applied
+         */
+        FeatureEfficiencyResponse: {
+            /**
+             * Features
+             * @description Per-feature stats
+             */
+            features: components["schemas"]["FeatureEfficiencyItem"][];
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Requests
+             * @description Total API requests
+             */
+            total_requests: number;
         };
         /**
          * FeatureFlagItem
@@ -17217,6 +18266,51 @@ export interface components {
             timestamp: string;
         };
         /**
+         * HeatmapHistoryDepth
+         * @description User's preferred activity heatmap history depth.
+         *
+         *     Controls how many months of history are shown in the ActivityHeatmap.
+         */
+        HeatmapHistoryDepth: {
+            /**
+             * History Months
+             * @description History depth in months: 1, 3, or 6. Default: 3
+             * @default 3
+             * @enum {integer}
+             */
+            history_months: 1 | 3 | 6;
+        };
+        /**
+         * HeatmapHistoryDepthResponse
+         * @description Response for heatmap history depth endpoint.
+         */
+        HeatmapHistoryDepthResponse: {
+            /** @description User's heatmap history depth preference (defaults to 3 months) */
+            depth?: components["schemas"]["HeatmapHistoryDepth"];
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * HeatmapHistoryDepthUpdate
+         * @description Request to update heatmap history depth.
+         */
+        HeatmapHistoryDepthUpdate: {
+            /**
+             * History Months
+             * @description History depth in months: 1, 3, or 6
+             * @enum {integer}
+             */
+            history_months: 1 | 3 | 6;
+        };
+        /**
          * HeavyUserItem
          * @description A user identified as heavy user for a feature.
          *
@@ -17797,6 +18891,123 @@ export interface components {
              * @default 0
              */
             total_count: number;
+        };
+        /**
+         * InternalCostItem
+         * @description Single internal cost entry.
+         *
+         *     Attributes:
+         *         provider: Provider name
+         *         prompt_type: Type of prompt (blog_generation, blog_outline, etc.)
+         *         total_cost: Total cost in USD
+         *         request_count: Number of API calls
+         *         input_tokens: Total input tokens
+         *         output_tokens: Total output tokens
+         */
+        InternalCostItem: {
+            /**
+             * Input Tokens
+             * @description Total input tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @description Total output tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Prompt Type
+             * @description Prompt type
+             */
+            prompt_type?: string | null;
+            /**
+             * Provider
+             * @description Provider name
+             */
+            provider: string;
+            /**
+             * Request Count
+             * @description Number of requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost in USD
+             */
+            total_cost: number;
+        };
+        /**
+         * InternalCostsByPeriod
+         * @description Internal costs aggregated by time period.
+         *
+         *     Attributes:
+         *         today: Costs from today
+         *         week: Costs from last 7 days
+         *         month: Costs from last 30 days
+         *         all_time: All-time costs
+         */
+        InternalCostsByPeriod: {
+            /**
+             * All Time
+             * @description All-time cost (USD)
+             * @default 0
+             */
+            all_time: number;
+            /**
+             * Month
+             * @description Cost this month (USD)
+             * @default 0
+             */
+            month: number;
+            /**
+             * Today
+             * @description Cost today (USD)
+             * @default 0
+             */
+            today: number;
+            /**
+             * Week
+             * @description Cost this week (USD)
+             * @default 0
+             */
+            week: number;
+        };
+        /**
+         * InternalCostsResponse
+         * @description Response model for internal costs endpoint.
+         *
+         *     Attributes:
+         *         seo: SEO-related internal costs breakdown
+         *         system: System/background job costs breakdown
+         *         by_period: Costs aggregated by time period
+         *         total_usd: Total internal costs
+         *         total_requests: Total number of API requests
+         */
+        InternalCostsResponse: {
+            /** @description Costs by period */
+            by_period: components["schemas"]["InternalCostsByPeriod"];
+            /**
+             * Seo
+             * @description SEO costs breakdown
+             */
+            seo: components["schemas"]["InternalCostItem"][];
+            /**
+             * System
+             * @description System costs breakdown
+             */
+            system: components["schemas"]["InternalCostItem"][];
+            /**
+             * Total Requests
+             * @description Total number of requests
+             */
+            total_requests: number;
+            /**
+             * Total Usd
+             * @description Total internal costs (USD)
+             */
+            total_usd: number;
         };
         /**
          * InternalErrorResponse
@@ -19131,6 +20342,30 @@ export interface components {
          */
         MetricSourceCategory: "user" | "competitor" | "industry";
         /**
+         * MetricStatResponse
+         * @description Statistics for a single metric.
+         */
+        MetricStatResponse: {
+            /** Avg */
+            avg: number;
+            /** Count */
+            count: number;
+            /** Max Val */
+            max_val: number;
+            /** Metric Name */
+            metric_name: string;
+            /** Min Val */
+            min_val: number;
+            /** P50 */
+            p50: number;
+            /** P95 */
+            p95: number;
+            /** P99 */
+            p99: number;
+            /** Window Minutes */
+            window_minutes: number;
+        };
+        /**
          * MetricTemplate
          * @description Predefined metric template.
          */
@@ -19227,6 +20462,106 @@ export interface components {
              * @description Unfilled template metrics
              */
             templates: components["schemas"]["MetricTemplate"][];
+        };
+        /**
+         * ModelImpactItem
+         * @description Model impact stats for a single model.
+         *
+         *     Attributes:
+         *         model_name: Normalized model name
+         *         model_display: Display-friendly model name
+         *         request_count: Number of API requests
+         *         total_cost: Total cost (USD)
+         *         avg_cost_per_request: Average cost per request (USD)
+         *         cache_hit_rate: Cache hit rate for this model (0.0-1.0)
+         *         total_tokens: Total tokens used
+         */
+        ModelImpactItem: {
+            /**
+             * Avg Cost Per Request
+             * @description Avg cost per request (USD)
+             */
+            avg_cost_per_request: number;
+            /**
+             * Cache Hit Rate
+             * @description Cache hit rate (0.0-1.0)
+             */
+            cache_hit_rate: number;
+            /**
+             * Model Display
+             * @description Display-friendly model name
+             */
+            model_display: string;
+            /**
+             * Model Name
+             * @description Normalized model name
+             */
+            model_name: string;
+            /**
+             * Request Count
+             * @description Number of API requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Tokens
+             * @description Total tokens used
+             */
+            total_tokens: number;
+        };
+        /**
+         * ModelImpactResponse
+         * @description Response model for model impact drill-down.
+         *
+         *     Attributes:
+         *         models: List of per-model stats
+         *         total_cost: Total cost across all models (USD)
+         *         total_requests: Total API requests
+         *         cost_if_all_opus: Hypothetical cost if all were Opus
+         *         cost_if_all_haiku: Hypothetical cost if all were Haiku
+         *         savings_from_model_mix: Actual savings from using model mix
+         *         period: Time period filter applied
+         */
+        ModelImpactResponse: {
+            /**
+             * Cost If All Haiku
+             * @description Hypothetical cost if all Haiku (USD)
+             */
+            cost_if_all_haiku: number;
+            /**
+             * Cost If All Opus
+             * @description Hypothetical cost if all Opus (USD)
+             */
+            cost_if_all_opus: number;
+            /**
+             * Models
+             * @description Per-model stats
+             */
+            models: components["schemas"]["ModelImpactItem"][];
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Savings From Model Mix
+             * @description Savings from model mix (USD)
+             */
+            savings_from_model_mix: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Requests
+             * @description Total API requests
+             */
+            total_requests: number;
         };
         /**
          * MultiConsentRequest
@@ -19893,6 +21228,38 @@ export interface components {
             total_users: number;
             /** Users */
             users: components["schemas"]["PerUserCostItem"][];
+        };
+        /**
+         * PerformanceMetricsResponse
+         * @description Current performance metrics summary.
+         */
+        PerformanceMetricsResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Metrics */
+            metrics: components["schemas"]["MetricStatResponse"][];
+        };
+        /**
+         * PerformanceTrendsResponse
+         * @description 24-hour performance trend data.
+         */
+        PerformanceTrendsResponse: {
+            /** Critical Count */
+            critical_count: number;
+            /** Degraded Count */
+            degraded_count: number;
+            /** Metrics */
+            metrics: components["schemas"]["DegradationInfo"][];
+            /** Overall Health */
+            overall_health: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
         };
         /**
          * PersistenceHealthResponse
@@ -20870,6 +22237,62 @@ export interface components {
             timestamp: string;
         };
         /**
+         * QualityIndicatorsResponse
+         * @description Response model for quality correlation indicators.
+         *
+         *     Attributes:
+         *         overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)
+         *         session_continuation_rate: Rate of session continuation after response (0.0-1.0)
+         *         correlation_score: Correlation between cache hit and continuation (-1.0 to 1.0)
+         *         sample_size: Number of sessions in analysis
+         *         cached_continuation_rate: Continuation rate for cached responses (0.0-1.0)
+         *         uncached_continuation_rate: Continuation rate for uncached responses (0.0-1.0)
+         *         quality_assessment: Human-readable quality assessment
+         *         period: Time period filter applied
+         */
+        QualityIndicatorsResponse: {
+            /**
+             * Cached Continuation Rate
+             * @description Continuation for cached
+             */
+            cached_continuation_rate?: number | null;
+            /**
+             * Correlation Score
+             * @description Cache-continuation correlation
+             */
+            correlation_score?: number | null;
+            /**
+             * Overall Cache Hit Rate
+             * @description Overall cache hit rate
+             */
+            overall_cache_hit_rate: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Quality Assessment
+             * @description Human-readable assessment
+             */
+            quality_assessment: string;
+            /**
+             * Sample Size
+             * @description Sessions analyzed
+             */
+            sample_size: number;
+            /**
+             * Session Continuation Rate
+             * @description Session continuation rate
+             */
+            session_continuation_rate: number;
+            /**
+             * Uncached Continuation Rate
+             * @description Continuation for uncached
+             */
+            uncached_continuation_rate?: number | null;
+        };
+        /**
          * QueryResultResponse
          * @description Response model for query results.
          *
@@ -21628,6 +23051,22 @@ export interface components {
             total_cached_results: number;
         };
         /**
+         * ResearchCategory
+         * @description Category summary for legend display.
+         */
+        ResearchCategory: {
+            /**
+             * Count
+             * @description Number of research items in category
+             */
+            count: number;
+            /**
+             * Name
+             * @description Category name
+             */
+            name: string;
+        };
+        /**
          * ResearchCostItem
          * @description Cost data for a single research provider.
          *
@@ -21723,6 +23162,69 @@ export interface components {
              * @description Total research costs (USD)
              */
             total_usd: number;
+        };
+        /**
+         * ResearchEmbeddingsResponse
+         * @description Response containing user's research embeddings for visualization.
+         */
+        ResearchEmbeddingsResponse: {
+            /**
+             * Categories
+             * @description Category counts for legend
+             */
+            categories?: components["schemas"]["ResearchCategory"][];
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Points
+             * @description 2D coordinates with metadata for scatter plot
+             */
+            points?: components["schemas"]["ResearchPoint"][];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Total Count
+             * @description Total research items (may exceed points if > limit)
+             * @default 0
+             */
+            total_count: number;
+        };
+        /**
+         * ResearchPoint
+         * @description A single point in the research embeddings visualization.
+         */
+        ResearchPoint: {
+            /**
+             * Category
+             * @description Research category (e.g., 'saas_metrics')
+             */
+            category?: string | null;
+            /**
+             * Created At
+             * @description ISO datetime when research was created
+             */
+            created_at: string;
+            /**
+             * Preview
+             * @description First ~100 chars of question
+             */
+            preview: string;
+            /**
+             * X
+             * @description X coordinate (PCA reduced)
+             */
+            x: number;
+            /**
+             * Y
+             * @description Y coordinate (PCA reduced)
+             */
+            y: number;
         };
         /**
          * RetentionReminderSettingsResponse
@@ -23686,6 +25188,34 @@ export interface components {
             theme: string;
         };
         /**
+         * ThresholdListResponse
+         * @description List of all thresholds.
+         */
+        ThresholdListResponse: {
+            /** Thresholds */
+            thresholds: components["schemas"]["ThresholdResponse"][];
+        };
+        /**
+         * ThresholdResponse
+         * @description Performance threshold configuration.
+         */
+        ThresholdResponse: {
+            /** Critical Value */
+            critical_value: number;
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Metric Name */
+            metric_name: string;
+            /** Unit */
+            unit: string;
+            /** Warn Value */
+            warn_value: number;
+            /** Window Minutes */
+            window_minutes: number;
+        };
+        /**
          * TierLimitsResponse
          * @description Tier limits information.
          */
@@ -24240,6 +25770,76 @@ export interface components {
             trends?: components["schemas"]["MarketTrend"][];
         };
         /**
+         * TuningRecommendation
+         * @description Single tuning recommendation.
+         *
+         *     Attributes:
+         *         area: Area of recommendation (cache, model, feature)
+         *         current_value: Current setting or metric value
+         *         recommended_value: Recommended setting or target
+         *         impact_description: Description of expected impact
+         *         estimated_savings_usd: Estimated monthly savings (USD)
+         *         confidence: Confidence level (low, medium, high)
+         */
+        TuningRecommendation: {
+            /**
+             * Area
+             * @description Area: cache, model, or feature
+             */
+            area: string;
+            /**
+             * Confidence
+             * @description Confidence: low, medium, high
+             */
+            confidence: string;
+            /**
+             * Current Value
+             * @description Current setting or metric
+             */
+            current_value: string;
+            /**
+             * Estimated Savings Usd
+             * @description Estimated monthly savings
+             */
+            estimated_savings_usd?: number | null;
+            /**
+             * Impact Description
+             * @description Expected impact description
+             */
+            impact_description: string;
+            /**
+             * Recommended Value
+             * @description Recommended setting
+             */
+            recommended_value: string;
+        };
+        /**
+         * TuningRecommendationsResponse
+         * @description Response model for tuning recommendations endpoint.
+         *
+         *     Attributes:
+         *         recommendations: List of tuning recommendations
+         *         analysis_period_days: Days of data analyzed
+         *         data_quality: Quality of underlying data (sufficient, limited, insufficient)
+         */
+        TuningRecommendationsResponse: {
+            /**
+             * Analysis Period Days
+             * @description Days of data analyzed
+             */
+            analysis_period_days: number;
+            /**
+             * Data Quality
+             * @description Data quality: sufficient, limited, insufficient
+             */
+            data_quality: string;
+            /**
+             * Recommendations
+             * @description Recommendations
+             */
+            recommendations: components["schemas"]["TuningRecommendation"][];
+        };
+        /**
          * UnassignedCountResponse
          * @description Response model for unassigned actions count.
          *
@@ -24499,6 +26099,20 @@ export interface components {
              * @description Updated T&C content (markdown)
              */
             content: string;
+        };
+        /**
+         * UpdateThresholdRequest
+         * @description Request to update a threshold.
+         */
+        UpdateThresholdRequest: {
+            /** Critical Value */
+            critical_value?: number | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Warn Value */
+            warn_value?: number | null;
+            /** Window Minutes */
+            window_minutes?: number | null;
         };
         /**
          * UpdateUserRequest
@@ -25416,6 +27030,41 @@ export interface components {
             metrics?: components["schemas"]["ValueMetricResponse"][];
         };
         /**
+         * VariantAssignmentResponse
+         * @description Variant assignment response.
+         */
+        VariantAssignmentResponse: {
+            /** Experiment Name */
+            experiment_name: string;
+            /** User Id */
+            user_id: string;
+            /**
+             * Variant
+             * @description Assigned variant or null if not running
+             */
+            variant?: string | null;
+        };
+        /**
+         * VariantModel
+         * @description Experiment variant.
+         */
+        VariantModel: {
+            /**
+             * Name
+             * @description Variant name
+             * @example control
+             * @example treatment
+             */
+            name: string;
+            /**
+             * Weight
+             * @description Variant weight (0-100)
+             * @default 50
+             * @example 50
+             */
+            weight: number;
+        };
+        /**
          * VolatilityLevel
          * @description Metric volatility classification for refresh scheduling.
          * @enum {string}
@@ -25671,6 +27320,56 @@ export interface components {
              * @description Total count
              */
             total: number;
+        };
+        /**
+         * WorkingPattern
+         * @description User's regular working pattern for activity visualization.
+         *
+         *     Stores which days of the week the user typically works.
+         *     Non-working days are greyed out in ActivityHeatmap.
+         */
+        WorkingPattern: {
+            /**
+             * Working Days
+             * @description Working days as ISO weekday numbers (1=Mon, 7=Sun). Default: Mon-Fri
+             * @default [
+             *       1,
+             *       2,
+             *       3,
+             *       4,
+             *       5
+             *     ]
+             */
+            working_days: number[];
+        };
+        /**
+         * WorkingPatternResponse
+         * @description Response for working pattern endpoint.
+         */
+        WorkingPatternResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /** @description User's working pattern (defaults to Mon-Fri) */
+            pattern?: components["schemas"]["WorkingPattern"];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * WorkingPatternUpdate
+         * @description Request to update working pattern.
+         */
+        WorkingPatternUpdate: {
+            /**
+             * Working Days
+             * @description Working days as ISO weekday numbers (1=Mon, 7=Sun). At least one day required.
+             */
+            working_days: number[];
         };
         /**
          * WorkspaceBillingInfoResponse
@@ -27602,6 +29301,40 @@ export interface operations {
             };
         };
     };
+    get_cost_aggregations_api_admin_costs_aggregations_get: {
+        parameters: {
+            query?: {
+                /** @description Number of days to include */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostAggregationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_meeting_costs_api_admin_costs_by_meeting__session_id__get: {
         parameters: {
             query?: never;
@@ -27981,6 +29714,70 @@ export interface operations {
             };
         };
     };
+    get_internal_costs_api_admin_costs_internal_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalCostsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_paying_users_count_api_admin_costs_paying_users_count_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_per_user_costs_api_admin_costs_per_user_get: {
         parameters: {
             query?: {
@@ -28086,6 +29883,49 @@ export interface operations {
             };
         };
     };
+    get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cache effectiveness data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CacheEffectivenessResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_costs_drilldown_api_admin_drilldown_costs_get: {
         parameters: {
             query?: {
@@ -28124,6 +29964,175 @@ export interface operations {
             };
             /** @description Insufficient permissions */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_feature_efficiency_api_admin_drilldown_feature_efficiency_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature efficiency data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureEfficiencyResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_model_impact_api_admin_drilldown_model_impact_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Model impact data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelImpactResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quality_indicators_api_admin_drilldown_quality_indicators_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Quality indicators retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityIndicatorsResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tuning_recommendations_api_admin_drilldown_tuning_recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tuning recommendations retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningRecommendationsResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28527,6 +30536,75 @@ export interface operations {
             };
         };
     };
+    list_experiments_api_admin_experiments_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status */
+                status?: string | null;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_experiment_api_admin_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_persona_count_experiment_api_admin_experiments_persona_count_get: {
         parameters: {
             query?: never;
@@ -28563,6 +30641,244 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_experiment_api_admin_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_admin_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_experiment_api_admin_experiments__experiment_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    conclude_experiment_api_admin_experiments__experiment_id__conclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pause_experiment_api_admin_experiments__experiment_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_experiment_api_admin_experiments__experiment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_variant_api_admin_experiments__experiment_name__variant__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_name: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantAssignmentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -30174,6 +32490,140 @@ export interface operations {
             };
         };
     };
+    get_performance_metrics_api_admin_ops_performance_metrics_get: {
+        parameters: {
+            query?: {
+                window_minutes?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_thresholds_api_admin_ops_performance_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThresholdListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_performance_threshold_api_admin_ops_performance_thresholds__metric_name__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                metric_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateThresholdRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_trends_api_admin_ops_performance_trends_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceTrendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_remediations_api_admin_ops_remediations_get: {
         parameters: {
             query?: {
@@ -31172,6 +33622,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSeoAnalyticsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_blog_performance_api_admin_seo_performance_get: {
+        parameters: {
+            query?: {
+                /** @description Max posts to return */
+                limit?: number;
+                /** @description Sort by: views, ctr, cost_per_click, roi */
+                sort_by?: string;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlogPerformanceResponse"];
                 };
             };
             /** @description Validation Error */
@@ -35887,6 +38373,64 @@ export interface operations {
             };
         };
     };
+    track_click_api_v1_blog_posts__slug__click_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_view_api_v1_blog_posts__slug__view_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_metrics_api_v1_business_metrics_get: {
         parameters: {
             query?: {
@@ -36738,6 +39282,79 @@ export interface operations {
             };
         };
     };
+    get_heatmap_depth_api_v1_context_heatmap_depth_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    update_heatmap_depth_api_v1_context_heatmap_depth_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeatmapHistoryDepthUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
+                };
+            };
+            /** @description Invalid depth (must be 1, 3, or 6) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     get_insights_api_v1_context_insights_get: {
         parameters: {
             query?: never;
@@ -37281,6 +39898,37 @@ export interface operations {
             };
         };
     };
+    get_research_embeddings_api_v1_context_research_embeddings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchEmbeddingsResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     get_stale_metrics_api_v1_context_stale_metrics_get: {
         parameters: {
             query?: never;
@@ -37608,6 +40256,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContextWithTrends"];
+                };
+            };
+        };
+    };
+    get_working_pattern_api_v1_context_working_pattern_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPatternResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    update_working_pattern_api_v1_context_working_pattern_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkingPatternUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPatternResponse"];
+                };
+            };
+            /** @description Invalid days (must be 1-7) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

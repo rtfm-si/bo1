@@ -488,6 +488,8 @@ export interface ErrorPattern {
 	cooldown_minutes: number;
 	created_at: string;
 	recent_matches: number;
+	match_count: number; // Total matches (persisted in DB)
+	last_match_at: string | null;
 	fix_count: number;
 	last_remediation: string | null;
 }
@@ -587,6 +589,52 @@ export interface ExperimentMetricsResponse {
 	total_sessions: number;
 	period_start: string;
 	period_end: string;
+}
+
+// =============================================================================
+// Experiment Management Types
+// =============================================================================
+
+export interface ExperimentVariant {
+	name: string;
+	weight: number;
+}
+
+export interface Experiment {
+	id: string;
+	name: string;
+	description: string | null;
+	status: 'draft' | 'running' | 'paused' | 'concluded';
+	variants: ExperimentVariant[];
+	metrics: string[];
+	start_date: string | null;
+	end_date: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ExperimentListResponse {
+	experiments: Experiment[];
+	total: number;
+}
+
+export interface ExperimentCreate {
+	name: string;
+	description?: string;
+	variants?: ExperimentVariant[];
+	metrics?: string[];
+}
+
+export interface ExperimentUpdate {
+	description?: string;
+	variants?: ExperimentVariant[];
+	metrics?: string[];
+}
+
+export interface VariantAssignmentResponse {
+	experiment_name: string;
+	user_id: string;
+	variant: string | null;
 }
 
 // =============================================================================
@@ -1205,6 +1253,10 @@ class AdminApiClient {
 		return this.fetch<UnifiedCacheMetricsResponse>('/api/admin/costs/cache-metrics');
 	}
 
+	async getPayingUsersCount(): Promise<{ paying_users_count: number }> {
+		return this.fetch<{ paying_users_count: number }>('/api/admin/costs/paying-users-count');
+	}
+
 	// =========================================================================
 	// Email Stats
 	// =========================================================================
@@ -1220,6 +1272,15 @@ class AdminApiClient {
 	async getSeoAnalytics(topLimit: number = 10): Promise<AdminSeoAnalyticsResponse> {
 		return this.fetch<AdminSeoAnalyticsResponse>(
 			`/api/admin/seo/analytics?top_limit=${topLimit}`
+		);
+	}
+
+	async getBlogPerformance(
+		limit: number = 50,
+		sortBy: 'views' | 'ctr' | 'cost_per_click' | 'roi' = 'views'
+	): Promise<BlogPerformanceResponse> {
+		return this.fetch<BlogPerformanceResponse>(
+			`/api/admin/seo/performance?limit=${limit}&sort_by=${sortBy}`
 		);
 	}
 
@@ -1260,12 +1321,78 @@ class AdminApiClient {
 		return this.fetch<ResearchCostsResponse>('/api/admin/costs/research');
 	}
 
+	async getCostAggregations(days: number = 30): Promise<CostAggregationsResponse> {
+		return this.fetch<CostAggregationsResponse>(`/api/admin/costs/aggregations?days=${days}`);
+	}
+
 	// =========================================================================
-	// A/B Experiments
+	// A/B Experiments (Legacy Metrics)
 	// =========================================================================
 
 	async getPersonaCountExperiment(): Promise<ExperimentMetricsResponse> {
 		return this.fetch<ExperimentMetricsResponse>('/api/admin/experiments/persona-count');
+	}
+
+	// =========================================================================
+	// A/B Experiment Management
+	// =========================================================================
+
+	async listExperiments(status?: string): Promise<ExperimentListResponse> {
+		const searchParams = new URLSearchParams();
+		if (status) searchParams.set('status', status);
+		const query = searchParams.toString();
+		return this.fetch<ExperimentListResponse>(
+			`/api/admin/experiments${query ? `?${query}` : ''}`
+		);
+	}
+
+	async createExperiment(data: ExperimentCreate): Promise<Experiment> {
+		return this.fetch<Experiment>('/api/admin/experiments', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async getExperiment(experimentId: string): Promise<Experiment> {
+		return this.fetch<Experiment>(`/api/admin/experiments/${experimentId}`);
+	}
+
+	async updateExperiment(experimentId: string, data: ExperimentUpdate): Promise<Experiment> {
+		return this.fetch<Experiment>(`/api/admin/experiments/${experimentId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteExperiment(experimentId: string): Promise<{ status: string; id: string }> {
+		return this.fetch<{ status: string; id: string }>(
+			`/api/admin/experiments/${experimentId}`,
+			{ method: 'DELETE' }
+		);
+	}
+
+	async startExperiment(experimentId: string): Promise<Experiment> {
+		return this.fetch<Experiment>(`/api/admin/experiments/${experimentId}/start`, {
+			method: 'POST'
+		});
+	}
+
+	async pauseExperiment(experimentId: string): Promise<Experiment> {
+		return this.fetch<Experiment>(`/api/admin/experiments/${experimentId}/pause`, {
+			method: 'POST'
+		});
+	}
+
+	async concludeExperiment(experimentId: string): Promise<Experiment> {
+		return this.fetch<Experiment>(`/api/admin/experiments/${experimentId}/conclude`, {
+			method: 'POST'
+		});
+	}
+
+	async getUserVariant(experimentName: string, userId: string): Promise<VariantAssignmentResponse> {
+		return this.fetch<VariantAssignmentResponse>(
+			`/api/admin/experiments/${encodeURIComponent(experimentName)}/variant/${encodeURIComponent(userId)}`
+		);
 	}
 
 	// =========================================================================
@@ -1277,6 +1404,54 @@ class AdminApiClient {
 			method: 'POST',
 			body: JSON.stringify(request)
 		});
+	}
+
+	// =========================================================================
+	// Internal Costs
+	// =========================================================================
+
+	async getInternalCosts(): Promise<InternalCostsResponse> {
+		return this.fetch<InternalCostsResponse>('/api/admin/costs/internal');
+	}
+
+	// =========================================================================
+	// Cost Insight Drill-Downs
+	// =========================================================================
+
+	async getCacheEffectiveness(
+		period: string = 'week'
+	): Promise<CacheEffectivenessResponse> {
+		return this.fetch<CacheEffectivenessResponse>(
+			`/api/admin/drilldown/cache-effectiveness?period=${period}`
+		);
+	}
+
+	async getModelImpact(period: string = 'week'): Promise<ModelImpactResponse> {
+		return this.fetch<ModelImpactResponse>(
+			`/api/admin/drilldown/model-impact?period=${period}`
+		);
+	}
+
+	async getFeatureEfficiency(
+		period: string = 'week'
+	): Promise<FeatureEfficiencyResponse> {
+		return this.fetch<FeatureEfficiencyResponse>(
+			`/api/admin/drilldown/feature-efficiency?period=${period}`
+		);
+	}
+
+	async getTuningRecommendations(): Promise<TuningRecommendationsResponse> {
+		return this.fetch<TuningRecommendationsResponse>(
+			'/api/admin/drilldown/tuning-recommendations'
+		);
+	}
+
+	async getQualityIndicators(
+		period: string = 'month'
+	): Promise<QualityIndicatorsResponse> {
+		return this.fetch<QualityIndicatorsResponse>(
+			`/api/admin/drilldown/quality-indicators?period=${period}`
+		);
 	}
 }
 
@@ -1384,6 +1559,28 @@ export interface AdminSeoAnalyticsResponse {
 	top_by_conversion: SeoTopArticle[];
 }
 
+export interface BlogPostPerformance {
+	id: string;
+	title: string;
+	slug: string;
+	view_count: number;
+	click_through_count: number;
+	ctr_percent: number;
+	generation_cost: number;
+	cost_per_view: number;
+	cost_per_click: number;
+	published_at: string | null;
+	last_viewed_at: string | null;
+}
+
+export interface BlogPerformanceResponse {
+	posts: BlogPostPerformance[];
+	total_views: number;
+	total_clicks: number;
+	total_cost: number;
+	overall_ctr: number;
+}
+
 // =============================================================================
 // Enhanced Cost Tracking Types
 // =============================================================================
@@ -1396,6 +1593,20 @@ export interface FixedCostItem {
 	category: string;
 	active: boolean;
 	notes: string | null;
+}
+
+export interface CreateFixedCostRequest {
+	provider: string;
+	description: string;
+	monthly_amount_usd: number;
+	category?: string;
+	notes?: string;
+}
+
+export interface UpdateFixedCostRequest {
+	monthly_amount_usd?: number;
+	active?: boolean;
+	notes?: string;
 }
 
 export interface FixedCostsResponse {
@@ -1591,6 +1802,26 @@ export interface ResearchCostsResponse {
 }
 
 // =============================================================================
+// Cost Aggregations Types
+// =============================================================================
+
+export interface CategoryCostAggregation {
+	category: string;
+	total_cost: number;
+	avg_per_meeting: number | null;
+	avg_per_user: number | null;
+	meeting_count: number;
+	user_count: number;
+}
+
+export interface CostAggregationsResponse {
+	categories: CategoryCostAggregation[];
+	overall: CategoryCostAggregation;
+	period_start: string;
+	period_end: string;
+}
+
+// =============================================================================
 // Admin Email Types
 // =============================================================================
 
@@ -1609,6 +1840,122 @@ export interface SendEmailResponse {
 	subject: string;
 	sent: boolean;
 	message: string;
+}
+
+// =============================================================================
+// Internal Costs Types
+// =============================================================================
+
+export interface InternalCostItem {
+	provider: string;
+	prompt_type: string | null;
+	total_cost: number;
+	request_count: number;
+	input_tokens: number;
+	output_tokens: number;
+}
+
+export interface InternalCostsByPeriod {
+	today: number;
+	week: number;
+	month: number;
+	all_time: number;
+}
+
+export interface InternalCostsResponse {
+	seo: InternalCostItem[];
+	system: InternalCostItem[];
+	by_period: InternalCostsByPeriod;
+	total_usd: number;
+	total_requests: number;
+}
+
+// =============================================================================
+// Cost Insight Drill-Down Types
+// =============================================================================
+
+export interface CacheEffectivenessBucket {
+	bucket_label: string;
+	bucket_min: number;
+	bucket_max: number;
+	session_count: number;
+	avg_cost: number;
+	total_cost: number;
+	total_saved: number;
+	avg_optimization_savings: number;
+}
+
+export interface CacheEffectivenessResponse {
+	buckets: CacheEffectivenessBucket[];
+	overall_hit_rate: number;
+	total_sessions: number;
+	total_cost: number;
+	total_saved: number;
+	period: string;
+	min_sample_warning: string | null;
+}
+
+export interface ModelImpactItem {
+	model_name: string;
+	model_display: string;
+	request_count: number;
+	total_cost: number;
+	avg_cost_per_request: number;
+	cache_hit_rate: number;
+	total_tokens: number;
+}
+
+export interface ModelImpactResponse {
+	models: ModelImpactItem[];
+	total_cost: number;
+	total_requests: number;
+	cost_if_all_opus: number;
+	cost_if_all_haiku: number;
+	savings_from_model_mix: number;
+	period: string;
+}
+
+export interface FeatureEfficiencyItem {
+	feature: string;
+	request_count: number;
+	total_cost: number;
+	avg_cost: number;
+	cache_hit_rate: number;
+	unique_sessions: number;
+	cost_per_session: number;
+}
+
+export interface FeatureEfficiencyResponse {
+	features: FeatureEfficiencyItem[];
+	total_cost: number;
+	total_requests: number;
+	period: string;
+}
+
+export interface TuningRecommendation {
+	area: string;
+	current_value: string;
+	recommended_value: string;
+	impact_description: string;
+	estimated_savings_usd: number | null;
+	confidence: string;
+}
+
+export interface TuningRecommendationsResponse {
+	recommendations: TuningRecommendation[];
+	analysis_period_days: number;
+	data_quality: string;
+}
+
+export interface QualityIndicatorsResponse {
+	overall_cache_hit_rate: number;
+	session_continuation_rate: number;
+	correlation_score: number | null;
+	sample_size: number;
+	cached_continuation_rate: number | null;
+	uncached_continuation_rate: number | null;
+	quality_assessment: string;
+	period: string;
 }
 
 export const adminApi = new AdminApiClient();

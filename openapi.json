@@ -3465,6 +3465,45 @@
         "title": "BlogGenerateResponse",
         "type": "object"
       },
+      "BlogPerformanceResponse": {
+        "description": "Blog post performance analytics response.",
+        "properties": {
+          "overall_ctr": {
+            "default": 0.0,
+            "description": "Overall CTR percentage",
+            "title": "Overall Ctr",
+            "type": "number"
+          },
+          "posts": {
+            "description": "Blog posts with performance metrics",
+            "items": {
+              "$ref": "#/components/schemas/BlogPostPerformance"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "total_clicks": {
+            "default": 0,
+            "description": "Total clicks across all posts",
+            "title": "Total Clicks",
+            "type": "integer"
+          },
+          "total_cost": {
+            "default": 0.0,
+            "description": "Total generation cost in GBP",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_views": {
+            "default": 0,
+            "description": "Total views across all posts",
+            "title": "Total Views",
+            "type": "integer"
+          }
+        },
+        "title": "BlogPerformanceResponse",
+        "type": "object"
+      },
       "BlogPostCreate": {
         "description": "Request model for creating a blog post.\n\nAttributes:\n    title: Post title\n    content: Markdown content\n    excerpt: Short excerpt for previews\n    status: draft, scheduled, or published\n    published_at: Scheduled publication datetime\n    seo_keywords: Target keywords\n    meta_title: Custom SEO title\n    meta_description: Custom SEO description",
         "properties": {
@@ -3584,6 +3623,93 @@
           "total"
         ],
         "title": "BlogPostListResponse",
+        "type": "object"
+      },
+      "BlogPostPerformance": {
+        "description": "Blog post with CTR and cost metrics.",
+        "properties": {
+          "click_through_count": {
+            "default": 0,
+            "description": "Total CTA clicks",
+            "title": "Click Through Count",
+            "type": "integer"
+          },
+          "cost_per_click": {
+            "default": 0.0,
+            "description": "Cost per click in GBP",
+            "title": "Cost Per Click",
+            "type": "number"
+          },
+          "cost_per_view": {
+            "default": 0.0,
+            "description": "Cost per view in GBP",
+            "title": "Cost Per View",
+            "type": "number"
+          },
+          "ctr_percent": {
+            "default": 0.0,
+            "description": "Click-through rate percentage",
+            "title": "Ctr Percent",
+            "type": "number"
+          },
+          "generation_cost": {
+            "default": 0.0,
+            "description": "LLM generation cost in GBP",
+            "title": "Generation Cost",
+            "type": "number"
+          },
+          "id": {
+            "description": "Post UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_viewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last view timestamp",
+            "title": "Last Viewed At"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Publication date",
+            "title": "Published At"
+          },
+          "slug": {
+            "description": "URL slug",
+            "title": "Slug",
+            "type": "string"
+          },
+          "title": {
+            "description": "Post title",
+            "title": "Title",
+            "type": "string"
+          },
+          "view_count": {
+            "default": 0,
+            "description": "Total views",
+            "title": "View Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug"
+        ],
+        "title": "BlogPostPerformance",
         "type": "object"
       },
       "BlogPostResponse": {
@@ -4545,6 +4671,123 @@
         "title": "BusinessStage",
         "type": "string"
       },
+      "CacheEffectivenessBucket": {
+        "description": "Cache effectiveness bucket for drill-down.\n\nAttributes:\n    bucket_label: Human-readable bucket name (e.g., \"0-25%\", \"25-50%\")\n    bucket_min: Minimum hit rate in bucket (0.0-1.0)\n    bucket_max: Maximum hit rate in bucket (0.0-1.0)\n    session_count: Number of sessions in this bucket\n    avg_cost: Average cost per session (USD)\n    total_cost: Total cost for sessions in bucket (USD)\n    total_saved: Total cost saved via cache (USD)\n    avg_optimization_savings: Average optimization savings per session (USD)",
+        "properties": {
+          "avg_cost": {
+            "description": "Average cost per session (USD)",
+            "title": "Avg Cost",
+            "type": "number"
+          },
+          "avg_optimization_savings": {
+            "description": "Avg savings per session (USD)",
+            "title": "Avg Optimization Savings",
+            "type": "number"
+          },
+          "bucket_label": {
+            "description": "Bucket label (e.g., '0-25%')",
+            "title": "Bucket Label",
+            "type": "string"
+          },
+          "bucket_max": {
+            "description": "Max hit rate in bucket",
+            "title": "Bucket Max",
+            "type": "number"
+          },
+          "bucket_min": {
+            "description": "Min hit rate in bucket",
+            "title": "Bucket Min",
+            "type": "number"
+          },
+          "session_count": {
+            "description": "Number of sessions in bucket",
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost for bucket (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_saved": {
+            "description": "Total cost saved (USD)",
+            "title": "Total Saved",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bucket_label",
+          "bucket_min",
+          "bucket_max",
+          "session_count",
+          "avg_cost",
+          "total_cost",
+          "total_saved",
+          "avg_optimization_savings"
+        ],
+        "title": "CacheEffectivenessBucket",
+        "type": "object"
+      },
+      "CacheEffectivenessResponse": {
+        "description": "Response model for cache effectiveness drill-down.\n\nAttributes:\n    buckets: List of cache hit rate buckets with stats\n    overall_hit_rate: Overall cache hit rate (0.0-1.0)\n    total_sessions: Total sessions analyzed\n    total_cost: Total cost across all sessions (USD)\n    total_saved: Total cost saved across all sessions (USD)\n    period: Time period filter applied\n    min_sample_warning: Warning if sample size is low",
+        "properties": {
+          "buckets": {
+            "description": "Hit rate buckets",
+            "items": {
+              "$ref": "#/components/schemas/CacheEffectivenessBucket"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "min_sample_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Warning if sample size is low",
+            "title": "Min Sample Warning"
+          },
+          "overall_hit_rate": {
+            "description": "Overall cache hit rate (0.0-1.0)",
+            "title": "Overall Hit Rate",
+            "type": "number"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_saved": {
+            "description": "Total cost saved (USD)",
+            "title": "Total Saved",
+            "type": "number"
+          },
+          "total_sessions": {
+            "description": "Total sessions analyzed",
+            "title": "Total Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "buckets",
+          "overall_hit_rate",
+          "total_sessions",
+          "total_cost",
+          "total_saved",
+          "period"
+        ],
+        "title": "CacheEffectivenessResponse",
+        "type": "object"
+      },
       "CacheMetricsResponse": {
         "description": "Response model for detailed research cache metrics.\n\nProvides multi-period hit rates, miss distribution, and threshold recommendations.\n\nAttributes:\n    hit_rate_1d: Cache hit rate in last 24 hours (percentage)\n    hit_rate_7d: Cache hit rate in last 7 days (percentage)\n    hit_rate_30d: Cache hit rate in last 30 days (percentage)\n    total_queries_1d: Total research queries in last 24 hours\n    total_queries_7d: Total research queries in last 7 days\n    total_queries_30d: Total research queries in last 30 days\n    cache_hits_1d: Cache hits in last 24 hours\n    cache_hits_7d: Cache hits in last 7 days\n    cache_hits_30d: Cache hits in last 30 days\n    avg_similarity_on_hit: Mean similarity score for cache hits\n    miss_distribution: Histogram of near-miss similarity scores (0.70-0.85)\n    current_threshold: Current similarity threshold from config\n    recommended_threshold: Algorithm-suggested threshold\n    recommendation_reason: Explanation for recommendation\n    recommendation_confidence: Confidence level (low, medium, high)\n    total_cached_results: Total entries in cache\n    cost_savings_30d: Estimated cost savings in last 30 days (USD)",
         "properties": {
@@ -4757,6 +5000,63 @@
           "categories"
         ],
         "title": "CategoriesResponse",
+        "type": "object"
+      },
+      "CategoryCostAggregation": {
+        "description": "Cost aggregation for a single category.\n\nAttributes:\n    category: Category name (llm, research, embeddings, etc.)\n    total_cost: Total cost in USD\n    avg_per_session: Average cost per session (None if no sessions)\n    avg_per_user: Average cost per paying user (None if no paying users)\n    session_count: Number of sessions in the period\n    user_count: Number of paying users",
+        "properties": {
+          "avg_per_session": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average cost per session",
+            "title": "Avg Per Session"
+          },
+          "avg_per_user": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average cost per paying user",
+            "title": "Avg Per User"
+          },
+          "category": {
+            "description": "Category name",
+            "title": "Category",
+            "type": "string"
+          },
+          "session_count": {
+            "description": "Number of sessions in period",
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost in USD",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "user_count": {
+            "description": "Number of paying users",
+            "title": "User Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "total_cost",
+          "session_count",
+          "user_count"
+        ],
+        "title": "CategoryCostAggregation",
         "type": "object"
       },
       "CategoryCount": {
@@ -7578,6 +7878,41 @@
         "title": "CorrelateSpec",
         "type": "object"
       },
+      "CostAggregationsResponse": {
+        "description": "Response model for cost aggregations endpoint.\n\nProvides per-category cost breakdowns with per-meeting and per-user averages.\n\nAttributes:\n    categories: List of per-category aggregations\n    overall: Overall aggregation across all categories\n    period_start: Start of the period (ISO 8601)\n    period_end: End of the period (ISO 8601)",
+        "properties": {
+          "categories": {
+            "description": "Per-category cost aggregations",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCostAggregation"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/CategoryCostAggregation",
+            "description": "Overall aggregation"
+          },
+          "period_end": {
+            "description": "Period end date (ISO 8601)",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "description": "Period start date (ISO 8601)",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categories",
+          "overall",
+          "period_start",
+          "period_end"
+        ],
+        "title": "CostAggregationsResponse",
+        "type": "object"
+      },
       "CostCalculatorDefaults": {
         "description": "User defaults for meeting cost calculator widget.",
         "properties": {
@@ -9108,6 +9443,55 @@
         "title": "DatasetResponse",
         "type": "object"
       },
+      "DegradationInfo": {
+        "description": "Degradation info for a metric.",
+        "properties": {
+          "baseline_avg": {
+            "title": "Baseline Avg",
+            "type": "number"
+          },
+          "current_avg": {
+            "title": "Current Avg",
+            "type": "number"
+          },
+          "degradation_score": {
+            "title": "Degradation Score",
+            "type": "number"
+          },
+          "details": {
+            "title": "Details",
+            "type": "string"
+          },
+          "is_degraded": {
+            "title": "Is Degraded",
+            "type": "boolean"
+          },
+          "metric_name": {
+            "title": "Metric Name",
+            "type": "string"
+          },
+          "ratio": {
+            "title": "Ratio",
+            "type": "number"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric_name",
+          "degradation_score",
+          "current_avg",
+          "baseline_avg",
+          "ratio",
+          "is_degraded",
+          "severity",
+          "details"
+        ],
+        "title": "DegradationInfo",
+        "type": "object"
+      },
       "DeleteOverrideRequest": {
         "description": "Request to delete a user override.",
         "properties": {
@@ -10158,6 +10542,18 @@
             "title": "Id",
             "type": "integer"
           },
+          "last_match_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Match At"
+          },
           "last_remediation": {
             "anyOf": [
               {
@@ -10169,6 +10565,11 @@
               }
             ],
             "title": "Last Remediation"
+          },
+          "match_count": {
+            "default": 0,
+            "title": "Match Count",
+            "type": "integer"
           },
           "pattern_name": {
             "title": "Pattern Name",
@@ -10416,6 +10817,106 @@
         "title": "EventQueueHealth",
         "type": "object"
       },
+      "ExperimentCreate": {
+        "description": "Request to create an experiment.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Experiment description",
+            "title": "Description"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Metrics to track",
+            "examples": [
+              [
+                "conversion_rate",
+                "time_to_decision"
+              ]
+            ],
+            "title": "Metrics"
+          },
+          "name": {
+            "description": "Unique experiment name",
+            "examples": [
+              "persona_count_test"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "variants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VariantModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Variants (default: control/treatment 50/50)",
+            "examples": [
+              [
+                {
+                  "name": "control",
+                  "weight": 50
+                },
+                {
+                  "name": "treatment",
+                  "weight": 50
+                }
+              ]
+            ],
+            "title": "Variants"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ExperimentCreate",
+        "type": "object"
+      },
+      "ExperimentListResponse": {
+        "description": "List of experiments.",
+        "properties": {
+          "experiments": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentResponse"
+            },
+            "title": "Experiments",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "experiments",
+          "total"
+        ],
+        "title": "ExperimentListResponse",
+        "type": "object"
+      },
       "ExperimentMetricsResponse": {
         "description": "Response model for A/B experiment metrics.\n\nAttributes:\n    experiment_name: Name of the experiment\n    variants: Stats for each variant\n    total_sessions: Total sessions in experiment\n    period_start: Start of analysis period (ISO 8601)\n    period_end: End of analysis period (ISO 8601)",
         "properties": {
@@ -10456,6 +10957,148 @@
           "period_end"
         ],
         "title": "ExperimentMetricsResponse",
+        "type": "object"
+      },
+      "ExperimentResponse": {
+        "description": "Experiment response.",
+        "properties": {
+          "created_at": {
+            "description": "Created timestamp (ISO 8601)",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Description",
+            "title": "Description"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When experiment concluded (ISO 8601)",
+            "title": "End Date"
+          },
+          "id": {
+            "description": "Experiment UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "metrics": {
+            "description": "Metrics to track",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "name": {
+            "description": "Experiment name",
+            "title": "Name",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When experiment started (ISO 8601)",
+            "title": "Start Date"
+          },
+          "status": {
+            "description": "Status: draft, running, paused, concluded",
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Updated timestamp (ISO 8601)",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "variants": {
+            "description": "Variants",
+            "items": {
+              "$ref": "#/components/schemas/VariantModel"
+            },
+            "title": "Variants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "variants",
+          "metrics",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExperimentResponse",
+        "type": "object"
+      },
+      "ExperimentUpdate": {
+        "description": "Request to update an experiment (draft only).",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New description",
+            "title": "Description"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New metrics",
+            "title": "Metrics"
+          },
+          "variants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VariantModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New variants",
+            "title": "Variants"
+          }
+        },
+        "title": "ExperimentUpdate",
         "type": "object"
       },
       "ExperimentVariantStats": {
@@ -10777,6 +11420,93 @@
           "total_cost"
         ],
         "title": "FeatureCostBreakdownResponse",
+        "type": "object"
+      },
+      "FeatureEfficiencyItem": {
+        "description": "Feature efficiency stats for a single feature.\n\nAttributes:\n    feature: Feature name\n    request_count: Number of API requests\n    total_cost: Total cost (USD)\n    avg_cost: Average cost per request (USD)\n    cache_hit_rate: Cache hit rate for this feature (0.0-1.0)\n    unique_sessions: Number of unique sessions using feature\n    cost_per_session: Average cost per session using feature (USD)",
+        "properties": {
+          "avg_cost": {
+            "description": "Avg cost per request (USD)",
+            "title": "Avg Cost",
+            "type": "number"
+          },
+          "cache_hit_rate": {
+            "description": "Cache hit rate (0.0-1.0)",
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "cost_per_session": {
+            "description": "Avg cost per session (USD)",
+            "title": "Cost Per Session",
+            "type": "number"
+          },
+          "feature": {
+            "description": "Feature name",
+            "title": "Feature",
+            "type": "string"
+          },
+          "request_count": {
+            "description": "Number of API requests",
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "unique_sessions": {
+            "description": "Unique sessions using feature",
+            "title": "Unique Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feature",
+          "request_count",
+          "total_cost",
+          "avg_cost",
+          "cache_hit_rate",
+          "unique_sessions",
+          "cost_per_session"
+        ],
+        "title": "FeatureEfficiencyItem",
+        "type": "object"
+      },
+      "FeatureEfficiencyResponse": {
+        "description": "Response model for feature efficiency drill-down.\n\nAttributes:\n    features: List of per-feature stats\n    total_cost: Total cost across all features (USD)\n    total_requests: Total API requests\n    period: Time period filter applied",
+        "properties": {
+          "features": {
+            "description": "Per-feature stats",
+            "items": {
+              "$ref": "#/components/schemas/FeatureEfficiencyItem"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_requests": {
+            "description": "Total API requests",
+            "title": "Total Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "features",
+          "total_cost",
+          "total_requests",
+          "period"
+        ],
+        "title": "FeatureEfficiencyResponse",
         "type": "object"
       },
       "FeatureFlagItem": {
@@ -12130,6 +12860,75 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "HeatmapHistoryDepth": {
+        "description": "User's preferred activity heatmap history depth.\n\nControls how many months of history are shown in the ActivityHeatmap.",
+        "properties": {
+          "history_months": {
+            "default": 3,
+            "description": "History depth in months: 1, 3, or 6. Default: 3",
+            "enum": [
+              1,
+              3,
+              6
+            ],
+            "title": "History Months",
+            "type": "integer"
+          }
+        },
+        "title": "HeatmapHistoryDepth",
+        "type": "object"
+      },
+      "HeatmapHistoryDepthResponse": {
+        "description": "Response for heatmap history depth endpoint.",
+        "properties": {
+          "depth": {
+            "$ref": "#/components/schemas/HeatmapHistoryDepth",
+            "description": "User's heatmap history depth preference (defaults to 3 months)"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "HeatmapHistoryDepthResponse",
+        "type": "object"
+      },
+      "HeatmapHistoryDepthUpdate": {
+        "description": "Request to update heatmap history depth.",
+        "properties": {
+          "history_months": {
+            "description": "History depth in months: 1, 3, or 6",
+            "enum": [
+              1,
+              3,
+              6
+            ],
+            "title": "History Months",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "history_months"
+        ],
+        "title": "HeatmapHistoryDepthUpdate",
+        "type": "object"
+      },
       "HeavyUserItem": {
         "description": "A user identified as heavy user for a feature.\n\nAttributes:\n    user_id: User identifier\n    email: User email (if available)\n    feature: Feature name (mentor_chat, dataset_qa, etc.)\n    total_cost_7d: Total cost over 7-day period\n    avg_daily_cost: Average daily cost\n    p90_threshold: p90 threshold for this feature\n    exceeds_p90_by: How much they exceed p90",
         "properties": {
@@ -12909,6 +13708,132 @@
           }
         },
         "title": "InsightsResponse",
+        "type": "object"
+      },
+      "InternalCostItem": {
+        "description": "Single internal cost entry.\n\nAttributes:\n    provider: Provider name\n    prompt_type: Type of prompt (blog_generation, blog_outline, etc.)\n    total_cost: Total cost in USD\n    request_count: Number of API calls\n    input_tokens: Total input tokens\n    output_tokens: Total output tokens",
+        "properties": {
+          "input_tokens": {
+            "default": 0,
+            "description": "Total input tokens",
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "default": 0,
+            "description": "Total output tokens",
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prompt type",
+            "title": "Prompt Type"
+          },
+          "provider": {
+            "description": "Provider name",
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_count": {
+            "description": "Number of requests",
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost in USD",
+            "title": "Total Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "provider",
+          "total_cost",
+          "request_count"
+        ],
+        "title": "InternalCostItem",
+        "type": "object"
+      },
+      "InternalCostsByPeriod": {
+        "description": "Internal costs aggregated by time period.\n\nAttributes:\n    today: Costs from today\n    week: Costs from last 7 days\n    month: Costs from last 30 days\n    all_time: All-time costs",
+        "properties": {
+          "all_time": {
+            "default": 0.0,
+            "description": "All-time cost (USD)",
+            "title": "All Time",
+            "type": "number"
+          },
+          "month": {
+            "default": 0.0,
+            "description": "Cost this month (USD)",
+            "title": "Month",
+            "type": "number"
+          },
+          "today": {
+            "default": 0.0,
+            "description": "Cost today (USD)",
+            "title": "Today",
+            "type": "number"
+          },
+          "week": {
+            "default": 0.0,
+            "description": "Cost this week (USD)",
+            "title": "Week",
+            "type": "number"
+          }
+        },
+        "title": "InternalCostsByPeriod",
+        "type": "object"
+      },
+      "InternalCostsResponse": {
+        "description": "Response model for internal costs endpoint.\n\nAttributes:\n    seo: SEO-related internal costs breakdown\n    system: System/background job costs breakdown\n    by_period: Costs aggregated by time period\n    total_usd: Total internal costs\n    total_requests: Total number of API requests",
+        "properties": {
+          "by_period": {
+            "$ref": "#/components/schemas/InternalCostsByPeriod",
+            "description": "Costs by period"
+          },
+          "seo": {
+            "description": "SEO costs breakdown",
+            "items": {
+              "$ref": "#/components/schemas/InternalCostItem"
+            },
+            "title": "Seo",
+            "type": "array"
+          },
+          "system": {
+            "description": "System costs breakdown",
+            "items": {
+              "$ref": "#/components/schemas/InternalCostItem"
+            },
+            "title": "System",
+            "type": "array"
+          },
+          "total_requests": {
+            "description": "Total number of requests",
+            "title": "Total Requests",
+            "type": "integer"
+          },
+          "total_usd": {
+            "description": "Total internal costs (USD)",
+            "title": "Total Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "seo",
+          "system",
+          "by_period",
+          "total_usd",
+          "total_requests"
+        ],
+        "title": "InternalCostsResponse",
         "type": "object"
       },
       "InternalErrorResponse": {
@@ -15160,6 +16085,60 @@
         "title": "MetricSourceCategory",
         "type": "string"
       },
+      "MetricStatResponse": {
+        "description": "Statistics for a single metric.",
+        "properties": {
+          "avg": {
+            "title": "Avg",
+            "type": "number"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "max_val": {
+            "title": "Max Val",
+            "type": "number"
+          },
+          "metric_name": {
+            "title": "Metric Name",
+            "type": "string"
+          },
+          "min_val": {
+            "title": "Min Val",
+            "type": "number"
+          },
+          "p50": {
+            "title": "P50",
+            "type": "number"
+          },
+          "p95": {
+            "title": "P95",
+            "type": "number"
+          },
+          "p99": {
+            "title": "P99",
+            "type": "number"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric_name",
+          "count",
+          "avg",
+          "min_val",
+          "max_val",
+          "p50",
+          "p95",
+          "p99",
+          "window_minutes"
+        ],
+        "title": "MetricStatResponse",
+        "type": "object"
+      },
       "MetricTemplate": {
         "description": "Predefined metric template.",
         "properties": {
@@ -15335,6 +16314,111 @@
           "templates"
         ],
         "title": "MetricsResponse",
+        "type": "object"
+      },
+      "ModelImpactItem": {
+        "description": "Model impact stats for a single model.\n\nAttributes:\n    model_name: Normalized model name\n    model_display: Display-friendly model name\n    request_count: Number of API requests\n    total_cost: Total cost (USD)\n    avg_cost_per_request: Average cost per request (USD)\n    cache_hit_rate: Cache hit rate for this model (0.0-1.0)\n    total_tokens: Total tokens used",
+        "properties": {
+          "avg_cost_per_request": {
+            "description": "Avg cost per request (USD)",
+            "title": "Avg Cost Per Request",
+            "type": "number"
+          },
+          "cache_hit_rate": {
+            "description": "Cache hit rate (0.0-1.0)",
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "model_display": {
+            "description": "Display-friendly model name",
+            "title": "Model Display",
+            "type": "string"
+          },
+          "model_name": {
+            "description": "Normalized model name",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "request_count": {
+            "description": "Number of API requests",
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_tokens": {
+            "description": "Total tokens used",
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_name",
+          "model_display",
+          "request_count",
+          "total_cost",
+          "avg_cost_per_request",
+          "cache_hit_rate",
+          "total_tokens"
+        ],
+        "title": "ModelImpactItem",
+        "type": "object"
+      },
+      "ModelImpactResponse": {
+        "description": "Response model for model impact drill-down.\n\nAttributes:\n    models: List of per-model stats\n    total_cost: Total cost across all models (USD)\n    total_requests: Total API requests\n    cost_if_all_opus: Hypothetical cost if all were Opus\n    cost_if_all_haiku: Hypothetical cost if all were Haiku\n    savings_from_model_mix: Actual savings from using model mix\n    period: Time period filter applied",
+        "properties": {
+          "cost_if_all_haiku": {
+            "description": "Hypothetical cost if all Haiku (USD)",
+            "title": "Cost If All Haiku",
+            "type": "number"
+          },
+          "cost_if_all_opus": {
+            "description": "Hypothetical cost if all Opus (USD)",
+            "title": "Cost If All Opus",
+            "type": "number"
+          },
+          "models": {
+            "description": "Per-model stats",
+            "items": {
+              "$ref": "#/components/schemas/ModelImpactItem"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "savings_from_model_mix": {
+            "description": "Savings from model mix (USD)",
+            "title": "Savings From Model Mix",
+            "type": "number"
+          },
+          "total_cost": {
+            "description": "Total cost (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "total_requests": {
+            "description": "Total API requests",
+            "title": "Total Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "models",
+          "total_cost",
+          "total_requests",
+          "cost_if_all_opus",
+          "cost_if_all_haiku",
+          "savings_from_model_mix",
+          "period"
+        ],
+        "title": "ModelImpactResponse",
         "type": "object"
       },
       "MultiConsentRequest": {
@@ -16425,6 +17509,67 @@
           "period_end"
         ],
         "title": "PerUserCostResponse",
+        "type": "object"
+      },
+      "PerformanceMetricsResponse": {
+        "description": "Current performance metrics summary.",
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricStatResponse"
+            },
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked_at",
+          "metrics"
+        ],
+        "title": "PerformanceMetricsResponse",
+        "type": "object"
+      },
+      "PerformanceTrendsResponse": {
+        "description": "24-hour performance trend data.",
+        "properties": {
+          "critical_count": {
+            "title": "Critical Count",
+            "type": "integer"
+          },
+          "degraded_count": {
+            "title": "Degraded Count",
+            "type": "integer"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/DegradationInfo"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "overall_health": {
+            "title": "Overall Health",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "overall_health",
+          "metrics",
+          "degraded_count",
+          "critical_count"
+        ],
+        "title": "PerformanceTrendsResponse",
         "type": "object"
       },
       "PersistenceHealthResponse": {
@@ -17764,6 +18909,81 @@
         "title": "PublicStatusResponse",
         "type": "object"
       },
+      "QualityIndicatorsResponse": {
+        "description": "Response model for quality correlation indicators.\n\nAttributes:\n    overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)\n    session_continuation_rate: Rate of session continuation after response (0.0-1.0)\n    correlation_score: Correlation between cache hit and continuation (-1.0 to 1.0)\n    sample_size: Number of sessions in analysis\n    cached_continuation_rate: Continuation rate for cached responses (0.0-1.0)\n    uncached_continuation_rate: Continuation rate for uncached responses (0.0-1.0)\n    quality_assessment: Human-readable quality assessment\n    period: Time period filter applied",
+        "properties": {
+          "cached_continuation_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Continuation for cached",
+            "title": "Cached Continuation Rate"
+          },
+          "correlation_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cache-continuation correlation",
+            "title": "Correlation Score"
+          },
+          "overall_cache_hit_rate": {
+            "description": "Overall cache hit rate",
+            "title": "Overall Cache Hit Rate",
+            "type": "number"
+          },
+          "period": {
+            "description": "Time period filter applied",
+            "title": "Period",
+            "type": "string"
+          },
+          "quality_assessment": {
+            "description": "Human-readable assessment",
+            "title": "Quality Assessment",
+            "type": "string"
+          },
+          "sample_size": {
+            "description": "Sessions analyzed",
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "session_continuation_rate": {
+            "description": "Session continuation rate",
+            "title": "Session Continuation Rate",
+            "type": "number"
+          },
+          "uncached_continuation_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Continuation for uncached",
+            "title": "Uncached Continuation Rate"
+          }
+        },
+        "required": [
+          "overall_cache_hit_rate",
+          "session_continuation_rate",
+          "sample_size",
+          "quality_assessment",
+          "period"
+        ],
+        "title": "QualityIndicatorsResponse",
+        "type": "object"
+      },
       "QueryResultResponse": {
         "description": "Response model for query results.\n\nAttributes:\n    rows: Query result rows\n    columns: Column names\n    total_count: Total rows before pagination\n    has_more: Whether more rows exist\n    query_type: Type of query executed",
         "properties": {
@@ -18798,6 +20018,28 @@
         "title": "ResearchCacheStats",
         "type": "object"
       },
+      "ResearchCategory": {
+        "description": "Category summary for legend display.",
+        "properties": {
+          "count": {
+            "description": "Number of research items in category",
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Category name",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "ResearchCategory",
+        "type": "object"
+      },
       "ResearchCostItem": {
         "description": "Cost data for a single research provider.\n\nAttributes:\n    provider: Research provider name (brave, tavily)\n    amount_usd: Total cost in USD\n    query_count: Number of API calls made",
         "properties": {
@@ -18899,6 +20141,101 @@
           "daily_trend"
         ],
         "title": "ResearchCostsResponse",
+        "type": "object"
+      },
+      "ResearchEmbeddingsResponse": {
+        "description": "Response containing user's research embeddings for visualization.",
+        "properties": {
+          "categories": {
+            "description": "Category counts for legend",
+            "items": {
+              "$ref": "#/components/schemas/ResearchCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "points": {
+            "description": "2D coordinates with metadata for scatter plot",
+            "items": {
+              "$ref": "#/components/schemas/ResearchPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "total_count": {
+            "default": 0,
+            "description": "Total research items (may exceed points if > limit)",
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "ResearchEmbeddingsResponse",
+        "type": "object"
+      },
+      "ResearchPoint": {
+        "description": "A single point in the research embeddings visualization.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Research category (e.g., 'saas_metrics')",
+            "title": "Category"
+          },
+          "created_at": {
+            "description": "ISO datetime when research was created",
+            "title": "Created At",
+            "type": "string"
+          },
+          "preview": {
+            "description": "First ~100 chars of question",
+            "maxLength": 150,
+            "title": "Preview",
+            "type": "string"
+          },
+          "x": {
+            "description": "X coordinate (PCA reduced)",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "Y coordinate (PCA reduced)",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "preview",
+          "created_at"
+        ],
+        "title": "ResearchPoint",
         "type": "object"
       },
       "RetentionReminderSettingsResponse": {
@@ -21688,6 +23025,67 @@
         "title": "ThemeCount",
         "type": "object"
       },
+      "ThresholdListResponse": {
+        "description": "List of all thresholds.",
+        "properties": {
+          "thresholds": {
+            "items": {
+              "$ref": "#/components/schemas/ThresholdResponse"
+            },
+            "title": "Thresholds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "thresholds"
+        ],
+        "title": "ThresholdListResponse",
+        "type": "object"
+      },
+      "ThresholdResponse": {
+        "description": "Performance threshold configuration.",
+        "properties": {
+          "critical_value": {
+            "title": "Critical Value",
+            "type": "number"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "metric_name": {
+            "title": "Metric Name",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "warn_value": {
+            "title": "Warn Value",
+            "type": "number"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric_name",
+          "warn_value",
+          "critical_value",
+          "window_minutes",
+          "enabled",
+          "description",
+          "unit"
+        ],
+        "title": "ThresholdResponse",
+        "type": "object"
+      },
       "TierLimitsResponse": {
         "description": "Tier limits information.",
         "properties": {
@@ -22566,6 +23964,87 @@
         "title": "TrendsRefreshResponse",
         "type": "object"
       },
+      "TuningRecommendation": {
+        "description": "Single tuning recommendation.\n\nAttributes:\n    area: Area of recommendation (cache, model, feature)\n    current_value: Current setting or metric value\n    recommended_value: Recommended setting or target\n    impact_description: Description of expected impact\n    estimated_savings_usd: Estimated monthly savings (USD)\n    confidence: Confidence level (low, medium, high)",
+        "properties": {
+          "area": {
+            "description": "Area: cache, model, or feature",
+            "title": "Area",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Confidence: low, medium, high",
+            "title": "Confidence",
+            "type": "string"
+          },
+          "current_value": {
+            "description": "Current setting or metric",
+            "title": "Current Value",
+            "type": "string"
+          },
+          "estimated_savings_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated monthly savings",
+            "title": "Estimated Savings Usd"
+          },
+          "impact_description": {
+            "description": "Expected impact description",
+            "title": "Impact Description",
+            "type": "string"
+          },
+          "recommended_value": {
+            "description": "Recommended setting",
+            "title": "Recommended Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "area",
+          "current_value",
+          "recommended_value",
+          "impact_description",
+          "confidence"
+        ],
+        "title": "TuningRecommendation",
+        "type": "object"
+      },
+      "TuningRecommendationsResponse": {
+        "description": "Response model for tuning recommendations endpoint.\n\nAttributes:\n    recommendations: List of tuning recommendations\n    analysis_period_days: Days of data analyzed\n    data_quality: Quality of underlying data (sufficient, limited, insufficient)",
+        "properties": {
+          "analysis_period_days": {
+            "description": "Days of data analyzed",
+            "title": "Analysis Period Days",
+            "type": "integer"
+          },
+          "data_quality": {
+            "description": "Data quality: sufficient, limited, insufficient",
+            "title": "Data Quality",
+            "type": "string"
+          },
+          "recommendations": {
+            "description": "Recommendations",
+            "items": {
+              "$ref": "#/components/schemas/TuningRecommendation"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recommendations",
+          "analysis_period_days",
+          "data_quality"
+        ],
+        "title": "TuningRecommendationsResponse",
+        "type": "object"
+      },
       "UnassignedCountResponse": {
         "description": "Response model for unassigned actions count.\n\nAttributes:\n    unassigned_count: Number of actions not assigned to any project\n    min_required: Minimum actions required for autogeneration\n    can_autogenerate: Whether autogen is available",
         "properties": {
@@ -23036,6 +24515,57 @@
           "content"
         ],
         "title": "UpdateTermsVersionRequest",
+        "type": "object"
+      },
+      "UpdateThresholdRequest": {
+        "description": "Request to update a threshold.",
+        "properties": {
+          "critical_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Value"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "warn_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warn Value"
+          },
+          "window_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Minutes"
+          }
+        },
+        "title": "UpdateThresholdRequest",
         "type": "object"
       },
       "UpdateUserRequest": {
@@ -24415,6 +25945,67 @@
         "title": "ValueMetricsResponse",
         "type": "object"
       },
+      "VariantAssignmentResponse": {
+        "description": "Variant assignment response.",
+        "properties": {
+          "experiment_name": {
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Assigned variant or null if not running",
+            "title": "Variant"
+          }
+        },
+        "required": [
+          "experiment_name",
+          "user_id"
+        ],
+        "title": "VariantAssignmentResponse",
+        "type": "object"
+      },
+      "VariantModel": {
+        "description": "Experiment variant.",
+        "properties": {
+          "name": {
+            "description": "Variant name",
+            "examples": [
+              "control",
+              "treatment"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "weight": {
+            "default": 50,
+            "description": "Variant weight (0-100)",
+            "examples": [
+              50
+            ],
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "VariantModel",
+        "type": "object"
+      },
       "VolatilityLevel": {
         "description": "Metric volatility classification for refresh scheduling.",
         "enum": [
@@ -24741,6 +26332,79 @@
           "period"
         ],
         "title": "WhitelistDrillDownResponse",
+        "type": "object"
+      },
+      "WorkingPattern": {
+        "description": "User's regular working pattern for activity visualization.\n\nStores which days of the week the user typically works.\nNon-working days are greyed out in ActivityHeatmap.",
+        "properties": {
+          "working_days": {
+            "default": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "description": "Working days as ISO weekday numbers (1=Mon, 7=Sun). Default: Mon-Fri",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Working Days",
+            "type": "array"
+          }
+        },
+        "title": "WorkingPattern",
+        "type": "object"
+      },
+      "WorkingPatternResponse": {
+        "description": "Response for working pattern endpoint.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "pattern": {
+            "$ref": "#/components/schemas/WorkingPattern",
+            "description": "User's working pattern (defaults to Mon-Fri)"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "WorkingPatternResponse",
+        "type": "object"
+      },
+      "WorkingPatternUpdate": {
+        "description": "Request to update working pattern.",
+        "properties": {
+          "working_days": {
+            "description": "Working days as ISO weekday numbers (1=Mon, 7=Sun). At least one day required.",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Working Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "working_days"
+        ],
+        "title": "WorkingPatternUpdate",
         "type": "object"
       },
       "WorkspaceBillingInfoResponse": {
@@ -28021,6 +29685,65 @@
         ]
       }
     },
+    "/api/admin/costs/aggregations": {
+      "get": {
+        "description": "Get total/avg per meeting/avg per user breakdowns for each cost category.",
+        "operationId": "get_cost_aggregations_api_admin_costs_aggregations_get",
+        "parameters": [
+          {
+            "description": "Number of days to include",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Number of days to include",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAggregationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cost aggregations",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
     "/api/admin/costs/by-meeting/{session_id}": {
       "get": {
         "description": "Get total cost breakdown for a specific meeting/session.",
@@ -28667,6 +30390,98 @@
         ]
       }
     },
+    "/api/admin/costs/internal": {
+      "get": {
+        "description": "Get costs for internal operations (SEO, system jobs) separate from user costs.",
+        "operationId": "get_internal_costs_api_admin_costs_internal_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalCostsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Internal costs",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/costs/paying-users-count": {
+      "get": {
+        "description": "Get count of users with paid subscription tiers (starter, pro, enterprise).",
+        "operationId": "get_paying_users_count_api_admin_costs_paying_users_count_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Paying Users Count Api Admin Costs Paying Users Count Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Count paying users",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
     "/api/admin/costs/per-user": {
       "get": {
         "description": "Get cost metrics per active user.",
@@ -28866,6 +30681,72 @@
         ]
       }
     },
+    "/api/admin/drilldown/cache-effectiveness": {
+      "get": {
+        "description": "Group sessions by cache hit rate buckets with cost analysis.",
+        "operationId": "get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "week",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheEffectivenessResponse"
+                }
+              }
+            },
+            "description": "Cache effectiveness data retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cache effectiveness drill-down",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
     "/api/admin/drilldown/costs": {
       "get": {
         "description": "Get paginated list of cost records within the specified time period.",
@@ -28962,6 +30843,259 @@
           }
         },
         "summary": "List cost records with time filter",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/feature-efficiency": {
+      "get": {
+        "description": "Analyze cost and cache effectiveness by feature.",
+        "operationId": "get_feature_efficiency_api_admin_drilldown_feature_efficiency_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "week",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureEfficiencyResponse"
+                }
+              }
+            },
+            "description": "Feature efficiency data retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feature efficiency drill-down",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/model-impact": {
+      "get": {
+        "description": "Analyze cost impact by model tier with what-if scenarios.",
+        "operationId": "get_model_impact_api_admin_drilldown_model_impact_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "week",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelImpactResponse"
+                }
+              }
+            },
+            "description": "Model impact data retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Model impact drill-down",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/quality-indicators": {
+      "get": {
+        "description": "Analyze correlation between cache hits and user behavior quality signals.",
+        "operationId": "get_quality_indicators_api_admin_drilldown_quality_indicators_get",
+        "parameters": [
+          {
+            "description": "Time period filter",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TimePeriod",
+              "default": "month",
+              "description": "Time period filter"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityIndicatorsResponse"
+                }
+              }
+            },
+            "description": "Quality indicators retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quality correlation indicators",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Drill-Down"
+        ]
+      }
+    },
+    "/api/admin/drilldown/tuning-recommendations": {
+      "get": {
+        "description": "Get AI-generated recommendations for cache and model optimization.",
+        "operationId": "get_tuning_recommendations_api_admin_drilldown_tuning_recommendations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningRecommendationsResponse"
+                }
+              }
+            },
+            "description": "Tuning recommendations retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cache tuning recommendations",
         "tags": [
           "admin",
           "admin",
@@ -29628,6 +31762,122 @@
         ]
       }
     },
+    "/api/admin/experiments": {
+      "get": {
+        "description": "Get all experiments, optionally filtered by status.",
+        "operationId": "list_experiments_api_admin_experiments_get",
+        "parameters": [
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List experiments",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      },
+      "post": {
+        "description": "Create a new experiment in draft status.",
+        "operationId": "create_experiment_api_admin_experiments_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperimentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      }
+    },
     "/api/admin/experiments/persona-count": {
       "get": {
         "description": "Get metrics for the persona count A/B experiment (3 vs 5 personas).\n\n    Returns:\n    - Session counts per variant\n    - Average cost per session\n    - Average duration and rounds\n    - Completion rates",
@@ -29680,6 +31930,407 @@
           "admin",
           "admin",
           "Admin - Extended KPIs"
+        ]
+      }
+    },
+    "/api/admin/experiments/{experiment_id}": {
+      "delete": {
+        "description": "Delete experiment (draft status only).",
+        "operationId": "delete_experiment_api_admin_experiments__experiment_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Experiment Api Admin Experiments  Experiment Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      },
+      "get": {
+        "description": "Get experiment details by ID.",
+        "operationId": "get_experiment_api_admin_experiments__experiment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      },
+      "patch": {
+        "description": "Update experiment (draft status only).",
+        "operationId": "update_experiment_api_admin_experiments__experiment_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperimentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      }
+    },
+    "/api/admin/experiments/{experiment_id}/conclude": {
+      "post": {
+        "description": "Conclude an experiment (terminal state).",
+        "operationId": "conclude_experiment_api_admin_experiments__experiment_id__conclude_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Conclude experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      }
+    },
+    "/api/admin/experiments/{experiment_id}/pause": {
+      "post": {
+        "description": "Pause a running experiment.",
+        "operationId": "pause_experiment_api_admin_experiments__experiment_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pause experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      }
+    },
+    "/api/admin/experiments/{experiment_id}/start": {
+      "post": {
+        "description": "Start a draft or paused experiment.",
+        "operationId": "start_experiment_api_admin_experiments__experiment_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start experiment",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
+        ]
+      }
+    },
+    "/api/admin/experiments/{experiment_name}/variant/{user_id}": {
+      "get": {
+        "description": "Get the variant a user is assigned to in an experiment.",
+        "operationId": "get_user_variant_api_admin_experiments__experiment_name__variant__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_name",
+            "required": true,
+            "schema": {
+              "title": "Experiment Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariantAssignmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get user variant",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-experiments"
         ]
       }
     },
@@ -32153,6 +34804,219 @@
         ]
       }
     },
+    "/api/admin/ops/performance-metrics": {
+      "get": {
+        "description": "Get current performance metrics summary.\n\nArgs:\n    request: FastAPI request object\n    window_minutes: Time window for stats (default 30)\n    _user: Current authenticated admin user",
+        "operationId": "get_performance_metrics_api_admin_ops_performance_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window_minutes",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Window Minutes",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Performance Metrics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
+    "/api/admin/ops/performance-thresholds": {
+      "get": {
+        "description": "Get all performance threshold configurations.\n\nArgs:\n    request: FastAPI request object\n    _user: Current authenticated admin user",
+        "operationId": "get_performance_thresholds_api_admin_ops_performance_thresholds_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Performance Thresholds",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
+    "/api/admin/ops/performance-thresholds/{metric_name}": {
+      "put": {
+        "description": "Update a performance threshold configuration.\n\nArgs:\n    request: FastAPI request object\n    metric_name: Name of the metric to update\n    body: Threshold values to update\n    _user: Current authenticated admin user",
+        "operationId": "update_performance_threshold_api_admin_ops_performance_thresholds__metric_name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_name",
+            "required": true,
+            "schema": {
+              "title": "Metric Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThresholdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Update Performance Threshold Api Admin Ops Performance Thresholds  Metric Name  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Performance Threshold",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
+    "/api/admin/ops/performance-trends": {
+      "get": {
+        "description": "Get performance trend analysis with degradation detection.\n\nArgs:\n    request: FastAPI request object\n    _user: Current authenticated admin user",
+        "operationId": "get_performance_trends_api_admin_ops_performance_trends_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceTrendsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Performance Trends",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-ops"
+        ]
+      }
+    },
     "/api/admin/ops/remediations": {
       "get": {
         "description": "List recent auto-remediation history.\n\nArgs:\n    request: FastAPI request object\n    limit: Max entries to return (default 50)\n    offset: Pagination offset\n    outcome: Filter by outcome (success, failure, skipped, partial)\n    _user: Current authenticated admin user",
@@ -33602,6 +36466,77 @@
           }
         },
         "summary": "Get Admin Seo Analytics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-seo"
+        ]
+      }
+    },
+    "/api/admin/seo/performance": {
+      "get": {
+        "description": "Get blog post performance metrics with generation costs.\n\nReturns published blog posts with:\n- View and click counts\n- CTR percentage\n- Generation cost (from api_costs with cost_category='internal_seo')\n- Cost per view and cost per click (ROI metrics)\n\nSorted by the specified metric (default: views descending).",
+        "operationId": "get_blog_performance_api_admin_seo_performance_get",
+        "parameters": [
+          {
+            "description": "Max posts to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max posts to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Sort by: views, ctr, cost_per_click, roi",
+            "in": "query",
+            "name": "sort_by",
+            "required": false,
+            "schema": {
+              "default": "views",
+              "description": "Sort by: views, ctr, cost_per_click, roi",
+              "title": "Sort By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlogPerformanceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Blog Performance",
         "tags": [
           "admin",
           "admin",
@@ -40201,6 +43136,80 @@
         ]
       }
     },
+    "/api/v1/blog/posts/{slug}/click": {
+      "post": {
+        "description": "Increment click-through counter when user clicks CTA. Rate limited per IP.",
+        "operationId": "track_click_api_v1_blog_posts__slug__click_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Track blog post CTA click",
+        "tags": [
+          "blog",
+          "blog"
+        ]
+      }
+    },
+    "/api/v1/blog/posts/{slug}/view": {
+      "post": {
+        "description": "Increment view counter for a published blog post. Rate limited per IP.",
+        "operationId": "track_view_api_v1_blog_posts__slug__view_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Track blog post view",
+        "tags": [
+          "blog",
+          "blog"
+        ]
+      }
+    },
     "/api/v1/business-metrics": {
       "get": {
         "description": "Get the authenticated user's saved business metrics along with unfilled template metrics.\n\n    Returns:\n    - metrics: User's saved metrics with values\n    - templates: Predefined metrics not yet saved (for display/initialization)\n\n    Optionally filter templates by business model (saas, ecommerce, marketplace).",
@@ -41378,6 +44387,101 @@
         ]
       }
     },
+    "/api/v1/context/heatmap-depth": {
+      "get": {
+        "description": "Returns user's preferred activity heatmap history depth. Defaults to 3 months.",
+        "operationId": "get_heatmap_depth_api_v1_context_heatmap_depth_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeatmapHistoryDepthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get heatmap history depth",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "put": {
+        "description": "Update user's preferred activity heatmap history depth (1, 3, or 6 months).",
+        "operationId": "update_heatmap_depth_api_v1_context_heatmap_depth_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeatmapHistoryDepthUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeatmapHistoryDepthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Invalid depth (must be 1, 3, or 6)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update heatmap history depth",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/insights": {
       "get": {
         "description": "Retrieve insights accumulated from user's meetings.\n\n    Currently includes:\n    - **Clarifications**: Q&A pairs from clarifying questions answered during meetings\n\n    These insights are automatically collected during meetings when users answer\n    clarifying questions. They help improve future meetings by providing\n    relevant context.\n\n    **Use Cases:**\n    - Display clarification history in settings\n    - Show what the system has learned about the user's business\n    - Allow users to review and potentially edit their responses",
@@ -42107,6 +45211,48 @@
         ]
       }
     },
+    "/api/v1/context/research-embeddings": {
+      "get": {
+        "description": "Returns user's research topics as 2D coordinates for scatter plot visualization.",
+        "operationId": "get_research_embeddings_api_v1_context_research_embeddings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchEmbeddingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get research embeddings for visualization",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/stale-metrics": {
       "get": {
         "description": "Check which business context metrics are stale and need refreshing.\n\n    Staleness is determined by:\n    - **Age-based**: Metric hasn't been updated within its volatility threshold\n      - VOLATILE metrics (revenue, customers): stale after 30 days\n      - MODERATE metrics (team_size, competitors): stale after 90 days\n      - STABLE metrics (industry, business_stage): stale after 180 days\n    - **Action-affected**: Related action was recently completed\n\n    Returns max 3 stale metrics, prioritized by:\n    1. Action-affected metrics (most urgent)\n    2. Days since last update (longer = higher priority)\n\n    **Use Cases:**\n    - Check before starting a meeting to prompt user to update context\n    - Show stale metric warnings in context settings page",
@@ -42507,6 +45653,101 @@
           }
         },
         "summary": "Get business context with trend indicators",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/working-pattern": {
+      "get": {
+        "description": "Returns user's working days pattern for activity visualization. Defaults to Mon-Fri.",
+        "operationId": "get_working_pattern_api_v1_context_working_pattern_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingPatternResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get working pattern",
+        "tags": [
+          "context",
+          "context"
+        ]
+      },
+      "put": {
+        "description": "Update user's working days pattern. Used to grey out non-working days in ActivityHeatmap.",
+        "operationId": "update_working_pattern_api_v1_context_working_pattern_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkingPatternUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingPatternResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Invalid days (must be 1-7)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update working pattern",
         "tags": [
           "context",
           "context"

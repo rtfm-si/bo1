@@ -129,6 +129,99 @@ def _log_oauth_status() -> None:
         logger.warning("No OAuth providers configured. Login will not work.")
 
 
+def validate_oauth_callback_urls() -> list[str]:
+    """Validate OAuth callback URL configuration.
+
+    Checks that callback URLs are correctly configured for each enabled provider.
+    Logs expected callback URLs for provider dashboard configuration.
+
+    Returns:
+        List of warning messages (empty if all checks pass)
+    """
+    warnings: list[str] = []
+
+    api_domain = os.getenv("SUPERTOKENS_API_DOMAIN", "http://localhost:8000")
+
+    # Map of provider to (enabled_env_var, default_enabled)
+    providers = {
+        "google": ("GOOGLE_OAUTH_ENABLED", "true"),
+        "linkedin": ("LINKEDIN_OAUTH_ENABLED", "false"),
+        "github": ("GITHUB_OAUTH_ENABLED", "false"),
+        "twitter": ("TWITTER_OAUTH_ENABLED", "false"),
+        "bluesky": ("BLUESKY_OAUTH_ENABLED", "false"),
+    }
+
+    enabled_providers: list[str] = []
+
+    for provider, (env_var, default) in providers.items():
+        if os.getenv(env_var, default).lower() == "true":
+            enabled_providers.append(provider)
+
+    if enabled_providers:
+        callback_urls = [
+            f"{api_domain}/api/auth/callback/{provider}" for provider in enabled_providers
+        ]
+        logger.info(f"OAuth callback URLs configured: {', '.join(callback_urls)}")
+
+        # Log reminder about production vs local callback URLs
+        if "localhost" in api_domain:
+            logger.info(
+                "Local development: Ensure OAuth provider dashboards have callback URL "
+                f"set to {api_domain}/api/auth/callback/<provider>"
+            )
+        else:
+            logger.info(
+                f"Production: Ensure OAuth provider dashboards have callback URL "
+                f"set to {api_domain}/api/auth/callback/<provider>"
+            )
+
+    return warnings
+
+
+def get_oauth_callback_url(provider: str) -> str:
+    """Get the expected OAuth callback URL for a provider.
+
+    Args:
+        provider: OAuth provider ID (google, linkedin, github, twitter, bluesky)
+
+    Returns:
+        Expected callback URL for the provider
+    """
+    api_domain = os.getenv("SUPERTOKENS_API_DOMAIN", "http://localhost:8000")
+    return f"{api_domain}/api/auth/callback/{provider}"
+
+
+def validate_spaces_config() -> list[str]:
+    """Validate DO Spaces configuration at startup.
+
+    Returns:
+        List of warning messages (empty if all checks pass)
+    """
+    warnings: list[str] = []
+
+    do_spaces_key = os.getenv("DO_SPACES_KEY", "")
+    do_spaces_secret = os.getenv("DO_SPACES_SECRET", "")
+    do_spaces_bucket = os.getenv("DO_SPACES_BUCKET", "")
+
+    if not do_spaces_key:
+        warnings.append(
+            "DO_SPACES_KEY not set. File uploads will fail. "
+            "See: https://docs.digitalocean.com/products/spaces/"
+        )
+    if not do_spaces_secret:
+        warnings.append("DO_SPACES_SECRET not set. File uploads will fail.")
+    if not do_spaces_bucket:
+        warnings.append("DO_SPACES_BUCKET not set. File uploads will fail.")
+
+    # Log status
+    if do_spaces_key and do_spaces_secret and do_spaces_bucket:
+        logger.info(f"DO Spaces configured: bucket={do_spaces_bucket}")
+    else:
+        logger.warning("DO Spaces credentials incomplete - file uploads disabled")
+
+    return warnings
+
+
 def get_auth_diagnostic_info() -> dict[str, Any]:
     """Get diagnostic information for auth-check command.
 
@@ -136,13 +229,14 @@ def get_auth_diagnostic_info() -> dict[str, Any]:
         Dict with auth configuration status
     """
     supertokens_uri = os.getenv("SUPERTOKENS_CONNECTION_URI", "http://supertokens:3567")
+    api_domain = os.getenv("SUPERTOKENS_API_DOMAIN", "http://localhost:8000")
 
     return {
         "supertokens": {
             "connection_uri": supertokens_uri,
             "reachable": _check_supertokens_core(supertokens_uri),
             "api_key_set": bool(os.getenv("SUPERTOKENS_API_KEY")),
-            "api_domain": os.getenv("SUPERTOKENS_API_DOMAIN", "http://localhost:8000"),
+            "api_domain": api_domain,
             "website_domain": os.getenv("SUPERTOKENS_WEBSITE_DOMAIN", "http://localhost:5173"),
         },
         "cookies": {
@@ -154,16 +248,19 @@ def get_auth_diagnostic_info() -> dict[str, Any]:
                 "enabled": os.getenv("GOOGLE_OAUTH_ENABLED", "true").lower() == "true",
                 "client_id_set": bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")),
                 "client_secret_set": bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")),
+                "callback_url": f"{api_domain}/api/auth/callback/google",
             },
             "linkedin": {
                 "enabled": os.getenv("LINKEDIN_OAUTH_ENABLED", "false").lower() == "true",
                 "client_id_set": bool(os.getenv("LINKEDIN_OAUTH_CLIENT_ID")),
                 "client_secret_set": bool(os.getenv("LINKEDIN_OAUTH_CLIENT_SECRET")),
+                "callback_url": f"{api_domain}/api/auth/callback/linkedin",
             },
             "github": {
                 "enabled": os.getenv("GITHUB_OAUTH_ENABLED", "false").lower() == "true",
                 "client_id_set": bool(os.getenv("GITHUB_OAUTH_CLIENT_ID")),
                 "client_secret_set": bool(os.getenv("GITHUB_OAUTH_CLIENT_SECRET")),
+                "callback_url": f"{api_domain}/api/auth/callback/github",
             },
         },
         "closed_beta_mode": os.getenv("CLOSED_BETA_MODE", "false").lower() == "true",

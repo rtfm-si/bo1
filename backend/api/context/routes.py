@@ -46,6 +46,9 @@ from backend.api.context.models import (
     GoalHistoryResponse,
     GoalProgressResponse,
     GoalStalenessResponse,
+    HeatmapHistoryDepth,
+    HeatmapHistoryDepthResponse,
+    HeatmapHistoryDepthUpdate,
     InsightCategory,
     InsightMetricResponse,
     InsightsResponse,
@@ -63,6 +66,9 @@ from backend.api.context.models import (
     ObjectiveProgressUpdate,
     PendingUpdatesResponse,
     RefreshCheckResponse,
+    ResearchCategory,
+    ResearchEmbeddingsResponse,
+    ResearchPoint,
     StaleFieldSummary,
     StaleMetricResponse,
     StaleMetricsResponse,
@@ -73,6 +79,9 @@ from backend.api.context.models import (
     TrendsRefreshRequest,
     TrendsRefreshResponse,
     UpdateInsightRequest,
+    WorkingPattern,
+    WorkingPatternResponse,
+    WorkingPatternUpdate,
 )
 from backend.api.context.models import (
     StalenessReason as ModelStalenessReason,
@@ -100,7 +109,7 @@ from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.services.enrichment import EnrichmentService
-from bo1.state.repositories import user_repository
+from bo1.state.repositories import cache_repository, user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -3062,4 +3071,204 @@ async def update_key_metrics_config(
         now_count=now_count,
         later_count=later_count,
         monitor_count=monitor_count,
+    )
+
+
+# =============================================================================
+# Working Pattern (Activity Heatmap)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/working-pattern",
+    response_model=WorkingPatternResponse,
+    summary="Get working pattern",
+    description="Returns user's working days pattern for activity visualization. Defaults to Mon-Fri.",
+    responses={429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get working pattern")
+async def get_working_pattern(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> WorkingPatternResponse:
+    """Get user's working pattern (defaults to Mon-Fri)."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    working_pattern_data = context_data.get("working_pattern") if context_data else None
+
+    if working_pattern_data and isinstance(working_pattern_data, dict):
+        pattern = WorkingPattern(**working_pattern_data)
+    else:
+        pattern = WorkingPattern()  # Default Mon-Fri
+
+    return WorkingPatternResponse(success=True, pattern=pattern)
+
+
+@router.put(
+    "/v1/context/working-pattern",
+    response_model=WorkingPatternResponse,
+    summary="Update working pattern",
+    description="Update user's working days pattern. Used to grey out non-working days in ActivityHeatmap.",
+    responses={429: RATE_LIMIT_RESPONSE, 422: {"description": "Invalid days (must be 1-7)"}},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update working pattern")
+async def update_working_pattern(
+    request: Request,
+    body: WorkingPatternUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> WorkingPatternResponse:
+    """Update user's working pattern."""
+    user_id = extract_user_id(user)
+
+    # Validate days are in range 1-7
+    invalid_days = [d for d in body.working_days if d < 1 or d > 7]
+    if invalid_days:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid days: {invalid_days}. Days must be 1 (Mon) through 7 (Sun).",
+        )
+
+    # Build pattern (sorts and deduplicates)
+    pattern = WorkingPattern(working_days=body.working_days)
+
+    # Save to context
+    user_repository.save_context(
+        user_id, {"working_pattern": {"working_days": pattern.working_days}}
+    )
+
+    logger.info(f"Updated working pattern for user {user_id}: {pattern.working_days}")
+
+    return WorkingPatternResponse(success=True, pattern=pattern)
+
+
+# =============================================================================
+# Heatmap History Depth (Activity Heatmap)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/heatmap-depth",
+    response_model=HeatmapHistoryDepthResponse,
+    summary="Get heatmap history depth",
+    description="Returns user's preferred activity heatmap history depth. Defaults to 3 months.",
+    responses={429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get heatmap depth")
+async def get_heatmap_depth(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> HeatmapHistoryDepthResponse:
+    """Get user's heatmap history depth (defaults to 3 months)."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    history_months = context_data.get("heatmap_history_months") if context_data else None
+
+    if history_months in (1, 3, 6):
+        depth = HeatmapHistoryDepth(history_months=history_months)
+    else:
+        depth = HeatmapHistoryDepth()  # Default 3 months
+
+    return HeatmapHistoryDepthResponse(success=True, depth=depth)
+
+
+@router.put(
+    "/v1/context/heatmap-depth",
+    response_model=HeatmapHistoryDepthResponse,
+    summary="Update heatmap history depth",
+    description="Update user's preferred activity heatmap history depth (1, 3, or 6 months).",
+    responses={
+        429: RATE_LIMIT_RESPONSE,
+        422: {"description": "Invalid depth (must be 1, 3, or 6)"},
+    },
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update heatmap depth")
+async def update_heatmap_depth(
+    request: Request,
+    body: HeatmapHistoryDepthUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> HeatmapHistoryDepthResponse:
+    """Update user's heatmap history depth."""
+    user_id = extract_user_id(user)
+
+    # Save to context
+    user_repository.save_context(user_id, {"heatmap_history_months": body.history_months})
+
+    logger.info(f"Updated heatmap depth for user {user_id}: {body.history_months} months")
+
+    depth = HeatmapHistoryDepth(history_months=body.history_months)
+    return HeatmapHistoryDepthResponse(success=True, depth=depth)
+
+
+# =============================================================================
+# Research Embeddings Visualization
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/research-embeddings",
+    response_model=ResearchEmbeddingsResponse,
+    summary="Get research embeddings for visualization",
+    description="Returns user's research topics as 2D coordinates for scatter plot visualization.",
+    responses={429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get research embeddings")
+async def get_research_embeddings(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ResearchEmbeddingsResponse:
+    """Get user's research embeddings reduced to 2D for visualization."""
+    from backend.services.embedding_visualizer import reduce_dimensions
+
+    user_id = extract_user_id(user)
+
+    # Get user's research with embeddings (limit 100)
+    research_entries = cache_repository.get_user_research_with_embeddings(user_id, limit=100)
+
+    if not research_entries:
+        # No research data - return empty response
+        return ResearchEmbeddingsResponse(
+            success=True,
+            points=[],
+            categories=[],
+            total_count=0,
+        )
+
+    # Get category counts for legend
+    category_counts = cache_repository.get_user_research_category_counts(user_id)
+    categories = [ResearchCategory(name=c["name"], count=c["count"]) for c in category_counts]
+
+    # Get total count (may exceed 100 limit)
+    total_count = cache_repository.get_user_research_total_count(user_id)
+
+    # Extract embeddings and reduce to 2D using PCA
+    embeddings = [entry["embedding"] for entry in research_entries]
+    coords = reduce_dimensions(embeddings, method="pca", n_components=2)
+
+    # Build points with 2D coordinates
+    points = []
+    for entry, (x, y) in zip(research_entries, coords, strict=True):
+        points.append(
+            ResearchPoint(
+                x=float(x),
+                y=float(y),
+                preview=entry["preview"] or "",
+                category=entry["category"],
+                created_at=entry["created_at"] or "",
+            )
+        )
+
+    logger.info(f"Returned {len(points)} research embeddings for user {user_id}")
+
+    return ResearchEmbeddingsResponse(
+        success=True,
+        points=points,
+        categories=categories,
+        total_count=total_count,
     )

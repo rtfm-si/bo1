@@ -206,7 +206,15 @@ import type {
 	ResearchSharingConsentStatus,
 	// Key Metrics types
 	KeyMetricsResponse,
-	KeyMetricConfigUpdate
+	KeyMetricConfigUpdate,
+	// Working Pattern types
+	WorkingPatternResponse,
+	WorkingPatternUpdate,
+	// Heatmap History Depth types
+	HeatmapHistoryDepthResponse,
+	HeatmapHistoryDepthUpdate,
+	// Research Embeddings types
+	ResearchEmbeddingsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -3055,6 +3063,20 @@ export class ApiClient {
 		return this.fetch<PublicBlogPost>(`/api/v1/blog/posts/${slug}`);
 	}
 
+	/**
+	 * Track a blog post view (public, no auth)
+	 */
+	async trackBlogView(slug: string): Promise<void> {
+		await this.fetch<void>(`/api/v1/blog/posts/${slug}/view`, { method: 'POST' });
+	}
+
+	/**
+	 * Track a blog post CTA click (public, no auth)
+	 */
+	async trackBlogClick(slug: string): Promise<void> {
+		await this.fetch<void>(`/api/v1/blog/posts/${slug}/click`, { method: 'POST' });
+	}
+
 	// =========================================================================
 	// Meeting Templates (public read, no auth required for list/get)
 	// =========================================================================
@@ -3542,6 +3564,53 @@ export class ApiClient {
 	 */
 	async updateKeyMetricsConfig(config: KeyMetricConfigUpdate): Promise<KeyMetricsResponse> {
 		return this.put<KeyMetricsResponse>('/api/v1/context/key-metrics/config', config);
+	}
+
+	// ============================================================================
+	// Working Pattern Methods (Activity Heatmap)
+	// ============================================================================
+
+	/**
+	 * Get user's working pattern (defaults to Mon-Fri)
+	 */
+	async getWorkingPattern(): Promise<WorkingPatternResponse> {
+		return this.fetch<WorkingPatternResponse>('/api/v1/context/working-pattern');
+	}
+
+	/**
+	 * Update user's working pattern
+	 */
+	async updateWorkingPattern(workingDays: number[]): Promise<WorkingPatternResponse> {
+		return this.put<WorkingPatternResponse>('/api/v1/context/working-pattern', {
+			working_days: workingDays
+		});
+	}
+
+	/**
+	 * Get user's heatmap history depth preference (defaults to 3 months)
+	 */
+	async getHeatmapDepth(): Promise<HeatmapHistoryDepthResponse> {
+		return this.fetch<HeatmapHistoryDepthResponse>('/api/v1/context/heatmap-depth');
+	}
+
+	/**
+	 * Update user's heatmap history depth preference (1, 3, or 6 months)
+	 */
+	async updateHeatmapDepth(historyMonths: 1 | 3 | 6): Promise<HeatmapHistoryDepthResponse> {
+		return this.put<HeatmapHistoryDepthResponse>('/api/v1/context/heatmap-depth', {
+			history_months: historyMonths
+		});
+	}
+
+	// =========================================================================
+	// Research Embeddings Visualization
+	// =========================================================================
+
+	/**
+	 * Get user's research embeddings reduced to 2D for scatter plot visualization
+	 */
+	async getResearchEmbeddings(): Promise<ResearchEmbeddingsResponse> {
+		return this.fetch<ResearchEmbeddingsResponse>('/api/v1/context/research-embeddings');
 	}
 }
 

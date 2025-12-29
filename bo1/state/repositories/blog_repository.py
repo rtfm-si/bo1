@@ -172,7 +172,8 @@ class BlogRepository(BaseRepository):
                     """
                     SELECT id, title, slug, content, excerpt, status, published_at,
                            seo_keywords, generated_by_topic, meta_title, meta_description,
-                           author_id, created_at, updated_at
+                           author_id, created_at, updated_at,
+                           view_count, click_through_count, last_viewed_at
                     FROM blog_posts
                     WHERE slug = %s
                     """,
@@ -440,6 +441,88 @@ class BlogRepository(BaseRepository):
                     cur.execute("SELECT COUNT(*) FROM blog_posts")
                 result = cur.fetchone()
                 return result["count"] if result else 0
+
+    # =========================================================================
+    # CTR Tracking
+    # =========================================================================
+
+    def increment_view(self, slug: str) -> bool:
+        """Increment view count for a published blog post.
+
+        Args:
+            slug: Post URL slug
+
+        Returns:
+            True if incremented, False if post not found or not published
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE blog_posts
+                    SET view_count = view_count + 1,
+                        last_viewed_at = NOW()
+                    WHERE slug = %s AND status = 'published'
+                    RETURNING id
+                    """,
+                    (slug,),
+                )
+                result = cur.fetchone()
+                return result is not None
+
+    def increment_click(self, slug: str) -> bool:
+        """Increment click-through count for a published blog post.
+
+        Args:
+            slug: Post URL slug
+
+        Returns:
+            True if incremented, False if post not found or not published
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE blog_posts
+                    SET click_through_count = click_through_count + 1
+                    WHERE slug = %s AND status = 'published'
+                    RETURNING id
+                    """,
+                    (slug,),
+                )
+                result = cur.fetchone()
+                return result is not None
+
+    def get_performance_metrics(self, limit: int = 50) -> builtins.list[dict[str, Any]]:
+        """Get published posts with CTR metrics for admin analytics.
+
+        Returns posts ordered by view count descending with calculated CTR.
+
+        Args:
+            limit: Max results
+
+        Returns:
+            List of posts with metrics
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id, title, slug, view_count, click_through_count,
+                        last_viewed_at, published_at, generated_by_topic,
+                        CASE WHEN view_count > 0
+                             THEN ROUND(click_through_count::numeric / view_count * 100, 2)
+                             ELSE 0
+                        END as ctr_percent
+                    FROM blog_posts
+                    WHERE status = 'published'
+                    ORDER BY view_count DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return [dict(row) for row in cur.fetchall()]
 
 
 # Singleton instance

@@ -192,8 +192,28 @@ class ErrorDetector:
         return detected
 
     def _record_error(self, pattern_id: int) -> None:
-        """Record an error occurrence for frequency tracking."""
+        """Record an error occurrence for frequency tracking.
+
+        Also increments the match_count in the database for persistent tracking.
+        """
         self._error_timestamps[pattern_id].append(time.time())
+
+        # Increment match_count in database (fire-and-forget, non-blocking)
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE error_patterns
+                        SET match_count = match_count + 1,
+                            last_match_at = now()
+                        WHERE id = %s
+                        """,
+                        (pattern_id,),
+                    )
+        except Exception as e:
+            # Log but don't fail - match tracking is non-critical
+            logger.debug(f"Failed to increment match_count for pattern {pattern_id}: {e}")
 
     def _prune_old_timestamps(self, pattern_id: int, window_minutes: int) -> None:
         """Remove timestamps older than the window."""

@@ -187,11 +187,13 @@ class TestCreateFlag:
     @patch("backend.services.feature_flags.db_session")
     def test_creates_flag_successfully(self, mock_db: MagicMock) -> None:
         """Should create flag with provided values."""
-        mock_session = MagicMock()
-        mock_db.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.fetchone.side_effect = [
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_db.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.side_effect = [
             None,  # No existing flag
-            (uuid4(),),  # Return new ID
+            {"id": uuid4()},  # Return new ID
         ]
 
         flag = create_flag(
@@ -211,9 +213,11 @@ class TestCreateFlag:
     @patch("backend.services.feature_flags.db_session")
     def test_raises_when_flag_exists(self, mock_db: MagicMock) -> None:
         """Should raise ValueError if flag name already exists."""
-        mock_session = MagicMock()
-        mock_db.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.fetchone.return_value = (uuid4(),)
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_db.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = {"id": uuid4()}  # Flag exists
 
         with pytest.raises(ValueError, match="already exists"):
             create_flag(name="existing_flag")
@@ -263,9 +267,11 @@ class TestDeleteFlag:
         self, mock_db: MagicMock, mock_invalidate: MagicMock
     ) -> None:
         """Should delete flag and invalidate cache."""
-        mock_session = MagicMock()
-        mock_db.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.fetchone.return_value = (uuid4(),)
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_db.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = {"id": uuid4()}
 
         result = delete_flag("test")
 
@@ -275,9 +281,11 @@ class TestDeleteFlag:
     @patch("backend.services.feature_flags.db_session")
     def test_returns_false_when_not_found(self, mock_db: MagicMock) -> None:
         """Should return False if flag not found."""
-        mock_session = MagicMock()
-        mock_db.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.fetchone.return_value = None
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_db.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = None
 
         result = delete_flag("nonexistent")
 

@@ -3,10 +3,13 @@
 	 * Context Index - Redirects to overview
 	 */
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 
 	onMount(() => {
-		goto('/context/overview', { replaceState: true });
+		// Preserve query params when redirecting (e.g., ?welcome=true)
+		const queryString = $page.url.search;
+		goto(`/context/overview${queryString}`, { replaceState: true });
 	});
 </script>
 

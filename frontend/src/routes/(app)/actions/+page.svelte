@@ -10,6 +10,7 @@
 	 */
 	import { onMount, tick } from 'svelte';
 	import { goto, beforeNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
 	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
 	import { startActionsPageTour, injectTourStyles, destroyActiveTour } from '$lib/tour/onboarding-tour';
@@ -40,6 +41,8 @@
 	let selectedTagIds = $state<string[]>([]);
 	let selectedStatus = $state<ActionStatus | 'all'>('all');
 	let selectedDueDate = $state<'all' | 'overdue' | 'due-today' | 'due-soon' | 'no-date'>('all');
+	// Specific date filter from URL (YYYY-MM-DD format)
+	let selectedSpecificDate = $state<string | null>(null);
 
 	type DueDateFilterOption = 'all' | 'overdue' | 'due-today' | 'due-soon' | 'no-date';
 
@@ -142,8 +145,16 @@
 			tasks = tasks.filter((t) => t.status === selectedStatus);
 		}
 
-		// Due date filter
-		if (selectedDueDate !== 'all') {
+		// Specific date filter (from URL ?due_date=YYYY-MM-DD)
+		if (selectedSpecificDate) {
+			tasks = tasks.filter((t) => {
+				if (!t.suggested_completion_date) return false;
+				const taskDate = t.suggested_completion_date.split('T')[0];
+				return taskDate === selectedSpecificDate;
+			});
+		}
+		// Due date filter (dropdown)
+		else if (selectedDueDate !== 'all') {
 			tasks = tasks.filter((t) => {
 				const status = getDueDateStatus(t.suggested_completion_date);
 				switch (selectedDueDate) {
@@ -171,6 +182,9 @@
 		selectedTagIds = [];
 		selectedStatus = 'all';
 		selectedDueDate = 'all';
+		selectedSpecificDate = null;
+		// Clear URL params
+		goto('/actions', { replaceState: true });
 		fetchData();
 	}
 
@@ -289,10 +303,16 @@
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
 		selectedMeetingId !== null || selectedProjectId !== null || selectedTagIds.length > 0 ||
-		selectedStatus !== 'all' || selectedDueDate !== 'all'
+		selectedStatus !== 'all' || selectedDueDate !== 'all' || selectedSpecificDate !== null
 	);
 
 	onMount(async () => {
+		// Read specific date filter from URL
+		const dueDateParam = $page.url.searchParams.get('due_date');
+		if (dueDateParam && /^\d{4}-\d{2}-\d{2}$/.test(dueDateParam)) {
+			selectedSpecificDate = dueDateParam;
+		}
+
 		await fetchData();
 
 		// Check if we should continue the tour on this page
@@ -361,6 +381,24 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Specific Date Filter Badge (from URL) -->
+			{#if selectedSpecificDate}
+				<div class="mb-4 flex items-center gap-2 p-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-lg">
+					<svg class="w-4 h-4 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+					</svg>
+					<span class="text-sm font-medium text-brand-700 dark:text-brand-300">
+						Showing actions due on {new Date(selectedSpecificDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+					</span>
+					<button
+						onclick={clearFilters}
+						class="ml-auto text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+					>
+						Clear filter
+					</button>
+				</div>
+			{/if}
 
 			<!-- Filters Row -->
 			{#if actionsData && !isLoading}

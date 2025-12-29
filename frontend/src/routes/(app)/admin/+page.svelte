@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical, Image, Search } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical, Image, Search, Shield, AlertTriangle } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import ResearchCostsPanel from '$lib/components/admin/ResearchCostsPanel.svelte';
 	import ResearchCacheMetrics from '$lib/components/admin/ResearchCacheMetrics.svelte';
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
-	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
-	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse } from '$lib/api/admin';
+	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse, type RuntimeConfigItem } from '$lib/api/admin';
 	import { onMount } from 'svelte';
 
 	interface AdminStats {
@@ -32,6 +31,7 @@
 	let cacheStats = $state<ResearchCacheStats | null>(null);
 	let cacheStatsLoading = $state(true);
 	let observabilityLinks = $state<ObservabilityLinksResponse | null>(null);
+	let togglesStats = $state<{ enabled: number; total: number; securityOff: boolean } | null>(null);
 
 	// Sync stats when data prop changes
 	$effect(() => {
@@ -68,7 +68,22 @@
 			}
 		};
 
-		await Promise.all([fetchEmailStats(), fetchCacheStats(), fetchObservabilityLinks()]);
+		const fetchTogglesStats = async () => {
+			try {
+				const response = await adminApi.getRuntimeConfig();
+				const items = response.items;
+				const enabled = items.filter((c: RuntimeConfigItem) => c.effective_value).length;
+				const securityItems = items.filter(
+					(c: RuntimeConfigItem) => c.key === 'prompt_injection_block_suspicious'
+				);
+				const securityOff = securityItems.some((c: RuntimeConfigItem) => !c.effective_value);
+				togglesStats = { enabled, total: items.length, securityOff };
+			} catch (e) {
+				console.error('Failed to load toggles stats:', e);
+			}
+		};
+
+		await Promise.all([fetchEmailStats(), fetchCacheStats(), fetchObservabilityLinks(), fetchTogglesStats()]);
 	});
 </script>
 
@@ -322,7 +337,40 @@
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">System Status</h2>
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<UptimeStatusBadge statusPageUrl={observabilityLinks?.uptimerobot_url} />
-				<EmergencyToggles />
+				<!-- Emergency Toggles Summary Card -->
+				<a
+					href="/admin/toggles"
+					class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border {togglesStats?.securityOff
+						? 'border-error-300 dark:border-error-700 ring-2 ring-error-200 dark:ring-error-800'
+						: 'border-warning-300 dark:border-warning-700'} hover:shadow-md transition-all duration-200"
+				>
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<Shield class="w-5 h-5 text-warning-600 dark:text-warning-400" />
+							<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+								Emergency Toggles
+							</h3>
+						</div>
+						{#if togglesStats?.securityOff}
+							<span
+								class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-400"
+							>
+								<AlertTriangle class="w-3 h-3 mr-1" />
+								Security Off
+							</span>
+						{/if}
+					</div>
+					{#if togglesStats}
+						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+							{togglesStats.enabled} of {togglesStats.total} toggles enabled
+						</p>
+						<span class="text-sm text-warning-600 dark:text-warning-400">
+							Manage toggles →
+						</span>
+					{:else}
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">Loading...</p>
+					{/if}
+				</a>
 			</div>
 
 			<!-- Monitoring Quick Links -->
@@ -498,6 +546,29 @@
 				<span class="text-sm text-accent-600 dark:text-accent-400">View ops →</span>
 			</a>
 
+			<!-- Emergency Toggles Card -->
+			<a
+				href="/admin/toggles"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-warning-200 dark:border-warning-700 hover:shadow-md hover:border-warning-400 dark:hover:border-warning-500 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+						<Shield class="w-6 h-6 text-warning-600 dark:text-warning-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Emergency Toggles</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Critical feature controls</p>
+					</div>
+				</div>
+				<span class="text-sm text-warning-600 dark:text-warning-400">
+					{#if togglesStats}
+						{togglesStats.enabled}/{togglesStats.total} enabled →
+					{:else}
+						Manage toggles →
+					{/if}
+				</span>
+			</a>
+
 			<!-- Landing Page Analytics Card -->
 			<a
 				href="/admin/landing-analytics"
@@ -552,7 +623,7 @@
 
 		<!-- Quick Links - User Management -->
 		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">User Management</h2>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
 			<!-- Waitlist Card -->
 			<a
 				href="/admin/waitlist"
@@ -610,23 +681,6 @@
 				<span class="text-sm text-warning-600 dark:text-warning-400">Manage whitelist →</span>
 			</a>
 
-			<!-- Promotions Card -->
-			<a
-				href="/admin/promotions"
-				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
-			>
-				<div class="flex items-center gap-4 mb-3">
-					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
-						<Tag class="w-6 h-6 text-accent-600 dark:text-accent-400" />
-					</div>
-					<div>
-						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Promotions</h3>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400">Manage promo codes</p>
-					</div>
-				</div>
-				<span class="text-sm text-accent-600 dark:text-accent-400">Manage promotions →</span>
-			</a>
-
 			<!-- Feedback Card -->
 			<a
 				href="/admin/feedback"
@@ -659,6 +713,27 @@
 					</div>
 				</div>
 				<span class="text-sm text-success-600 dark:text-success-400">View ratings →</span>
+			</a>
+		</div>
+
+		<!-- Quick Links - Content & Marketing -->
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Content & Marketing</h2>
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+			<!-- Promotions Card -->
+			<a
+				href="/admin/promotions"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<Tag class="w-6 h-6 text-accent-600 dark:text-accent-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Promotions</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Manage promo codes</p>
+					</div>
+				</div>
+				<span class="text-sm text-accent-600 dark:text-accent-400">Manage promotions →</span>
 			</a>
 
 			<!-- Blog Management Card -->

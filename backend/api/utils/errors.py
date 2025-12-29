@@ -17,6 +17,7 @@ Usage:
 
 import logging
 from collections.abc import Callable
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, Literal, TypedDict, TypeVar
 
@@ -249,6 +250,8 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
                     exc_info=True,
                     **extra_context,
                 )
+                # Push error to Redis buffer for AI ops monitoring
+                _push_error_to_redis(operation, str(e), 500)
                 raise HTTPException(
                     status_code=500,
                     detail={
@@ -260,3 +263,34 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
         return wrapper  # type: ignore[return-value]
 
     return decorator
+
+
+def _push_error_to_redis(operation: str, error_msg: str, status_code: int) -> None:
+    """Push error to Redis buffer for AI ops self-healing monitoring.
+
+    Non-blocking, fire-and-forget - logging errors should never fail requests.
+    Uses LPUSH + LTRIM to maintain a capped buffer of recent errors.
+    """
+    import json
+
+    try:
+        from backend.api.dependencies import get_redis_manager
+
+        redis_manager = get_redis_manager()
+        if not redis_manager.is_available or not redis_manager.redis:
+            return
+
+        error_entry = json.dumps(
+            {
+                "operation": operation,
+                "error": error_msg[:500],  # Truncate long messages
+                "status_code": status_code,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+
+        # Push to head of list and trim to keep only recent 1000 entries
+        redis_manager.redis.lpush("errors:recent", error_entry)
+        redis_manager.redis.ltrim("errors:recent", 0, 999)
+    except Exception:  # noqa: S110 - intentionally silent, monitoring must not break requests
+        pass

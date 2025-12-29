@@ -1565,17 +1565,15 @@ async def get_autopilot_config(
             detail="SEO tools are not available on your plan. Please upgrade.",
         )
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
-                SELECT seo_autopilot_config FROM user_context
-                WHERE user_id = :user_id
-            """),
-            {"user_id": user_id},
+    with db_session() as cursor:
+        cursor.execute(
+            """
+            SELECT seo_autopilot_config FROM user_context
+            WHERE user_id = %s
+            """,
+            (user_id,),
         )
-        row = result.fetchone()
+        row = cursor.fetchone()
 
     # Parse config or return defaults
     if row and row[0]:

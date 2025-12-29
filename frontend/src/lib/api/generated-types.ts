@@ -351,6 +351,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/billing/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a price for a product
+         * @description Create a new price for a product.
+         */
+        post: operations["create_price_api_admin_billing_prices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/prices/{price_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a price
+         * @description Update a price. Note: Stripe prices are immutable, so changing amount requires new Stripe price.
+         */
+        put: operations["update_price_api_admin_billing_prices__price_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all billing products
+         * @description Get all billing products with prices and sync status.
+         */
+        get: operations["list_products_api_admin_billing_products_get"];
+        put?: never;
+        /**
+         * Create a billing product
+         * @description Create a new billing product.
+         */
+        post: operations["create_product_api_admin_billing_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a billing product
+         * @description Update an existing billing product.
+         */
+        put: operations["update_product_api_admin_billing_products__product_id__put"];
+        post?: never;
+        /**
+         * Delete a billing product
+         * @description Soft-delete a billing product.
+         */
+        delete: operations["delete_product_api_admin_billing_products__product_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/public/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get active products for public display
+         * @description Get active billing products for frontend pricing display. No auth required.
+         */
+        get: operations["get_public_products_api_admin_billing_public_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get sync status
+         * @description Get current sync status between local DB and Stripe.
+         */
+        get: operations["get_sync_status_api_admin_billing_sync_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/sync/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync all products/prices to Stripe
+         * @description Sync all billing products and prices to Stripe.
+         */
+        post: operations["sync_to_stripe_api_admin_billing_sync_stripe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/blog/generate": {
         parameters: {
             query?: never;
@@ -11997,6 +12145,16 @@ export interface components {
             total_count: number;
         };
         /**
+         * BillingConfigResponse
+         * @description Full billing configuration.
+         */
+        BillingConfigResponse: {
+            /** Last Sync */
+            last_sync?: string | null;
+            /** Products */
+            products: components["schemas"]["BillingProduct"][];
+        };
+        /**
          * BillingPortalResponse
          * @description Response from billing portal creation.
          */
@@ -12017,6 +12175,107 @@ export interface components {
              * @description Stripe billing portal URL
              */
             url?: string | null;
+        };
+        /**
+         * BillingPrice
+         * @description Price for a product.
+         */
+        BillingPrice: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Currency
+             * @default GBP
+             */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Interval */
+            interval?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Stripe Price Id */
+            stripe_price_id?: string | null;
+            /** Stripe Product Id */
+            stripe_product_id?: string | null;
+            /** Stripe Synced At */
+            stripe_synced_at?: string | null;
+        };
+        /**
+         * BillingProduct
+         * @description Product definition.
+         */
+        BillingProduct: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /**
+             * Api Daily
+             * @default 0
+             */
+            api_daily: number;
+            /**
+             * Datasets Total
+             * @default 0
+             */
+            datasets_total: number;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Highlighted
+             * @default false
+             */
+            highlighted: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Meetings Monthly
+             * @default 0
+             */
+            meetings_monthly: number;
+            /**
+             * Mentor Daily
+             * @default 0
+             */
+            mentor_daily: number;
+            /** Name */
+            name: string;
+            /** Prices */
+            prices?: components["schemas"]["BillingPrice"][];
+            /** Slug */
+            slug: string;
+            /**
+             * Sync Status
+             * @default unknown
+             */
+            sync_status: string;
+            /** Type */
+            type: string;
         };
         /**
          * BlockActionRequest
@@ -21601,11 +21860,117 @@ export interface components {
             sample_count: number;
         };
         /**
+         * PriceCreate
+         * @description Create a new price for a product.
+         */
+        PriceCreate: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Currency
+             * @default GBP
+             */
+            currency: string;
+            /** Interval */
+            interval?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /**
+         * PriceUpdate
+         * @description Update a price.
+         */
+        PriceUpdate: {
+            /** Active */
+            active?: boolean | null;
+            /** Amount Cents */
+            amount_cents?: number | null;
+        };
+        /**
          * PrimaryObjective
          * @description Primary business objective.
          * @enum {string}
          */
         PrimaryObjective: "acquire_customers" | "improve_retention" | "raise_capital" | "launch_product" | "reduce_costs";
+        /**
+         * ProductCreate
+         * @description Create a new product.
+         */
+        ProductCreate: {
+            /**
+             * Api Daily
+             * @default 0
+             */
+            api_daily: number;
+            /**
+             * Datasets Total
+             * @default 0
+             */
+            datasets_total: number;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Highlighted
+             * @default false
+             */
+            highlighted: boolean;
+            /**
+             * Meetings Monthly
+             * @default 0
+             */
+            meetings_monthly: number;
+            /**
+             * Mentor Daily
+             * @default 0
+             */
+            mentor_daily: number;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * ProductUpdate
+         * @description Update an existing product.
+         */
+        ProductUpdate: {
+            /** Active */
+            active?: boolean | null;
+            /** Api Daily */
+            api_daily?: number | null;
+            /** Datasets Total */
+            datasets_total?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order?: number | null;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            } | null;
+            /** Highlighted */
+            highlighted?: boolean | null;
+            /** Meetings Monthly */
+            meetings_monthly?: number | null;
+            /** Mentor Daily */
+            mentor_daily?: number | null;
+            /** Name */
+            name?: string | null;
+        };
         /**
          * ProjectActionSummary
          * @description Summary of an action within a project.
@@ -24679,6 +25044,26 @@ export interface components {
              * @description Total tokens used
              */
             total_tokens: number;
+        };
+        /**
+         * SyncResult
+         * @description Result of a Stripe sync operation.
+         */
+        SyncResult: {
+            /** Errors */
+            errors?: string[];
+            /** Success */
+            success: boolean;
+            /**
+             * Synced Prices
+             * @default 0
+             */
+            synced_prices: number;
+            /**
+             * Synced Products
+             * @default 0
+             */
+            synced_products: number;
         };
         /**
          * SystemHealthResponse
@@ -28716,6 +29101,257 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_price_api_admin_billing_prices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPrice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_price_api_admin_billing_prices__price_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                price_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPrice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_products_api_admin_billing_products_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingConfigResponse"];
+                };
+            };
+        };
+    };
+    create_product_api_admin_billing_products_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_product_api_admin_billing_products__product_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_product_api_admin_billing_products__product_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_products_api_admin_billing_public_products_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"][];
+                };
+            };
+        };
+    };
+    get_sync_status_api_admin_billing_sync_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    sync_to_stripe_api_admin_billing_sync_stripe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResult"];
                 };
             };
         };

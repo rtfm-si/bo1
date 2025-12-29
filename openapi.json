@@ -3326,6 +3326,35 @@
         "title": "BetaWhitelistResponse",
         "type": "object"
       },
+      "BillingConfigResponse": {
+        "description": "Full billing configuration.",
+        "properties": {
+          "last_sync": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/BillingProduct"
+            },
+            "title": "Products",
+            "type": "array"
+          }
+        },
+        "required": [
+          "products"
+        ],
+        "title": "BillingConfigResponse",
+        "type": "object"
+      },
       "BillingPortalResponse": {
         "description": "Response from billing portal creation.",
         "properties": {
@@ -3357,6 +3386,180 @@
           "message"
         ],
         "title": "BillingPortalResponse",
+        "type": "object"
+      },
+      "BillingPrice": {
+        "description": "Price for a product.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "currency": {
+            "default": "GBP",
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "stripe_price_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stripe Price Id"
+          },
+          "stripe_product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stripe Product Id"
+          },
+          "stripe_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stripe Synced At"
+          }
+        },
+        "required": [
+          "id",
+          "product_id",
+          "amount_cents"
+        ],
+        "title": "BillingPrice",
+        "type": "object"
+      },
+      "BillingProduct": {
+        "description": "Product definition.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "api_daily": {
+            "default": 0,
+            "title": "Api Daily",
+            "type": "integer"
+          },
+          "datasets_total": {
+            "default": 0,
+            "title": "Datasets Total",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "features": {
+            "additionalProperties": true,
+            "title": "Features",
+            "type": "object"
+          },
+          "highlighted": {
+            "default": false,
+            "title": "Highlighted",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meetings_monthly": {
+            "default": 0,
+            "title": "Meetings Monthly",
+            "type": "integer"
+          },
+          "mentor_daily": {
+            "default": 0,
+            "title": "Mentor Daily",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/BillingPrice"
+            },
+            "title": "Prices",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "sync_status": {
+            "default": "unknown",
+            "title": "Sync Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "type"
+        ],
+        "title": "BillingProduct",
         "type": "object"
       },
       "BlockActionRequest": {
@@ -18019,6 +18222,74 @@
         "title": "PreviewMetricResponse",
         "type": "object"
       },
+      "PriceCreate": {
+        "description": "Create a new price for a product.",
+        "properties": {
+          "amount_cents": {
+            "minimum": 0.0,
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "currency": {
+            "default": "GBP",
+            "title": "Currency",
+            "type": "string"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "pattern": "^(month|year)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "amount_cents"
+        ],
+        "title": "PriceCreate",
+        "type": "object"
+      },
+      "PriceUpdate": {
+        "description": "Update a price.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "amount_cents": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          }
+        },
+        "title": "PriceUpdate",
+        "type": "object"
+      },
       "PrimaryObjective": {
         "description": "Primary business objective.",
         "enum": [
@@ -18030,6 +18301,199 @@
         ],
         "title": "PrimaryObjective",
         "type": "string"
+      },
+      "ProductCreate": {
+        "description": "Create a new product.",
+        "properties": {
+          "api_daily": {
+            "default": 0,
+            "title": "Api Daily",
+            "type": "integer"
+          },
+          "datasets_total": {
+            "default": 0,
+            "title": "Datasets Total",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "features": {
+            "additionalProperties": true,
+            "title": "Features",
+            "type": "object"
+          },
+          "highlighted": {
+            "default": false,
+            "title": "Highlighted",
+            "type": "boolean"
+          },
+          "meetings_monthly": {
+            "default": 0,
+            "title": "Meetings Monthly",
+            "type": "integer"
+          },
+          "mentor_daily": {
+            "default": 0,
+            "title": "Mentor Daily",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Slug",
+            "type": "string"
+          },
+          "type": {
+            "pattern": "^(subscription|one_time)$",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "type"
+        ],
+        "title": "ProductCreate",
+        "type": "object"
+      },
+      "ProductUpdate": {
+        "description": "Update an existing product.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "api_daily": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Daily"
+          },
+          "datasets_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasets Total"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Order"
+          },
+          "features": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Features"
+          },
+          "highlighted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highlighted"
+          },
+          "meetings_monthly": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meetings Monthly"
+          },
+          "mentor_daily": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentor Daily"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "ProductUpdate",
+        "type": "object"
       },
       "ProjectActionSummary": {
         "description": "Summary of an action within a project.\n\nAttributes:\n    id: Action UUID\n    session_id: Session UUID the action belongs to\n    title: Action title\n    description: Action description\n    status: Current status\n    priority: Priority level\n    category: Action category\n    timeline: Human-readable timeline\n    estimated_duration_days: Duration in business days\n    estimated_start_date: Calculated start date (ISO)\n    estimated_end_date: Calculated end date (ISO)\n    blocking_reason: Why action is blocked (if applicable)",
@@ -22353,6 +22817,37 @@
           "by_phase"
         ],
         "title": "SubProblemCost",
+        "type": "object"
+      },
+      "SyncResult": {
+        "description": "Result of a Stripe sync operation.",
+        "properties": {
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          },
+          "synced_prices": {
+            "default": 0,
+            "title": "Synced Prices",
+            "type": "integer"
+          },
+          "synced_products": {
+            "default": 0,
+            "title": "Synced Products",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "SyncResult",
         "type": "object"
       },
       "SystemHealthResponse": {
@@ -28770,6 +29265,352 @@
           "admin",
           "admin",
           "Admin - Beta Whitelist"
+        ]
+      }
+    },
+    "/api/admin/billing/prices": {
+      "post": {
+        "description": "Create a new price for a product.",
+        "operationId": "create_price_api_admin_billing_prices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingPrice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a price for a product",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/prices/{price_id}": {
+      "put": {
+        "description": "Update a price. Note: Stripe prices are immutable, so changing amount requires new Stripe price.",
+        "operationId": "update_price_api_admin_billing_prices__price_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "price_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Price Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingPrice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a price",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/products": {
+      "get": {
+        "description": "Get all billing products with prices and sync status.",
+        "operationId": "list_products_api_admin_billing_products_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List all billing products",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      },
+      "post": {
+        "description": "Create a new billing product.",
+        "operationId": "create_product_api_admin_billing_products_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingProduct"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a billing product",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/products/{product_id}": {
+      "delete": {
+        "description": "Soft-delete a billing product.",
+        "operationId": "delete_product_api_admin_billing_products__product_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Product Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Product Api Admin Billing Products  Product Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a billing product",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      },
+      "put": {
+        "description": "Update an existing billing product.",
+        "operationId": "update_product_api_admin_billing_products__product_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Product Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingProduct"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a billing product",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/public/products": {
+      "get": {
+        "description": "Get active billing products for frontend pricing display. No auth required.",
+        "operationId": "get_public_products_api_admin_billing_public_products_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillingProduct"
+                  },
+                  "title": "Response Get Public Products Api Admin Billing Public Products Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get active products for public display",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/sync/status": {
+      "get": {
+        "description": "Get current sync status between local DB and Stripe.",
+        "operationId": "get_sync_status_api_admin_billing_sync_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Sync Status Api Admin Billing Sync Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get sync status",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
+        ]
+      }
+    },
+    "/api/admin/billing/sync/stripe": {
+      "post": {
+        "description": "Sync all billing products and prices to Stripe.",
+        "operationId": "sync_to_stripe_api_admin_billing_sync_stripe_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync all products/prices to Stripe",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-billing"
         ]
       }
     },

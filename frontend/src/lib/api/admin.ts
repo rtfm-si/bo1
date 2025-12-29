@@ -1453,6 +1453,59 @@ class AdminApiClient {
 			`/api/admin/drilldown/quality-indicators?period=${period}`
 		);
 	}
+
+	// =========================================================================
+	// Billing Products & Prices
+	// =========================================================================
+
+	async getBillingProducts(): Promise<BillingConfigResponse> {
+		return this.fetch<BillingConfigResponse>('/api/admin/billing/products');
+	}
+
+	async createBillingProduct(data: ProductCreate): Promise<BillingProduct> {
+		return this.fetch<BillingProduct>('/api/admin/billing/products', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateBillingProduct(productId: string, data: ProductUpdate): Promise<BillingProduct> {
+		return this.fetch<BillingProduct>(`/api/admin/billing/products/${productId}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteBillingProduct(productId: string): Promise<{ success: boolean; slug: string }> {
+		return this.fetch<{ success: boolean; slug: string }>(
+			`/api/admin/billing/products/${productId}`,
+			{ method: 'DELETE' }
+		);
+	}
+
+	async createBillingPrice(data: PriceCreate): Promise<BillingPrice> {
+		return this.fetch<BillingPrice>('/api/admin/billing/prices', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateBillingPrice(priceId: string, data: PriceUpdate): Promise<BillingPrice> {
+		return this.fetch<BillingPrice>(`/api/admin/billing/prices/${priceId}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async syncBillingToStripe(): Promise<SyncResult> {
+		return this.fetch<SyncResult>('/api/admin/billing/sync/stripe', {
+			method: 'POST'
+		});
+	}
+
+	async getBillingSyncStatus(): Promise<SyncStatus> {
+		return this.fetch<SyncStatus>('/api/admin/billing/sync/status');
+	}
 }
 
 // Blog Post Types
@@ -1956,6 +2009,99 @@ export interface QualityIndicatorsResponse {
 	uncached_continuation_rate: number | null;
 	quality_assessment: string;
 	period: string;
+}
+
+// =============================================================================
+// Billing Product & Price Types
+// =============================================================================
+
+export interface BillingPrice {
+	id: string;
+	product_id: string;
+	amount_cents: number;
+	currency: string;
+	interval: string | null;
+	stripe_price_id: string | null;
+	stripe_product_id: string | null;
+	stripe_synced_at: string | null;
+	active: boolean;
+}
+
+export interface BillingProduct {
+	id: string;
+	slug: string;
+	name: string;
+	description: string | null;
+	type: 'subscription' | 'one_time';
+	meetings_monthly: number;
+	datasets_total: number;
+	mentor_daily: number;
+	api_daily: number;
+	features: Record<string, boolean>;
+	display_order: number;
+	highlighted: boolean;
+	active: boolean;
+	prices: BillingPrice[];
+	sync_status: 'synced' | 'out_of_sync' | 'not_synced';
+}
+
+export interface BillingConfigResponse {
+	products: BillingProduct[];
+	last_sync: string | null;
+}
+
+export interface ProductCreate {
+	slug: string;
+	name: string;
+	description?: string;
+	type: 'subscription' | 'one_time';
+	meetings_monthly?: number;
+	datasets_total?: number;
+	mentor_daily?: number;
+	api_daily?: number;
+	features?: Record<string, boolean>;
+	display_order?: number;
+	highlighted?: boolean;
+}
+
+export interface ProductUpdate {
+	name?: string;
+	description?: string;
+	meetings_monthly?: number;
+	datasets_total?: number;
+	mentor_daily?: number;
+	api_daily?: number;
+	features?: Record<string, boolean>;
+	display_order?: number;
+	highlighted?: boolean;
+	active?: boolean;
+}
+
+export interface PriceCreate {
+	product_id: string;
+	amount_cents: number;
+	currency?: string;
+	interval?: 'month' | 'year' | null;
+}
+
+export interface PriceUpdate {
+	amount_cents?: number;
+	active?: boolean;
+}
+
+export interface SyncResult {
+	success: boolean;
+	synced_products: number;
+	synced_prices: number;
+	errors: string[];
+}
+
+export interface SyncStatus {
+	total_products: number;
+	synced: number;
+	out_of_sync: number;
+	not_synced: number;
+	all_synced: boolean;
 }
 
 export const adminApi = new AdminApiClient();

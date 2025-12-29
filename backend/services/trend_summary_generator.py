@@ -33,9 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 # Tier limits for forecast timeframe access
-# Free/Starter: 3m only; Pro/Enterprise: all timeframes
+# 'now' is always available (handled by summary endpoint)
+# Free: now only (no forecasts)
+# Starter: now + 3m forecast
+# Pro/Enterprise: now + all forecasts (3m, 12m, 24m)
 TREND_FORECAST_TIER_LIMITS: dict[str, list[str]] = {
-    "free": ["3m"],
+    "free": [],
     "starter": ["3m"],
     "pro": ["3m", "12m", "24m"],
     "enterprise": ["3m", "12m", "24m"],

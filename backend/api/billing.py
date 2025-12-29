@@ -431,7 +431,8 @@ async def get_meeting_credits(
             )
             row = cur.fetchone()
             if row:
-                credits, tier = row
+                credits = row["meeting_credits"] or 0
+                tier = row["subscription_tier"] or "free"
             else:
                 credits, tier = 0, "free"
 

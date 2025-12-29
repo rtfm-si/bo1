@@ -8,6 +8,9 @@ This module is the single source of truth for:
 - Benchmark visibility limits
 - Cost thresholds
 
+Now reads core pricing from database (billing_products, billing_prices)
+with fallback to hardcoded defaults for operational fields.
+
 Usage:
     from bo1.billing import PlanConfig
 
@@ -21,8 +24,12 @@ Usage:
     enabled = PlanConfig.is_feature_enabled("starter", "api_access")
 """
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -80,14 +87,107 @@ class MeetingBundleConfig:
 class PlanConfig:
     """Centralized plan configuration.
 
-    Single source of truth for all tier limits, features, and pricing.
+    Reads core pricing from database with fallback to hardcoded defaults.
+    Caches DB data for 5 minutes to avoid repeated queries.
     """
+
+    # Cache settings
+    _db_cache: dict[str, TierConfig] | None = None
+    _db_cache_time: float = 0
+    _bundle_cache: dict[int, MeetingBundleConfig] | None = None
+    CACHE_TTL: int = 300  # 5 minutes
 
     # Fair usage soft warning threshold (percentage of daily limit)
     FAIR_USAGE_SOFT_CAP_PCT: float = 0.80  # Warn at 80%
     # Fair usage hard cap threshold (percentage of daily limit)
     FAIR_USAGE_HARD_CAP_PCT: float = 1.00  # Block at 100%
 
+    # Default operational settings not stored in DB
+    _TIER_DEFAULTS: dict[str, dict[str, Any]] = {
+        "free": {
+            "benchmarks_visible": 3,
+            "seo_analyses_monthly": 1,
+            "seo_articles_monthly": 1,
+            "peer_benchmarks_visible": 3,
+            "marketing_assets_total": 10,
+            "cost_per_session": 0.50,
+            "fair_usage": FairUsageLimits(
+                mentor_chat=0.50,
+                dataset_qa=0.25,
+                competitor_analysis=0.10,
+                meeting=0.50,
+            ),
+            "features_display": [
+                "3 meetings per month",
+                "Basic expert panel",
+                "Community support",
+            ],
+        },
+        "starter": {
+            "benchmarks_visible": 5,
+            "seo_analyses_monthly": 5,
+            "seo_articles_monthly": 5,
+            "peer_benchmarks_visible": 5,
+            "marketing_assets_total": 50,
+            "cost_per_session": 1.00,
+            "fair_usage": FairUsageLimits(
+                mentor_chat=2.00,
+                dataset_qa=1.00,
+                competitor_analysis=0.50,
+                meeting=1.00,
+            ),
+            "features_display": [
+                "20 meetings per month",
+                "All expert personas",
+                "Email support",
+                "Priority processing",
+            ],
+        },
+        "pro": {
+            "benchmarks_visible": -1,
+            "seo_analyses_monthly": -1,
+            "seo_articles_monthly": -1,
+            "peer_benchmarks_visible": -1,
+            "marketing_assets_total": 500,
+            "cost_per_session": 2.00,
+            "fair_usage": FairUsageLimits(
+                mentor_chat=10.00,
+                dataset_qa=5.00,
+                competitor_analysis=2.00,
+                meeting=2.00,
+            ),
+            "features_display": [
+                "Unlimited meetings",
+                "All expert personas",
+                "Priority support",
+                "API access",
+                "Custom expert personas",
+            ],
+        },
+        "enterprise": {
+            "benchmarks_visible": -1,
+            "seo_analyses_monthly": -1,
+            "seo_articles_monthly": -1,
+            "peer_benchmarks_visible": -1,
+            "marketing_assets_total": -1,
+            "cost_per_session": 10.00,
+            "fair_usage": FairUsageLimits(
+                mentor_chat=-1.0,
+                dataset_qa=-1.0,
+                competitor_analysis=-1.0,
+                meeting=-1.0,
+            ),
+            "features_display": [
+                "Everything in Pro",
+                "Dedicated support",
+                "SLA guarantee",
+                "Custom integrations",
+                "On-premise option",
+            ],
+        },
+    }
+
+    # Hardcoded fallback (used if DB unavailable)
     TIERS: dict[str, TierConfig] = {
         "free": TierConfig(
             name="Free",
@@ -276,6 +376,136 @@ class PlanConfig:
     _PLAN_CONFIG_COMPAT: dict[str, dict[str, Any]] | None = None
 
     @classmethod
+    def _load_from_db(cls) -> dict[str, TierConfig]:
+        """Load tier configs from database.
+
+        Returns dict of slug -> TierConfig, merging DB data with operational defaults.
+        """
+        try:
+            from bo1.state.database import db_session
+
+            tiers: dict[str, TierConfig] = {}
+
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    # Load subscription products
+                    cur.execute("""
+                        SELECT bp.slug, bp.name, bp.description,
+                               bp.meetings_monthly, bp.datasets_total,
+                               bp.mentor_daily, bp.api_daily, bp.features,
+                               pr.amount_cents
+                        FROM billing_products bp
+                        LEFT JOIN billing_prices pr ON pr.product_id = bp.id AND pr.active = true
+                        WHERE bp.type = 'subscription' AND bp.active = true
+                        ORDER BY bp.display_order
+                    """)
+                    products = cur.fetchall()
+
+                    for row in products:
+                        slug = row["slug"]
+                        defaults = cls._TIER_DEFAULTS.get(slug, cls._TIER_DEFAULTS["free"])
+
+                        # Merge DB features with any missing defaults
+                        features = row["features"] or {}
+                        default_features = {
+                            "meetings": True,
+                            "datasets": True,
+                            "mentor": True,
+                            "api_access": False,
+                            "priority_support": False,
+                            "advanced_analytics": False,
+                            "custom_personas": False,
+                            "session_export": True,
+                            "session_sharing": True,
+                            "seo_tools": True,
+                            "peer_benchmarks": True,
+                        }
+                        default_features.update(features)
+
+                        tiers[slug] = TierConfig(
+                            name=row["name"],
+                            price_monthly_cents=row["amount_cents"] or 0,
+                            features_display=defaults["features_display"],
+                            meetings_monthly=row["meetings_monthly"] or 0,
+                            datasets_total=row["datasets_total"] or 0,
+                            mentor_daily=row["mentor_daily"] or 0,
+                            api_daily=row["api_daily"] or 0,
+                            benchmarks_visible=defaults["benchmarks_visible"],
+                            seo_analyses_monthly=defaults["seo_analyses_monthly"],
+                            seo_articles_monthly=defaults["seo_articles_monthly"],
+                            peer_benchmarks_visible=defaults["peer_benchmarks_visible"],
+                            marketing_assets_total=defaults["marketing_assets_total"],
+                            cost_per_session=defaults["cost_per_session"],
+                            fair_usage=defaults["fair_usage"],
+                            features=default_features,
+                        )
+
+            return tiers if tiers else cls.TIERS
+
+        except Exception as e:
+            logger.warning(f"Failed to load billing from DB, using defaults: {e}")
+            return cls.TIERS
+
+    @classmethod
+    def _load_bundles_from_db(cls) -> dict[int, MeetingBundleConfig]:
+        """Load meeting bundles from database."""
+        try:
+            from bo1.state.database import db_session
+
+            bundles: dict[int, MeetingBundleConfig] = {}
+
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT bp.slug, bp.meetings_monthly,
+                               pr.amount_cents, pr.stripe_price_id
+                        FROM billing_products bp
+                        JOIN billing_prices pr ON pr.product_id = bp.id AND pr.active = true
+                        WHERE bp.type = 'one_time' AND bp.active = true
+                        ORDER BY bp.display_order
+                    """)
+                    products = cur.fetchall()
+
+                    for row in products:
+                        meetings = row["meetings_monthly"] or 0
+                        if meetings > 0:
+                            bundles[meetings] = MeetingBundleConfig(
+                                meetings=meetings,
+                                price_cents=row["amount_cents"] or 0,
+                                price_id_env_var=f"STRIPE_PRICE_BUNDLE_{meetings}",
+                            )
+
+            return bundles if bundles else cls.MEETING_BUNDLES
+
+        except Exception as e:
+            logger.warning(f"Failed to load bundles from DB, using defaults: {e}")
+            return cls.MEETING_BUNDLES
+
+    @classmethod
+    def _get_cached_tiers(cls) -> dict[str, TierConfig]:
+        """Get tiers with caching."""
+        now = time.time()
+        if cls._db_cache is None or (now - cls._db_cache_time) > cls.CACHE_TTL:
+            cls._db_cache = cls._load_from_db()
+            cls._db_cache_time = now
+        return cls._db_cache
+
+    @classmethod
+    def _get_cached_bundles(cls) -> dict[int, MeetingBundleConfig]:
+        """Get bundles with caching."""
+        now = time.time()
+        if cls._bundle_cache is None or (now - cls._db_cache_time) > cls.CACHE_TTL:
+            cls._bundle_cache = cls._load_bundles_from_db()
+        return cls._bundle_cache
+
+    @classmethod
+    def invalidate_cache(cls) -> None:
+        """Invalidate the cache to force reload from DB."""
+        cls._db_cache = None
+        cls._bundle_cache = None
+        cls._db_cache_time = 0
+
+    @classmethod
     def get_tier(cls, tier: str) -> TierConfig:
         """Get full configuration for a tier.
 
@@ -285,7 +515,8 @@ class PlanConfig:
         Returns:
             TierConfig with all tier settings
         """
-        return cls.TIERS.get(tier.lower(), cls.TIERS["free"])
+        tiers = cls._get_cached_tiers()
+        return tiers.get(tier.lower(), tiers.get("free", cls.TIERS["free"]))
 
     @classmethod
     def get_limit(cls, tier: str, limit_key: str) -> int:
@@ -461,7 +692,8 @@ class PlanConfig:
         Returns:
             MeetingBundleConfig or None if invalid size
         """
-        return cls.MEETING_BUNDLES.get(meetings)
+        bundles = cls._get_cached_bundles()
+        return bundles.get(meetings)
 
     @classmethod
     def get_all_bundles(cls) -> list[MeetingBundleConfig]:
@@ -470,7 +702,8 @@ class PlanConfig:
         Returns:
             List of MeetingBundleConfig sorted by size
         """
-        return [cls.MEETING_BUNDLES[k] for k in sorted(cls.MEETING_BUNDLES.keys())]
+        bundles = cls._get_cached_bundles()
+        return [bundles[k] for k in sorted(bundles.keys())]
 
     @classmethod
     def get_meetings_for_price_id(cls, price_id: str) -> int | None:
@@ -484,6 +717,28 @@ class PlanConfig:
         """
         import os
 
+        # First try DB lookup
+        try:
+            from bo1.state.database import db_session
+
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT bp.meetings_monthly
+                        FROM billing_prices pr
+                        JOIN billing_products bp ON bp.id = pr.product_id
+                        WHERE pr.stripe_price_id = %s AND bp.type = 'one_time'
+                    """,
+                        (price_id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row["meetings_monthly"] is not None:
+                        return int(row["meetings_monthly"])
+        except Exception:  # noqa: BLE001, S110
+            pass  # Fall through to env var lookup
+
+        # Fall back to env var lookup
         for bundle in cls.MEETING_BUNDLES.values():
             env_price = os.environ.get(bundle.price_id_env_var)
             if env_price and env_price == price_id:

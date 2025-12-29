@@ -1072,6 +1072,10 @@ class TrendSummaryResponse(BaseModel):
         None,
         description="Reason refresh is blocked (e.g., 'Refresh available in X days')",
     )
+    available_timeframes: list[str] = Field(
+        default_factory=list,
+        description="Forecast timeframes available to user's tier (excludes 'now' which is always available)",
+    )
 
 
 class TrendSummaryRefreshResponse(BaseModel):

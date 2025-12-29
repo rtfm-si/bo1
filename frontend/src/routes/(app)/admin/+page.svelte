@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical, Image, Search, Shield, AlertTriangle } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText, FlaskConical, Image, Search, Shield, AlertTriangle, CreditCard } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import ResearchCostsPanel from '$lib/components/admin/ResearchCostsPanel.svelte';
 	import ResearchCacheMetrics from '$lib/components/admin/ResearchCacheMetrics.svelte';
@@ -734,6 +734,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-accent-600 dark:text-accent-400">Manage promotions →</span>
+			</a>
+
+			<!-- Billing Config Card -->
+			<a
+				href="/admin/billing"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-purple-300 dark:hover:border-purple-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+						<CreditCard class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Billing Config</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Products, prices, Stripe sync</p>
+					</div>
+				</div>
+				<span class="text-sm text-purple-600 dark:text-purple-400">Manage billing →</span>
 			</a>
 
 			<!-- Blog Management Card -->

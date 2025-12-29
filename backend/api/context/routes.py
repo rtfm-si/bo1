@@ -2181,9 +2181,13 @@ async def get_trend_summary(
     from datetime import timedelta
 
     from backend.api.context.models import TrendSummary, TrendSummaryResponse
+    from backend.services.trend_summary_generator import get_available_timeframes
 
     user_id = extract_user_id(user)
     tier = user.get("subscription_tier", "free")
+
+    # Get available forecast timeframes for this tier
+    available_timeframes = get_available_timeframes(tier)
 
     # Load user context
     context_data = user_repository.get_context(user_id)
@@ -2193,6 +2197,7 @@ async def get_trend_summary(
             summary=None,
             stale=False,
             needs_industry=True,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Check if user has industry
@@ -2203,6 +2208,7 @@ async def get_trend_summary(
             summary=None,
             stale=False,
             needs_industry=True,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Get cached trend summary
@@ -2214,6 +2220,7 @@ async def get_trend_summary(
             stale=True,  # No summary = stale
             needs_industry=False,
             can_refresh_now=True,  # Allow initial generation
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Check staleness
@@ -2267,6 +2274,7 @@ async def get_trend_summary(
             needs_industry=False,
             can_refresh_now=can_refresh_now,
             refresh_blocked_reason=refresh_blocked_reason,
+            available_timeframes=available_timeframes,
         ).model_dump()
     except Exception as e:
         logger.warning(f"Failed to parse trend summary: {e}")
@@ -2275,6 +2283,7 @@ async def get_trend_summary(
             summary=None,
             stale=True,
             needs_industry=False,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
 

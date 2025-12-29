@@ -390,10 +390,10 @@ class TestTierGating:
         assert "pro" in TREND_FORECAST_TIER_LIMITS
         assert "enterprise" in TREND_FORECAST_TIER_LIMITS
 
-    def test_free_tier_only_3m(self):
-        """Test that free tier only has 3m access."""
+    def test_free_tier_no_forecasts(self):
+        """Test that free tier has no forecast access (now summary only)."""
         available = get_available_timeframes("free")
-        assert available == ["3m"]
+        assert available == []
 
     def test_starter_tier_has_3m_only(self):
         """Test that starter tier only has 3m access (12m/24m require pro)."""

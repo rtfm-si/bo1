@@ -182,7 +182,8 @@ def format_recent_meetings(meetings: list[dict[str, Any]]) -> str:
 
     for meeting in meetings[:5]:  # Last 5 max
         problem = meeting.get("problem_statement", "")[:200]
-        created = meeting.get("created_at", "")[:10]  # Just date
+        created_at = meeting.get("created_at", "")
+        created = str(created_at)[:10] if created_at else ""  # Just date
         lines.append(f'  <meeting date="{created}">')
         lines.append(f"    <topic>{problem}</topic>")
         if meeting.get("synthesis"):

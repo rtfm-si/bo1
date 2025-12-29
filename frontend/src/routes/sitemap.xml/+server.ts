@@ -15,7 +15,7 @@ export const GET: RequestHandler = async () => {
 	// Fetch published blog posts - use internal API URL for server-side
 	let blogPosts: Array<{ slug: string; published_at?: string; updated_at?: string }> = [];
 	try {
-		const url = `${INTERNAL_API_URL}/api/v1/blog/posts?limit=100`;
+		const url = `${INTERNAL_API_URL}/api/v1/blog/posts?limit=50`;
 		console.log('Sitemap: fetching blog posts from', url);
 		const response = await fetch(url);
 		console.log('Sitemap: response status', response.status);

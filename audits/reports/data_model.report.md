@@ -1,5 +1,5 @@
 # Data Model Audit Report
-**Generated:** 2025-12-22
+**Generated:** 2025-12-30 (updated from 2025-12-22)
 **Scope:** Alembic migrations, Pydantic models, API contracts, frontend TypeScript types
 **Migration HEAD:** z12_add_calendar_sync_preference
 **Total Migrations:** 136

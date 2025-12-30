@@ -61,11 +61,11 @@
 
 {#if hasGoal}
 	<!-- Goal Banner with content -->
-	<div class="mb-6 bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-lg p-4 sm:p-5">
-		<div class="flex items-start gap-3">
-			<!-- Target icon -->
-			<div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50">
-				<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	<div class="mb-6 bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-xl p-5 sm:p-6 {shouldPromptReview ? 'ring-2 ring-amber-300/50 dark:ring-amber-500/30' : ''}">
+		<div class="flex items-start gap-4">
+			<!-- Target icon - larger -->
+			<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 {shouldPromptReview ? 'animate-pulse' : ''}">
+				<svg class="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
 				</svg>
 			</div>
@@ -75,7 +75,7 @@
 				<div class="flex items-start justify-between gap-4">
 					<div>
 						<span class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase tracking-wider">North Star Goal</span>
-						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mt-0.5">
+						<h2 class="text-xl font-bold text-neutral-900 dark:text-white mt-1">
 							{northStarGoal}
 						</h2>
 						{#if daysText()}
@@ -91,9 +91,12 @@
 					</div>
 					<a
 						href="/context/overview"
-						class="flex-shrink-0 text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline transition-colors"
+						class="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 bg-white/50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-white dark:hover:bg-brand-900/50 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
 					>
-						Edit goal
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+						</svg>
+						Track progress
 					</a>
 				</div>
 

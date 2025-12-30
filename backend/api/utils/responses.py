@@ -33,6 +33,7 @@ from backend.api.models import (
     BadRequestErrorResponse,
     ConflictErrorResponse,
     ForbiddenErrorResponse,
+    GoneErrorResponse,
     InternalErrorResponse,
     NotFoundErrorResponse,
     RateLimitResponse,
@@ -65,6 +66,11 @@ ERROR_404_RESPONSE: dict[str, Any] = {
 ERROR_409_RESPONSE: dict[str, Any] = {
     "model": ConflictErrorResponse,
     "description": "Conflict - request conflicts with current resource state",
+}
+
+ERROR_410_RESPONSE: dict[str, Any] = {
+    "model": GoneErrorResponse,
+    "description": "Gone - resource no longer available (e.g., expired invitation)",
 }
 
 ERROR_500_RESPONSE: dict[str, Any] = {

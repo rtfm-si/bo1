@@ -8,7 +8,9 @@ import json
 import logging
 from dataclasses import dataclass
 
+from bo1.config import resolve_model_alias
 from bo1.llm.client import ClaudeClient, TokenUsage
+from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response_parser import extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -95,13 +97,26 @@ async def generate_blog_post(
                     }
                 )
 
-            response, usage = await client.call(
-                model=MODEL,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=4096,
-                prefill="{",
-            )
+            # Track cost with internal_seo category
+            with CostTracker.track_call(
+                provider="anthropic",
+                operation_type="completion",
+                model_name=resolve_model_alias(MODEL),
+                prompt_type="blog_generation",
+                cost_category="internal_seo",
+            ) as cost_record:
+                response, usage = await client.call(
+                    model=MODEL,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=4096,
+                    prefill="{",
+                )
+                # Populate cost record with usage data
+                cost_record.input_tokens = usage.input_tokens
+                cost_record.output_tokens = usage.output_tokens
+                cost_record.cache_creation_tokens = usage.cache_creation_tokens or 0
+                cost_record.cache_read_tokens = usage.cache_read_tokens or 0
 
             # Parse JSON response using robust parser
             json_str = response  # prefill already included by client
@@ -179,13 +194,26 @@ Output JSON with:
 
     client = ClaudeClient()
 
-    response, usage = await client.call(
-        model=MODEL,
-        messages=[{"role": "user", "content": outline_prompt}],
-        temperature=0.7,
-        max_tokens=1024,
-        prefill="{",
-    )
+    # Track cost with internal_seo category
+    with CostTracker.track_call(
+        provider="anthropic",
+        operation_type="completion",
+        model_name=resolve_model_alias(MODEL),
+        prompt_type="blog_outline",
+        cost_category="internal_seo",
+    ) as cost_record:
+        response, usage = await client.call(
+            model=MODEL,
+            messages=[{"role": "user", "content": outline_prompt}],
+            temperature=0.7,
+            max_tokens=1024,
+            prefill="{",
+        )
+        # Populate cost record with usage data
+        cost_record.input_tokens = usage.input_tokens
+        cost_record.output_tokens = usage.output_tokens
+        cost_record.cache_creation_tokens = usage.cache_creation_tokens or 0
+        cost_record.cache_read_tokens = usage.cache_read_tokens or 0
 
     # Extract JSON using robust parser that handles markdown/xml wrappers
     data = extract_json_from_response(response)
@@ -226,13 +254,26 @@ Output your response as JSON with:
 
     client = ClaudeClient()
 
-    response, usage = await client.call(
-        model=MODEL,
-        messages=[{"role": "user", "content": improve_prompt}],
-        temperature=0.7,
-        max_tokens=4096,
-        prefill="{",
-    )
+    # Track cost with internal_seo category
+    with CostTracker.track_call(
+        provider="anthropic",
+        operation_type="completion",
+        model_name=resolve_model_alias(MODEL),
+        prompt_type="blog_improvement",
+        cost_category="internal_seo",
+    ) as cost_record:
+        response, usage = await client.call(
+            model=MODEL,
+            messages=[{"role": "user", "content": improve_prompt}],
+            temperature=0.7,
+            max_tokens=4096,
+            prefill="{",
+        )
+        # Populate cost record with usage data
+        cost_record.input_tokens = usage.input_tokens
+        cost_record.output_tokens = usage.output_tokens
+        cost_record.cache_creation_tokens = usage.cache_creation_tokens or 0
+        cost_record.cache_read_tokens = usage.cache_read_tokens or 0
 
     # Extract JSON using robust parser (prefill already included by client)
     data = extract_json_from_response(response)

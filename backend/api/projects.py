@@ -19,9 +19,8 @@ import logging
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
-from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
     AutogenCreateRequest,
     AutogenCreateResponse,
@@ -43,7 +42,14 @@ from backend.api.models import (
     UnassignedCountResponse,
 )
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.api.utils.pagination import make_page_pagination_fields
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+    ERROR_500_RESPONSE,
+)
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.project_repository import ProjectRepository
 
@@ -105,13 +111,14 @@ def _format_project_response(project: dict) -> dict:
     response_model=ProjectListResponse,
     summary="Get all projects",
     description="Get all projects for the current user with optional filtering",
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get projects")
 async def get_projects(
+    user: SessionAuthDep,
     status: str | None = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
-    user: dict = Depends(get_current_user),
 ) -> ProjectListResponse:
     """Get all projects for the current user."""
     user_id = user["user_id"]
@@ -140,11 +147,13 @@ async def get_projects(
     status_code=201,
     summary="Create a project",
     description="Create a new project",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("create project")
 async def create_project(
     request: ProjectCreate,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Create a new project."""
     user_id = user["user_id"]
@@ -176,10 +185,11 @@ async def create_project(
     response_model=UnassignedCountResponse,
     summary="Get unassigned actions count",
     description="Get the count of actions not assigned to any project",
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get unassigned count")
 async def get_unassigned_count(
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> UnassignedCountResponse:
     """Get count of unassigned actions."""
     from backend.services.project_autogen import (
@@ -202,11 +212,12 @@ async def get_unassigned_count(
     response_model=ProjectDetailResponse,
     summary="Get project details",
     description="Get detailed information about a specific project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("get project")
 async def get_project(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> ProjectDetailResponse:
     """Get a single project by ID."""
     user_id = user["user_id"]
@@ -226,12 +237,14 @@ async def get_project(
     response_model=ProjectDetailResponse,
     summary="Update a project",
     description="Update project fields",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("update project")
 async def update_project(
     project_id: str,
     request: ProjectUpdate,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Update a project's basic fields."""
     user_id = user["user_id"]
@@ -272,11 +285,13 @@ async def update_project(
     status_code=204,
     summary="Archive a project",
     description="Archive a project (soft delete)",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("delete project")
 async def delete_project(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> None:
     """Archive a project (soft delete)."""
     user_id = user["user_id"]
@@ -293,12 +308,14 @@ async def delete_project(
     response_model=ProjectDetailResponse,
     summary="Update project status",
     description="Update project status with validation",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("update project status")
 async def update_project_status(
     project_id: str,
     request: ProjectStatusUpdate,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Update a project's status."""
     user_id = user["user_id"]
@@ -324,11 +341,13 @@ async def update_project_status(
     status_code=201,
     summary="Create new project version",
     description="Create a new version of a completed project",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("create project version")
 async def create_project_version(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Create a new version of a completed project.
 
@@ -361,14 +380,15 @@ async def create_project_version(
     response_model=ProjectActionsResponse,
     summary="Get project actions",
     description="Get all actions for a project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("get project actions")
 async def get_project_actions(
     project_id: str,
+    user: SessionAuthDep,
     status: str | None = Query(None, description="Filter by action status"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=1, le=100, description="Items per page"),
-    user: dict = Depends(get_current_user),
 ) -> ProjectActionsResponse:
     """Get all actions for a project."""
     user_id = user["user_id"]
@@ -428,11 +448,14 @@ async def get_project_actions(
     status_code=204,
     summary="Assign action to project",
     description="Assign an action to this project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("assign action to project")
 async def assign_action_to_project(
     project_id: str,
     action_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> None:
     """Assign an action to a project."""
     user_id = user["user_id"]
@@ -454,11 +477,14 @@ async def assign_action_to_project(
     status_code=204,
     summary="Remove action from project",
     description="Remove an action from this project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("remove action from project")
 async def remove_action_from_project(
     project_id: str,
     action_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> None:
     """Remove an action from a project."""
     user_id = user["user_id"]
@@ -484,11 +510,12 @@ async def remove_action_from_project(
     response_model=GanttResponse,
     summary="Get Gantt chart data",
     description="Get timeline data for Gantt chart visualization",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("get gantt data")
 async def get_gantt_data(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> GanttResponse:
     """Get Gantt chart data for a project."""
     user_id = user["user_id"]
@@ -515,11 +542,14 @@ async def get_gantt_data(
     status_code=201,
     summary="Link session to project",
     description="Link a deliberation session to this project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("link session to project")
 async def link_session_to_project(
     project_id: str,
     request: ProjectSessionLink,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> dict[str, str]:
     """Link a session to a project."""
     user_id = user["user_id"]
@@ -549,11 +579,14 @@ async def link_session_to_project(
     status_code=204,
     summary="Unlink session from project",
     description="Remove a session link from this project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("unlink session from project")
 async def unlink_session_from_project(
     project_id: str,
     session_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> None:
     """Unlink a session from a project."""
     user_id = user["user_id"]
@@ -576,10 +609,12 @@ async def unlink_session_from_project(
     "/{project_id}/sessions",
     summary="Get project sessions",
     description="Get all sessions linked to this project",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("get project sessions")
 async def get_project_sessions(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> dict[str, list[dict[str, Any]]]:
     """Get all sessions linked to a project."""
     user_id = user["user_id"]
@@ -613,12 +648,19 @@ async def get_project_sessions(
     status_code=201,
     summary="Create meeting for project",
     description="Create a new deliberation meeting focused on project delivery",
+    responses={
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        500: ERROR_500_RESPONSE,
+    },
 )
 @handle_api_errors("create project meeting")
 async def create_project_meeting(
     project_id: str,
     request: CreateProjectMeetingRequest,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> SessionResponse:
     """Create a meeting linked to a project.
 
@@ -716,10 +758,11 @@ async def create_project_meeting(
     response_model=AutogenSuggestionsResponse,
     summary="Get autogenerate suggestions",
     description="Analyze unassigned actions and suggest project groupings",
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get autogen suggestions")
 async def get_autogen_suggestions(
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> AutogenSuggestionsResponse:
     """Get project suggestions from unassigned actions.
 
@@ -776,11 +819,13 @@ async def get_autogen_suggestions(
     status_code=201,
     summary="Create projects from suggestions",
     description="Create projects from selected autogenerate suggestions",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("create from autogen")
 async def create_from_autogen(
     request: AutogenCreateRequest,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> AutogenCreateResponse:
     """Create projects from selected suggestions.
 
@@ -836,10 +881,11 @@ async def create_from_autogen(
     response_model=ContextSuggestionsResponse,
     summary="Get context-based project suggestions",
     description="Generate project suggestions from user's business context",
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get context suggestions")
 async def get_context_suggestions(
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> ContextSuggestionsResponse:
     """Get project suggestions based on business context.
 
@@ -895,11 +941,13 @@ async def get_context_suggestions(
     status_code=201,
     summary="Create projects from context suggestions",
     description="Create projects from selected context-based suggestions",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("create from context suggestions")
 async def create_from_context_suggestions(
     request: ContextCreateRequest,
-    user: dict = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> AutogenCreateResponse:
     """Create projects from selected context suggestions.
 

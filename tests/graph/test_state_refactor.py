@@ -463,6 +463,8 @@ class TestFieldCount:
             "facilitator_guidance",
             "persona_count_variant",
             "research_sharing_consented",
+            "is_resumed_session",
+            "prior_expert_summaries",
         }
 
         # Combine all fields

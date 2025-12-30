@@ -25,6 +25,7 @@ from backend.api.models import (
     KanbanColumnsUpdate,
     UserPromotion,
 )
+from backend.api.utils.errors import http_error
 from backend.services.audit import (
     get_recent_deletion_request,
     get_recent_export_request,
@@ -143,7 +144,7 @@ async def record_gdpr_consent(
             f"Failed to record GDPR consent for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to record consent") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to record consent", status=500) from e
 
 
 @router.get(
@@ -179,13 +180,11 @@ async def export_user_data(
     recent = get_recent_export_request(user_id, window_hours=24)
     if recent:
         last_export = recent["created_at"]
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "Rate limit exceeded",
-                "message": "You can only request data export once every 24 hours.",
-                "last_export": last_export.isoformat() if last_export else None,
-            },
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            "You can only request data export once every 24 hours.",
+            status=429,
+            last_export=last_export.isoformat() if last_export else None,
         )
 
     # Log the export request
@@ -227,7 +226,7 @@ async def export_user_data(
             f"GDPR export failed for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, str(e), status=500) from e
 
 
 @router.delete(
@@ -266,19 +265,15 @@ async def delete_user_account(
     recent = get_recent_deletion_request(user_id, window_hours=24)
     if recent:
         if recent["action"] == "deletion_completed":
-            raise HTTPException(
-                status_code=410,
-                detail={
-                    "error": "Account already deleted",
-                    "message": "This account has already been deleted.",
-                },
+            raise http_error(
+                ErrorCode.API_NOT_FOUND,
+                "This account has already been deleted.",
+                status=410,
             )
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "Deletion pending",
-                "message": "A deletion request is already in progress.",
-            },
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            "A deletion request is already in progress.",
+            status=429,
         )
 
     # Log the deletion request
@@ -332,7 +327,7 @@ async def delete_user_account(
             f"GDPR deletion failed for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, str(e), status=500) from e
 
 
 @router.get(
@@ -360,7 +355,7 @@ async def get_retention_setting(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 # Handle potential NULL from users created before migration
                 retention_days = row["data_retention_days"]
@@ -378,7 +373,7 @@ async def get_retention_setting(
             f"Failed to get retention setting for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get setting") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get setting", status=500) from e
 
 
 @router.patch(
@@ -424,7 +419,7 @@ async def update_retention_setting(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"Updated retention setting for {user_id}: {body.days} days")
                 return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
@@ -438,7 +433,7 @@ async def update_retention_setting(
             f"Failed to update retention setting for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update setting") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update setting", status=500) from e
 
 
 # Meeting preferences models
@@ -492,7 +487,7 @@ async def get_preferences(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 return PreferencesResponse(
                     skip_clarification=row.get("skip_clarification", False) or False,
@@ -508,7 +503,7 @@ async def get_preferences(
             f"Failed to get preferences for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get preferences") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get preferences", status=500) from e
 
 
 @router.patch(
@@ -569,7 +564,7 @@ async def update_preferences(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(
                     f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}, "
@@ -589,7 +584,9 @@ async def update_preferences(
             f"Failed to update preferences for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update preferences") from e
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Failed to update preferences", status=500
+        ) from e
 
 
 # Gantt color preference models
@@ -637,7 +634,7 @@ async def get_gantt_color_preference(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 return GanttColorPreferenceResponse(
                     gantt_color_strategy=row.get("gantt_color_strategy", "BY_STATUS") or "BY_STATUS"
@@ -652,7 +649,7 @@ async def get_gantt_color_preference(
             f"Failed to get Gantt color preference for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get preference") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get preference", status=500) from e
 
 
 @router.patch(
@@ -696,7 +693,7 @@ async def update_gantt_color_preference(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"Updated Gantt color strategy for {user_id}: {strategy}")
                 return GanttColorPreferenceResponse(
@@ -712,7 +709,7 @@ async def update_gantt_color_preference(
             f"Failed to update Gantt color preference for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update preference") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update preference", status=500) from e
 
 
 # =============================================================================
@@ -735,14 +732,15 @@ def _validate_kanban_columns(columns: list[KanbanColumn]) -> None:
     # Check for unique IDs
     ids = [col.id for col in columns]
     if len(ids) != len(set(ids)):
-        raise HTTPException(status_code=400, detail="Column IDs must be unique")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Column IDs must be unique", status=400)
 
     # Check all IDs are valid ActionStatus values
     for col_id in ids:
         if col_id not in VALID_KANBAN_STATUSES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid column ID '{col_id}'. Must be a valid action status.",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Invalid column ID '{col_id}'. Must be a valid action status.",
+                status=400,
             )
 
 
@@ -771,7 +769,7 @@ async def get_kanban_columns(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 # Return stored columns or defaults
                 stored = row.get("kanban_columns")
@@ -791,7 +789,7 @@ async def get_kanban_columns(
             f"Failed to get kanban columns for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get preference") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get preference", status=500) from e
 
 
 @router.patch(
@@ -842,7 +840,7 @@ async def update_kanban_columns(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"Updated kanban columns for {user_id}: {len(body.columns)} columns")
                 return KanbanColumnsResponse(columns=body.columns)
@@ -856,7 +854,7 @@ async def update_kanban_columns(
             f"Failed to update kanban columns for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update preference") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update preference", status=500) from e
 
 
 # =============================================================================
@@ -938,7 +936,9 @@ async def get_usage(
             f"Failed to get usage for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get usage") from e
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get usage", status=500
+        ) from e
 
 
 class TierLimitsResponse(BaseModel):
@@ -1054,7 +1054,9 @@ async def get_fair_usage_status(
             f"Failed to get fair usage for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get fair usage") from e
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get fair usage", status=500
+        ) from e
 
 
 # =============================================================================
@@ -1108,25 +1110,13 @@ async def apply_promo_code(
 
     except PromoValidationError as e:
         if e.code == "not_found":
-            raise HTTPException(status_code=404, detail=e.message) from e
+            raise http_error(ErrorCode.API_NOT_FOUND, e.message, status=404) from e
         elif e.code == "already_applied":
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Already applied",
-                    "message": e.message,
-                },
-            ) from e
+            raise http_error(ErrorCode.API_CONFLICT, e.message, status=409) from e
         elif e.code in ("expired", "inactive", "max_uses_reached"):
-            raise HTTPException(
-                status_code=410,
-                detail={
-                    "error": e.code,
-                    "message": e.message,
-                },
-            ) from e
+            raise http_error(ErrorCode.API_NOT_FOUND, e.message, status=410) from e
         else:
-            raise HTTPException(status_code=400, detail=e.message) from e
+            raise http_error(ErrorCode.VALIDATION_ERROR, e.message, status=400) from e
 
 
 # =============================================================================
@@ -1192,7 +1182,7 @@ async def get_cost_calculator_defaults(
             f"Failed to get cost calculator defaults for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get defaults") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get defaults", status=500) from e
 
 
 @router.patch(
@@ -1246,7 +1236,7 @@ async def update_cost_calculator_defaults(
             f"Failed to update cost calculator defaults for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update defaults") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update defaults", status=500) from e
 
 
 # =============================================================================
@@ -1432,7 +1422,7 @@ async def get_retention_reminder_settings(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 return RetentionReminderSettingsResponse(
                     deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False)
@@ -1449,7 +1439,7 @@ async def get_retention_reminder_settings(
             f"Failed to get retention reminder settings for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get settings") from e
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get settings", status=500) from e
 
 
 @router.post(
@@ -1489,7 +1479,7 @@ async def suppress_retention_reminders(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"User {user_id} suppressed retention reminders")
                 return RetentionReminderSettingsResponse(
@@ -1506,7 +1496,7 @@ async def suppress_retention_reminders(
             f"Failed to suppress retention reminders for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update setting") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update setting", status=500) from e
 
 
 @router.post(
@@ -1539,7 +1529,7 @@ async def enable_retention_reminders(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"User {user_id} enabled retention reminders")
                 return RetentionReminderSettingsResponse(
@@ -1556,7 +1546,7 @@ async def enable_retention_reminders(
             f"Failed to enable retention reminders for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update setting") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update setting", status=500) from e
 
 
 @router.post(
@@ -1595,7 +1585,7 @@ async def acknowledge_retention_reminder(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise HTTPException(status_code=404, detail="User not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
                 logger.info(f"User {user_id} acknowledged retention reminder")
                 return RetentionReminderSettingsResponse(
@@ -1613,4 +1603,4 @@ async def acknowledge_retention_reminder(
             f"Failed to acknowledge retention reminder for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to acknowledge") from e
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to acknowledge", status=500) from e

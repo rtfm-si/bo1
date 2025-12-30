@@ -1,8 +1,14 @@
 <script lang="ts">
-	import { AlertTriangle, RotateCcw, Plus, AlertCircle } from 'lucide-svelte';
+	import { AlertTriangle, RotateCcw, Plus, AlertCircle, RefreshCw } from 'lucide-svelte';
 	import { Button } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import PartialResultsPanel from './PartialResultsPanel.svelte';
+	import {
+		getErrorMessage,
+		isTransientError,
+		formatRecoveryTime,
+		type ErrorMessage
+	} from '$lib/utils/apiErrorMessages';
 
 	/**
 	 * SubProblemResult from session state for partial success display
@@ -18,6 +24,8 @@
 		errorType: string;
 		errorMessage: string;
 		sessionId: string;
+		/** Backend error code (from ErrorCode enum) for specific error handling */
+		errorCode?: string;
 		onRetry?: () => void;
 		canRetry?: boolean;
 		/** Partial results from completed sub-problems */
@@ -32,6 +40,7 @@
 		errorType,
 		errorMessage,
 		sessionId,
+		errorCode,
 		onRetry,
 		canRetry = true,
 		subProblemResults = [],
@@ -50,8 +59,8 @@
 		subProblemResults.filter(r => r.status === 'complete').length
 	);
 
-	// Map error types to user-friendly messages
-	const errorDisplayMap: Record<string, { title: string; description: string }> = {
+	// Map legacy error types to user-friendly messages (for backward compatibility)
+	const legacyErrorDisplayMap: Record<string, { title: string; description: string }> = {
 		LLMError: {
 			title: 'AI Service Unavailable',
 			description: 'The AI service encountered an error. This is usually temporary.',
@@ -74,6 +83,31 @@
 		},
 	};
 
+	// Get error info from new utility (prefers errorCode, falls back to legacy errorType)
+	const errorInfo = $derived.by((): ErrorMessage => {
+		// If we have an errorCode from backend, use the new centralized mapping
+		if (errorCode) {
+			return getErrorMessage(errorCode);
+		}
+		// Fall back to legacy errorType mapping
+		const legacy = legacyErrorDisplayMap[errorType] || legacyErrorDisplayMap['default'];
+		return {
+			title: legacy.title,
+			description: legacy.description,
+			severity: 'error',
+			isTransient: errorType !== 'ValidationError'
+		};
+	});
+
+	// Determine if retry is recommended based on error type
+	const showRetryRecommendation = $derived(
+		isTransientError(errorCode) && errorInfo.recoveryTimeSeconds
+	);
+
+	const recoveryTimeText = $derived(
+		formatRecoveryTime(errorInfo.recoveryTimeSeconds)
+	);
+
 	// Use partial success messaging when partial results are available
 	const errorDisplay = $derived.by(() => {
 		if (hasPartialResults) {
@@ -82,7 +116,10 @@
 				description: `${completedCount} of ${totalSubProblems || subProblemResults.length} focus areas completed successfully. You can view and use the completed results below.`,
 			};
 		}
-		return errorDisplayMap[errorType] || errorDisplayMap['default'];
+		return {
+			title: errorInfo.title,
+			description: errorInfo.description
+		};
 	});
 
 	function handleStartNewMeeting() {
@@ -133,6 +170,19 @@
 				} max-w-md mx-auto">
 					{errorDisplay.description}
 				</p>
+
+				<!-- Actionable guidance with recovery time -->
+				{#if !hasPartialResults && errorInfo.action}
+					<p class="text-sm {errorInfo.isTransient
+						? 'text-info-700 dark:text-info-300'
+						: 'text-error-600 dark:text-error-400'
+					} max-w-md mx-auto mt-2">
+						{errorInfo.action}
+						{#if showRetryRecommendation && recoveryTimeText}
+							<span class="font-medium"> ({recoveryTimeText})</span>
+						{/if}
+					</p>
+				{/if}
 			</div>
 
 			{#if errorMessage}

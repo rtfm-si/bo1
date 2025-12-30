@@ -266,6 +266,60 @@ class EventCollector:
         )
         self._previous_node = to_node
 
+    def _map_error_type_to_code(
+        self,
+        error: Exception,
+        error_type: str,
+        timeout_exceeded: bool,
+    ) -> str:
+        """Map exception type to ErrorCode for frontend-specific messaging.
+
+        Args:
+            error: The exception instance
+            error_type: The exception class name (e.g., "APIError", "RateLimitError")
+            timeout_exceeded: Whether this was a timeout failure
+
+        Returns:
+            ErrorCode value string for frontend consumption
+        """
+        if timeout_exceeded:
+            return ErrorCode.LLM_TIMEOUT.value
+
+        # Map common error types to ErrorCode values
+        error_message = str(error).lower()
+        error_type_lower = error_type.lower()
+
+        # LLM-specific errors
+        if "rate" in error_message or "ratelimit" in error_type_lower:
+            return ErrorCode.LLM_RATE_LIMIT.value
+        if "circuit" in error_message or "circuit" in error_type_lower:
+            return ErrorCode.LLM_CIRCUIT_OPEN.value
+        if "retry" in error_message and "exhaust" in error_message:
+            return ErrorCode.LLM_RETRIES_EXHAUSTED.value
+        if "timeout" in error_message or "timeout" in error_type_lower:
+            return ErrorCode.LLM_TIMEOUT.value
+        if "embedding" in error_message:
+            return ErrorCode.LLM_EMBEDDING_FAILED.value
+        if "parse" in error_message or "json" in error_message:
+            return ErrorCode.LLM_PARSE_FAILED.value
+        if any(x in error_type_lower for x in ["llm", "anthropic", "openai", "api"]):
+            return ErrorCode.LLM_API_ERROR.value
+
+        # Database errors
+        if "database" in error_message or "postgres" in error_message or "sql" in error_message:
+            return ErrorCode.DB_QUERY_ERROR.value
+
+        # Redis errors
+        if "redis" in error_message:
+            return ErrorCode.REDIS_CONNECTION_ERROR.value
+
+        # Service errors
+        if "service" in error_message and "unavailable" in error_message:
+            return ErrorCode.SERVICE_UNAVAILABLE.value
+
+        # Default to generic service execution error
+        return ErrorCode.SERVICE_EXECUTION_ERROR.value
+
     def _mark_session_failed(
         self,
         session_id: str,
@@ -315,9 +369,12 @@ class EventCollector:
             )
 
         # Publish error event to SSE stream
+        # Map error type to ErrorCode for frontend-specific messaging
+        error_code = self._map_error_type_to_code(error, error_type, timeout_exceeded)
         error_data: dict[str, Any] = {
             "error": str(error),
             "error_type": error_type,
+            "error_code": error_code,
         }
         if timeout_exceeded:
             error_data["timeout_exceeded"] = True

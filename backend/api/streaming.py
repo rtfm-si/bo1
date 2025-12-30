@@ -9,11 +9,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 
 if TYPE_CHECKING:
     from bo1.state.redis_manager import RedisManager
@@ -25,6 +26,9 @@ from backend.api.constants import (
     SSE_MIN_SUPPORTED_VERSION,
     SSE_RECONNECT_TRACKING_ENABLED,
     SSE_RECONNECT_TTL_SECONDS,
+    SSE_RETRY_BACKOFF_MULTIPLIER,
+    SSE_RETRY_BASE_MS,
+    SSE_RETRY_MAX_MS,
     SSE_SCHEMA_VERSION,
 )
 from backend.api.dependencies import VerifiedSession, get_redis_manager
@@ -34,11 +38,11 @@ from backend.api.events import (
     node_start_event,
 )
 from backend.api.metrics import metrics
-from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import STREAMING_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse, EventHistoryResponse
 from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.openapi_security import SessionAuthDep
 from backend.api.utils.validation import validate_session_id
 from bo1.logging.errors import ErrorCode, log_error
 
@@ -68,6 +72,69 @@ def strip_cost_data_from_event(event: dict) -> dict:
         else:
             result[key] = value
     return result
+
+
+def calculate_sse_retry_delay(attempt: int) -> int:
+    """Calculate SSE retry delay with exponential backoff and jitter.
+
+    Uses exponential backoff formula: min(base * (mult ^ attempt) + jitter, max)
+    Jitter is ±10% to prevent thundering herd on reconnection.
+
+    Args:
+        attempt: Number of reconnection attempts (0-indexed)
+
+    Returns:
+        Retry delay in milliseconds
+    """
+    if attempt < 0:
+        attempt = 0
+
+    # Exponential backoff: base * mult^attempt
+    delay = SSE_RETRY_BASE_MS * (SSE_RETRY_BACKOFF_MULTIPLIER**attempt)
+
+    # Add jitter: ±10% (not crypto, just timing variance)
+    jitter = delay * 0.1 * (2 * random.random() - 1)  # noqa: S311
+    delay += jitter
+
+    # Cap at max
+    return int(min(delay, SSE_RETRY_MAX_MS))
+
+
+def format_sse_with_retry(event_str: str, retry_ms: int) -> str:
+    """Prepend retry field to an SSE event string.
+
+    The retry field tells the browser's EventSource how long to wait
+    before attempting to reconnect after connection loss.
+
+    Args:
+        event_str: SSE-formatted event string (with data:/event: lines)
+        retry_ms: Retry interval in milliseconds
+
+    Returns:
+        SSE event string with retry: field prepended
+    """
+    return f"retry: {retry_ms}\n{event_str}"
+
+
+async def _reset_reconnect_count(redis_manager: RedisManager, session_id: str) -> None:
+    """Reset reconnection count on clean session completion.
+
+    Called when a session completes successfully to clear backoff state.
+
+    Args:
+        redis_manager: Redis manager instance
+        session_id: Session identifier
+    """
+    if not redis_manager.is_available:
+        return
+
+    try:
+        redis_client = redis_manager.redis
+        reconnect_key = f"{session_id}:reconnects"
+        redis_client.hset(reconnect_key, "count", "0")
+        logger.debug(f"[SSE BACKOFF] Reset reconnect count for session {session_id}")
+    except Exception as e:
+        logger.warning(f"Failed to reset reconnect count for {session_id}: {e}")
 
 
 logger = logging.getLogger(__name__)
@@ -122,7 +189,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
 async def get_event_history(
     session_id: str,
     session_data: VerifiedSession,
-    current_user: dict = Depends(get_current_user),
+    current_user: SessionAuthDep,
 ) -> EventHistoryResponse:
     """Get historical events for a session.
 
@@ -358,7 +425,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("total_rounds", 0),
         ),
         "error": lambda: events.error_event(
-            session_id, data.get("error", ""), data.get("error_type")
+            session_id, data.get("error", ""), data.get("error_type"), data.get("error_code")
         ),
         "clarification_requested": lambda: events.clarification_requested_event(
             session_id, data.get("question", ""), data.get("reason", ""), data.get("round", 1)
@@ -383,7 +450,7 @@ async def _track_reconnection(
     redis_manager: RedisManager,
     session_id: str,
     connect_time: float,
-) -> None:
+) -> int:
     """Track SSE reconnection in Redis and emit Prometheus metrics.
 
     Stores reconnection metadata in Redis key {session_id}:reconnects:
@@ -397,28 +464,41 @@ async def _track_reconnection(
         redis_manager: Redis manager instance
         session_id: Session identifier
         connect_time: Unix timestamp of this connection
+
+    Returns:
+        Current reconnect count (for backoff calculation)
     """
     from backend.api.middleware.metrics import record_sse_reconnect
 
     if not redis_manager.is_available:
         # Emit metric even if Redis is unavailable
         record_sse_reconnect(session_id, gap_seconds=None)
-        return
+        return 0  # Fail-open: use default backoff
 
     try:
         redis_client = redis_manager.redis
         reconnect_key = f"{session_id}:reconnects"
 
-        # Get previous disconnect time for gap calculation
+        # Get previous disconnect time for gap calculation and current count
         prev_data = redis_client.hgetall(reconnect_key)
         gap_seconds: float | None = None
+        current_count = 0
 
-        if prev_data and b"last_disconnect_at" in prev_data:
-            try:
-                last_disconnect = float(prev_data[b"last_disconnect_at"])
-                gap_seconds = connect_time - last_disconnect
-            except (ValueError, TypeError):
-                pass
+        if prev_data:
+            if b"last_disconnect_at" in prev_data:
+                try:
+                    last_disconnect = float(prev_data[b"last_disconnect_at"])
+                    gap_seconds = connect_time - last_disconnect
+                except (ValueError, TypeError):
+                    pass
+            if b"count" in prev_data:
+                try:
+                    current_count = int(prev_data[b"count"])
+                except (ValueError, TypeError):
+                    pass
+
+        # Increment count (new count = current + 1)
+        new_count = current_count + 1
 
         # Update reconnection metadata
         pipeline = redis_client.pipeline()
@@ -435,12 +515,17 @@ async def _track_reconnection(
         record_sse_reconnect(session_id, gap_seconds)
 
         gap_str = f"{gap_seconds:.2f}" if gap_seconds else "unknown"
-        logger.debug(f"[SSE RECONNECT] session={session_id}, gap_seconds={gap_str}")
+        logger.debug(
+            f"[SSE RECONNECT] session={session_id}, gap_seconds={gap_str}, count={new_count}"
+        )
+
+        return new_count
 
     except Exception as e:
         # Non-blocking - just log and emit metric without gap
         logger.warning(f"Failed to track reconnection for {session_id}: {e}")
         record_sse_reconnect(session_id, gap_seconds=None)
+        return 0  # Fail-open: use default backoff
 
 
 async def _track_disconnect(
@@ -548,9 +633,11 @@ async def stream_session_events(
     pubsub = None
     poller = None
     is_reconnect = False
+    session_completed_cleanly = False
 
     # Parse last_event_id to get resume sequence
     resume_from_sequence = 0
+    reconnect_count = 0
     if last_event_id:
         parsed = parse_event_id(last_event_id)
         if parsed:
@@ -563,7 +650,10 @@ async def stream_session_events(
 
             # Track reconnection in Redis and emit Prometheus metric
             if SSE_RECONNECT_TRACKING_ENABLED:
-                await _track_reconnection(redis_manager, session_id, connect_time)
+                reconnect_count = await _track_reconnection(redis_manager, session_id, connect_time)
+
+    # Calculate retry delay based on reconnection attempts
+    retry_ms = calculate_sse_retry_delay(reconnect_count)
 
     # Track seen sequences to dedupe between replay and live
     seen_sequences: set[int] = set()
@@ -596,8 +686,9 @@ async def stream_session_events(
                 f"[SSE FALLBACK] session={session_id}, mode=polling, reason=redis_unavailable"
             )
 
-        # Send connection confirmation event
-        yield node_start_event("stream_connected", session_id)
+        # Send connection confirmation event with retry field
+        connection_event = node_start_event("stream_connected", session_id)
+        yield format_sse_with_retry(connection_event, retry_ms)
         events_sent += 1
 
         # Emit sse_fallback_activated event if using fallback
@@ -608,7 +699,7 @@ async def stream_session_events(
                 "sse_fallback_activated",
                 {"session_id": session_id, "mode": "polling", "reason": "redis_unavailable"},
             )
-            yield fallback_event
+            yield format_sse_with_retry(fallback_event, retry_ms)
             events_sent += 1
 
         # REPLAY: If resuming, fetch missed events from history (with Redis/PostgreSQL fallback)
@@ -730,6 +821,7 @@ async def stream_session_events(
 
                         if event_type == "complete":
                             logger.info(f"Session {session_id} completed (polling), closing")
+                            session_completed_cleanly = True
                             yield format_sse_for_type(
                                 "stream_closed", {"reason": "session_complete"}
                             )
@@ -742,10 +834,10 @@ async def stream_session_events(
                     except (json.JSONDecodeError, KeyError):
                         continue
 
-                # Send keepalive if needed
+                # Send keepalive if needed (with retry field)
                 now = time.time()
                 if now - last_keepalive >= keepalive_interval:
-                    yield ": keepalive\n\n"
+                    yield f"retry: {retry_ms}\n: keepalive\n\n"
                     last_keepalive = now
 
                 # Check if Redis recovered - if so, could switch back (optional enhancement)
@@ -766,6 +858,10 @@ async def stream_session_events(
                     logger.warning(
                         f"[SSE FALLBACK] Redis error mid-stream for {session_id}: {redis_error}"
                     )
+                    # Record failure in circuit breaker so it can trip if failures persist
+                    from bo1.state.circuit_breaker_wrappers import record_redis_failure
+
+                    record_redis_failure(redis_error)
                     record_sse_fallback_activation(session_id, "connection_error")
                     increment_sse_fallback_active()
                     using_fallback = True
@@ -813,6 +909,7 @@ async def stream_session_events(
 
                                 if event_type in ("complete", "error"):
                                     if event_type == "complete":
+                                        session_completed_cleanly = True
                                         yield format_sse_for_type(
                                             "stream_closed", {"reason": "session_complete"}
                                         )
@@ -822,7 +919,7 @@ async def stream_session_events(
 
                         now = time.time()
                         if now - last_keepalive >= keepalive_interval:
-                            yield ": keepalive\n\n"
+                            yield f"retry: {retry_ms}\n: keepalive\n\n"
                             last_keepalive = now
                     return
 
@@ -860,6 +957,7 @@ async def stream_session_events(
 
                         if event_type == "complete":
                             logger.info(f"Session {session_id} completed, closing stream")
+                            session_completed_cleanly = True
                             yield format_sse_for_type(
                                 "stream_closed", {"reason": "session_complete"}
                             )
@@ -888,7 +986,7 @@ async def stream_session_events(
 
                 now = time.time()
                 if now - last_keepalive >= keepalive_interval:
-                    yield ": keepalive\n\n"
+                    yield f"retry: {retry_ms}\n: keepalive\n\n"
                     last_keepalive = now
 
                 await asyncio.sleep(0.01)
@@ -903,7 +1001,12 @@ async def stream_session_events(
             exc_info=True,
             session_id=session_id,
         )
-        yield error_event(session_id, str(e), error_type=type(e).__name__)
+        yield error_event(
+            session_id,
+            str(e),
+            error_type=type(e).__name__,
+            error_code=ErrorCode.API_SSE_ERROR.value,
+        )
     finally:
         disconnect_time = time.time()
         duration_seconds = disconnect_time - connect_time
@@ -918,6 +1021,10 @@ async def stream_session_events(
         # Track disconnect time for gap calculation on reconnect
         if SSE_RECONNECT_TRACKING_ENABLED:
             await _track_disconnect(redis_manager, session_id, disconnect_time)
+
+            # Reset reconnect count on clean session completion
+            if session_completed_cleanly:
+                await _reset_reconnect_count(redis_manager, session_id)
 
         logger.info(
             f"[SSE DISCONNECT] session={session_id}, duration_seconds={duration_seconds:.2f}, "
@@ -970,14 +1077,29 @@ def parse_accept_sse_version(header_value: str | None) -> int:
     with the ID from the last received event. The server will replay any missed
     events before resuming live streaming.
 
-    Event types:
-    - `node_start` - Node execution started
-    - `node_end` - Node execution completed
-    - `contribution` - Persona contributed to discussion
-    - `facilitator_decision` - Facilitator made a decision
-    - `convergence` - Convergence check result
-    - `complete` - Deliberation finished
-    - `error` - Error occurred
+    **Event Types** (see `/api/v1/sse/schemas` for full JSON Schema definitions):
+
+    | Event Type | Schema Reference | Description |
+    |------------|------------------|-------------|
+    | `session_started` | `SSEEvent_session_started` | Session begins |
+    | `decomposition_complete` | `SSEEvent_decomposition_complete` | Problem decomposed |
+    | `persona_selected` | `SSEEvent_persona_selected` | Expert selected |
+    | `persona_selection_complete` | `SSEEvent_persona_selection_complete` | Panel assembled |
+    | `subproblem_started` | `SSEEvent_subproblem_started` | Sub-problem begins |
+    | `round_started` | `SSEEvent_round_started` | Round begins |
+    | `contribution` | `SSEEvent_contribution` | Expert contribution |
+    | `convergence` | `SSEEvent_convergence` | Convergence check |
+    | `voting_started` | `SSEEvent_voting_started` | Voting begins |
+    | `voting_complete` | `SSEEvent_voting_complete` | Voting ends |
+    | `synthesis_complete` | `SSEEvent_synthesis_complete` | Sub-problem synthesis |
+    | `subproblem_complete` | `SSEEvent_subproblem_complete` | Sub-problem ends |
+    | `meta_synthesis_complete` | `SSEEvent_meta_synthesis_complete` | Final synthesis |
+    | `error` | `SSEEvent_error` | Error occurred |
+
+    **Event Lifecycle:**
+    `session_started` → `decomposition_complete` → persona selection →
+    (per sub-problem: `subproblem_started` → rounds → `synthesis_complete` → `subproblem_complete`) →
+    `meta_synthesis_complete`
 
     The connection will remain open until the deliberation completes or
     the client disconnects.
@@ -1052,7 +1174,7 @@ async def stream_deliberation(
     request: Request,
     session_id: str,
     session_data: VerifiedSession,
-    current_user: dict = Depends(get_current_user),
+    current_user: SessionAuthDep,
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
     accept_sse_version: str | None = Header(None, alias="Accept-SSE-Version"),
 ) -> StreamingResponse:

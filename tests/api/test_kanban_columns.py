@@ -161,7 +161,13 @@ class TestKanbanColumnsValidation:
             _validate_kanban_columns(columns)
 
         assert exc_info.value.status_code == 400
-        assert "unique" in exc_info.value.detail.lower()
+        detail = exc_info.value.detail
+        detail_str = (
+            detail.get("message", detail.get("detail", ""))
+            if isinstance(detail, dict)
+            else str(detail)
+        )
+        assert "unique" in detail_str.lower()
 
     def test_rejects_invalid_status_id(self, mock_user):
         """Column IDs must be valid ActionStatus values."""
@@ -178,7 +184,13 @@ class TestKanbanColumnsValidation:
             _validate_kanban_columns(columns)
 
         assert exc_info.value.status_code == 400
-        assert "invalid" in exc_info.value.detail.lower()
+        detail = exc_info.value.detail
+        detail_str = (
+            detail.get("message", detail.get("detail", ""))
+            if isinstance(detail, dict)
+            else str(detail)
+        )
+        assert "invalid" in detail_str.lower()
 
     def test_accepts_all_valid_statuses(self, mock_user):
         """All ActionStatus values are valid column IDs."""

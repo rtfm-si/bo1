@@ -22,7 +22,7 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import DeliberationMetrics, DeliberationPhase, SubProblemResult
 from bo1.orchestration.voting import collect_recommendations
-from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
+from bo1.prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE, get_limited_context_sections
 from bo1.utils.checkpoint_helpers import get_sub_problem_goal_safe, get_sub_problem_id_safe
 
 if TYPE_CHECKING:
@@ -197,7 +197,7 @@ async def _generate_synthesis(
     # Get limited context sections
     prompt_section, output_section = get_limited_context_sections(limited_context_mode)
 
-    synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
+    synthesis_prompt = SYNTHESIS_HIERARCHICAL_TEMPLATE.format(
         problem_statement=sub_problem.goal,
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
@@ -209,18 +209,18 @@ async def _generate_synthesis(
     broker = PromptBroker()
     request = PromptRequest(
         system=synthesis_prompt,
-        user_message="Generate the executive brief now. Follow the output format exactly.",
-        prefill="## The Bottom Line",
+        user_message="Generate the synthesis report now. Follow the XML output format exactly.",
+        prefill="<synthesis_report>\n<executive_summary>",
         model=get_model_for_role("synthesis"),
         temperature=0.7,
-        max_tokens=1500,  # Lean template produces ~800-1000 tokens
+        max_tokens=2000,  # Hierarchical template produces ~800-1200 tokens
         phase="synthesis",
         agent_type="synthesizer",
         cache_system=True,
     )
 
     response = await broker.call(request)
-    synthesis = "## The Bottom Line" + response.content
+    synthesis = "<synthesis_report>\n<executive_summary>" + response.content
     track_phase_cost(metrics, "synthesis", response)
 
     if event_bridge:

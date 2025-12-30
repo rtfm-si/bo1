@@ -19,7 +19,6 @@ from backend.api.dependencies import (
     get_session_metadata_cache,
 )
 from backend.api.metrics import track_api_call
-from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_rate_limiter
 from backend.api.middleware.tier_limits import (
     MeetingLimitResult,
@@ -49,6 +48,7 @@ from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors, http_error, raise_api_error
 from backend.api.utils.honeypot import validate_honeypot_fields
+from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.api.utils.pagination import make_pagination_fields
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
@@ -120,7 +120,8 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 async def create_session(
     request: Request,
     session_request: CreateSessionRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     tier_usage: MeetingLimitResult = Depends(require_meeting_limit),
     _pool_check: None = Depends(check_pool_health),
 ) -> SessionResponse:
@@ -619,7 +620,7 @@ async def create_session(
     },
 )
 async def list_sessions(
-    user: dict[str, Any] = Depends(get_current_user),
+    user: SessionAuthDep,
     status: str | None = Query(
         None, description="Filter by status (active, completed, failed, paused)"
     ),
@@ -881,7 +882,7 @@ async def list_sessions(
     },
 )
 async def get_recent_failures(
-    user: dict[str, Any] = Depends(get_current_user),
+    user: SessionAuthDep,
     hours: int = Query(24, ge=1, le=168, description="Look back window in hours"),
 ) -> dict[str, Any]:
     """Get recent failed meetings for dashboard alert.
@@ -928,7 +929,7 @@ async def get_recent_failures(
     },
 )
 async def get_cap_status(
-    user: dict[str, Any] = Depends(get_current_user),
+    user: SessionAuthDep,
 ) -> dict[str, Any]:
     """Get meeting cap status for the current user.
 
@@ -974,7 +975,8 @@ async def get_cap_status(
 @handle_api_errors("acknowledge failures")
 async def acknowledge_failures(
     request: Request,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> MessageResponse:
     """Acknowledge failed meetings to make their actions visible.
 
@@ -1943,7 +1945,7 @@ async def update_task_status(
 async def get_session_costs(
     session_id: str,
     session_data: VerifiedSession,
-    current_user: dict = Depends(get_current_user),
+    current_user: SessionAuthDep,
 ) -> SessionCostBreakdown:
     """Get detailed cost breakdown for a session (admin only).
 
@@ -2000,6 +2002,9 @@ async def get_session_costs(
             total_api_calls=total_costs["total_calls"],
             by_provider=ProviderCosts(**total_costs["by_provider"]),
             by_sub_problem=by_sub_problem,
+            cache_hit_rate=total_costs["cache_hit_rate"],
+            prompt_cache_hit_rate=total_costs["prompt_cache_hit_rate"],
+            total_saved=total_costs["total_saved"],
         )
 
 
@@ -2703,6 +2708,218 @@ async def create_suggested_project(
             },
             "session_id": session_id,
             "action_count": len(suggestion.action_ids),
+        }
+
+
+# =============================================================================
+# Checkpoint Resume Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/{session_id}/checkpoint-state",
+    response_model=dict,
+    summary="Get session checkpoint state",
+    description="Get checkpoint state for session resume capability",
+    responses={
+        200: {"description": "Checkpoint state retrieved"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get checkpoint state")
+async def get_checkpoint_state(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Get checkpoint state for session resume capability.
+
+    Returns progress info for resumable sessions:
+    - completed_sub_problems: How many SPs have completed
+    - total_sub_problems: Total SPs in decomposition
+    - last_checkpoint_at: When last checkpoint was saved
+    - can_resume: Whether session is resumable
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Checkpoint state for UI display
+    """
+    with track_api_call("sessions.get_checkpoint_state", "GET"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        # Get checkpoint state from repository
+        checkpoint = session_repository.get_checkpoint_state(session_id)
+        if not checkpoint:
+            raise http_error(ErrorCode.SESSION_NOT_FOUND, "Session not found", 404)
+
+        last_completed = checkpoint.get("last_completed_sp_index")
+        total_sps = checkpoint.get("total_sub_problems")
+        status = checkpoint.get("status", "created")
+        phase = checkpoint.get("phase")
+
+        # Determine if session can be resumed
+        # Can resume if: has completed SPs AND not fully complete AND not failed
+        can_resume = (
+            last_completed is not None
+            and total_sps is not None
+            and last_completed < total_sps - 1  # Not all complete
+            and status not in ("completed", "failed", "killed")
+        )
+
+        return {
+            "session_id": session_id,
+            "completed_sub_problems": (last_completed + 1) if last_completed is not None else 0,
+            "total_sub_problems": total_sps,
+            "last_checkpoint_at": checkpoint.get("sp_checkpoint_at"),
+            "can_resume": can_resume,
+            "status": status,
+            "phase": phase,
+        }
+
+
+@router.post(
+    "/{session_id}/resume",
+    response_model=dict,
+    summary="Resume session from checkpoint",
+    description="Resume a session from its last successful sub-problem checkpoint",
+    responses={
+        200: {"description": "Session resumed successfully"},
+        400: {"description": "Session cannot be resumed", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("resume session")
+async def resume_session(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Resume session from last successful sub-problem checkpoint.
+
+    Loads checkpoint from Redis, validates it has a valid SP boundary,
+    and triggers graph execution with resume entry point.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Resume status with next sub-problem info
+    """
+    with track_api_call("sessions.resume", "POST"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        # Get checkpoint state
+        checkpoint = session_repository.get_checkpoint_state(session_id)
+        if not checkpoint:
+            raise http_error(ErrorCode.SESSION_NOT_FOUND, "Session not found", 404)
+
+        last_completed = checkpoint.get("last_completed_sp_index")
+        total_sps = checkpoint.get("total_sub_problems")
+        status = checkpoint.get("status", "created")
+
+        # Validate resume is possible
+        if last_completed is None or total_sps is None:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Session has no checkpoint to resume from",
+                400,
+            )
+
+        if last_completed >= total_sps - 1:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "All sub-problems already completed",
+                400,
+            )
+
+        if status in ("completed", "killed"):
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Session is {status} and cannot be resumed",
+                400,
+            )
+
+        # Load checkpoint from Redis
+        redis_manager = get_redis_manager()
+        if not redis_manager.is_available:
+            raise http_error(
+                ErrorCode.SERVICE_UNAVAILABLE,
+                "Redis unavailable for checkpoint retrieval",
+                503,
+            )
+
+        state = redis_manager.get_checkpoint(session_id)
+        if not state:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "No checkpoint found in Redis - session may have expired",
+                400,
+            )
+
+        # Get problem to find next sub-problem
+        problem = state.get("problem")
+        if not problem:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Checkpoint missing problem data",
+                400,
+            )
+
+        sub_problems = (
+            problem.get("sub_problems", []) if isinstance(problem, dict) else problem.sub_problems
+        )
+        next_index = last_completed + 1
+
+        if next_index >= len(sub_problems):
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "No more sub-problems to resume",
+                400,
+            )
+
+        next_sp = sub_problems[next_index]
+        next_sp_goal = next_sp.get("goal", "unknown") if isinstance(next_sp, dict) else next_sp.goal
+
+        # Update state for resume
+        state["is_resumed_session"] = True
+        state["current_sub_problem"] = next_sp
+        state["sub_problem_index"] = next_index
+
+        # Collect prior expert summaries from completed SPs
+        sub_problem_results = state.get("sub_problem_results", [])
+        prior_summaries: dict[str, str] = {}
+        for result in sub_problem_results:
+            expert_summaries = (
+                result.get("expert_summaries", {})
+                if isinstance(result, dict)
+                else getattr(result, "expert_summaries", {})
+            )
+            prior_summaries.update(expert_summaries)
+        state["prior_expert_summaries"] = prior_summaries
+
+        # Save updated checkpoint
+        redis_manager.save_checkpoint(session_id, state)
+
+        # Update session status to running
+        session_repository.update_status(session_id, "running")
+
+        logger.info(
+            f"Session {session_id} resumed from SP {last_completed + 1} to SP {next_index + 1}/{total_sps}"
+        )
+
+        return {
+            "session_id": session_id,
+            "resumed_at_sub_problem": next_index + 1,
+            "total_sub_problems": total_sps,
+            "next_sub_problem_goal": next_sp_goal[:100],
+            "prior_expert_count": len(prior_summaries),
+            "status": "resumed",
         }
 
 

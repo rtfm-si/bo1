@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-28 (rolling week view)_
+_Last updated: 2025-12-30 (build pass: Implemented sub-problem checkpoint resume - E2E finding ISS-001)_
 
 ---
 
@@ -23,530 +23,173 @@ _Last updated: 2025-12-28 (rolling week view)_
 - [ ] [DATA][P2] DuckDB backend for large datasets - defer until >100K rows
 - [ ] [BILLING][P4] Upgrade prompts near usage limit - nice-to-have
 
+### E2E Findings (2025-12-29)
+
+- [x] [INFRA][P2] Add retry logic for Anthropic API failures with exponential backoff
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Implemented: MAX_RETRIES=5, RETRY_BASE_DELAY=1.0s, RETRY_MAX_DELAY=60.0s with jitter
+  - Metrics: `bo1_llm_retries_total{provider,attempt,error_type}`, `bo1_llm_retries_exhausted_total{provider,error_type}`
+- [x] [INFRA][P2] Implement circuit breaker pattern for LLM calls
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Implemented: `bo1/llm/circuit_breaker.py` with CLOSED/OPEN/HALF_OPEN states, fault classification, metrics
+  - Tests: `tests/llm/test_circuit_breaker_faults.py`, `test_circuit_breaker_registry.py`, `test_circuit_breaker_provider.py`, `test_circuit_breaker_status.py`
+- [x] [INFRA][P3] Add fallback model configuration (e.g., Claude 3.5 Sonnet when primary fails)
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Implemented: `llm_model_fallback_enabled`, `llm_anthropic_fallback_chain`, `llm_openai_fallback_chain` settings
+  - Model fallback helper in `bo1/llm/model_fallback.py`, 529/503 classified as MODEL_SPECIFIC fault
+  - Metrics: `bo1_model_fallback_total{provider,from_model,to_model}`
+  - SSE event: `model_fallback` with user-friendly message
+- [x] [UX][P3] Improve error messaging for third-party API failures
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Implemented: Centralized `apiErrorMessages.ts` utility, error_code in SSE events, MeetingError.svelte/ErrorEvent.svelte enhanced with actionable guidance and recovery times
+- [x] [INFRA][P2] Enable resume from last successful sub-problem checkpoint
+  - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
+  - Implemented: `zw_add_checkpoint_resume_fields` migration adds `last_completed_sp_index`, `sp_checkpoint_at`, `total_sub_problems` to sessions
+  - SP boundary checkpoint saved in `synthesis.py:next_subproblem_node` after each SP completes
+  - Resume router (`routers.py:route_on_resume`) routes to select_personas for incomplete sessions
+  - API endpoints: `GET /sessions/{id}/checkpoint-state`, `POST /sessions/{id}/resume`
+  - Frontend: `SessionRecoveryBanner.svelte` for resumable session UI
+  - Expert memory propagation via `prior_expert_summaries` state field
+
+### Audit-Derived Tasks (2025-12-30)
+
+#### P0 - Critical
+
+- [x] [PERF][P0] Increase database connection pool from 20 to 75 - `constants.py:445`
+- [x] [DATA][P0] Add user_id FK to recommendations table - `models/recommendations.py:26`
+- [x] [DATA][P0] Add workspace_id field to Session model - `models/session.py:54`
+- [x] [LLM][P0] Sanitize LLM outputs before re-injection - `persona_executor.py:149-150`
+- [x] [LLM][P0] Sanitize third-party API results (Brave, Tavily) - `agents/researcher.py:694-872`
+- [x] [OBS][P0] Add correlation ID (request_id) propagation - nodes/decomposition.py, research.py, synthesis.py, persona_executor.py
+
+#### P1 - High Priority
+
+- [x] [ARCH][P1] Parallelize initial_round_node - uses `_generate_parallel_contributions` in `rounds.py`
+- [x] [PERF][P1] Add composite indexes for partitioned tables - multiple migrations exist
+- [x] [PERF][P1] Optimize action tag filtering query - CTE+JOIN in `action_repository.py:185`
+- [x] [PERF][P1] Enable pg_stat_statements monitoring - `z16_enable_pg_stat_statements.py`
+- [x] [DATA][P1] Add missing fields to Recommendation model - all fields present
+- [x] [DATA][P1] Create comprehensive serialization roundtrip tests - `tests/graph/test_state_roundtrip.py`
+- [x] [LLM][P1] Sanitize user interjection and clarification - `control.py:2093-2094`
+- [x] [LLM][P1] Switch to SYNTHESIS_HIERARCHICAL_TEMPLATE as default (completed 2025-12-30)
+- [x] [OBS][P1] Expose circuit breaker state as Prometheus metrics - `middleware/metrics.py`
+- [x] [OBS][P1] Standardize ErrorCode usage - 137 occurrences across 50+ files
+- [x] [API][P1] Standardize error response format - 9 major files migrated (seo/routes, user, datasets, workspaces/*, projects, context/routes, mentor) ~250 endpoints
+- [x] [API][P1] Document SSE event schemas in OpenAPI spec - added SSEEvent_* schemas to OpenAPI, /api/v1/sse/schemas endpoint, updated streaming docstrings
+- [x] [REL][P1] Fix replanning service rollback - proper cleanup + error raising in `replanning_service.py`
+- [x] [REL][P1] Add Redis metadata fallback to PostgreSQL (dual-write session metadata)
+- [x] [COST][P1] Switch to hierarchical synthesis template (5-6% cost reduction) - completed 2025-12-30
+- [x] [COST][P1] Compress persona protocols - 27.8% per-call token reduction (545 tokens saved) - completed 2025-12-30
+
+#### P2 - Medium Priority
+
+- [x] [ARCH][P2] Consolidate router validation logic - `_validate_state_field` in `routers.py:18-42`
+- [x] [ARCH][P2] Add circuit breaker for Redis PubSub failures with PostgreSQL polling fallback - `streaming.py:859-862`, 4 new tests in `test_sse_redis_fallback.py`
+- [x] [PERF][P2] Implement session metadata caching with Redis backend - dual-write to PostgreSQL with fallback in `redis_manager.py:670-824`
+- [x] [PERF][P2] Increase embedding batch size from 5 to 20 - `constants.py:BATCH_SIZE=20`
+- [x] [PERF][P2] Implement aggregation result caching for cost queries - `/api/admin/costs/cache-metrics`, `AggregatedCacheMetrics` model
+- [x] [PERF][P2] Add contribution pruning in graph state after synthesis - `state.py:prune_contributions_for_phase()`, `synthesis.py:175-181`
+- [x] [DATA][P2] Add CI check for TypeScript type sync with backend models - `.github/workflows/ci.yml:92-93`, `npm run check:types-fresh`
+- [x] [DATA][P2] Create Pydantic models for domain entities (Action, Project, Workspace) - `backend/api/models.py`, `backend/api/workspaces/models.py`
+- [x] [LLM][P2] Add rate limiting to PromptBroker - `llm/rate_limiter.py`
+- [x] [LLM][P2] Audit dataset CSV handling for malicious cell values (injection risk) - `csv_utils.py:sanitize_csv_cell()`, `dataframe_loader.py:load_dataframe(sanitize=True)`
+- [x] [OBS][P2] Add event persistence metrics (batch size histogram, duration, retry queue depth) - `metrics.py:129-150`, `bo1_event_persistence_*` gauges
+- [x] [OBS][P2] Add Redis connection pool metrics (active connections, utilization, latency) - `metrics.py:298-317`, `bo1_redis_pool_*` gauges
+- [x] [OBS][P2] Configure Prometheus alerts for event persistence, circuit breakers, cost tracking - `monitoring/prometheus/alert_rules.yml:95-216`
+- [x] [API][P2] Add OpenAPI security schemes - `openapi_security.py`, SessionAuthDep/CSRFTokenDep applied to sessions, streaming, control, actions, projects
+- [x] [API][P2] Document rate limits in API responses - X-RateLimit-Limit/Remaining/Reset headers via middleware, OpenAPI x-rate-limits extension
+- [x] [REL][P2] Add SSE reconnection backoff with Retry-After header - `streaming.py:77-116`
+- [x] [REL][P2] Add deadlock retry to @retry_db decorator - 40P01 in `utils/retry.py:36`
+- [x] [COST][P2] Extend Haiku to Round 3 - `HAIKU_ROUNDS_THRESHOLD=3` in `constants.py:253`
+- [x] [COST][P2] Add cache hit rate metrics to get_session_costs() - SessionCostBreakdown now includes cache_hit_rate, prompt_cache_hit_rate, total_saved
+
 ### User-Owned
 
 - [ ] [DOCS][P3] Help pages content review (Si's todo)
 
 ---
 
-## E2E Findings (2025-12-28)
+## Outstanding Work
 
-### Critical
+### Dashboard & UX
 
-- [x] [BUG][P0] Meeting terminate endpoint returns 500 error - End Early flow broken ✅ Fixed (2025-12-28)
-  - Added defensive status check for all terminal states (terminated/completed/killed/failed/deleted)
-  - Added try/except around Redis save_metadata (non-critical, DB is source of truth)
-  - Added DB validation before termination with race condition detection
-  - Added session_id context to handle_api_errors decorator for better debugging
-  - Added 11 unit tests for edge cases
+- [x] [DASHBOARD][P3] Review/improve completion trends visual design
+- [x] [DASHBOARD][P3] Add embeddings research visualization with click-through to source
+- [x] [HEATMAP][P3] Review and improve heatmap color scheme
 
-### Infrastructure
+### Admin & Ops
 
-- [x] [INFRA][P2] Containerd cleanup needed - 51GB of old snapshots in `/var/lib/containerd` ✅ Fixed (2025-12-28)
-  - Root cause: Docker build cache (44GB) and unused local images (46GB) from pre-GHCR deployments
-  - Containerd is Docker's backend (NOT leftover Kubernetes) - cannot be removed
-  - Fix: `docker rmi boardofone-bo1:latest bo1-supertokens:latest && docker builder prune -a -f`
-  - Disk usage reduced: 71% → 16% (12GB used of 77GB)
+- [x] [ADMIN][P2] Add deeper insight drill-downs for each admin metric - `/admin/costs` Insights tab
+- [x] [ADMIN][P2] Improve research costs/cache insight for quality vs cost optimization - cache effectiveness buckets, quality indicators
+- [x] [ADMIN][P2] Add guidance for configuring cache hit rate vs user quality tradeoffs - tuning recommendations endpoint
+- [x] [ADMIN][P2] Clarify SSE streaming toggle default (why off? when to use?) - documented in /admin/toggles
+- [x] [ADMIN][P2] Move emergency toggles to dedicated sub-page (reduce page depth) - /admin/toggles
+- [x] [ADMIN][P2] Document how to manage A/B test experiments - in-page help panel on /admin/experiments
+- [x] [ADMIN][P2] Add UI/workflow for starting new experiments - /admin/experiments with full CRUD
+- [x] [ADMIN][P3] Move promotions, collateral, and blog out of user management into separate block
 
-- [x] [INFRA][P1] Deployment workflow rebuilds images locally instead of pulling from GHCR ✅ Fixed (2025-12-28)
-  - Added `image:` directives to docker-compose.app.yml for API and frontend services
-  - Updated deploy-production.yml to pull pre-built images from GHCR instead of building locally
-  - Production server now pulls `ghcr.io/rtfm-si/bo1/api:production-latest` and `ghcr.io/rtfm-si/bo1/frontend:production-latest`
-  - Eliminates server overload during deployments (load avg 131 → <5 expected)
+### SEO & Analytics
 
-### Fixed
-
-- [x] [BUG][P1] Admin API `/api/admin/info` returns 500 error - user.get on string bug ✅ Fixed: backend/api/main.py - changed `user: dict` to `user_id: str` + added user lookup
-- [x] [INFRA][P1] Daily cleanup cron job added ✅ Fixed: `scripts/prod-cleanup.sh` runs at 3 AM UTC (Docker prune, log rotation, temp cleanup, zombie monitoring)
-
----
-
-## UX/UI Audit Issues (2025-12-27)
-
-### Critical
-
-- [x] [UX][P0] Fix Context API 500 errors - 4 endpoints returning 500: `/api/v1/context`, `/api/v1/context/refresh-check`, `/api/v1/context/goal-staleness`, `/api/v1/context/objectives/progress` ✅ Fixed: added missing `strategic_objectives_progress` column to prod DB
-- [x] [UX][P0] Context page renders empty due to API failures - users see blank main content area ✅ Fixed: same root cause as above
-
-### Minor
-
-- [x] [UX][P2] Fix 404 for `/context/logo.png` - missing asset reference ✅ Fixed: changed `%sveltekit.assets%/logo.png` to absolute `/logo.png` in app.html
-
----
-
-## Audit-derived tasks (2025-12-27)
-
-### Security (from LLM Alignment Audit) - CRITICAL
-
-- [x] [LLM][P0] Sanitize LLM outputs before re-injection into prompts (contributions, summaries, recommendations) ✅ Done: sanitization in persona_executor.py
-- [x] [LLM][P0] Sanitize third-party API results (Brave, Tavily) before AND after LLM summarization ✅ Done: researcher agent sanitization
-- [x] [LLM][P1] Sanitize user interjection and clarification answers before prompt interpolation ✅ Done
-- [x] [LLM][P1] Sanitize database-stored user content (business context, strategic objectives, saved clarifications) ✅ Done
-
-### Reliability (from Reliability Audit) - CRITICAL
-
-- [x] [REL][P0] Implement LangGraph checkpoint recovery - failed sessions cannot resume ✅ Done: resume_session_from_checkpoint + "Retry Session" UI (FailedMeetingAlert.svelte)
-- [x] [REL][P0] Fix replanning service rollback - partial failure creates orphaned sessions ✅ Done: cleanup on link/update failures + tests
-- [x] [REL][P0] Validate LLM provider fallback with chaos test (Anthropic outage → OpenAI fallback) ✅ Done: tests/chaos/test_llm_chaos.py
-
-### Performance (from Performance Audit)
-
-- [x] [PERF][P0] Increase database connection pool from 20 → 75 (POOL_MAX_CONNECTIONS) ✅ Done: constants.py
-- [x] [PERF][P1] Add composite indexes: idx_session_events_session_created, idx_api_costs_session_created, idx_sessions_user_created_desc ✅ Already present: covering indexes with additional INCLUDE columns
-- [x] [PERF][P1] Optimize action tag filtering query (rewrite subquery to CTE + JOIN in action_repository.py) ✅ Done: CTE + JOIN pattern at action_repository.py:192-221
-- [x] [PERF][P1] Enable pg_stat_statements monitoring in production ✅ Done: migration z16 + admin/queries.py API
-
-### Data Model (from Data Model Audit)
-
-- [x] [DATA][P0] Add user_id FK to recommendations table (required for RLS) ✅ Done: migration z14
-- [x] [DATA][P1] Add workspace_id field to Session Pydantic model ✅ Done: bo1/models/session.py:54
-- [x] [DATA][P1] Add session_id, sub_problem_index, id, created_at to Recommendation model ✅ Done: bo1/models/recommendations.py:23-27
-- [x] [DATA][P1] Fix Session nullable field consistency ✅ Done: fields have proper defaults in model
-- [x] [DATA][P2] Add CI check for TypeScript type sync ✅ Done: .github/workflows/ci.yml:92-93 npm run check:types-fresh
-
-### Observability (from Observability Audit)
-
-- [x] [OBS][P1] Add request_id (correlation ID) to DeliberationGraphState and propagate through node logs ✅ Done: state.py + node logs
-- [x] [OBS][P1] Expose circuit breaker state as Prometheus metrics (circuit_breaker_state{provider, state}) ✅ Done: metrics.py bo1_circuit_breaker_state_labeled
-- [x] [OBS][P1] Add event persistence metrics: batch_size, duration_seconds, retry_queue_depth ✅ Done
-- [x] [OBS][P1] Add Redis connection pool metrics ✅ Done: redis_manager.py:get_pool_health(), metrics.py gauges, /health/redis/pool endpoint, 16 tests
-- [x] [OBS][P2] Standardize error code usage in backend/api/*.py (replace plain logger.error with log_error + ErrorCode) ✅ Done: migrated 8 occurrences across seo/routes.py, email.py, e2e_auth.py, context/routes.py, admin/blog.py, middleware/tier_limits.py
-- [x] [OBS][P2] Configure missing Prometheus alerts ✅ Done: alert_rules.yml:98-170 (event persistence + circuit breaker alerts)
-
-### API Contract (from API Contract Audit)
-
-- [x] [API][P1] Standardize error response format (migrate from string detail to structured {error_code, message}) ✅ Done: migrated projects.py, sessions.py, actions.py, competitors.py to http_error()
-- [x] [API][P1] Centralize cost field definitions for SSE filtering ✅ Done: constants.py:94 COST_FIELDS, streaming.py:24,63-67, tests
-- [x] [API][P2] Add OpenAPI security scheme for SuperTokens session auth ✅ Done: sessionAuth + csrfToken in openapi.json
-- [x] [API][P2] Document rate limits in OpenAPI responses for all @limiter.limit decorated endpoints ✅ Added RATE_LIMIT_RESPONSE to 24 endpoints across 6 files
-
-### Cost Optimization (from Cost Audit)
-
-- [x] [COST][P1] Default to SYNTHESIS_LEAN_TEMPLATE ✅ Done: synthesis.py:162,232 + engine.py:25,200 + subgraph/nodes.py:31,640
-- [x] [COST][P2] Extend Haiku model to Round 3 (currently rounds 1-2 only) ✅ Done: HAIKU_ROUND_LIMIT=3, AB_TEST_LIMIT=4
-- [x] [COST][P2] Add cache hit rate metrics (prompt cache, research cache, LLM cache) to cost_tracker ✅ Done: CostTracker.get_cache_metrics(), Prometheus gauges, admin API endpoint, admin UI card
-- [x] [COST][P3] Reduce persona context window from last 6 → last 3 contributions (~3-5% cost reduction) ✅ Done: PersonaContextConfig.CONTRIBUTION_LIMIT=3 in constants.py, updated subgraph/nodes.py:227, 7 unit tests
-
-### Architecture (from Architecture Audit)
-
-- [x] [ARCH][P2] Migrate high-traffic read paths to use nested state accessors (get_problem_state, get_phase_state, etc.) ✅ Done: refactored experts.py and nodes/rounds.py to use get_*_state() accessors
-
----
-
-## Backlog (from _TODO.md, 2025-12-27)
-
-### Auth & Login
-
-- [x] [AUTH][P1] Fix local development login issue (authentication not working locally)
-- [x] [AUTH][P2] Fix GDPR consent API returning 403 during OAuth callback flow
-
-### SEO Tools
-
-- [x] [SEO][P1] Fix 'Discover' button in blog generate modal (topic discovery)
-- [x] [SEO][P2] Define SEO autopilot strategy: focus on high-intent-to-purchase traffic generation
-- [x] [SEO][P2] Create marketing collateral bank (images, animations, concepts) for AI content generation
-- [x] [SEO][P2] Fix SEO assets route order (/assets/suggest 404) - moved route before parameterized /{asset_id}
-
-### Admin Dashboard
-
-- [x] [ADMIN][P2] Make dashboard cards drillable to relevant metrics (currently only waitlist is drillable)
-- [x] [ADMIN][P2] Fix rate limiting on admin endpoints causing 429 cascade during callback (email-stats, observability-links, research-cache, costs, runtime-config, extended-kpis, blog/topics)
-- [x] [ANALYTICS][P2] Investigate signup page conversion (48 unique visitors, 0 waitlist signups) - Fixed: slowapi param naming bug
-- [x] [ADMIN][P2] Fix ratings admin 401 (wrong auth dependency) + add rate limiting
-
-### UX Improvements
-
-- [x] [DASHBOARD][P3] Change 'this week' view from calendar-based (Mon-Sun) to rolling ±3 days view
-
-### Billing & Pricing
-
-- [x] [BILLING][P3] Add non-profit/charity discount tier (free or 80% off)
-- [x] [BILLING][P3] Create granular meeting tiers in Stripe (1-9 meetings @ £10 each, targeting 90% gross margin)
-- [x] [BILLING][P2] Non-fixed costs fair usage caps - implemented per-feature daily cost limits with p90 heavy user detection
-
-### Competitors
-
-- [x] [COMPETITORS][P3] Add skeptic checks for competitor relevance (similar product? ICP? market?)
-
-### Peer Benchmarks
-
-- [x] [BENCHMARKS][P3] Review peer benchmark opt-in UX: show one teaser metric OR default opt-in with privacy explanation
-
-### Metrics & Context
-
-- [x] [CONTEXT][P2] Add 'Metrics You Need to Know' feature: user metrics, competitor metrics, industry benchmarks, importance ranking (now vs later), pendulum indicator
+- [x] [SEO][P2] Track SEO admin page as internal cost - cost_category column in api_costs, /admin/costs/internal endpoint
+- [x] [SEO][P2] Track click-through rates and benefits of SEO pages for ranking - view/click endpoints, frontend tracking, admin ROI UI
 
 ---
 
 ## Completed Summary
 
-### December 2025
+### December 2025 (Week of 12/29)
 
-- **Nginx 502 Fix (2025-12-27, 22:41 UTC)**: Fixed production 502 errors:
-  - Root cause: nginx was pointing to green ports (8001/3001) but only blue containers running (8000/3000)
-  - Fix: Updated `/etc/nginx/sites-available/boardofone` upstream servers to 8000/3000
-  - Verified: `curl https://boardof.one/api/health` returns `git_commit: f339c3d`
+**ActivityHeatmap Visual Redesign**: Sparkline trend summary with 7-day rolling average, grouped toggle chips (Actual vs Planned), improved color accessibility (WCAG AA 4.5:1 contrast with 600 shades), consolidated legend into help tooltip, mobile responsive layout (12px cells, single-letter day labels, horizontal scroll indicator). Added 12 unit tests for sparkline calculations.
 
-- **Production Deployment (2025-12-27, 22:16 UTC)**: Deployed fair usage caps + admin endpoint fixes to production:
-  - Commit `f339c3d`: browser-based admin auth fix (templates, main, status endpoints)
-  - Commit `9ef207c`: fair usage caps, admin endpoint fixes, persona context optimization
-  - Migration `zm_add_fair_usage_tracking`: Added feature column + daily_user_feature_costs table
-  - API image rebuilt and deployed: verified via `/api/health` showing `git_commit: f339c3d`
-  - All tests pass locally (ratings: 16, admin feedback: 11, SEO: 16)
+**AI Ops Research**: Researched proactive failure prediction packages. Recommended ADTK (rule-based time-series anomaly detection) + ruptures (change-point detection). See `docs/research/failure-prediction.md`.
 
-- **Admin API Bug Fixes (2025-12-27)**: Fixed multiple admin endpoint issues:
-  - Ratings admin 401: Changed `require_admin` → `require_admin_any` (correct admin middleware)
-  - Ratings admin rate limiting: Added `@limiter.limit(ADMIN_RATE_LIMIT)` to `/metrics`, `/trend`, `/negative` endpoints
-  - SEO assets route order: Moved `/assets/suggest` before `/assets/{asset_id}` to fix 404
-  - Sessions.py: Fixed duplicate 429 response key in OpenAPI spec
-  - Admin info 404: Fixed `/admin/info` route path to `/api/admin/info` (nginx passes `/api/` prefix)
-  - Admin templates: Changed all 6 endpoints from `require_admin` → `require_admin_any` for browser access
-  - Admin status: Changed `get_admin_status` from `require_admin` → `require_admin_any` for browser access
-  - Main.py: Changed `/admin/info`, `/api/v1/docs`, `/api/v1/redoc`, `/api/v1/openapi.json` from `require_admin` → `require_admin_any`
+**Dashboard Redesign**: Week Planner (-2/+4 days), SmartFocusBanner with priority CTAs, GoalBanner visual hierarchy, RecentMeetingsWidget (last 5 meetings), ValueMetricsPanel with KeyMetrics API, ResearchInsightsWidget (PCA-reduced scatter plot of research embeddings).
 
-- **Fair Usage Caps for Variable-Cost Features (2025-12-27)**: Implemented per-feature daily cost limits with p90 heavy user detection:
-  - Data model: Added `feature` column to `api_costs`, created `daily_user_feature_costs` aggregation table
-  - PlanConfig: Added `FairUsageLimits` dataclass with per-tier limits for `mentor_chat`, `dataset_qa`, `competitor_analysis`, `meeting`
-  - Service: `backend/services/fair_usage.py` with usage checking, soft/hard cap logic, p90 calculation
-  - Middleware: `backend/api/middleware/fair_usage.py` with `require_fair_usage()` dependency
-  - Admin API: `/admin/costs/fair-usage/heavy-users` and `/admin/costs/fair-usage/by-feature` endpoints
-  - User API: `GET /api/v1/user/fair-usage` endpoint for usage meter
-  - Tests: 8 PlanConfig tests + 10 FairUsageService tests
+**Activity Heatmap**: Working pattern setting (Mon-Fri default), history depth user preference (1/3/6 months), non-working days greyed out, future limited to planned actions.
 
-- **Persona Context Window Optimization (2025-12-27)**: Reduced persona context window from 6 to 3 contributions for ~3-5% token cost savings:
-  - Config: `PersonaContextConfig.CONTRIBUTION_LIMIT = 3` in `bo1/constants.py`
-  - Implementation: Updated `bo1/graph/deliberation/subgraph/nodes.py:227` to use config constant
-  - Logging: Added debug log for contribution context size (chars/tokens) for cost tracking
-  - Tests: 7 unit tests in `tests/llm/test_persona_context.py` covering limit value, slicing, edge cases
-  - Quality preserved: Round summaries provide broader context, most recent round most relevant
+**Performance Monitoring**: PerformanceMonitor service with Redis time-series, ThresholdService with runtime-adjustable thresholds, FastAPI middleware for request tracking, degradation alerts via ntfy.
 
-- **Unified Cache Metrics (2025-12-27)**: Implemented cache hit rate monitoring across all cache systems:
-  - Backend: `CostTracker.get_cache_metrics()` aggregates metrics from prompt (Anthropic), research (PostgreSQL), LLM (Redis) caches
-  - Backend: `_emit_cache_rate_gauges()` updates Prometheus gauges on each call
-  - Prometheus: `bo1_cache_hit_rate{cache_type}`, `bo1_cache_hits_total{cache_type}`, `bo1_cache_misses_total{cache_type}` gauges
-  - API: `GET /api/admin/costs/cache-metrics` endpoint returning `UnifiedCacheMetricsResponse`
-  - Admin UI: Cache Performance card on Costs page with 4-column layout (Prompt/Research/LLM/Aggregate)
-  - Tests: 4 unit tests for `TestGetCacheMetrics` class covering structure, error handling, aggregation, zero-state
-  - Models: `CacheTypeMetrics`, `AggregatedCacheMetrics`, `UnifiedCacheMetricsResponse` Pydantic models
+**Admin Fixes**: Fixed 13 broken admin endpoints (column names, auth patterns, SQL syntax). Created `tests/api/test_admin_routes_health.py` with 50 passing tests.
 
-- **Marketing Collateral Bank (2025-12-27)**: Implemented marketing asset storage for AI content generation:
-  - Database: `marketing_assets` table (migration zl) with file metadata, CDN URL, tags, type
-  - Backend: `backend/services/marketing_assets.py` with CRUD, DO Spaces upload, tag-based search
-  - Backend: Asset suggestion algorithm using tag overlap for article relevance scoring
-  - API: POST/GET/PATCH/DELETE `/api/v1/seo/assets`, GET `/api/v1/seo/assets/suggest`
-  - Billing: `marketing_assets_total` limit (free=10, starter=50, pro=500, enterprise=unlimited)
-  - Frontend: Admin collateral bank page `/admin/collateral` with drag-drop upload, grid view, edit/delete
-  - Frontend: Type filtering, tag-based search, CDN URL copy
-  - Tests: 16 unit tests for validation, service, tier limits
-  - Asset types: image, animation, concept, template (PNG, JPG, GIF, WebP, SVG, MP4, WebM)
+**Infrastructure**: Extended prod-cleanup.sh (static assets, Docker images, disk alerts), new user redirect to context setup, SuperTokens Core upgrade (9.3.0 → 10.1.4).
 
-- **SEO Autopilot (2025-12-27)**: Implemented automated SEO content generation with purchase intent prioritization:
-  - Database: `seo_autopilot_config` JSONB column on user_context (migration zk)
-  - Backend: `SEOAutopilotConfig` Pydantic model (enabled, frequency_per_week, auto_publish, require_approval, target_keywords, purchase_intent_only)
-  - Backend: `SEOAutopilotService` class with topic discovery, article generation, tier limit enforcement
-  - Backend: Purchase intent scoring - transactional (+0.4), problem-solution (+0.3), comparison (+0.25), decision-stage (+0.2) keywords
-  - Backend: Scheduled job (`seo_autopilot_job.py`) runs daily, respects frequency settings
-  - API: GET/PUT `/api/v1/seo/autopilot/config`, GET `/api/v1/seo/autopilot/pending`, POST `.../approve`, POST `.../reject`
-  - Frontend: Autopilot settings card in SEO page sidebar (toggle, frequency selector, stats)
-  - Frontend: Pending review queue with approve/reject actions
-  - Tests: 2 unit tests for purchase intent scoring logic
-  - High-intent targeting: Prioritizes keywords with transactional, comparison, and decision-stage signals
+**SEO & Legal**: JSON-LD structured data for blog, cookie/privacy policy updates (SuperTokens/Umami instead of Supabase/PostHog), minimal tracking stance documentation.
 
-- **Peer Benchmark Preview UX (2025-12-27)**: Improved opt-in UX for peer benchmarking:
-  - Backend: `GET /api/v1/peer-benchmarks/preview` endpoint returns one sample metric (industry median) without consent
-  - Backend: `get_preview_metric()` service function finds first metric with sufficient sample count (>=5 peers)
-  - Frontend: Teaser card with industry preview metric, blurred locked metrics, clear "Opt In to Compare" CTA
-  - Frontend: Enhanced consent card with privacy checkmarks (k-anonymity, no PII, industry-level only)
-  - API client: `getPeerBenchmarkPreview()` method added
-  - Tests: 7 new tests for PreviewMetricResponse model validation
-  - Privacy-first: Preview shows only industry p50, never user data
+**AI Ops**: Error pattern tracking with match counts, catch-all unclassified_error pattern, Redis buffer population from API 500s.
 
-- **Competitor Skeptic Relevance (2025-12-27)**: Added AI-powered relevance checks for detected competitors:
-  - Backend: `backend/api/context/skeptic.py` with `evaluate_competitor_relevance()` and batch evaluation
-  - Model: Extended `DetectedCompetitor` with `relevance_score` (0.0-1.0), `relevance_flags` (similar_product/same_icp/same_market), `relevance_warning`
-  - Integration: Skeptic check runs during auto-detect and for manually added competitors
-  - API: `ManagedCompetitorResponse` now includes `relevance_warning` and `relevance_score`
-  - Frontend: Color-coded relevance indicators (✓ green = high, ~ yellow = partial, ? red = low) in strategic context
-  - Tooltip shows which checks passed/failed on hover
-  - Tests: 27 unit tests for skeptic evaluation and model validation
+**Admin UX**: Dedicated `/admin/toggles` page for emergency toggles with full-width layout, grouped by Security/LLM/Features, expandable documentation tooltips for each toggle explaining when to enable/disable.
 
-- **Meeting Bundle Purchases (2025-12-27)**: Implemented one-time meeting bundle purchases:
-  - Database: `meeting_credits` column on users (migration zj)
-  - Backend: `MeetingBundleConfig` in PlanConfig, bundles of 1/3/5/9 meetings @ £10 each
-  - Backend: `POST /api/v1/billing/purchase-bundle`, `GET /api/v1/billing/credits` endpoints
-  - Webhook: `checkout.session.completed` handler credits user account for bundle purchases
-  - Usage: Meeting credits consumed before tier limits when creating sessions
-  - Frontend: `MeetingBundles.svelte` component on pricing page
-  - Frontend: Billing settings shows remaining credits with purchase buttons
-  - Script: `create_meeting_tier_prices.py` for Stripe product/price creation
-  - Tests: 10 unit tests for bundle config and credit management
+**Internal Cost Tracking**: New `cost_category` column in api_costs (user/internal_seo/internal_system), content_generator costs tagged as internal_seo, `/admin/costs/internal` endpoint for querying internal costs, new "Internal Costs" tab on admin costs page.
 
-- **Nonprofit Discount Tier (2025-12-27)**: Added nonprofit/charity discount feature:
-  - Database: `is_nonprofit`, `nonprofit_verified_at`, `nonprofit_org_name` columns on users (migration zi)
-  - Promo codes: NONPROFIT80 (80% off), NONPROFIT100 (free) via `create_nonprofit_promos.py` script
-  - Admin API: POST/DELETE `/api/admin/users/{id}/nonprofit` endpoints for status management
-  - Auto-applies promo code when setting nonprofit status
-  - Admin UI: Nonprofit badge (pink heart) in Users table Badges column
-  - Runbook: `docs/runbooks/nonprofit-verification.md` with verification process
+**A/B Experiment Management**: Database-backed experiment management (`experiments` table), lifecycle support (draft→running→paused→concluded), deterministic user-to-variant assignment, full CRUD API endpoints, enhanced `/admin/experiments` UI with create modal, status badges, action buttons, and in-page documentation panel.
 
-- **Rolling 7-Day View (2025-12-27)**: Changed dashboard week view from calendar-based (Mon-Sun) to rolling ±3 days:
-  - Updated `getWeekDays()` in `WeeklyPlanView.svelte` to center on today
-  - Renamed header from "This Week" to "7-Day View"
-  - Added 9 unit tests for date logic (month/year boundary handling)
+**Blog CTR Tracking**: Added `view_count`, `click_through_count`, `last_viewed_at` columns to blog_posts, public tracking endpoints (`/view`, `/click`) with rate limiting, frontend session-based tracking integration, `/admin/seo/performance` endpoint with ROI metrics (cost per click), enhanced admin SEO page with sortable performance table.
 
-- **Key Metrics Feature (2025-12-27)**: Implemented "Metrics You Need to Know" for prioritized metric tracking:
-  - Database: `key_metrics_config` JSONB column on `user_context` (migration zh)
-  - Backend: Pydantic models (KeyMetricConfig, KeyMetricDisplay, KeyMetricsResponse), trend calculation from benchmark_history
-  - API: GET `/api/v1/context/key-metrics`, PUT `/api/v1/context/key-metrics/config`
-  - Service: `get_key_metrics_for_user()` aggregates user metrics, calculates trends (up/down/stable), industry comparisons
-  - Frontend: `/context/key-metrics` page with 3 sections (Focus Now, Track Later, Monitor), trend arrows, benchmark bars
-  - Navigation: Added to Context dropdown in header
-  - Tests: 31 unit tests for model validation
-  - Displays user's prioritized metrics with pendulum trend indicators
+**Cost Insight Drill-Downs**: 5 new admin drill-down endpoints (`/api/admin/drilldown/cache-effectiveness`, `/model-impact`, `/feature-efficiency`, `/tuning-recommendations`, `/quality-indicators`). Frontend Insights tab on `/admin/costs` with: cache effectiveness buckets (0-25%, 25-50%, 50-75%, 75-100% hit rate), model impact with what-if scenarios (all-Opus vs all-Haiku), feature efficiency by cost/session, AI-generated tuning recommendations with confidence levels, quality correlation indicators (cached vs uncached continuation rates).
 
-- **Waitlist Form 500 Error Fix (2025-12-27)**: Fixed production waitlist form returning 500 error:
-  - Root cause: slowapi rate limiter requires first parameter to be named `request` (starlette.requests.Request)
-  - Waitlist endpoints used `http_request` causing slowapi to throw exception
-  - Renamed `http_request` → `request` and `request` → `body` in both endpoints
-  - Updated corresponding tests
-  - This was why 48 unique visitors → 0 signups on the waitlist page
+### December 2025 (Week of 12/27)
 
-- **Admin Blog Rate Limiting (2025-12-27)**: Added missing rate limiting to all 9 admin blog endpoints:
-  - Added `@limiter.limit(ADMIN_RATE_LIMIT)` to: list_posts, create_post, get_post, update_post, delete_post, generate_post, discover_blog_topics, publish_post, schedule_post
-  - Consistent with other admin endpoints (1200/minute)
-  - Prevents 429 cascade during admin dashboard load
+**Fair Usage & Billing**: Per-feature daily cost limits with p90 detection, meeting bundle purchases (1/3/5/9 @ £10), nonprofit discount tier (80%/100% off).
 
-- **Admin Dashboard Drillable Cards (2025-12-27)**: Made all admin dashboard stat cards navigable:
-  - Total Users → `/admin/users`
-  - Total Meetings → `/admin/sessions`
-  - Total Cost → `/admin/costs`
-  - Whitelist Count → `/admin/whitelist`
-  - Added hover effects (shadow, border color change) matching existing Waitlist card style
-  - Proper `<a>` tags for accessibility (keyboard nav, right-click context menu)
+**SEO Platform**: Autopilot with purchase intent scoring, trend analyzer, topics table, article generator, content analytics tracking.
 
-- **GDPR Consent OAuth Fix (2025-12-27)**: Fixed 403 error when recording GDPR consent during OAuth callback:
-  - Root cause: callback page used raw `fetch()` without CSRF token header
-  - Added `recordGdprConsent()` method to apiClient with proper CSRF handling
-  - Updated callback page to call `apiClient.recordGdprConsent()` after `initAuth()` (ensures CSRF cookie set)
-  - Removed unused imports (`env`, `ApiClientError`)
+**Peer Features**: Benchmark opt-in with k-anonymity, cross-user research sharing, competitor skeptic relevance checks.
 
-- **SEO Topic Discovery Fix (2025-12-27)**: Fixed 'Discover' button in BlogGenerateModal:
-  - Added `TopicDiscoveryError` exception class for specific error handling
-  - Improved LLM prompt for reliable JSON output (explicit schema, lower temperature 0.6)
-  - Added retry logic (max 2 attempts) on JSON parse failures
-  - Added debug logging for raw LLM responses
-  - API returns 429/500 with descriptive error messages
-  - Frontend shows specific error messages with retry button
-  - Added loading state with "5-10 seconds" timing hint
-  - Added `USE_MOCK_TOPIC_DISCOVERY=true` env flag for local dev
-  - Tests: 8 new tests (4 API endpoint, 4 service unit tests)
+**Context System**: Key metrics tracking, strategic objective progress, heatmap history depth.
 
-- **Local Development Auth Fix (2025-12-27)**: Fixed authentication not working in local development:
-  - Created `.env.local.example` with documented local dev auth variables
-  - Updated `docker-compose.yml` to explicitly pass SuperTokens env vars to API container
-  - Added `backend/api/startup_validation.py` with auth config validation at startup
-  - Created `docs/runbooks/local-dev-auth.md` with setup guide and troubleshooting
-  - Added `make auth-check` Makefile target for diagnostics
-  - Validates SuperTokens Core reachability, OAuth provider credentials, cookie settings
+**Admin Improvements**: Dashboard drillable cards, cache metrics UI, costs aggregations, fixed costs editing.
 
-- **Cross-User Research Sharing (2025-12-27)**: Implemented opt-in research sharing between users:
-  - Database: `research_sharing_consent` table + `user_id`/`is_shareable` columns on `research_cache` (migration zg)
-  - Backend: Consent service (give/revoke/check), cache filtering with shared research lookup
-  - API: GET/POST/DELETE `/api/v1/research-sharing/consent` endpoints
-  - ResearcherAgent: Pass `user_id` and `sharing_consented` for cache save/lookup
-  - Graph: `research_sharing_consented` state field, `shared` flag in research results
-  - Frontend: Toggle in Settings > Privacy with privacy explanation
-  - Tests: 5 unit tests for consent service, 8 unit tests for cache filtering
-  - Privacy-first: Only research findings shared, never PII; explicit consent required
+### Earlier (Pre-12/27)
 
-- **Peer Benchmarking (2025-12-27)**: Implemented anonymous peer comparison feature:
-  - Database: `peer_benchmark_consent` + `peer_benchmark_aggregates` tables (migration zf)
-  - Backend: Consent service (give/revoke/check), aggregation with k-anonymity (min 5 peers)
-  - API: GET/POST/DELETE `/api/v1/peer-benchmarks/consent`, GET `/api/v1/peer-benchmarks`, GET `/api/v1/peer-benchmarks/compare`
-  - Billing: `peer_benchmarks_visible` (free=3, starter=5, pro=unlimited) via PlanConfig
-  - Frontend: `/context/peer-benchmarks` page with consent toggle, percentile cards, tier-gated metrics
-  - Navigation: Added to Context dropdown
-  - Tests: 23 unit tests for service and model validation
+**Core Platform**: Multi-agent deliberation, SSE streaming, checkpoint recovery, actions system (Kanban/Gantt/reminders), projects with Gantt, mentor mode with expert personas.
 
-- **Project Management Blog Post (2025-12-27)**: Created SEO-optimized blog article "Bo1 for Light-Touch Project Management: Ditch the Complexity":
-  - ~1000 words covering: lightweight PM without Jira/Asana, meeting mode for scoping, Kanban actions, Gantt timeline, mentor for risks, calendar sync
-  - Script: `backend/scripts/create_project_management_article.py` for article creation
-  - Article stored as draft in seo_blog_articles (id=6), ready for review and publishing
+**Business Features**: Stripe billing, workspaces, promotions, context system with 22 benchmark metrics, competitor detection, market trends.
 
-- **Analytics Blog Post (2025-12-27)**: Created SEO-optimized blog article "Bo1 for Analytics: Make Sense of Your Data with AI Deliberation":
-  - ~1000 words covering: data import (CSV/Sheets), Dataset Q&A, meeting mode for analytics interpretation, mentor mode for KPI setup
-  - Real examples: churn analysis, revenue trends, marketing attribution, user behavior patterns
-  - Script: `backend/scripts/create_analytics_article.py` for article creation
-  - Article stored as draft in seo_blog_articles (id=5), ready for review and publishing
+**Security**: Rate limiting, prompt injection detection (132 test cases), SQL validation, GDPR compliance, supply chain scanning.
 
-- **Stripe Configuration Runbook (2025-12-27)**: Created `docs/runbooks/stripe-config.md`:
-  - Documents test/live mode price ID tables
-  - Step-by-step setup: products, webhook, customer portal
-  - Environment variable reference (PUBLIC_STRIPE_PRICE_STARTER, PUBLIC_STRIPE_PRICE_PRO)
-  - Verification checklist and go-live instructions
+**Infrastructure**: Blue-green deployment, PostgreSQL backups, Prometheus/Grafana/Loki observability, email via Resend.
 
-- **Solo Founders Blog Post (2025-12-26)**: Created SEO-optimized blog article "Bo1 for Solo Founders: Your Board in a Box":
-  - ~1000 words covering: solo decision-making (board in a box), meeting prep, SMB team alignment
-  - Script: `backend/scripts/create_solo_founders_article.py` for article creation
-  - Article stored as draft in seo_blog_articles (id=3), ready for review and publishing
-
-- **Dogfooding Blog Post (2025-12-26)**: Created SEO-optimized blog article "How We Built Bo1 Using Bo1: A Dogfooding Story":
-  - ~1200 words covering prioritization with meeting mode, mentor mode for pricing, actions system for launch management
-  - Script: `backend/scripts/create_dogfooding_article.py` for article creation
-  - Article stored as draft in seo_blog_articles (id=2), ready for review and publishing
-
-- **Emergency Access Procedures (2025-12-26)**: Created E2E tests and runbook for emergency admin procedures:
-  - E2E tests: `tests/e2e/test_admin_impersonation.py` (12 tests) for full impersonation lifecycle
-  - E2E tests: `tests/e2e/test_emergency_toggles.py` (14 tests) for runtime config toggle flow
-  - Runbook: `docs/runbooks/emergency-access.md` documenting impersonation, runtime toggles, session kill, database access
-  - All tests pass with memory-based rate limiter for test isolation
-
-- **SEO Content Analytics (2025-12-26)**: Implemented article view/click/signup tracking and admin dashboard:
-  - Database: `seo_article_events` table (migration ze) with event_type, UTM params, session tracking
-  - Backend: `POST /api/v1/seo/articles/{id}/events` (public, rate-limited 30/min), `GET /api/v1/seo/articles/{id}/analytics`, `GET /api/v1/seo/analytics`
-  - Admin: `GET /api/admin/seo/analytics` with summary stats, top articles by views/conversion
-  - Frontend: `seoTracking.ts` utility with `trackArticleView()`, `trackArticleClick()`, `trackArticleSignup()`, de-duplicated view tracking
-  - Admin UI: `/admin/seo` page with summary cards, time-based metrics, top articles tables
-  - Tests: 20 unit tests for ArticleEventCreate, ArticleAnalytics, ArticleAnalyticsListResponse models
-
-- **Strategic Objective Progress (2025-12-26)**: Implemented per-objective progress tracking on dashboard:
-  - Backend: GET/PUT/DELETE `/api/v1/context/objectives/{index}/progress` endpoints
-  - Database: `strategic_objectives_progress` JSONB column on user_context (migration zd)
-  - Pydantic models: ObjectiveProgress, ObjectiveProgressUpdate, ObjectiveProgressResponse, ObjectiveProgressListResponse
-  - Frontend: GoalBanner shows "current → target" pills next to each objective, clickable to edit
-  - Modal: ObjectiveProgressModal with current/target inputs and unit presets (%, $, MRR, customers)
-  - Dashboard integration: fetches progress on mount, modal save updates state
-  - Tests: 15 unit tests for Pydantic model validation
-
-- **SEO Blog Generator (2025-12-26)**: Implemented SEO article generation from topics:
-  - Backend: `POST /topics/{id}/generate` and CRUD endpoints for `/api/v1/seo/articles`
-  - Database: `seo_blog_articles` table (migration zc) with title, excerpt, content, meta fields, status
-  - Billing: `seo_articles_monthly` limit (free=1, starter=5, pro=unlimited) via PlanConfig
-  - Rate limiting: 2 requests/minute via SEO_GENERATE_RATE_LIMIT
-  - Frontend: "Generate Article" button on topics table, Generated Articles card with copy-to-clipboard
-  - Tests: 17 unit tests for article Pydantic model validation
-
-- **SEO Topics Table (2025-12-26)**: Implemented SEO topics tracking for blog generation workflow:
-  - Backend: CRUD endpoints `/api/v1/seo/topics` (list/create/update/delete)
-  - Database: `seo_topics` table with keyword, status (researched/writing/published), source_analysis FK, notes
-  - Frontend: Topics table in /seo page with "Add to Topics" on opportunities, status badges, delete action
-  - Tests: 17 unit tests for Pydantic model validation
-
-- **SEO Trend Analyzer (2025-12-26)**: Implemented `/seo` route with ResearcherAgent-powered analysis:
-  - Backend: `/api/v1/seo/analyze-trends` and `/api/v1/seo/history` endpoints
-  - Database: `seo_trend_analyses` table with user/workspace/keywords/results
-  - Billing: Tier limits (free=1/month, starter=5, pro=unlimited) via PlanConfig
-  - Rate limiting: 5 requests/minute via SEO_ANALYZE_RATE_LIMIT
-  - Frontend: Full UI with keyword input, industry context, history sidebar
-  - Navigation: Added "SEO Tools" to Board dropdown
-
-- **Onboarding first-login flow (2025-12-26)**: After onboarding tour completes, redirect to `/context/overview` with dismissible welcome banner:
-  - Updated `completeTour()` to set localStorage flag and return boolean for redirect handling
-  - Dashboard redirects to context overview after tour completion
-  - Context overview shows one-time welcome banner explaining context setup benefits
-  - Added 3 unit tests for completeTour localStorage behavior
-
-- **Plan limits audit (2025-12-26)**: Migrated `backend/api/user.py` from deprecated `TierLimits`/`TierFeatureFlags` to `PlanConfig`:
-  - Updated `/api/v1/user/usage` and `/api/v1/user/tier-info` endpoints
-  - All tier-enforced endpoints now use centralized `PlanConfig`
-  - Added docstring notes for deprecated class tests
-
-- **Centralized plan configuration (2025-12-26)**: Created `bo1/billing/config.py` with unified `PlanConfig`:
-  - Single source of truth for all tier limits, features, and pricing
-  - Updated billing.py, usage_tracking.py, industry_insights.py to use new config
-  - Deprecated TierLimits, TierFeatureFlags, IndustryBenchmarkLimits (backward compat maintained)
-  - Added 33 unit tests for PlanConfig
-
-- **Rate limits audit (2025-12-26)**: Extended rate limiting coverage:
-  - Added 10 new rate limit constants (CONTEXT, USER, PROJECTS, MENTOR, BUSINESS_METRICS, etc.)
-  - Raised STREAMING limit from 20/min to 30/min for reconnection resilience
-  - Applied rate limits to LLM-heavy endpoints: mentor/chat, mentor/improvement-plan, context/enrich, context/competitors/detect, context/trends/refresh
-
-- **UX audit fixes (2025-12-26)**: 4 issues from UX/UI comprehensive audit:
-  - Context API 500 errors: Root cause was missing `action_metric_triggers` column in production (migration fb2)
-  - Navigation dropdowns: Increased z-index for proper stacking context
-  - Status page traffic API: Graceful "coming soon" state for unimplemented endpoint
-
-- **Batch run (2025-12-26)**: 17 tasks completed including:
-  - GDPR consent extension & multi-policy enforcement
-  - User feedback system (meeting & action ratings)
-  - Benchmark metrics expanded (12→22 metrics)
-  - Market trends content extraction & refresh logic
-  - Insights staleness detection (90/180 days) & action-triggered staleness (28 days)
-  - Onboarding tour fixes (step 2 buttons, exit flow, popup persistence)
-  - Dashboard strategic objectives tick fix
-  - Competitors 503 error fix, duplicate buttons UX, enrich database error fix
-  - Market trends tier gating & default "Now" view
-  - Projects unassigned-count 500 error fix
-  - Analytics.boardof.one 502 nginx error fix
-
-### Core Platform
-
-- **Data Analysis Platform**: Ingestion (DO Spaces, CSV, Google Sheets), Profiling, Query Engine, Meeting Integration, Dataset Q&A, UI
-- **Meetings & Sessions**: Multi-agent deliberation, SSE streaming, export/sharing, error handling, cap enforcement, wall-clock timeout, retry/resume from checkpoint
-- **Actions System**: Kanban, Gantt, reminders, bidirectional status, close/replan, calendar sync, post-mortems, blocker analyzer, blocker escalation
-- **Projects**: CRUD, Gantt, auto-generation, versioning, workspace constraints, meeting templates
-- **Mentor Mode**: Expert personas, proactive patterns, @ mentions, chat persistence, auto-labeling, post-mortem insights
-
-### Business Features
-
-- **Billing**: Stripe integration, tier middleware, beta caps, cost tracking, per-user metrics
-- **Workspaces**: Schema, authorization, invitations, auto-creation, switching
-- **Promotions**: Schema, services, admin UI, Stripe integration
-- **Context System**: Insights, staleness tracking, benchmarks (22 metrics), north star goal with history, competitor detection (manual + auto), managed competitors, trend analysis, market trend forecasts (3m/12m/24m with tier-gating)
-- **Legal & Consent**: T&C versioning, GDPR consent, multi-policy enforcement, consent audit logs
-
-### Admin & Ops
-
-- **Admin Dashboard**: Sessions, costs, KPIs, kill history, alerts, users, waitlist, promotions, impersonation, blog management, template management, email metrics, research cache metrics, A/B experiments, feedback tracking
-- **AI Ops**: Error detection, auto-remediation, self-monitoring
-- **Observability**: Prometheus metrics, Grafana dashboards, Loki logging, graph node instrumentation
-- **Monitoring**: Health checks (Redis, Postgres, Anthropic, Voyage, Brave, ClamAV), pool exhaustion alerts
-
-### Security & Compliance
-
-- **Security**: Rate limiting, prompt injection detection, SQL validation, metrics auth, input sanitization
-- **GDPR**: Data export, deletion/anonymization, audit logging, retention, consent capture
-- **Supply Chain**: Pinned versions, OSV-Scanner, pip-audit, Trivy, Dependabot
-- **Web Security**: Nonce-based CSP, CSRF, HSTS, WAF rules, ClamAV scanning
-
-### Architecture & Performance
-
-- **Architecture**: Parallel initial round (60-70% latency reduction), SSE state transitions, PostgreSQL polling fallback, circuit breaker fallback
-- **Performance**: Session metadata cache, aggregation caching, contribution pruning, covering indexes, pool size tuning
-- **Data Model**: Pydantic models, OpenAPI type generation, schema audit scripts
-
-### Quality & Testing
-
-- **E2E Tests**: Dashboard, settings, meeting-create, meeting-complete, actions, datasets, admin
-- **Security Tests**: Auth, authz, input validation, prompt injection (132 cases), rate limiting, SQL injection
-- **Chaos Tests**: Provider fallback, SSE Redis fallback, circuit breaker behavior
-
-### UX & Frontend
-
-- **Navigation**: Grouped sidebar, dropdowns, loading skeletons
-- **Toast System**: Success/error/info/warning with auto-dismiss
-- **Accessibility**: Skip links, ARIA labels, focus traps, landmarks
-- **Onboarding**: driver.js tour with exit flow
-- **shadcn Migration**: Button, Input, Badge, Alert, Card
-- **Dashboard**: Goal banner, weekly plan, daily activities
-
-### LLM Alignment
-
-- **Cost Reduction**: Lean synthesis (30-60% reduction), Haiku extended to round 3, A/B persona count experiment
-- **Output Validation**: Challenge phase validation, XML parsing, output length warnings
-- **Sanitization**: All LLM call sites sanitized
-
-### Infrastructure
-
-- **Deployment**: GitHub Actions CI, PostgreSQL backups, Redis persistence, blue-green deployment
-- **Email**: Resend integration with templates
-- **Analytics**: Umami self-hosted, UptimeRobot monitoring
-- **Integrations**: Google Calendar OAuth + action sync
-
-### Documentation
-
-- Help center (16 articles), privacy policy, terms of service, runbooks, SSE events docs
+**LLM Optimization**: Lean synthesis (30-60% cost reduction), Haiku extended to round 3, persona context window 6→3 contributions.
 
 ---
 

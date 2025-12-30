@@ -1,72 +1,97 @@
-# Plan: [INFRA][P2] Containerd Cleanup
+# Plan: Enable Resume from Last Successful Sub-Problem Checkpoint
 
 ## Summary
 
-- SSH to prod, investigate containerd usage (DO droplet agent dependency)
-- Clean 51GB old snapshots if safe
-- Reduce disk usage from 71% to <60%
+- Add checkpoint recovery that skips already-completed sub-problems
+- Persist expert memory (summaries) between sub-problems for sequential flow
+- Add `/sessions/{id}/resume` endpoint with sub-problem state visibility
+- Frontend recovery UI showing resumable sub-problem index
 
 ## Implementation Steps
 
-1. **SSH to prod** - `ssh root@139.59.201.65`
+### Step 1: Extend Session Model for Checkpoint Metadata
 
-2. **Check containerd status** - Determine if in active use:
-   ```bash
-   systemctl status containerd
-   systemctl is-enabled containerd
-   ps aux | grep containerd
-   ```
+**File:** `backend/api/models.py`
 
-3. **Identify DO droplet agent dependency** - Check if agent uses containerd:
-   ```bash
-   dpkg -l | grep digitalocean
-   systemctl status droplet-agent
-   cat /etc/droplet-agent/config.yaml
-   ```
+- Add `last_completed_sp_index: int | None` to Session model
+- Add `sp_checkpoint_at: datetime | None` timestamp
+- Update `sessions.py` to persist these on SP completion
 
-4. **Inventory containerd snapshots**:
-   ```bash
-   du -sh /var/lib/containerd/
-   du -sh /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/
-   ls -la /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/
-   ```
+### Step 2: Save SP Boundary Checkpoints
 
-5. **If containerd NOT in use** (no running containers, agent doesn't depend on it):
-   - Stop containerd: `systemctl stop containerd`
-   - Disable containerd: `systemctl disable containerd`
-   - Remove snapshots: `rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*`
-   - Optionally remove containerd entirely: `apt remove containerd.io` (if not needed)
+**File:** `bo1/graph/nodes/synthesis.py` (`next_subproblem_node`)
 
-6. **If containerd IS in use** (DO agent depends on it):
-   - Use containerd's built-in garbage collection:
-     ```bash
-     ctr -n k8s.io images ls
-     ctr -n k8s.io snapshots ls
-     ctr -n k8s.io snapshots rm <unused-snapshot-ids>
-     ```
-   - Or prune via crictl if available: `crictl rmi --prune`
+- After saving result to `sub_problem_results`, emit checkpoint marker event
+- Call session update with `last_completed_sp_index = sub_problem_index`
+- Persist `expert_summaries` from current SP to state for next SP
 
-7. **Verify disk usage after cleanup**:
-   ```bash
-   df -h /
-   du -sh /var/lib/containerd/
-   ```
+### Step 3: Add Expert Memory Propagation (Sequential Mode)
+
+**File:** `bo1/graph/nodes/subproblems.py`
+
+- In `analyze_dependencies_node`, check for `expert_summaries` from prior SP
+- Pass summaries to `select_personas` node via state
+- Ensure `SummarizerAgent` outputs are stored in checkpoint
+
+### Step 4: Add Resume Router Logic
+
+**File:** `bo1/graph/routers.py`
+
+- Add `route_on_resume()` function
+- If `sub_problem_results` length > 0 AND `current_sub_problem` is None:
+  - Restore `current_sub_problem` from `problem.sub_problems[sub_problem_index]`
+  - Route to `select_personas` (skip decomposition/dependency analysis)
+
+### Step 5: Add Resume Endpoint
+
+**File:** `backend/api/sessions.py`
+
+- Add `GET /sessions/{session_id}/checkpoint-state` returning:
+  - `completed_sub_problems: int`
+  - `total_sub_problems: int`
+  - `last_checkpoint_at: datetime`
+  - `can_resume: bool`
+- Add `POST /sessions/{session_id}/resume` that:
+  - Loads checkpoint from Redis
+  - Verifies SP boundary checkpoint exists
+  - Triggers graph with resume entry point
+
+### Step 6: Frontend Recovery UI
+
+**File:** `frontend/src/lib/components/meeting/`
+
+- Add `SessionRecoveryBanner.svelte` component
+- Show when session has incomplete SPs with valid checkpoint
+- Display: "Resume from sub-problem N of M?" with Resume/Start Over buttons
+- Integrate into meeting view on reconnect
 
 ## Tests
 
-- Manual validation:
-  - [ ] `df -h /` shows disk usage <60%
-  - [ ] `systemctl status containerd` shows expected state (stopped/disabled OR running with reduced snapshots)
-  - [ ] DO droplet agent still functional: `systemctl status droplet-agent`
-  - [ ] No impact to Docker containers: `docker ps`
+### Unit Tests
+- `tests/graph/test_sp_checkpoint_resume.py`:
+  - Test checkpoint save at SP boundary
+  - Test resume skips completed SPs
+  - Test expert memory propagation
+  - Test duplicate SP result guard
+
+### Integration Tests
+- `tests/api/test_session_resume.py`:
+  - Test `/checkpoint-state` returns correct counts
+  - Test `/resume` loads correct checkpoint
+  - Test resume triggers graph at correct entry point
+
+### Manual Validation
+- Start multi-SP session → complete SP 1 → kill process → resume → verify SP 2 starts
+- Verify expert memory from SP 1 available in SP 2 (sequential mode)
 
 ## Dependencies & Risks
 
-- Dependencies:
-  - SSH access to prod server
-  - Root access for containerd operations
+### Dependencies
+- Existing checkpoint infrastructure (Redis + LangGraph)
+- `serialize_state_for_checkpoint()` already handles sub_problem_results
+- `next_subproblem_node` already tracks completion
 
-- Risks/edge cases:
-  - DO droplet agent may require containerd - check before removal
-  - If snapshots are in use, deletion could break running containers
-  - May need to reinstall containerd later if Kubernetes needed
+### Risks/Edge Cases
+- Corrupted checkpoint → fallback to fresh start (existing repair logic helps)
+- Parallel mode may have different resume semantics (batch boundaries)
+- Expert summary size growth with many SPs (consider pruning old summaries)

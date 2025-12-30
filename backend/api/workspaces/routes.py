@@ -16,7 +16,7 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 from psycopg2.errors import UniqueViolation
 
 from backend.api.middleware.auth import get_current_user
@@ -24,6 +24,14 @@ from backend.api.middleware.workspace_auth import (
     WorkspaceAccessChecker,
     WorkspacePermissionChecker,
     WorkspaceRoleChecker,
+)
+from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+    ERROR_409_RESPONSE,
+    ERROR_500_RESPONSE,
 )
 from backend.api.workspaces.models import (
     JoinRequestCreate,
@@ -51,7 +59,7 @@ from backend.services.workspace_auth import (
     can_remove_member,
     can_transfer_ownership,
 )
-from bo1.logging.errors import ErrorCode, log_error
+from bo1.logging.errors import ErrorCode
 from bo1.state.repositories.user_repository import user_repository
 from bo1.state.repositories.workspace_repository import workspace_repository
 
@@ -65,7 +73,9 @@ router = APIRouter(prefix="/v1/workspaces", tags=["workspaces"])
     response_model=WorkspaceResponse,
     status_code=201,
     summary="Create new workspace",
+    responses={409: ERROR_409_RESPONSE, 500: ERROR_500_RESPONSE},
 )
+@handle_api_errors("create workspace")
 async def create_workspace(
     request: WorkspaceCreate,
     user: dict[str, Any] = Depends(get_current_user),
@@ -96,20 +106,11 @@ async def create_workspace(
         logger.info(f"Created workspace {workspace.id} for user {user_id}")
         return workspace
     except UniqueViolation as e:
-        raise HTTPException(
-            status_code=409,
-            detail="Workspace slug already exists",
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            "Workspace slug already exists",
+            status=409,
         ) from e
-    except Exception as e:
-        log_error(
-            logger,
-            ErrorCode.API_WORKSPACE_ERROR,
-            f"Failed to create workspace: {e}",
-            exc_info=True,
-            user_id=user_id,
-            workspace_name=request.name,
-        )
-        raise HTTPException(status_code=500, detail="Failed to create workspace") from e
 
 
 @router.get(
@@ -143,7 +144,9 @@ async def list_workspaces(
     response_model=WorkspaceResponse,
     summary="Get workspace details",
     dependencies=[Depends(WorkspaceAccessChecker())],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("get workspace")
 async def get_workspace(
     workspace_id: uuid.UUID = Path(...),
     user: dict[str, Any] = Depends(get_current_user),
@@ -161,7 +164,7 @@ async def get_workspace(
     """
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
     return workspace
 
 
@@ -170,7 +173,9 @@ async def get_workspace(
     response_model=WorkspaceResponse,
     summary="Update workspace",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.ADMIN))],
+    responses={404: ERROR_404_RESPONSE, 409: ERROR_409_RESPONSE},
 )
+@handle_api_errors("update workspace")
 async def update_workspace(
     request: WorkspaceUpdate,
     workspace_id: uuid.UUID = Path(...),
@@ -200,12 +205,13 @@ async def update_workspace(
             slug=request.slug,
         )
         if not workspace:
-            raise HTTPException(status_code=404, detail="Workspace not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
         return workspace
     except UniqueViolation as e:
-        raise HTTPException(
-            status_code=409,
-            detail="Workspace slug already exists",
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            "Workspace slug already exists",
+            status=409,
         ) from e
 
 
@@ -214,7 +220,9 @@ async def update_workspace(
     status_code=204,
     summary="Delete workspace",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.OWNER))],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("delete workspace")
 async def delete_workspace(
     workspace_id: uuid.UUID = Path(...),
     user: dict[str, Any] = Depends(get_current_user),
@@ -235,7 +243,7 @@ async def delete_workspace(
 
     success = workspace_repository.delete_workspace(workspace_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
 
 @router.get(
@@ -268,7 +276,9 @@ async def list_members(
     status_code=201,
     summary="Add member to workspace",
     dependencies=[Depends(WorkspacePermissionChecker(Permission.MANAGE_MEMBERS))],
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE, 409: ERROR_409_RESPONSE},
 )
+@handle_api_errors("add member")
 async def add_member(
     invite: WorkspaceInvite,
     workspace_id: uuid.UUID = Path(...),
@@ -300,47 +310,38 @@ async def add_member(
 
     target_user = user_repository.get_by_email(invite.email)
     if not target_user:
-        raise HTTPException(
-            status_code=404,
-            detail="User with this email not found",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "User with this email not found",
+            status=404,
         )
     target_id = target_user["id"]
 
     # Check not already a member
     if workspace_repository.is_member(workspace_id, target_id):
-        raise HTTPException(
-            status_code=409,
-            detail="User is already a member of this workspace",
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            "User is already a member of this workspace",
+            status=409,
         )
 
     # Prevent admins from adding owners
     actor_role = workspace_repository.get_member_role(workspace_id, actor_id)
     if invite.role == MemberRole.OWNER and actor_role != MemberRole.OWNER:
-        raise HTTPException(
-            status_code=403,
-            detail="Only owners can add other owners",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Only owners can add other owners",
+            status=403,
         )
 
-    try:
-        member = workspace_repository.add_member(
-            workspace_id=workspace_id,
-            user_id=target_id,
-            role=invite.role,
-            invited_by=actor_id,
-        )
-        logger.info(f"Added member {target_id} to workspace {workspace_id}")
-        return member
-    except Exception as e:
-        log_error(
-            logger,
-            ErrorCode.API_WORKSPACE_ERROR,
-            f"Failed to add member: {e}",
-            exc_info=True,
-            workspace_id=str(workspace_id),
-            target_user_id=target_id,
-            inviter_id=actor_id,
-        )
-        raise HTTPException(status_code=500, detail="Failed to add member") from e
+    member = workspace_repository.add_member(
+        workspace_id=workspace_id,
+        user_id=target_id,
+        role=invite.role,
+        invited_by=actor_id,
+    )
+    logger.info(f"Added member {target_id} to workspace {workspace_id}")
+    return member
 
 
 @router.patch(
@@ -348,7 +349,9 @@ async def add_member(
     response_model=WorkspaceMemberResponse,
     summary="Update member role",
     dependencies=[Depends(WorkspacePermissionChecker(Permission.MANAGE_MEMBERS))],
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("update member role")
 async def update_member_role(
     update: WorkspaceMemberUpdate,
     workspace_id: uuid.UUID = Path(...),
@@ -377,26 +380,29 @@ async def update_member_role(
 
     # Cannot change own role
     if actor_id == target_user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot change your own role",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Cannot change your own role",
+            status=403,
         )
 
     # Cannot change owner's role
     workspace = workspace_repository.get_workspace(workspace_id)
     if workspace and workspace.owner_id == target_user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot change owner's role. Transfer ownership instead.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Cannot change owner's role. Transfer ownership instead.",
+            status=403,
         )
 
     # Only owners can promote to owner
     if update.role == MemberRole.OWNER:
         actor_role = workspace_repository.get_member_role(workspace_id, actor_id)
         if actor_role != MemberRole.OWNER:
-            raise HTTPException(
-                status_code=403,
-                detail="Only owners can promote to owner",
+            raise http_error(
+                ErrorCode.API_FORBIDDEN,
+                "Only owners can promote to owner",
+                status=403,
             )
 
     member = workspace_repository.update_member_role(
@@ -405,7 +411,7 @@ async def update_member_role(
         role=update.role,
     )
     if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Member not found", status=404)
 
     logger.info(
         f"Updated member {target_user_id} role to {update.role.value} in workspace {workspace_id}"
@@ -417,7 +423,9 @@ async def update_member_role(
     "/{workspace_id}/members/{target_user_id}",
     status_code=204,
     summary="Remove member from workspace",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("remove member")
 async def remove_member(
     workspace_id: uuid.UUID = Path(...),
     target_user_id: str = Path(...),
@@ -442,11 +450,11 @@ async def remove_member(
     # Check removal is allowed
     can_remove, error = can_remove_member(workspace_id, actor_id, target_user_id)
     if not can_remove:
-        raise HTTPException(status_code=403, detail=error)
+        raise http_error(ErrorCode.API_FORBIDDEN, error or "Cannot remove member", status=403)
 
     success = workspace_repository.remove_member(workspace_id, target_user_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Member not found", status=404)
 
     logger.info(f"Removed member {target_user_id} from workspace {workspace_id} (by {actor_id})")
 
@@ -461,7 +469,9 @@ async def remove_member(
     response_model=JoinRequestResponse,
     status_code=201,
     summary="Submit join request",
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE, 409: ERROR_409_RESPONSE},
 )
+@handle_api_errors("submit join request")
 async def submit_join_request(
     request: JoinRequestCreate,
     workspace_id: uuid.UUID = Path(...),
@@ -491,14 +501,15 @@ async def submit_join_request(
     # Check workspace exists
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
     # Check discoverability allows join requests
     discoverability = workspace_repository.get_discoverability(workspace_id)
     if discoverability != WorkspaceDiscoverability.REQUEST_TO_JOIN:
-        raise HTTPException(
-            status_code=403,
-            detail="This workspace does not accept join requests",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "This workspace does not accept join requests",
+            status=403,
         )
 
     try:
@@ -514,7 +525,7 @@ async def submit_join_request(
 
         return join_request
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        raise http_error(ErrorCode.API_CONFLICT, str(e), status=409) from e
 
 
 @router.get(
@@ -547,7 +558,9 @@ async def list_join_requests(
     response_model=JoinRequestResponse,
     summary="Approve join request",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.ADMIN))],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("approve join request")
 async def approve_join_request(
     workspace_id: uuid.UUID = Path(...),
     request_id: uuid.UUID = Path(...),
@@ -574,13 +587,14 @@ async def approve_join_request(
     # Verify request belongs to this workspace
     join_request = workspace_repository.get_join_request(request_id)
     if not join_request or join_request.workspace_id != workspace_id:
-        raise HTTPException(status_code=404, detail="Join request not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Join request not found", status=404)
 
     result = workspace_repository.approve_request(request_id, reviewer_id)
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="Join request not found or already processed",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Join request not found or already processed",
+            status=404,
         )
 
     # Send approval notification
@@ -595,7 +609,9 @@ async def approve_join_request(
     response_model=JoinRequestResponse,
     summary="Reject join request",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.ADMIN))],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("reject join request")
 async def reject_join_request(
     request: JoinRequestRejectRequest,
     workspace_id: uuid.UUID = Path(...),
@@ -624,7 +640,7 @@ async def reject_join_request(
     # Verify request belongs to this workspace
     join_request = workspace_repository.get_join_request(request_id)
     if not join_request or join_request.workspace_id != workspace_id:
-        raise HTTPException(status_code=404, detail="Join request not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Join request not found", status=404)
 
     result = workspace_repository.reject_request(
         request_id,
@@ -632,9 +648,10 @@ async def reject_join_request(
         request.reason,
     )
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="Join request not found or already processed",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Join request not found or already processed",
+            status=404,
         )
 
     # Send rejection notification
@@ -649,7 +666,9 @@ async def reject_join_request(
     response_model=WorkspaceResponse,
     summary="Update workspace settings",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.ADMIN))],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("update workspace settings")
 async def update_workspace_settings(
     request: WorkspaceSettingsUpdate,
     workspace_id: uuid.UUID = Path(...),
@@ -680,7 +699,7 @@ async def update_workspace_settings(
 
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
     return workspace
 
 
@@ -772,7 +791,14 @@ def _notify_user_of_rejection(join_request: JoinRequestResponse) -> None:
     response_model=WorkspaceResponse,
     summary="Transfer workspace ownership",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.OWNER))],
+    responses={
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        500: ERROR_500_RESPONSE,
+    },
 )
+@handle_api_errors("transfer ownership")
 async def transfer_ownership(
     request: TransferOwnershipRequest,
     workspace_id: uuid.UUID = Path(...),
@@ -804,15 +830,16 @@ async def transfer_ownership(
 
     # Require explicit confirmation
     if not request.confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="Must confirm the transfer by setting confirm=true",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            "Must confirm the transfer by setting confirm=true",
+            status=400,
         )
 
     # Check transfer is allowed
     can_transfer, error = can_transfer_ownership(workspace_id, actor_id, request.new_owner_id)
     if not can_transfer:
-        raise HTTPException(status_code=403, detail=error)
+        raise http_error(ErrorCode.API_FORBIDDEN, error or "Transfer not allowed", status=403)
 
     # Perform transfer
     success = workspace_repository.transfer_ownership(
@@ -821,9 +848,10 @@ async def transfer_ownership(
         to_user_id=request.new_owner_id,
     )
     if not success:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to transfer ownership",
+        raise http_error(
+            ErrorCode.API_REQUEST_ERROR,
+            "Failed to transfer ownership",
+            status=500,
         )
 
     # Send email notifications
@@ -831,7 +859,7 @@ async def transfer_ownership(
 
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
     logger.info(
         f"Ownership transferred: workspace={workspace_id}, new_owner={request.new_owner_id}"
@@ -844,7 +872,9 @@ async def transfer_ownership(
     response_model=WorkspaceMemberResponse,
     summary="Promote member to admin",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.OWNER))],
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("promote member")
 async def promote_member(
     workspace_id: uuid.UUID = Path(...),
     target_user_id: str = Path(...),
@@ -872,7 +902,7 @@ async def promote_member(
     # Check promotion is allowed
     can_promote, error = can_promote_member(workspace_id, actor_id, target_user_id)
     if not can_promote:
-        raise HTTPException(status_code=403, detail=error)
+        raise http_error(ErrorCode.API_FORBIDDEN, error or "Promotion not allowed", status=403)
 
     # Perform promotion
     result = workspace_repository.promote_to_admin(
@@ -881,7 +911,7 @@ async def promote_member(
         promoted_by=actor_id,
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Member not found", status=404)
 
     # Send email notification
     _notify_role_change(workspace_id, target_user_id, "member", "admin")
@@ -895,7 +925,9 @@ async def promote_member(
     response_model=WorkspaceMemberResponse,
     summary="Demote admin to member",
     dependencies=[Depends(WorkspaceRoleChecker(MemberRole.OWNER))],
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("demote member")
 async def demote_member(
     workspace_id: uuid.UUID = Path(...),
     target_user_id: str = Path(...),
@@ -923,7 +955,7 @@ async def demote_member(
     # Check demotion is allowed
     can_demote, error = can_demote_admin(workspace_id, actor_id, target_user_id)
     if not can_demote:
-        raise HTTPException(status_code=403, detail=error)
+        raise http_error(ErrorCode.API_FORBIDDEN, error or "Demotion not allowed", status=403)
 
     # Perform demotion
     result = workspace_repository.demote_to_member(
@@ -932,7 +964,7 @@ async def demote_member(
         demoted_by=actor_id,
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Member not found", status=404)
 
     # Send email notification
     _notify_role_change(workspace_id, target_user_id, "admin", "member")

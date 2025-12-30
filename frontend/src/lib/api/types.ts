@@ -1587,3 +1587,97 @@ export interface KeyMetricsResponse {
 	monitor_count: number;
 	error?: string | null;
 }
+
+// =============================================================================
+// Working Pattern (Activity Heatmap)
+// =============================================================================
+
+/**
+ * User's regular working pattern for activity visualization.
+ * Non-working days are greyed out in ActivityHeatmap.
+ */
+export interface WorkingPattern {
+	/** Working days as ISO weekday numbers (1=Mon, 7=Sun). Default: Mon-Fri */
+	working_days: number[];
+}
+
+/**
+ * Response for working pattern endpoint.
+ */
+export interface WorkingPatternResponse {
+	success: boolean;
+	pattern: WorkingPattern;
+	error?: string | null;
+}
+
+/**
+ * Request to update working pattern.
+ */
+export interface WorkingPatternUpdate {
+	/** Working days as ISO weekday numbers (1=Mon, 7=Sun). At least one day required. */
+	working_days: number[];
+}
+
+// =============================================================================
+// Heatmap History Depth Types
+// =============================================================================
+
+/**
+ * User's preferred activity heatmap history depth.
+ * Controls how many months of history are shown in the ActivityHeatmap.
+ */
+export interface HeatmapHistoryDepth {
+	/** History depth in months: 1, 3, or 6. Default: 3 */
+	history_months: 1 | 3 | 6;
+}
+
+/**
+ * Response for heatmap history depth endpoint.
+ */
+export interface HeatmapHistoryDepthResponse {
+	success: boolean;
+	depth: HeatmapHistoryDepth;
+	error?: string | null;
+}
+
+/**
+ * Request to update heatmap history depth.
+ */
+export interface HeatmapHistoryDepthUpdate {
+	/** History depth in months: 1, 3, or 6 */
+	history_months: 1 | 3 | 6;
+}
+
+// =============================================================================
+// Research Embeddings Visualization
+// =============================================================================
+
+/**
+ * A single point in the research embeddings visualization.
+ */
+export interface ResearchPoint {
+	x: number;
+	y: number;
+	preview: string;
+	category: string | null;
+	created_at: string;
+}
+
+/**
+ * Category summary for legend display.
+ */
+export interface ResearchCategory {
+	name: string;
+	count: number;
+}
+
+/**
+ * Response containing user's research embeddings for visualization.
+ */
+export interface ResearchEmbeddingsResponse {
+	success: boolean;
+	points: ResearchPoint[];
+	categories: ResearchCategory[];
+	total_count: number;
+	error?: string | null;
+}

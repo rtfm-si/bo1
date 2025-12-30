@@ -47,8 +47,14 @@ class TestRouteAfterSynthesis:
         result = route_after_synthesis(state)
         assert result == "next_subproblem"
 
-    def test_handles_dict_problem_all_complete(self):
-        """Should route to meta_synthesis when all sub-problems complete."""
+    def test_handles_dict_problem_last_sp_routes_to_next_subproblem(self):
+        """Should route to next_subproblem even for last SP (to save result first).
+
+        RACE CONDITION FIX: Previously routed directly to meta_synthesis,
+        but that happened before the result was saved. Now we always go
+        through next_subproblem first, then route_after_next_subproblem
+        decides whether to continue or go to meta_synthesis.
+        """
         from bo1.models.state import SubProblemResult
 
         state = {
@@ -69,19 +75,13 @@ class TestRouteAfterSynthesis:
                     cost=0.0,
                     duration_seconds=1.0,
                 ),
-                SubProblemResult(
-                    sub_problem_id="sp2",
-                    sub_problem_goal="Goal 2",
-                    synthesis="Result 2",
-                    contribution_count=1,
-                    cost=0.0,
-                    duration_seconds=1.0,
-                ),
+                # Note: sp2 result not yet in list - that's the fix!
+                # The old code expected it here, but it's added by next_subproblem_node
             ],
         }
 
         result = route_after_synthesis(state)
-        assert result == "meta_synthesis"
+        assert result == "next_subproblem"
 
     def test_handles_missing_problem(self):
         """Should return END when problem is None."""

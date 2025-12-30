@@ -7,31 +7,49 @@
 	 * - Time-based metrics (today, week, month)
 	 * - Top articles by views
 	 * - Top articles by conversion rate
+	 * - Blog post CTR & cost performance
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
-	import { RefreshCw, Eye, MousePointer, UserPlus, TrendingUp, BarChart3 } from 'lucide-svelte';
+	import { RefreshCw, Eye, MousePointer, UserPlus, TrendingUp, BarChart3, PoundSterling, ExternalLink } from 'lucide-svelte';
 	import {
 		adminApi,
 		type AdminSeoAnalyticsResponse,
-		type SeoTopArticle
+		type SeoTopArticle,
+		type BlogPerformanceResponse
 	} from '$lib/api/admin';
 
 	// State
 	let analytics = $state<AdminSeoAnalyticsResponse | null>(null);
+	let blogPerf = $state<BlogPerformanceResponse | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let sortBy = $state<'views' | 'ctr' | 'cost_per_click' | 'roi'>('views');
 
 	// Load data
 	async function loadData() {
 		isLoading = true;
 		error = null;
 		try {
-			analytics = await adminApi.getSeoAnalytics(10);
+			const [analyticsData, perfData] = await Promise.all([
+				adminApi.getSeoAnalytics(10),
+				adminApi.getBlogPerformance(50, sortBy)
+			]);
+			analytics = analyticsData;
+			blogPerf = perfData;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load SEO analytics';
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	// Load just blog performance (for sort changes)
+	async function loadBlogPerf() {
+		try {
+			blogPerf = await adminApi.getBlogPerformance(50, sortBy);
+		} catch {
+			// Silent fail for sort changes
 		}
 	}
 
@@ -43,6 +61,17 @@
 	// Format number with commas
 	function formatNumber(value: number): string {
 		return value.toLocaleString();
+	}
+
+	// Format currency
+	function formatCurrency(value: number): string {
+		return '£' + value.toFixed(4);
+	}
+
+	// Handle sort change
+	function handleSortChange(newSort: 'views' | 'ctr' | 'cost_per_click' | 'roi') {
+		sortBy = newSort;
+		loadBlogPerf();
 	}
 
 	onMount(() => {
@@ -290,6 +319,130 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Blog Post Performance with Cost ROI -->
+			{#if blogPerf}
+				<div class="mt-8 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<div class="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
+						<div class="flex items-center justify-between">
+							<div>
+								<h2 class="text-lg font-medium text-neutral-900 dark:text-white flex items-center gap-2">
+									<PoundSterling class="w-5 h-5 text-brand-500" />
+									Blog Post ROI Performance
+								</h2>
+								<p class="text-xs text-neutral-500 dark:text-neutral-400">
+									CTR and cost metrics for published blog posts
+								</p>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="text-xs text-neutral-500">Sort:</span>
+								<select
+									class="text-sm border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+									value={sortBy}
+									onchange={(e) => handleSortChange(e.currentTarget.value as 'views' | 'ctr' | 'cost_per_click' | 'roi')}
+								>
+									<option value="views">Views</option>
+									<option value="ctr">CTR</option>
+									<option value="roi">Best ROI</option>
+								</select>
+							</div>
+						</div>
+
+						<!-- Summary Stats -->
+						<div class="mt-4 grid grid-cols-4 gap-4 text-center">
+							<div>
+								<div class="text-xl font-bold text-neutral-900 dark:text-white">
+									{formatNumber(blogPerf.total_views)}
+								</div>
+								<div class="text-xs text-neutral-500">Total Views</div>
+							</div>
+							<div>
+								<div class="text-xl font-bold text-neutral-900 dark:text-white">
+									{formatNumber(blogPerf.total_clicks)}
+								</div>
+								<div class="text-xs text-neutral-500">Total Clicks</div>
+							</div>
+							<div>
+								<div class="text-xl font-bold text-brand-600 dark:text-brand-400">
+									{blogPerf.overall_ctr.toFixed(2)}%
+								</div>
+								<div class="text-xs text-neutral-500">Overall CTR</div>
+							</div>
+							<div>
+								<div class="text-xl font-bold text-neutral-900 dark:text-white">
+									£{blogPerf.total_cost.toFixed(2)}
+								</div>
+								<div class="text-xs text-neutral-500">Total Cost</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="overflow-x-auto">
+						{#if blogPerf.posts.length === 0}
+							<div class="p-8 text-center text-neutral-500 dark:text-neutral-400">
+								No published blog posts yet
+							</div>
+						{:else}
+							<table class="w-full">
+								<thead class="bg-neutral-50 dark:bg-neutral-900">
+									<tr>
+										<th class="px-4 py-2 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Post</th>
+										<th class="px-4 py-2 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Views</th>
+										<th class="px-4 py-2 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Clicks</th>
+										<th class="px-4 py-2 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">CTR</th>
+										<th class="px-4 py-2 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Cost</th>
+										<th class="px-4 py-2 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">£/Click</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+									{#each blogPerf.posts as post}
+										<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+											<td class="px-4 py-3">
+												<a
+													href="/blog/{post.slug}"
+													target="_blank"
+													class="font-medium text-neutral-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-1 truncate max-w-xs"
+												>
+													{post.title}
+													<ExternalLink class="w-3 h-3 flex-shrink-0" />
+												</a>
+												{#if post.last_viewed_at}
+													<div class="text-xs text-neutral-500 dark:text-neutral-400">
+														Last view: {new Date(post.last_viewed_at).toLocaleDateString()}
+													</div>
+												{/if}
+											</td>
+											<td class="px-4 py-3 text-right text-neutral-900 dark:text-white">
+												{formatNumber(post.view_count)}
+											</td>
+											<td class="px-4 py-3 text-right text-neutral-900 dark:text-white">
+												{formatNumber(post.click_through_count)}
+											</td>
+											<td class="px-4 py-3 text-right">
+												<span class="{post.ctr_percent >= 5 ? 'text-success-600 dark:text-success-400' : post.ctr_percent >= 2 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-500'} font-medium">
+													{post.ctr_percent.toFixed(2)}%
+												</span>
+											</td>
+											<td class="px-4 py-3 text-right text-neutral-500 dark:text-neutral-400">
+												£{post.generation_cost.toFixed(2)}
+											</td>
+											<td class="px-4 py-3 text-right">
+												{#if post.click_through_count > 0}
+													<span class="{post.cost_per_click <= 0.10 ? 'text-success-600 dark:text-success-400' : post.cost_per_click <= 0.50 ? 'text-amber-600 dark:text-amber-400' : 'text-error-600 dark:text-error-400'} font-medium">
+														£{post.cost_per_click.toFixed(4)}
+													</span>
+												{:else}
+													<span class="text-neutral-400">-</span>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						{/if}
+					</div>
+				</div>
+			{/if}
 		{:else}
 			<!-- Empty State -->
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">

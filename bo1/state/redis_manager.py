@@ -667,16 +667,19 @@ class RedisManager:
             return False
 
     def save_metadata(self, session_id: str, metadata: dict[str, Any]) -> bool:
-        """Save session metadata separately from state.
+        """Save session metadata to Redis with dual-write to PostgreSQL.
 
-        Useful for storing lightweight data like creation time, user info, etc.
+        Performs write-through to PostgreSQL for reliability. Redis write is
+        primary; PostgreSQL write is non-blocking and failures are logged but
+        do not affect the return value.
 
         Args:
             session_id: Session identifier
             metadata: Dictionary of metadata to save
 
         Returns:
-            True if saved, False otherwise
+            True if Redis save succeeded, False otherwise.
+            PostgreSQL failure is non-fatal (logged as warning).
 
         Examples:
             >>> manager = RedisManager()
@@ -694,11 +697,45 @@ class RedisManager:
             metadata_json = json.dumps(metadata)
             assert self.redis is not None  # Type guard: checked by is_available
             self.redis.setex(key, self.ttl_seconds, metadata_json)
+
+            # Dual-write to PostgreSQL (non-blocking, best-effort)
+            self._dualwrite_metadata_to_postgres(session_id, metadata)
+
             return True
 
         except Exception as e:
             logger.error(f"Failed to save metadata: {e}")
             return False
+
+    def _dualwrite_metadata_to_postgres(self, session_id: str, metadata: dict[str, Any]) -> None:
+        """Write metadata to PostgreSQL for reliability.
+
+        Non-blocking write-through. Failures are logged but not raised.
+        """
+        try:
+            # Lazy import to avoid circular dependency
+            from backend.api.metrics import prom_metrics
+            from bo1.state.repositories.session_repository import SessionRepository
+
+            repo = SessionRepository()
+            success = repo.save_metadata(session_id, metadata)
+            if success:
+                prom_metrics.redis_metadata_dualwrite_total.labels(result="success").inc()
+                logger.debug(f"📝 Dual-write metadata to PostgreSQL: {session_id}")
+            else:
+                prom_metrics.redis_metadata_dualwrite_total.labels(result="failure").inc()
+                logger.warning(
+                    f"⚠️ Dual-write metadata to PostgreSQL failed (save returned False): {session_id}"
+                )
+        except Exception as e:
+            # Import prom_metrics for failure tracking (may fail if import was the issue)
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_metadata_dualwrite_total.labels(result="failure").inc()
+            except Exception:  # noqa: S110
+                pass  # Best-effort metric recording - swallow to not mask original error
+            logger.warning(f"⚠️ Dual-write metadata to PostgreSQL failed: {session_id} - {e}")
 
     def load_metadata(
         self,

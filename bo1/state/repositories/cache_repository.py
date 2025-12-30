@@ -638,6 +638,104 @@ class CacheRepository(BaseRepository):
             (user_id,),
         )
 
+    def get_user_research_with_embeddings(
+        self,
+        user_id: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Get user's research cache entries with embeddings for visualization.
+
+        Args:
+            user_id: User identifier
+            limit: Maximum entries to return
+
+        Returns:
+            List of research entries with embedding, question preview, category, date
+        """
+        with db_session() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        question_embedding::text AS embedding,
+                        LEFT(question, 100) AS preview,
+                        category,
+                        research_date::text AS created_at
+                    FROM research_cache
+                    WHERE user_id = %s
+                      AND question_embedding IS NOT NULL
+                    ORDER BY research_date DESC
+                    LIMIT %s
+                    """,
+                    (user_id, limit),
+                )
+                results = []
+                for row in cur.fetchall():
+                    # Parse embedding from pgvector text format
+                    emb_str = row["embedding"]
+                    if emb_str and emb_str.startswith("[") and emb_str.endswith("]"):
+                        emb = [float(x) for x in emb_str[1:-1].split(",")]
+                    else:
+                        continue
+                    results.append(
+                        {
+                            "embedding": emb,
+                            "preview": row["preview"],
+                            "category": row["category"],
+                            "created_at": row["created_at"],
+                        }
+                    )
+                return results
+
+    def get_user_research_category_counts(self, user_id: str) -> list[dict[str, Any]]:
+        """Get category counts for user's research.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            List of {name, count} dicts for each category
+        """
+        with db_session() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(category, 'uncategorized') AS name,
+                        COUNT(*) AS count
+                    FROM research_cache
+                    WHERE user_id = %s
+                      AND question_embedding IS NOT NULL
+                    GROUP BY category
+                    ORDER BY count DESC
+                    """,
+                    (user_id,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def get_user_research_total_count(self, user_id: str) -> int:
+        """Get total count of user's research entries with embeddings.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Total count
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS count
+                    FROM research_cache
+                    WHERE user_id = %s
+                      AND question_embedding IS NOT NULL
+                    """,
+                    (user_id,),
+                )
+                result = cur.fetchone()
+                return result["count"] if result else 0
+
 
 # Singleton instance for convenience
 cache_repository = CacheRepository()

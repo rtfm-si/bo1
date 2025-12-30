@@ -8,6 +8,8 @@ Validates:
 - Polling fallback correctly tracks sequence numbers
 - Polling fallback stops on terminal events
 - End-to-end fallback flow when Redis is unavailable
+- Mid-stream Redis failures record in circuit breaker
+- Circuit breaker trips after threshold mid-stream failures
 """
 
 from typing import Any
@@ -19,6 +21,15 @@ from backend.api.event_poller import (
     SSEPollingFallback,
     is_redis_sse_available,
     poll_events_from_postgres,
+)
+from bo1.llm.circuit_breaker import (
+    CircuitState,
+    get_service_circuit_breaker,
+    reset_service_circuit_breaker,
+)
+from bo1.state.circuit_breaker_wrappers import (
+    is_redis_circuit_open,
+    record_redis_failure,
 )
 
 # ============================================================================
@@ -512,3 +523,75 @@ class TestRedisDownSSEUsesPostgresEvents:
 
             # Should get the fallback activation event from Postgres
             assert events[0]["event_type"] == "sse_fallback_activated"
+
+
+# ============================================================================
+# Mid-Stream Redis Failure Circuit Breaker Tests
+# ============================================================================
+
+
+@pytest.fixture
+def reset_redis_circuit():
+    """Reset redis circuit breaker before and after test."""
+    reset_service_circuit_breaker("redis")
+    yield
+    reset_service_circuit_breaker("redis")
+
+
+@pytest.mark.chaos
+class TestMidStreamRedisFailureRecordsInCircuitBreaker:
+    """Test that mid-stream Redis failures are recorded in circuit breaker."""
+
+    def test_midstream_redis_error_records_failure(self, reset_redis_circuit: None) -> None:
+        """Verify record_redis_failure is called when pubsub.get_message() raises."""
+        breaker = get_service_circuit_breaker("redis")
+        initial_failures = breaker.failure_count
+
+        # Simulate the code path in streaming.py:854-862
+        redis_error = ConnectionError("Connection reset by peer")
+        record_redis_failure(redis_error)
+
+        # Verify failure was recorded
+        assert breaker.failure_count == initial_failures + 1
+
+    def test_midstream_redis_error_does_not_record_permanent_errors(
+        self, reset_redis_circuit: None
+    ) -> None:
+        """Verify permanent errors (auth) are not recorded per fault classifier."""
+        import redis
+
+        breaker = get_service_circuit_breaker("redis")
+        initial_failures = breaker.failure_count
+
+        # Auth errors are classified as permanent and should not increment
+        auth_error = redis.AuthenticationError("NOAUTH Authentication required")
+        record_redis_failure(auth_error)
+
+        # Permanent errors should NOT increment failure count
+        assert breaker.failure_count == initial_failures
+
+
+@pytest.mark.chaos
+class TestMidStreamFailuresTripCircuit:
+    """Test that repeated mid-stream failures trip the circuit breaker."""
+
+    def test_midstream_failures_trip_circuit(self, reset_redis_circuit: None) -> None:
+        """Verify circuit opens after threshold (5) mid-stream failures."""
+        breaker = get_service_circuit_breaker("redis")
+
+        # Redis circuit breaker threshold is 5
+        for i in range(5):
+            error = ConnectionError(f"Connection timeout {i}")
+            record_redis_failure(error)
+
+        # Circuit should now be open
+        assert breaker.state == CircuitState.OPEN
+        assert is_redis_circuit_open()
+
+    def test_circuit_open_uses_polling_immediately(self, reset_redis_circuit: None) -> None:
+        """Verify new SSE streams use polling when circuit is open."""
+        # is_redis_sse_available should return False when circuit is open
+        with patch("bo1.state.circuit_breaker_wrappers.is_redis_circuit_open", return_value=True):
+            result = is_redis_sse_available()
+
+        assert result is False

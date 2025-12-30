@@ -5,7 +5,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 
-	const lastUpdated = '2025-01-19';
+	const lastUpdated = '2025-12-29';
 </script>
 
 <svelte:head>
@@ -55,10 +55,10 @@
 					<tbody>
 						<tr>
 							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								><code>sb-access-token</code></td
+								><code>sAccessToken</code></td
 							>
 							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								>Authentication (Supabase)</td
+								>Authentication (SuperTokens)</td
 							>
 							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
 								>Session (1 hour)</td
@@ -66,7 +66,7 @@
 						</tr>
 						<tr>
 							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								><code>sb-refresh-token</code></td
+								><code>sRefreshToken</code></td
 							>
 							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
 								>Session refresh</td
@@ -134,41 +134,16 @@
 					</tbody>
 				</table>
 
-				<h3>2.3 Analytics Cookies (Optional, Opt-In Only)</h3>
+				<h3>2.3 Analytics Cookies (Privacy-Focused)</h3>
 				<p>
-					These cookies help us understand how users interact with the Service (only if you consent):
+					We use Umami, a privacy-focused analytics solution that does not use cookies or track
+					personal data. Umami collects only anonymized, aggregated page view data and does not
+					store any information on your device.
 				</p>
-				<table class="min-w-full border border-neutral-300 dark:border-neutral-700 mt-4">
-					<thead>
-						<tr class="bg-neutral-100 dark:bg-neutral-800">
-							<th
-								class="border border-neutral-300 dark:border-neutral-700 px-4 py-2 text-left"
-								>Cookie Name</th
-							>
-							<th
-								class="border border-neutral-300 dark:border-neutral-700 px-4 py-2 text-left"
-								>Purpose</th
-							>
-							<th
-								class="border border-neutral-300 dark:border-neutral-700 px-4 py-2 text-left"
-								>Duration</th
-							>
-						</tr>
-					</thead>
-					<tbody>
-						<tr>
-							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								><code>_ph_*</code></td
-							>
-							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								>PostHog analytics (anonymous usage tracking)</td
-							>
-							<td class="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-								>1 year</td
-							>
-						</tr>
-					</tbody>
-				</table>
+				<p>
+					No analytics cookies are set. All analytics data is processed without identifying
+					individual users.
+				</p>
 
 				<h2>3. Third-Party Cookies</h2>
 				<p>Some third-party services we use may also set cookies:</p>
@@ -176,18 +151,12 @@
 					<li>
 						<strong>Stripe:</strong> Payment processing (essential for checkout)
 					</li>
-					<li>
-						<strong>PostHog:</strong> Anonymous analytics (opt-in only)
-					</li>
 				</ul>
 				<p>
-					These third parties have their own privacy policies. We recommend reviewing them: <a
+					Stripe has its own privacy policy. We recommend reviewing it: <a
 						href="https://stripe.com/privacy"
 						target="_blank"
-						rel="noopener noreferrer">Stripe Privacy</a
-					>,
-					<a href="https://posthog.com/privacy" target="_blank" rel="noopener noreferrer"
-						>PostHog Privacy</a
+						rel="noopener noreferrer">Stripe Privacy Policy</a
 					>.
 				</p>
 

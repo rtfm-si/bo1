@@ -56,6 +56,7 @@ class TestCreateProjectMeeting:
                 project_id="nonexistent",
                 request=request,
                 user=mock_user,
+                _csrf=None,  # CSRF token not used in logic, just for OpenAPI
             )
 
         assert exc_info.value.status_code == 404
@@ -85,6 +86,7 @@ class TestCreateProjectMeeting:
                 project_id=mock_project["id"],
                 request=request,
                 user=mock_user,
+                _csrf=None,  # CSRF token not used in logic, just for OpenAPI
             )
 
         assert exc_info.value.status_code == 403

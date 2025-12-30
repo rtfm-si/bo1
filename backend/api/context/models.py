@@ -1072,6 +1072,10 @@ class TrendSummaryResponse(BaseModel):
         None,
         description="Reason refresh is blocked (e.g., 'Refresh available in X days')",
     )
+    available_timeframes: list[str] = Field(
+        default_factory=list,
+        description="Forecast timeframes available to user's tier (excludes 'now' which is always available)",
+    )
 
 
 class TrendSummaryRefreshResponse(BaseModel):
@@ -1386,4 +1390,134 @@ class KeyMetricsSuggestResponse(BaseModel):
         default_factory=list,
         description="Suggested metrics based on context (5-7 items)",
     )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Working Pattern Models (Activity Heatmap)
+# =============================================================================
+
+
+class WorkingPattern(BaseModel):
+    """User's regular working pattern for activity visualization.
+
+    Stores which days of the week the user typically works.
+    Non-working days are greyed out in ActivityHeatmap.
+    """
+
+    working_days: list[int] = Field(
+        default=[1, 2, 3, 4, 5],
+        description="Working days as ISO weekday numbers (1=Mon, 7=Sun). Default: Mon-Fri",
+    )
+
+    @classmethod
+    def validate_days(cls, v: list[int]) -> list[int]:
+        """Validate and normalize working days."""
+        if not v:
+            return [1, 2, 3, 4, 5]  # Default to Mon-Fri
+        # Filter to valid days (1-7) and deduplicate
+        valid_days = sorted({d for d in v if 1 <= d <= 7})
+        if not valid_days:
+            return [1, 2, 3, 4, 5]  # Default if all invalid
+        return valid_days
+
+    def model_post_init(self, __context: Any) -> None:
+        """Normalize working days after initialization."""
+        self.working_days = self.validate_days(self.working_days)
+
+
+class WorkingPatternResponse(BaseModel):
+    """Response for working pattern endpoint."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    pattern: WorkingPattern = Field(
+        default_factory=WorkingPattern,
+        description="User's working pattern (defaults to Mon-Fri)",
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class WorkingPatternUpdate(BaseModel):
+    """Request to update working pattern."""
+
+    working_days: list[int] = Field(
+        ...,
+        min_length=1,
+        max_length=7,
+        description="Working days as ISO weekday numbers (1=Mon, 7=Sun). At least one day required.",
+    )
+
+
+# =============================================================================
+# Heatmap History Depth Models
+# =============================================================================
+
+
+class HeatmapHistoryDepth(BaseModel):
+    """User's preferred activity heatmap history depth.
+
+    Controls how many months of history are shown in the ActivityHeatmap.
+    """
+
+    history_months: Literal[1, 3, 6] = Field(
+        default=3,
+        description="History depth in months: 1, 3, or 6. Default: 3",
+    )
+
+
+class HeatmapHistoryDepthResponse(BaseModel):
+    """Response for heatmap history depth endpoint."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    depth: HeatmapHistoryDepth = Field(
+        default_factory=HeatmapHistoryDepth,
+        description="User's heatmap history depth preference (defaults to 3 months)",
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class HeatmapHistoryDepthUpdate(BaseModel):
+    """Request to update heatmap history depth."""
+
+    history_months: Literal[1, 3, 6] = Field(
+        ...,
+        description="History depth in months: 1, 3, or 6",
+    )
+
+
+# =============================================================================
+# Research Embeddings Visualization Models
+# =============================================================================
+
+
+class ResearchPoint(BaseModel):
+    """A single point in the research embeddings visualization."""
+
+    x: float = Field(..., description="X coordinate (PCA reduced)")
+    y: float = Field(..., description="Y coordinate (PCA reduced)")
+    preview: str = Field(..., max_length=150, description="First ~100 chars of question")
+    category: str | None = Field(None, description="Research category (e.g., 'saas_metrics')")
+    created_at: str = Field(..., description="ISO datetime when research was created")
+
+
+class ResearchCategory(BaseModel):
+    """Category summary for legend display."""
+
+    name: str = Field(..., description="Category name")
+    count: int = Field(..., ge=0, description="Number of research items in category")
+
+
+class ResearchEmbeddingsResponse(BaseModel):
+    """Response containing user's research embeddings for visualization."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    points: list[ResearchPoint] = Field(
+        default_factory=list,
+        description="2D coordinates with metadata for scatter plot",
+    )
+    categories: list[ResearchCategory] = Field(
+        default_factory=list,
+        description="Category counts for legend",
+    )
+    total_count: int = Field(0, description="Total research items (may exceed points if > limit)")
     error: str | None = Field(None, description="Error message if failed")

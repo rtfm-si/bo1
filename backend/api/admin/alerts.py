@@ -129,9 +129,9 @@ async def get_alert_settings(request: Request) -> AlertSettingsResponse:
     """Get current alert threshold settings."""
     return AlertSettingsResponse(
         auth_failure_threshold=SecurityAlerts.AUTH_FAILURE_THRESHOLD,
-        auth_failure_window_minutes=SecurityAlerts.AUTH_FAILURE_WINDOW_MINUTES,
+        auth_failure_window_minutes=SecurityAlerts.AUTH_FAILURE_WINDOW_SECONDS // 60,
         rate_limit_threshold=SecurityAlerts.RATE_LIMIT_THRESHOLD,
-        rate_limit_window_minutes=SecurityAlerts.RATE_LIMIT_WINDOW_MINUTES,
+        rate_limit_window_minutes=SecurityAlerts.RATE_LIMIT_WINDOW_SECONDS // 60,
         lockout_threshold=SecurityAlerts.LOCKOUT_THRESHOLD,
     )
 

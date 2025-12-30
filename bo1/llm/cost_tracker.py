@@ -338,6 +338,9 @@ class CostRecord:
     # Feature type for fair usage tracking
     # Valid values: mentor_chat, dataset_qa, competitor_analysis, meeting
     feature: str | None = None
+    # Cost category to distinguish user vs internal costs
+    # Valid values: user (default), internal_seo, internal_system
+    cost_category: str = "user"
 
     # Performance
     latency_ms: int | None = None
@@ -720,6 +723,7 @@ class CostTracker:
                                 record.error_message,
                                 json.dumps(metadata),
                                 record.feature,  # Feature for fair usage tracking
+                                record.cost_category,  # Cost category (user/internal)
                             )
                         )
                         # Aggregate for daily_user_feature_costs upsert
@@ -750,7 +754,7 @@ class CostTracker:
                             input_cost, output_cost, cache_write_cost, cache_read_cost, total_cost,
                             optimization_type, cost_without_optimization,
                             latency_ms, status, error_message,
-                            metadata, feature
+                            metadata, feature, cost_category
                         ) VALUES (
                             %s, %s, %s, %s,
                             %s, %s, %s,
@@ -760,7 +764,7 @@ class CostTracker:
                             %s, %s, %s, %s, %s,
                             %s, %s,
                             %s, %s, %s,
-                            %s, %s
+                            %s, %s, %s
                         )
                         ON CONFLICT (request_id, created_at) DO NOTHING
                         """,
@@ -1287,6 +1291,7 @@ class CostTracker:
         phase: str | None = None,
         prompt_type: str | None = None,
         feature: str | None = None,
+        cost_category: str = "user",
         **context: Any,
     ) -> Generator[CostRecord, None, None]:
         """Context manager to track an API call.
@@ -1307,6 +1312,8 @@ class CostTracker:
                 embedding, search
             feature: Feature type for fair usage tracking (optional). Valid values:
                 mentor_chat, dataset_qa, competitor_analysis, meeting
+            cost_category: Cost category (default 'user'). Valid values:
+                user, internal_seo, internal_system
             **context: Additional context fields (persona_name, round_number, etc.)
 
         Yields:
@@ -1338,6 +1345,7 @@ class CostTracker:
             phase=phase,
             prompt_type=prompt_type,
             feature=feature,
+            cost_category=cost_category,
             persona_name=context.get("persona_name"),
             round_number=context.get("round_number"),
             sub_problem_index=context.get("sub_problem_index"),

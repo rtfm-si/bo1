@@ -93,6 +93,22 @@ class TestDatasetResponseModels:
         assert response.description is None
         assert response.file_key is None
         assert response.row_count is None
+        assert response.warnings is None
+
+    def test_dataset_response_with_warnings(self):
+        """Test DatasetResponse with CSV injection warnings."""
+        response = DatasetResponse(
+            id="550e8400-e29b-41d4-a716-446655440000",
+            user_id="test_user_1",
+            name="Sales Data",
+            source_type="csv",
+            created_at="2025-12-10T10:00:00+00:00",
+            updated_at="2025-12-10T10:00:00+00:00",
+            warnings=["Detected 3 cell(s) with formula injection prefixes"],
+        )
+        assert response.warnings is not None
+        assert len(response.warnings) == 1
+        assert "formula injection" in response.warnings[0]
 
 
 class TestDatasetProfileModels:

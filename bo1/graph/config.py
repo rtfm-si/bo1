@@ -86,6 +86,7 @@ def create_deliberation_graph(
 
     from bo1.graph.routers import (
         route_after_identify_gaps,
+        route_after_next_subproblem,
         route_after_synthesis,
         route_clarification,
         route_convergence_check,
@@ -269,19 +270,28 @@ def create_deliberation_graph(
     # vote -> synthesize (Day 31)
     workflow.add_edge("vote", "synthesize")
 
-    # synthesize -> (next_subproblem | meta_synthesis | END) (Day 36.5)
+    # synthesize -> (next_subproblem | END)
+    # RACE CONDITION FIX: Always route to next_subproblem for multi-SP to save result first
     workflow.add_conditional_edges(
         "synthesize",
         route_after_synthesis,
         {
             "next_subproblem": "next_subproblem",
-            "meta_synthesis": "meta_synthesis",
             "END": END,
         },
     )
 
-    # next_subproblem -> select_personas (loop back for next sub-problem) (Day 36.5)
-    workflow.add_edge("next_subproblem", "select_personas")
+    # next_subproblem -> (select_personas | meta_synthesis | END)
+    # RACE CONDITION FIX: Route AFTER result is saved by next_subproblem_node
+    workflow.add_conditional_edges(
+        "next_subproblem",
+        route_after_next_subproblem,
+        {
+            "select_personas": "select_personas",
+            "meta_synthesis": "meta_synthesis",
+            "END": END,
+        },
+    )
 
     # meta_synthesis -> END (Day 36.5)
     workflow.add_edge("meta_synthesis", END)

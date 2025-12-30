@@ -8,6 +8,7 @@ from typing import Any, Literal, TypeVar
 
 from bo1.graph.state import DeliberationGraphState
 from bo1.logging import ErrorCode, log_error
+from bo1.models.state import SubProblemResult
 
 logger = logging.getLogger(__name__)
 
@@ -196,25 +197,28 @@ def route_convergence_check(
 
 def route_after_synthesis(
     state: DeliberationGraphState,
-) -> Literal["next_subproblem", "meta_synthesis", "END"]:
+) -> Literal["next_subproblem", "END"]:
     """Route after sub-problem synthesis.
 
     This router determines whether to:
-    - Move to next sub-problem (if more exist)
-    - Perform meta-synthesis (if all sub-problems complete and >1 sub-problem)
+    - Move to next_subproblem node (always for multi-SP) to save result
     - End directly (if only 1 sub-problem - atomic problem)
 
-    AUDIT FIX (Issue #3): Added validation to check that ALL sub-problems have
-    completed successfully before proceeding to meta-synthesis. Without this check,
-    failures in some sub-problems could lead to incomplete syntheses.
+    RACE CONDITION FIX: Previously this router tried to validate all results
+    before routing to meta_synthesis. However, the CURRENT sub-problem's result
+    isn't added until next_subproblem_node runs. This caused the last SP to
+    always "fail" (saw N-1 results when N expected).
+
+    Solution: Always route to next_subproblem for multi-SP problems.
+    The next_subproblem_node saves the result, then route_after_next_subproblem
+    decides whether to continue to select_personas or meta_synthesis.
 
     Args:
         state: Current graph state
 
     Returns:
-        - "next_subproblem" if more sub-problems exist
-        - "meta_synthesis" if all complete and multiple sub-problems
-        - "END" if atomic problem (only 1 sub-problem) OR if sub-problems failed
+        - "next_subproblem" for multi-SP problems (saves result first)
+        - "END" if atomic problem (only 1 sub-problem)
     """
     problem = _validate_state_field(state, "problem", "route_after_synthesis")
     if not problem:
@@ -228,7 +232,7 @@ def route_after_synthesis(
 
     logger.info(
         f"route_after_synthesis: Sub-problem {sub_problem_index + 1}/{total_sub_problems} complete, "
-        f"total results collected: {len(sub_problem_results)}"
+        f"results so far: {len(sub_problem_results)} -> routing to next_subproblem"
     )
 
     # Atomic optimization: If only 1 sub-problem, skip meta-synthesis
@@ -236,75 +240,115 @@ def route_after_synthesis(
         logger.info("route_after_synthesis: Atomic problem (1 sub-problem) -> routing to END")
         return "END"
 
-    # Check if more sub-problems exist
-    if sub_problem_index + 1 < total_sub_problems:
-        logger.info(
-            f"route_after_synthesis: More sub-problems exist ({sub_problem_index + 2}/{total_sub_problems}) "
-            f"-> routing to next_subproblem"
-        )
-        return "next_subproblem"
+    # For multi-SP: ALWAYS go through next_subproblem to save the result
+    # The route_after_next_subproblem router will then decide next step
+    logger.info(
+        f"route_after_synthesis: Multi-SP problem ({total_sub_problems} SPs) "
+        f"-> routing to next_subproblem to save result"
+    )
+    return "next_subproblem"
 
-    # All sub-problems have been processed. Now validate we have results for ALL of them.
-    # CRITICAL: This prevents incomplete syntheses when some sub-problems fail
-    if len(sub_problem_results) < total_sub_problems:
-        failed_count = total_sub_problems - len(sub_problem_results)
-        completed_ids = {r.sub_problem_id for r in sub_problem_results}
-        expected_ids = [_get_subproblem_attr(sp, "id") for sp in sub_problems]
-        failed_ids = [sp_id for sp_id in expected_ids if sp_id not in completed_ids]
 
-        log_error(
-            logger,
-            ErrorCode.GRAPH_EXECUTION_ERROR,
-            f"route_after_synthesis: Cannot proceed to meta-synthesis - "
-            f"{failed_count} sub-problem(s) failed. "
-            f"Failed sub-problem IDs: {failed_ids}. "
-            f"Expected {total_sub_problems} results, got {len(sub_problem_results)}.",
-        )
+def route_after_next_subproblem(
+    state: DeliberationGraphState,
+) -> Literal["select_personas", "meta_synthesis", "END"]:
+    """Route after next_subproblem node saves the sub-problem result.
 
-        # Emit error event to UI so user knows what happened
-        from backend.api.dependencies import get_event_publisher
+    This router runs AFTER next_subproblem_node has:
+    1. Saved the current sub-problem result to sub_problem_results
+    2. Either set current_sub_problem to next SP, or None if all complete
 
-        try:
-            event_publisher = get_event_publisher()
-            session_id = state.get("session_id")
+    Args:
+        state: Current graph state (result already saved)
 
-            if event_publisher and session_id:
-                # Get goals for failed sub-problems by ID
-                failed_goals = [
-                    _get_subproblem_attr(sp, "goal")
-                    for sp in sub_problems
-                    if _get_subproblem_attr(sp, "id") in failed_ids
-                ]
-
-                event_publisher.publish_event(
-                    session_id,
-                    "meeting_failed",
-                    {
-                        "reason": f"{failed_count} sub-problem(s) failed to complete",
-                        "failed_count": failed_count,
-                        "failed_ids": failed_ids,
-                        "failed_goals": failed_goals,
-                        "completed_count": len(sub_problem_results),
-                        "total_count": total_sub_problems,
-                    },
-                )
-                logger.info(f"Published meeting_failed event for session {session_id}")
-        except Exception as e:
-            log_error(
-                logger,
-                ErrorCode.SERVICE_EXECUTION_ERROR,
-                f"Failed to publish meeting_failed event: {e}",
-            )
-
-        # Stop the graph - don't proceed with incomplete data
+    Returns:
+        - "select_personas" if more sub-problems to process
+        - "meta_synthesis" if all sub-problems complete
+        - "END" if validation fails
+    """
+    problem = _validate_state_field(state, "problem", "route_after_next_subproblem")
+    if not problem:
         return "END"
 
-    # All sub-problems complete with results → meta-synthesis
+    current_sub_problem = state.get("current_sub_problem")
+    sub_problem_results = state.get("sub_problem_results", [])
+    sub_problems = _get_problem_attr(problem, "sub_problems", [])
+    total_sub_problems = len(sub_problems)
+
     logger.info(
-        f"route_after_synthesis: All {total_sub_problems} sub-problems complete "
-        f"-> routing to meta_synthesis"
+        f"route_after_next_subproblem: current_sub_problem={'set' if current_sub_problem else 'None'}, "
+        f"results: {len(sub_problem_results)}/{total_sub_problems}"
     )
-    return "meta_synthesis"
+
+    # If current_sub_problem is None, all sub-problems are complete
+    if current_sub_problem is None:
+        # Validate we have all results before proceeding to meta-synthesis
+        if len(sub_problem_results) < total_sub_problems:
+            failed_count = total_sub_problems - len(sub_problem_results)
+            completed_ids = {
+                r.sub_problem_id if isinstance(r, SubProblemResult) else r.get("sub_problem_id")
+                for r in sub_problem_results
+            }
+            expected_ids = [_get_subproblem_attr(sp, "id") for sp in sub_problems]
+            failed_ids = [sp_id for sp_id in expected_ids if sp_id not in completed_ids]
+
+            log_error(
+                logger,
+                ErrorCode.GRAPH_EXECUTION_ERROR,
+                f"route_after_next_subproblem: Cannot proceed to meta-synthesis - "
+                f"{failed_count} sub-problem(s) failed. "
+                f"Failed IDs: {failed_ids}. "
+                f"Expected {total_sub_problems} results, got {len(sub_problem_results)}.",
+            )
+
+            # Emit error event to UI
+            from backend.api.dependencies import get_event_publisher
+
+            try:
+                event_publisher = get_event_publisher()
+                session_id = state.get("session_id")
+
+                if event_publisher and session_id:
+                    failed_goals = [
+                        _get_subproblem_attr(sp, "goal")
+                        for sp in sub_problems
+                        if _get_subproblem_attr(sp, "id") in failed_ids
+                    ]
+                    event_publisher.publish_event(
+                        session_id,
+                        "meeting_failed",
+                        {
+                            "reason": f"{failed_count} sub-problem(s) failed to complete",
+                            "failed_count": failed_count,
+                            "failed_ids": failed_ids,
+                            "failed_goals": failed_goals,
+                            "completed_count": len(sub_problem_results),
+                            "total_count": total_sub_problems,
+                        },
+                    )
+            except Exception as e:
+                log_error(
+                    logger,
+                    ErrorCode.SERVICE_EXECUTION_ERROR,
+                    f"Failed to publish meeting_failed event: {e}",
+                )
+
+            return "END"
+
+        # All results present → meta-synthesis
+        logger.info(
+            f"route_after_next_subproblem: All {total_sub_problems} sub-problems complete "
+            f"-> routing to meta_synthesis"
+        )
+        return "meta_synthesis"
+
+    # More sub-problems to process → continue loop
+    next_goal = _get_subproblem_attr(current_sub_problem, "goal", "unknown")
+    logger.info(
+        f"route_after_next_subproblem: More sub-problems remain, next: '{next_goal[:50]}...' "
+        f"-> routing to select_personas"
+    )
+    return "select_personas"
 
 
 def route_clarification(
@@ -367,6 +411,80 @@ def route_subproblem_execution(
     else:
         logger.info("route_subproblem_execution: Routing to select_personas (sequential)")
         return "select_personas"
+
+
+def route_on_resume(
+    state: DeliberationGraphState,
+) -> Literal["select_personas", "decompose", "END"]:
+    """Route based on resume state from checkpoint.
+
+    This router handles session resume after crash/disconnect:
+    - If sub_problem_results exist AND current_sub_problem is None:
+      Restore current_sub_problem from problem.sub_problems and route to select_personas
+    - If no sub_problem_results: Normal start via decompose
+    - If is_resumed_session is True: Skip decomposition, go to select_personas
+
+    Args:
+        state: Current graph state (potentially restored from checkpoint)
+
+    Returns:
+        - "select_personas" if resuming mid-session
+        - "decompose" for fresh start
+        - "END" if validation fails
+    """
+    session_id = state.get("session_id")
+    is_resumed = state.get("is_resumed_session", False)
+    sub_problem_results = state.get("sub_problem_results", [])
+    sub_problem_index = state.get("sub_problem_index", 0)
+    current_sub_problem = state.get("current_sub_problem")
+
+    logger.info(
+        f"route_on_resume: session={session_id}, is_resumed={is_resumed}, "
+        f"results={len(sub_problem_results)}, index={sub_problem_index}, "
+        f"current_sp={'set' if current_sub_problem else 'None'}"
+    )
+
+    # Fresh start - no resume needed
+    if not is_resumed and not sub_problem_results:
+        logger.info("route_on_resume: Fresh start -> routing to decompose")
+        return "decompose"
+
+    # Resume case: has completed SPs but current_sub_problem not set
+    if sub_problem_results and current_sub_problem is None:
+        problem = _validate_state_field(state, "problem", "route_on_resume")
+        if not problem:
+            return "END"
+
+        sub_problems = _get_problem_attr(problem, "sub_problems", [])
+        total_sub_problems = len(sub_problems)
+
+        # Determine next sub-problem index (one after last completed)
+        next_index = len(sub_problem_results)
+
+        if next_index >= total_sub_problems:
+            # All complete - should go to meta-synthesis
+            logger.info(
+                f"route_on_resume: All {total_sub_problems} sub-problems complete "
+                f"-> routing to END (meta-synthesis should handle this)"
+            )
+            return "END"
+
+        logger.info(
+            f"route_on_resume: Resuming at sub-problem {next_index + 1}/{total_sub_problems} "
+            f"-> routing to select_personas"
+        )
+        return "select_personas"
+
+    # Resume with current_sub_problem already set
+    if is_resumed and current_sub_problem:
+        logger.info(
+            "route_on_resume: Resumed with current_sub_problem set -> routing to select_personas"
+        )
+        return "select_personas"
+
+    # Default: fresh start
+    logger.info("route_on_resume: Default path -> routing to decompose")
+    return "decompose"
 
 
 def route_after_identify_gaps(state: DeliberationGraphState) -> Literal["END", "continue"]:

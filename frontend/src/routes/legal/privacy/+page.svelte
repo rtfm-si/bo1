@@ -5,7 +5,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 
-	const lastUpdated = '2025-01-19';
+	const lastUpdated = '2025-12-29';
 </script>
 
 <svelte:head>
@@ -59,7 +59,18 @@
 					<li><strong>Cookies:</strong> See our <a href="/legal/cookies">Cookie Policy</a></li>
 				</ul>
 
-				<h3>2.3 AI-Generated Content</h3>
+				<h3>2.3 Our Minimal Tracking Stance</h3>
+				<p>
+					We believe in collecting only what you consciously provide. Our approach to data collection is:
+				</p>
+				<ul>
+					<li><strong>User-Provided Data:</strong> We collect information you explicitly give us (business context, decisions, preferences)</li>
+					<li><strong>No Subversive Extraction:</strong> We do not use hidden trackers, fingerprinting, or surveillance techniques to gather data about you</li>
+					<li><strong>Privacy-Focused Analytics:</strong> We use Umami, which collects only anonymized page views without cookies or personal identifiers</li>
+					<li><strong>No Advertising Profiles:</strong> We do not build profiles about you for advertising purposes or share data with ad networks</li>
+				</ul>
+
+				<h3>2.4 AI-Generated Content</h3>
 				<ul>
 					<li>
 						<strong>Deliberation Transcripts:</strong> Expert contributions, facilitator summaries,
@@ -110,10 +121,11 @@
 				<ul>
 					<li><strong>Anthropic (Claude API):</strong> AI deliberation processing</li>
 					<li><strong>Voyage AI:</strong> Semantic embeddings for research cache</li>
-					<li><strong>Supabase:</strong> Authentication and database hosting</li>
+					<li><strong>SuperTokens:</strong> Authentication</li>
+					<li><strong>Neon:</strong> Database hosting</li>
 					<li><strong>Stripe:</strong> Payment processing</li>
 					<li>
-						<strong>Hosting Providers:</strong> Cloud infrastructure (AWS, Railway, or similar)
+						<strong>DigitalOcean:</strong> Cloud infrastructure and file storage
 					</li>
 				</ul>
 				<p>These providers are contractually obligated to protect your data and use it only as instructed.</p>
@@ -125,7 +137,18 @@
 					<li>Deliberation transcripts with third parties (except service providers necessary to operate the Service)</li>
 				</ul>
 
-				<h3>5.3 Legal Disclosures</h3>
+				<h3>5.3 Protection Against Data Sale</h3>
+				<p>
+					We commit to protecting your data from commercial exploitation:
+				</p>
+				<ul>
+					<li><strong>No Data Brokering:</strong> We will never sell, rent, or trade your personal data or deliberation content to third parties</li>
+					<li><strong>Paying User Protection:</strong> If you are a paying customer, your data will never be sold or monetized beyond providing the Service, even in the event of company acquisition or change of ownership</li>
+					<li><strong>No AI Training Data:</strong> Your deliberation content is not used to train external AI models</li>
+					<li><strong>Acquisition Safeguard:</strong> In the event of acquisition, your data protections transfer with your account and cannot be weakened without your explicit consent</li>
+				</ul>
+
+				<h3>5.4 Legal Disclosures</h3>
 				<p>
 					We may disclose your information if required by law, court order, or government request,
 					or to protect our rights, property, or safety.
@@ -187,7 +210,7 @@
 				<p>We implement industry-standard security measures to protect your data:</p>
 				<ul>
 					<li>Encryption in transit (TLS/SSL) and at rest (AES-256)</li>
-					<li>Secure authentication (Supabase Auth with JWT tokens)</li>
+					<li>Secure authentication (SuperTokens with JWT tokens)</li>
 					<li>Regular security audits and penetration testing</li>
 					<li>Access controls and role-based permissions</li>
 					<li>Automated backups with encryption</li>

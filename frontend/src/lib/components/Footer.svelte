@@ -25,7 +25,7 @@
 			title: 'Support',
 			links: [
 				{ label: 'Help Center', href: '/help' },
-				{ label: 'Status', href: '/status' },
+				{ label: 'Status', href: 'https://status.boardof.one/status/health' },
 			],
 		},
 		{

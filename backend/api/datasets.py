@@ -18,7 +18,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from backend.api.middleware.auth import get_current_user
@@ -43,7 +43,7 @@ from backend.api.models import (
     QuerySpec,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.pagination import make_pagination_fields
 from backend.services.antivirus import ClamAVError, ScanStatus, scan_upload
 from backend.services.chart_generator import ChartError, generate_chart_json, generate_chart_png
@@ -52,7 +52,7 @@ from backend.services.csv_utils import CSVValidationError, validate_csv_structur
 from backend.services.dataframe_loader import DataFrameLoadError, load_dataframe
 from backend.services.profiler import ProfileError, profile_dataset, save_profile
 from backend.services.query_engine import QueryError, execute_query
-from backend.services.spaces import SpacesError, get_spaces_client
+from backend.services.spaces import SpacesConfigurationError, SpacesError, get_spaces_client
 from backend.services.summary_generator import generate_dataset_summary, invalidate_summary_cache
 from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
@@ -88,7 +88,9 @@ conversation_repository = ConversationRepository()
 user_repository = UserRepository()
 
 
-def _format_dataset_response(dataset: dict[str, Any]) -> DatasetResponse:
+def _format_dataset_response(
+    dataset: dict[str, Any], warnings: list[str] | None = None
+) -> DatasetResponse:
     """Format dataset dict for API response."""
     return DatasetResponse(
         id=dataset["id"],
@@ -104,6 +106,7 @@ def _format_dataset_response(dataset: dict[str, Any]) -> DatasetResponse:
         file_size_bytes=dataset.get("file_size_bytes"),
         created_at=dataset["created_at"],
         updated_at=dataset["updated_at"],
+        warnings=warnings,
     )
 
 
@@ -137,7 +140,7 @@ async def list_datasets(
     """List all datasets for the current user."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     datasets, total = dataset_repository.list_by_user(
         user_id=user_id,
@@ -172,7 +175,7 @@ async def upload_dataset(
     """Upload a CSV file to create a new dataset."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Validate content type
     content_type = file.content_type or ""
@@ -180,9 +183,10 @@ async def upload_dataset(
         # Check file extension as fallback
         filename = file.filename or ""
         if not filename.lower().endswith(".csv"):
-            raise HTTPException(
-                status_code=415,
-                detail=f"Unsupported file type: {content_type}. Please upload a CSV file.",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Unsupported file type: {content_type}. Please upload a CSV file.",
+                status=415,
             )
 
     # Read file content with size check
@@ -190,19 +194,20 @@ async def upload_dataset(
     file_size = len(content)
 
     if file_size == 0:
-        raise HTTPException(status_code=422, detail="Empty file")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Empty file", status=422)
 
     if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large ({file_size / 1024 / 1024:.1f}MB). Maximum size is {MAX_FILE_SIZE / 1024 / 1024:.0f}MB.",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"File too large ({file_size / 1024 / 1024:.1f}MB). Maximum size is {MAX_FILE_SIZE / 1024 / 1024:.0f}MB.",
+            status=413,
         )
 
     # Validate CSV structure
     try:
         csv_metadata = validate_csv_structure(content)
     except CSVValidationError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
 
     # Generate Spaces key with user_id prefix for organization (needed for pending scan tracking)
     dataset_id = str(uuid.uuid4())
@@ -225,13 +230,11 @@ async def upload_dataset(
             logger.warning(
                 f"Malware detected in upload from user {user_id}: {scan_result.threat_name}"
             )
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error_code": "MALWARE_DETECTED",
-                    "message": "File rejected: malware detected",
-                    "threat_name": scan_result.threat_name,
-                },
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "File rejected: malware detected",
+                status=400,
+                threat_name=scan_result.threat_name,
             )
         # PENDING status means ClamAV was unavailable - file will be scanned later
         if scan_result.status == ScanStatus.PENDING:
@@ -240,14 +243,15 @@ async def upload_dataset(
         # ClamAV required but unavailable - block upload
         log_error(
             logger,
-            ErrorCode.EXT_SERVICE_ERROR,
+            ErrorCode.SERVICE_UNAVAILABLE,
             f"ClamAV scan failed: {e}",
             user_id=user_id,
             filename=file.filename,
         )
-        raise HTTPException(
-            status_code=503,
-            detail="File scanning service unavailable. Please try again later.",
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "File scanning service unavailable. Please try again later.",
+            status=503,
         ) from None
 
     # Upload to Spaces using new put_file method
@@ -264,6 +268,19 @@ async def upload_dataset(
             },
         )
         logger.info(f"Uploaded CSV to Spaces: {file_key} ({file_size} bytes)")
+    except SpacesConfigurationError as e:
+        # Credentials not configured - admin issue
+        log_error(
+            logger,
+            ErrorCode.CONFIG_ERROR,
+            f"Spaces not configured: {e}",
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.CONFIG_ERROR,
+            "File storage service is not configured. Please contact support.",
+            status=503,
+        ) from None
     except SpacesError as e:
         log_error(
             logger,
@@ -272,7 +289,9 @@ async def upload_dataset(
             user_id=user_id,
             file_key=file_key,
         )
-        raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
+        raise http_error(
+            ErrorCode.EXT_SPACES_ERROR, "Failed to upload file to storage", status=502
+        ) from None
 
     # Create dataset record with storage_path for future hierarchical access
     try:
@@ -300,7 +319,7 @@ async def upload_dataset(
             spaces_client.delete_file(file_key)
         except SpacesError:
             logger.warning(f"Failed to cleanup Spaces file after DB error: {file_key}")
-        raise HTTPException(status_code=500, detail="Failed to create dataset") from None
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to create dataset", status=500) from None
 
     logger.info(f"Created dataset {dataset['id']} for user {user_id}")
 
@@ -311,7 +330,7 @@ async def upload_dataset(
         # Non-blocking - log and continue
         logger.debug(f"Usage tracking failed (non-blocking): {e}")
 
-    return _format_dataset_response(dataset)
+    return _format_dataset_response(dataset, warnings=csv_metadata.warnings)
 
 
 @router.post(
@@ -335,7 +354,7 @@ async def import_sheets(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Try OAuth client first (for private sheets), fall back to API key (public only)
     oauth_client = get_oauth_sheets_client(user_id)
@@ -347,13 +366,13 @@ async def import_sheets(
             sheets_client = get_sheets_client()
             logger.info(f"Using API key client for sheets import (user {user_id})")
         except SheetsError as e:
-            raise HTTPException(status_code=503, detail=str(e)) from None
+            raise http_error(ErrorCode.SERVICE_UNAVAILABLE, str(e), status=503) from None
 
     # Parse URL to get spreadsheet ID
     try:
         spreadsheet_id = sheets_client.parse_sheets_url(request.url)
     except SheetsError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
 
     # Fetch sheet data as CSV
     try:
@@ -366,7 +385,7 @@ async def import_sheets(
                 "Access denied. This sheet may be private. "
                 "Connect Google Sheets to import private spreadsheets."
             )
-        raise HTTPException(status_code=422, detail=error_msg) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, status=422) from None
 
     file_size = len(csv_content)
 
@@ -402,7 +421,9 @@ async def import_sheets(
             user_id=user_id,
             file_key=file_key,
         )
-        raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
+        raise http_error(
+            ErrorCode.EXT_SPACES_ERROR, "Failed to upload file to storage", status=502
+        ) from None
 
     # Create dataset record with storage_path
     try:
@@ -431,7 +452,7 @@ async def import_sheets(
             spaces_client.delete_file(file_key)
         except SpacesError:
             logger.warning(f"Failed to cleanup Spaces file after DB error: {file_key}")
-        raise HTTPException(status_code=500, detail="Failed to create dataset") from None
+        raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to create dataset", status=500) from None
 
     logger.info(f"Created sheets dataset {dataset['id']} for user {user_id} from {request.url}")
     return _format_dataset_response(dataset)
@@ -451,11 +472,11 @@ async def get_dataset(
     """Get dataset details with column profiles."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     # Get column profiles
     profiles = dataset_repository.get_profiles(dataset_id)
@@ -492,12 +513,12 @@ async def delete_dataset(
     """Delete a dataset and its Spaces file."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Get dataset to retrieve file_key
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     # Delete file from Spaces if exists
     file_key = dataset.get("file_key")
@@ -513,7 +534,7 @@ async def delete_dataset(
     # Soft delete dataset
     deleted = dataset_repository.delete(dataset_id, user_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     logger.info(f"Deleted dataset {dataset_id} for user {user_id}")
 
@@ -532,12 +553,12 @@ async def trigger_profile(
     """Trigger profiling for a dataset."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     # Profile the dataset
     try:
@@ -551,7 +572,7 @@ async def trigger_profile(
             dataset_id=dataset_id,
             user_id=user_id,
         )
-        raise HTTPException(status_code=422, detail=str(e)) from None
+        raise http_error(ErrorCode.SERVICE_ANALYSIS_ERROR, str(e), status=422) from None
 
     # Generate summary (invalidate cache first since profile changed)
     invalidate_summary_cache(dataset_id)
@@ -601,17 +622,17 @@ async def execute_dataset_query(
     """Execute a structured query against a dataset."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     # Get file key
     file_key = dataset.get("file_key")
     if not file_key:
-        raise HTTPException(status_code=422, detail="Dataset has no associated file")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Dataset has no associated file", status=422)
 
     # Load DataFrame (no row limit for queries)
     try:
@@ -625,14 +646,14 @@ async def execute_dataset_query(
             user_id=user_id,
             file_key=file_key,
         )
-        raise HTTPException(status_code=502, detail="Failed to load dataset") from None
+        raise http_error(ErrorCode.EXT_SPACES_ERROR, "Failed to load dataset", status=502) from None
 
     # Execute query
     try:
         result = execute_query(df, query, dataset_id=dataset_id)
     except QueryError as e:
         logger.warning(f"Query error for dataset {dataset_id}: {e}")
-        raise HTTPException(status_code=422, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
 
     return QueryResultResponse(
         rows=result.rows,
@@ -658,17 +679,17 @@ async def generate_dataset_chart(
     """Generate a chart from dataset data."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     # Get file key
     file_key = dataset.get("file_key")
     if not file_key:
-        raise HTTPException(status_code=422, detail="Dataset has no associated file")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Dataset has no associated file", status=422)
 
     # Load DataFrame
     try:
@@ -682,14 +703,14 @@ async def generate_dataset_chart(
             user_id=user_id,
             file_key=file_key,
         )
-        raise HTTPException(status_code=502, detail="Failed to load dataset") from None
+        raise http_error(ErrorCode.EXT_SPACES_ERROR, "Failed to load dataset", status=502) from None
 
     # Generate chart JSON
     try:
         result = generate_chart_json(df, chart)
     except ChartError as e:
         logger.warning(f"Chart error for dataset {dataset_id}: {e}")
-        raise HTTPException(status_code=422, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
 
     # Generate PNG and upload to Spaces using same prefix as dataset
     analysis_id = None
@@ -749,12 +770,12 @@ async def list_analyses(
     """List recent analyses for a dataset."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify dataset ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     analyses = dataset_repository.list_analyses(dataset_id, user_id, limit)
 
@@ -1076,7 +1097,7 @@ async def ask_dataset(
     """
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     return StreamingResponse(
         _stream_ask_response(
@@ -1109,12 +1130,12 @@ async def list_conversations(
     """List recent Q&A conversations for a dataset."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify dataset ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     conversations = conversation_repository.list_by_dataset(dataset_id, user_id, limit)
 
@@ -1148,16 +1169,16 @@ async def get_conversation(
     """Get a conversation with full message history."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify dataset ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     conversation = conversation_repository.get(conversation_id, user_id)
     if not conversation or conversation.get("dataset_id") != dataset_id:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)
 
     return ConversationDetailResponse(
         id=conversation["id"],
@@ -1194,13 +1215,13 @@ async def delete_conversation(
     """Delete a Q&A conversation."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Verify dataset ownership
     dataset = dataset_repository.get_by_id(dataset_id, user_id)
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
     deleted = conversation_repository.delete(conversation_id, user_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)

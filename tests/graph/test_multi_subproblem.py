@@ -72,8 +72,14 @@ class TestRouteAfterSynthesis:
 
         assert result == "next_subproblem"
 
-    def test_route_to_meta_synthesis_when_all_complete(self):
-        """Should route to meta_synthesis when all sub-problems complete."""
+    def test_route_to_next_subproblem_for_last_sp(self):
+        """Should route to next_subproblem even for last SP (to save result first).
+
+        RACE CONDITION FIX: Previously routed directly to meta_synthesis,
+        but that happened before the result was saved. Now we always go
+        through next_subproblem first, then route_after_next_subproblem
+        decides whether to continue or go to meta_synthesis.
+        """
         from bo1.models.state import SubProblemResult
 
         # Create problem with 2 sub-problems
@@ -91,7 +97,9 @@ class TestRouteAfterSynthesis:
             ],
         )
 
-        # Create mock results for both sub-problems
+        # Create mock result for first sub-problem only
+        # Note: sp2 result not yet in list - that's the fix!
+        # The old code expected it here, but it's added by next_subproblem_node
         sub_problem_results = [
             SubProblemResult(
                 sub_problem_id="sp_001",
@@ -101,16 +109,6 @@ class TestRouteAfterSynthesis:
                 contribution_count=5,
                 cost=0.50,
                 duration_seconds=30.0,
-                expert_panel=["expert1", "expert2"],
-            ),
-            SubProblemResult(
-                sub_problem_id="sp_002",
-                sub_problem_goal="SP2",
-                synthesis="Synthesis for SP2",
-                votes=[],
-                contribution_count=6,
-                cost=0.60,
-                duration_seconds=35.0,
                 expert_panel=["expert1", "expert2"],
             ),
         ]
@@ -140,7 +138,8 @@ class TestRouteAfterSynthesis:
 
         result = route_after_synthesis(state)
 
-        assert result == "meta_synthesis"
+        # Always routes to next_subproblem to save result first
+        assert result == "next_subproblem"
 
     def test_route_to_end_for_atomic_problem(self):
         """Should route directly to END for atomic problems (1 sub-problem)."""

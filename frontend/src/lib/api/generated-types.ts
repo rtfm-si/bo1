@@ -351,6 +351,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/billing/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a price for a product
+         * @description Create a new price for a product.
+         */
+        post: operations["create_price_api_admin_billing_prices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/prices/{price_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a price
+         * @description Update a price. Note: Stripe prices are immutable, so changing amount requires new Stripe price.
+         */
+        put: operations["update_price_api_admin_billing_prices__price_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all billing products
+         * @description Get all billing products with prices and sync status.
+         */
+        get: operations["list_products_api_admin_billing_products_get"];
+        put?: never;
+        /**
+         * Create a billing product
+         * @description Create a new billing product.
+         */
+        post: operations["create_product_api_admin_billing_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a billing product
+         * @description Update an existing billing product.
+         */
+        put: operations["update_product_api_admin_billing_products__product_id__put"];
+        post?: never;
+        /**
+         * Delete a billing product
+         * @description Soft-delete a billing product.
+         */
+        delete: operations["delete_product_api_admin_billing_products__product_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/public/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get active products for public display
+         * @description Get active billing products for frontend pricing display. No auth required.
+         */
+        get: operations["get_public_products_api_admin_billing_public_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get sync status
+         * @description Get current sync status between local DB and Stripe.
+         */
+        get: operations["get_sync_status_api_admin_billing_sync_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/sync/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync all products/prices to Stripe
+         * @description Sync all billing products and prices to Stripe.
+         */
+        post: operations["sync_to_stripe_api_admin_billing_sync_stripe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/blog/generate": {
         parameters: {
             query?: never;
@@ -475,6 +623,26 @@ export interface paths {
          * @description Discover relevant blog topics using AI.
          */
         get: operations["discover_blog_topics_api_admin_blog_topics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/aggregations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost aggregations
+         * @description Get total/avg per meeting/avg per user breakdowns for each cost category.
+         */
+        get: operations["get_cost_aggregations_api_admin_costs_aggregations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -671,6 +839,46 @@ export interface paths {
         patch: operations["update_fixed_cost_api_admin_costs_fixed__cost_id__patch"];
         trace?: never;
     };
+    "/api/admin/costs/internal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Internal costs
+         * @description Get costs for internal operations (SEO, system jobs) separate from user costs.
+         */
+        get: operations["get_internal_costs_api_admin_costs_internal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/paying-users-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count paying users
+         * @description Get count of users with paid subscription tiers (starter, pro, enterprise).
+         */
+        get: operations["get_paying_users_count_api_admin_costs_paying_users_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/costs/per-user": {
         parameters: {
             query?: never;
@@ -739,6 +947,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/drilldown/cache-effectiveness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cache effectiveness drill-down
+         * @description Group sessions by cache hit rate buckets with cost analysis.
+         */
+        get: operations["get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/drilldown/costs": {
         parameters: {
             query?: never;
@@ -751,6 +979,86 @@ export interface paths {
          * @description Get paginated list of cost records within the specified time period.
          */
         get: operations["get_costs_drilldown_api_admin_drilldown_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/feature-efficiency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feature efficiency drill-down
+         * @description Analyze cost and cache effectiveness by feature.
+         */
+        get: operations["get_feature_efficiency_api_admin_drilldown_feature_efficiency_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/model-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model impact drill-down
+         * @description Analyze cost impact by model tier with what-if scenarios.
+         */
+        get: operations["get_model_impact_api_admin_drilldown_model_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/quality-indicators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quality correlation indicators
+         * @description Analyze correlation between cache hits and user behavior quality signals.
+         */
+        get: operations["get_quality_indicators_api_admin_drilldown_quality_indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drilldown/tuning-recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cache tuning recommendations
+         * @description Get AI-generated recommendations for cache and model optimization.
+         */
+        get: operations["get_tuning_recommendations_api_admin_drilldown_tuning_recommendations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -899,6 +1207,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List experiments
+         * @description Get all experiments, optionally filtered by status.
+         */
+        get: operations["list_experiments_api_admin_experiments_get"];
+        put?: never;
+        /**
+         * Create experiment
+         * @description Create a new experiment in draft status.
+         */
+        post: operations["create_experiment_api_admin_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/experiments/persona-count": {
         parameters: {
             query?: never;
@@ -917,6 +1249,114 @@ export interface paths {
          *         - Completion rates
          */
         get: operations["get_persona_count_experiment_api_admin_experiments_persona_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get experiment
+         * @description Get experiment details by ID.
+         */
+        get: operations["get_experiment_api_admin_experiments__experiment_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete experiment
+         * @description Delete experiment (draft status only).
+         */
+        delete: operations["delete_experiment_api_admin_experiments__experiment_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update experiment
+         * @description Update experiment (draft status only).
+         */
+        patch: operations["update_experiment_api_admin_experiments__experiment_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/conclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclude experiment
+         * @description Conclude an experiment (terminal state).
+         */
+        post: operations["conclude_experiment_api_admin_experiments__experiment_id__conclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause experiment
+         * @description Pause a running experiment.
+         */
+        post: operations["pause_experiment_api_admin_experiments__experiment_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start experiment
+         * @description Start a draft or paused experiment.
+         */
+        post: operations["start_experiment_api_admin_experiments__experiment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/experiments/{experiment_name}/variant/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user variant
+         * @description Get the variant a user is assigned to in an experiment.
+         */
+        get: operations["get_user_variant_api_admin_experiments__experiment_name__variant__user_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1630,6 +2070,105 @@ export interface paths {
         patch: operations["update_pattern_api_admin_ops_patterns__pattern_id__patch"];
         trace?: never;
     };
+    "/api/admin/ops/performance-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Metrics
+         * @description Get current performance metrics summary.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         window_minutes: Time window for stats (default 30)
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_metrics_api_admin_ops_performance_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Thresholds
+         * @description Get all performance threshold configurations.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_thresholds_api_admin_ops_performance_thresholds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-thresholds/{metric_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Performance Threshold
+         * @description Update a performance threshold configuration.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         metric_name: Name of the metric to update
+         *         body: Threshold values to update
+         *         _user: Current authenticated admin user
+         */
+        put: operations["update_performance_threshold_api_admin_ops_performance_thresholds__metric_name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/performance-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Trends
+         * @description Get performance trend analysis with degradation detection.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         _user: Current authenticated admin user
+         */
+        get: operations["get_performance_trends_api_admin_ops_performance_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ops/remediations": {
         parameters: {
             query?: never;
@@ -2052,6 +2591,34 @@ export interface paths {
          *     - Top articles by signup conversion rate (min 10 views)
          */
         get: operations["get_admin_seo_analytics_api_admin_seo_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/seo/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blog Performance
+         * @description Get blog post performance metrics with generation costs.
+         *
+         *     Returns published blog posts with:
+         *     - View and click counts
+         *     - CTR percentage
+         *     - Generation cost (from api_costs with cost_category='internal_seo')
+         *     - Cost per view and cost per click (ROI metrics)
+         *
+         *     Sorted by the specified metric (default: views descending).
+         */
+        get: operations["get_blog_performance_api_admin_seo_performance_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4099,6 +4666,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/blog/posts/{slug}/click": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track blog post CTA click
+         * @description Increment click-through counter when user clicks CTA. Rate limited per IP.
+         */
+        post: operations["track_click_api_v1_blog_posts__slug__click_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/blog/posts/{slug}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track blog post view
+         * @description Increment view counter for a published blog post. Rate limited per IP.
+         */
+        post: operations["track_view_api_v1_blog_posts__slug__view_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/business-metrics": {
         parameters: {
             query?: never;
@@ -4634,6 +5241,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/heatmap-depth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get heatmap history depth
+         * @description Returns user's preferred activity heatmap history depth. Defaults to 3 months.
+         */
+        get: operations["get_heatmap_depth_api_v1_context_heatmap_depth_get"];
+        /**
+         * Update heatmap history depth
+         * @description Update user's preferred activity heatmap history depth (1, 3, or 6 months).
+         */
+        put: operations["update_heatmap_depth_api_v1_context_heatmap_depth_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/insights": {
         parameters: {
             query?: never;
@@ -4972,6 +5603,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/research-embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get research embeddings for visualization
+         * @description Returns user's research topics as 2D coordinates for scatter plot visualization.
+         */
+        get: operations["get_research_embeddings_api_v1_context_research_embeddings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/stale-metrics": {
         parameters: {
             query?: never;
@@ -5249,6 +5900,30 @@ export interface paths {
          */
         get: operations["get_context_with_trends_api_v1_context_with_trends_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/working-pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get working pattern
+         * @description Returns user's working days pattern for activity visualization. Defaults to Mon-Fri.
+         */
+        get: operations["get_working_pattern_api_v1_context_working_pattern_get"];
+        /**
+         * Update working pattern
+         * @description Update user's working days pattern. Used to grey out non-working days in ActivityHeatmap.
+         */
+        put: operations["update_working_pattern_api_v1_context_working_pattern_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7304,6 +7979,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/checkpoint-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get session checkpoint state
+         * @description Get checkpoint state for session resume capability
+         */
+        get: operations["get_checkpoint_state_api_v1_sessions__session_id__checkpoint_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/clarifications": {
         parameters: {
             query?: never;
@@ -7699,14 +8394,29 @@ export interface paths {
          *         with the ID from the last received event. The server will replay any missed
          *         events before resuming live streaming.
          *
-         *         Event types:
-         *         - `node_start` - Node execution started
-         *         - `node_end` - Node execution completed
-         *         - `contribution` - Persona contributed to discussion
-         *         - `facilitator_decision` - Facilitator made a decision
-         *         - `convergence` - Convergence check result
-         *         - `complete` - Deliberation finished
-         *         - `error` - Error occurred
+         *         **Event Types** (see `/api/v1/sse/schemas` for full JSON Schema definitions):
+         *
+         *         | Event Type | Schema Reference | Description |
+         *         |------------|------------------|-------------|
+         *         | `session_started` | `SSEEvent_session_started` | Session begins |
+         *         | `decomposition_complete` | `SSEEvent_decomposition_complete` | Problem decomposed |
+         *         | `persona_selected` | `SSEEvent_persona_selected` | Expert selected |
+         *         | `persona_selection_complete` | `SSEEvent_persona_selection_complete` | Panel assembled |
+         *         | `subproblem_started` | `SSEEvent_subproblem_started` | Sub-problem begins |
+         *         | `round_started` | `SSEEvent_round_started` | Round begins |
+         *         | `contribution` | `SSEEvent_contribution` | Expert contribution |
+         *         | `convergence` | `SSEEvent_convergence` | Convergence check |
+         *         | `voting_started` | `SSEEvent_voting_started` | Voting begins |
+         *         | `voting_complete` | `SSEEvent_voting_complete` | Voting ends |
+         *         | `synthesis_complete` | `SSEEvent_synthesis_complete` | Sub-problem synthesis |
+         *         | `subproblem_complete` | `SSEEvent_subproblem_complete` | Sub-problem ends |
+         *         | `meta_synthesis_complete` | `SSEEvent_meta_synthesis_complete` | Final synthesis |
+         *         | `error` | `SSEEvent_error` | Error occurred |
+         *
+         *         **Event Lifecycle:**
+         *         `session_started` → `decomposition_complete` → persona selection →
+         *         (per sub-problem: `subproblem_started` → rounds → `synthesis_complete` → `subproblem_complete`) →
+         *         `meta_synthesis_complete`
          *
          *         The connection will remain open until the deliberation completes or
          *         the client disconnects.
@@ -7772,6 +8482,42 @@ export interface paths {
          * @description Retrieve session data via a public share token. No authentication required.
          */
         get: operations["get_shared_session_api_v1_share__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sse/schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get SSE event schemas
+         * @description Returns JSON Schema definitions for all SSE event types emitted during deliberation.
+         *
+         *         This endpoint is public (no auth required) to support frontend codegen and documentation.
+         *
+         *         **Event Lifecycle:**
+         *         1. `session_started` - Session begins
+         *         2. `decomposition_complete` - Problem broken into sub-problems
+         *         3. `persona_selected` / `persona_selection_complete` - Expert panel assembled
+         *         4. `subproblem_started` - Sub-problem deliberation begins
+         *         5. `round_started` - Deliberation round begins
+         *         6. `contribution` - Expert makes a contribution
+         *         7. `convergence` - Convergence check result
+         *         8. `voting_started` / `voting_complete` - Expert voting phase
+         *         9. `synthesis_complete` - Sub-problem synthesis ready
+         *         10. `subproblem_complete` - Sub-problem deliberation ends
+         *         11. `meta_synthesis_complete` - Final synthesis across all sub-problems
+         *         12. `error` - Error occurred during deliberation
+         */
+        get: operations["get_sse_schemas_api_v1_sse_schemas_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11470,6 +12216,16 @@ export interface components {
             total_count: number;
         };
         /**
+         * BillingConfigResponse
+         * @description Full billing configuration.
+         */
+        BillingConfigResponse: {
+            /** Last Sync */
+            last_sync?: string | null;
+            /** Products */
+            products: components["schemas"]["BillingProduct"][];
+        };
+        /**
          * BillingPortalResponse
          * @description Response from billing portal creation.
          */
@@ -11490,6 +12246,107 @@ export interface components {
              * @description Stripe billing portal URL
              */
             url?: string | null;
+        };
+        /**
+         * BillingPrice
+         * @description Price for a product.
+         */
+        BillingPrice: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Currency
+             * @default GBP
+             */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Interval */
+            interval?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Stripe Price Id */
+            stripe_price_id?: string | null;
+            /** Stripe Product Id */
+            stripe_product_id?: string | null;
+            /** Stripe Synced At */
+            stripe_synced_at?: string | null;
+        };
+        /**
+         * BillingProduct
+         * @description Product definition.
+         */
+        BillingProduct: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /**
+             * Api Daily
+             * @default 0
+             */
+            api_daily: number;
+            /**
+             * Datasets Total
+             * @default 0
+             */
+            datasets_total: number;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Highlighted
+             * @default false
+             */
+            highlighted: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Meetings Monthly
+             * @default 0
+             */
+            meetings_monthly: number;
+            /**
+             * Mentor Daily
+             * @default 0
+             */
+            mentor_daily: number;
+            /** Name */
+            name: string;
+            /** Prices */
+            prices?: components["schemas"]["BillingPrice"][];
+            /** Slug */
+            slug: string;
+            /**
+             * Sync Status
+             * @default unknown
+             */
+            sync_status: string;
+            /** Type */
+            type: string;
         };
         /**
          * BlockActionRequest
@@ -11565,6 +12422,41 @@ export interface components {
             title: string;
         };
         /**
+         * BlogPerformanceResponse
+         * @description Blog post performance analytics response.
+         */
+        BlogPerformanceResponse: {
+            /**
+             * Overall Ctr
+             * @description Overall CTR percentage
+             * @default 0
+             */
+            overall_ctr: number;
+            /**
+             * Posts
+             * @description Blog posts with performance metrics
+             */
+            posts?: components["schemas"]["BlogPostPerformance"][];
+            /**
+             * Total Clicks
+             * @description Total clicks across all posts
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Cost
+             * @description Total generation cost in GBP
+             * @default 0
+             */
+            total_cost: number;
+            /**
+             * Total Views
+             * @description Total views across all posts
+             * @default 0
+             */
+            total_views: number;
+        };
+        /**
          * BlogPostCreate
          * @description Request model for creating a blog post.
          *
@@ -11636,6 +12528,73 @@ export interface components {
              * @description Total count
              */
             total: number;
+        };
+        /**
+         * BlogPostPerformance
+         * @description Blog post with CTR and cost metrics.
+         */
+        BlogPostPerformance: {
+            /**
+             * Click Through Count
+             * @description Total CTA clicks
+             * @default 0
+             */
+            click_through_count: number;
+            /**
+             * Cost Per Click
+             * @description Cost per click in GBP
+             * @default 0
+             */
+            cost_per_click: number;
+            /**
+             * Cost Per View
+             * @description Cost per view in GBP
+             * @default 0
+             */
+            cost_per_view: number;
+            /**
+             * Ctr Percent
+             * @description Click-through rate percentage
+             * @default 0
+             */
+            ctr_percent: number;
+            /**
+             * Generation Cost
+             * @description LLM generation cost in GBP
+             * @default 0
+             */
+            generation_cost: number;
+            /**
+             * Id
+             * @description Post UUID
+             */
+            id: string;
+            /**
+             * Last Viewed At
+             * @description Last view timestamp
+             */
+            last_viewed_at?: string | null;
+            /**
+             * Published At
+             * @description Publication date
+             */
+            published_at?: string | null;
+            /**
+             * Slug
+             * @description URL slug
+             */
+            slug: string;
+            /**
+             * Title
+             * @description Post title
+             */
+            title: string;
+            /**
+             * View Count
+             * @description Total views
+             * @default 0
+             */
+            view_count: number;
         };
         /**
          * BlogPostResponse
@@ -12059,6 +13018,112 @@ export interface components {
          */
         BusinessStage: "idea" | "early" | "growing" | "scaling";
         /**
+         * CacheEffectivenessBucket
+         * @description Cache effectiveness bucket for drill-down.
+         *
+         *     Attributes:
+         *         bucket_label: Human-readable bucket name (e.g., "0-25%", "25-50%")
+         *         bucket_min: Minimum hit rate in bucket (0.0-1.0)
+         *         bucket_max: Maximum hit rate in bucket (0.0-1.0)
+         *         session_count: Number of sessions in this bucket
+         *         avg_cost: Average cost per session (USD)
+         *         total_cost: Total cost for sessions in bucket (USD)
+         *         total_saved: Total cost saved via cache (USD)
+         *         avg_optimization_savings: Average optimization savings per session (USD)
+         */
+        CacheEffectivenessBucket: {
+            /**
+             * Avg Cost
+             * @description Average cost per session (USD)
+             */
+            avg_cost: number;
+            /**
+             * Avg Optimization Savings
+             * @description Avg savings per session (USD)
+             */
+            avg_optimization_savings: number;
+            /**
+             * Bucket Label
+             * @description Bucket label (e.g., '0-25%')
+             */
+            bucket_label: string;
+            /**
+             * Bucket Max
+             * @description Max hit rate in bucket
+             */
+            bucket_max: number;
+            /**
+             * Bucket Min
+             * @description Min hit rate in bucket
+             */
+            bucket_min: number;
+            /**
+             * Session Count
+             * @description Number of sessions in bucket
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost for bucket (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Saved
+             * @description Total cost saved (USD)
+             */
+            total_saved: number;
+        };
+        /**
+         * CacheEffectivenessResponse
+         * @description Response model for cache effectiveness drill-down.
+         *
+         *     Attributes:
+         *         buckets: List of cache hit rate buckets with stats
+         *         overall_hit_rate: Overall cache hit rate (0.0-1.0)
+         *         total_sessions: Total sessions analyzed
+         *         total_cost: Total cost across all sessions (USD)
+         *         total_saved: Total cost saved across all sessions (USD)
+         *         period: Time period filter applied
+         *         min_sample_warning: Warning if sample size is low
+         */
+        CacheEffectivenessResponse: {
+            /**
+             * Buckets
+             * @description Hit rate buckets
+             */
+            buckets: components["schemas"]["CacheEffectivenessBucket"][];
+            /**
+             * Min Sample Warning
+             * @description Warning if sample size is low
+             */
+            min_sample_warning?: string | null;
+            /**
+             * Overall Hit Rate
+             * @description Overall cache hit rate (0.0-1.0)
+             */
+            overall_hit_rate: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Saved
+             * @description Total cost saved (USD)
+             */
+            total_saved: number;
+            /**
+             * Total Sessions
+             * @description Total sessions analyzed
+             */
+            total_sessions: number;
+        };
+        /**
          * CacheMetricsResponse
          * @description Response model for detailed research cache metrics.
          *
@@ -12240,6 +13305,50 @@ export interface components {
              * @description List of categories with counts
              */
             categories: components["schemas"]["CategoryCount"][];
+        };
+        /**
+         * CategoryCostAggregation
+         * @description Cost aggregation for a single category.
+         *
+         *     Attributes:
+         *         category: Category name (llm, research, embeddings, etc.)
+         *         total_cost: Total cost in USD
+         *         avg_per_session: Average cost per session (None if no sessions)
+         *         avg_per_user: Average cost per paying user (None if no paying users)
+         *         session_count: Number of sessions in the period
+         *         user_count: Number of paying users
+         */
+        CategoryCostAggregation: {
+            /**
+             * Avg Per Session
+             * @description Average cost per session
+             */
+            avg_per_session?: number | null;
+            /**
+             * Avg Per User
+             * @description Average cost per paying user
+             */
+            avg_per_user?: number | null;
+            /**
+             * Category
+             * @description Category name
+             */
+            category: string;
+            /**
+             * Session Count
+             * @description Number of sessions in period
+             */
+            session_count: number;
+            /**
+             * Total Cost
+             * @description Total cost in USD
+             */
+            total_cost: number;
+            /**
+             * User Count
+             * @description Number of paying users
+             */
+            user_count: number;
         };
         /**
          * CategoryCount
@@ -14048,6 +15157,37 @@ export interface components {
             method: string;
         };
         /**
+         * CostAggregationsResponse
+         * @description Response model for cost aggregations endpoint.
+         *
+         *     Provides per-category cost breakdowns with per-meeting and per-user averages.
+         *
+         *     Attributes:
+         *         categories: List of per-category aggregations
+         *         overall: Overall aggregation across all categories
+         *         period_start: Start of the period (ISO 8601)
+         *         period_end: End of the period (ISO 8601)
+         */
+        CostAggregationsResponse: {
+            /**
+             * Categories
+             * @description Per-category cost aggregations
+             */
+            categories: components["schemas"]["CategoryCostAggregation"][];
+            /** @description Overall aggregation */
+            overall: components["schemas"]["CategoryCostAggregation"];
+            /**
+             * Period End
+             * @description Period end date (ISO 8601)
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * @description Period start date (ISO 8601)
+             */
+            period_start: string;
+        };
+        /**
          * CostCalculatorDefaults
          * @description User defaults for meeting cost calculator widget.
          */
@@ -14887,6 +16027,11 @@ export interface components {
              * @description Owner user ID
              */
             user_id: string;
+            /**
+             * Warnings
+             * @description CSV validation warnings
+             */
+            warnings?: string[] | null;
         };
         /**
          * DatasetListResponse
@@ -15012,6 +16157,7 @@ export interface components {
          *         file_size_bytes: File size in bytes
          *         created_at: Creation timestamp
          *         updated_at: Last update timestamp
+         *         warnings: CSV validation warnings (e.g., injection patterns detected)
          */
         DatasetResponse: {
             /**
@@ -15079,6 +16225,33 @@ export interface components {
              * @description Owner user ID
              */
             user_id: string;
+            /**
+             * Warnings
+             * @description CSV validation warnings
+             */
+            warnings?: string[] | null;
+        };
+        /**
+         * DegradationInfo
+         * @description Degradation info for a metric.
+         */
+        DegradationInfo: {
+            /** Baseline Avg */
+            baseline_avg: number;
+            /** Current Avg */
+            current_avg: number;
+            /** Degradation Score */
+            degradation_score: number;
+            /** Details */
+            details: string;
+            /** Is Degraded */
+            is_degraded: boolean;
+            /** Metric Name */
+            metric_name: string;
+            /** Ratio */
+            ratio: number;
+            /** Severity */
+            severity: string;
         };
         /**
          * DeleteOverrideRequest
@@ -15752,8 +16925,15 @@ export interface components {
             fix_count: number;
             /** Id */
             id: number;
+            /** Last Match At */
+            last_match_at?: string | null;
             /** Last Remediation */
             last_remediation?: string | null;
+            /**
+             * Match Count
+             * @default 0
+             */
+            match_count: number;
             /** Pattern Name */
             pattern_name: string;
             /** Pattern Regex */
@@ -15922,6 +17102,57 @@ export interface components {
             threshold_warning: number;
         };
         /**
+         * ExperimentCreate
+         * @description Request to create an experiment.
+         */
+        ExperimentCreate: {
+            /**
+             * Description
+             * @description Experiment description
+             */
+            description?: string | null;
+            /**
+             * Metrics
+             * @description Metrics to track
+             * @example [
+             *       "conversion_rate",
+             *       "time_to_decision"
+             *     ]
+             */
+            metrics?: string[] | null;
+            /**
+             * Name
+             * @description Unique experiment name
+             * @example persona_count_test
+             */
+            name: string;
+            /**
+             * Variants
+             * @description Variants (default: control/treatment 50/50)
+             * @example [
+             *       {
+             *         "name": "control",
+             *         "weight": 50
+             *       },
+             *       {
+             *         "name": "treatment",
+             *         "weight": 50
+             *       }
+             *     ]
+             */
+            variants?: components["schemas"]["VariantModel"][] | null;
+        };
+        /**
+         * ExperimentListResponse
+         * @description List of experiments.
+         */
+        ExperimentListResponse: {
+            /** Experiments */
+            experiments: components["schemas"]["ExperimentResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * ExperimentMetricsResponse
          * @description Response model for A/B experiment metrics.
          *
@@ -15958,6 +17189,83 @@ export interface components {
              * @description Per-variant stats
              */
             variants: components["schemas"]["ExperimentVariantStats"][];
+        };
+        /**
+         * ExperimentResponse
+         * @description Experiment response.
+         */
+        ExperimentResponse: {
+            /**
+             * Created At
+             * @description Created timestamp (ISO 8601)
+             */
+            created_at: string;
+            /**
+             * Description
+             * @description Description
+             */
+            description?: string | null;
+            /**
+             * End Date
+             * @description When experiment concluded (ISO 8601)
+             */
+            end_date?: string | null;
+            /**
+             * Id
+             * @description Experiment UUID
+             */
+            id: string;
+            /**
+             * Metrics
+             * @description Metrics to track
+             */
+            metrics: string[];
+            /**
+             * Name
+             * @description Experiment name
+             */
+            name: string;
+            /**
+             * Start Date
+             * @description When experiment started (ISO 8601)
+             */
+            start_date?: string | null;
+            /**
+             * Status
+             * @description Status: draft, running, paused, concluded
+             */
+            status: string;
+            /**
+             * Updated At
+             * @description Updated timestamp (ISO 8601)
+             */
+            updated_at: string;
+            /**
+             * Variants
+             * @description Variants
+             */
+            variants: components["schemas"]["VariantModel"][];
+        };
+        /**
+         * ExperimentUpdate
+         * @description Request to update an experiment (draft only).
+         */
+        ExperimentUpdate: {
+            /**
+             * Description
+             * @description New description
+             */
+            description?: string | null;
+            /**
+             * Metrics
+             * @description New metrics
+             */
+            metrics?: string[] | null;
+            /**
+             * Variants
+             * @description New variants
+             */
+            variants?: components["schemas"]["VariantModel"][] | null;
         };
         /**
          * ExperimentVariantStats
@@ -16203,6 +17511,88 @@ export interface components {
              * @description Total cost across all features (USD)
              */
             total_cost: number;
+        };
+        /**
+         * FeatureEfficiencyItem
+         * @description Feature efficiency stats for a single feature.
+         *
+         *     Attributes:
+         *         feature: Feature name
+         *         request_count: Number of API requests
+         *         total_cost: Total cost (USD)
+         *         avg_cost: Average cost per request (USD)
+         *         cache_hit_rate: Cache hit rate for this feature (0.0-1.0)
+         *         unique_sessions: Number of unique sessions using feature
+         *         cost_per_session: Average cost per session using feature (USD)
+         */
+        FeatureEfficiencyItem: {
+            /**
+             * Avg Cost
+             * @description Avg cost per request (USD)
+             */
+            avg_cost: number;
+            /**
+             * Cache Hit Rate
+             * @description Cache hit rate (0.0-1.0)
+             */
+            cache_hit_rate: number;
+            /**
+             * Cost Per Session
+             * @description Avg cost per session (USD)
+             */
+            cost_per_session: number;
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * Request Count
+             * @description Number of API requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Unique Sessions
+             * @description Unique sessions using feature
+             */
+            unique_sessions: number;
+        };
+        /**
+         * FeatureEfficiencyResponse
+         * @description Response model for feature efficiency drill-down.
+         *
+         *     Attributes:
+         *         features: List of per-feature stats
+         *         total_cost: Total cost across all features (USD)
+         *         total_requests: Total API requests
+         *         period: Time period filter applied
+         */
+        FeatureEfficiencyResponse: {
+            /**
+             * Features
+             * @description Per-feature stats
+             */
+            features: components["schemas"]["FeatureEfficiencyItem"][];
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Requests
+             * @description Total API requests
+             */
+            total_requests: number;
         };
         /**
          * FeatureFlagItem
@@ -16992,6 +18382,30 @@ export interface components {
             should_prompt: boolean;
         };
         /**
+         * GoneErrorResponse
+         * @description Error response for 410 Gone.
+         *
+         *     Used when a resource is no longer available (e.g., expired invitation).
+         * @example {
+         *       "error_code": "API_GONE",
+         *       "message": "Invitation has expired"
+         *     }
+         */
+        GoneErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for gone resources
+             * @default API_GONE
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Gone error message
+             * @default Resource no longer available
+             */
+            message: string;
+        };
+        /**
          * GroupBySpec
          * @description GroupBy specification for query operations.
          *
@@ -17215,6 +18629,51 @@ export interface components {
              * @description ISO 8601 timestamp of health check
              */
             timestamp: string;
+        };
+        /**
+         * HeatmapHistoryDepth
+         * @description User's preferred activity heatmap history depth.
+         *
+         *     Controls how many months of history are shown in the ActivityHeatmap.
+         */
+        HeatmapHistoryDepth: {
+            /**
+             * History Months
+             * @description History depth in months: 1, 3, or 6. Default: 3
+             * @default 3
+             * @enum {integer}
+             */
+            history_months: 1 | 3 | 6;
+        };
+        /**
+         * HeatmapHistoryDepthResponse
+         * @description Response for heatmap history depth endpoint.
+         */
+        HeatmapHistoryDepthResponse: {
+            /** @description User's heatmap history depth preference (defaults to 3 months) */
+            depth?: components["schemas"]["HeatmapHistoryDepth"];
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * HeatmapHistoryDepthUpdate
+         * @description Request to update heatmap history depth.
+         */
+        HeatmapHistoryDepthUpdate: {
+            /**
+             * History Months
+             * @description History depth in months: 1, 3, or 6
+             * @enum {integer}
+             */
+            history_months: 1 | 3 | 6;
         };
         /**
          * HeavyUserItem
@@ -17797,6 +19256,123 @@ export interface components {
              * @default 0
              */
             total_count: number;
+        };
+        /**
+         * InternalCostItem
+         * @description Single internal cost entry.
+         *
+         *     Attributes:
+         *         provider: Provider name
+         *         prompt_type: Type of prompt (blog_generation, blog_outline, etc.)
+         *         total_cost: Total cost in USD
+         *         request_count: Number of API calls
+         *         input_tokens: Total input tokens
+         *         output_tokens: Total output tokens
+         */
+        InternalCostItem: {
+            /**
+             * Input Tokens
+             * @description Total input tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @description Total output tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Prompt Type
+             * @description Prompt type
+             */
+            prompt_type?: string | null;
+            /**
+             * Provider
+             * @description Provider name
+             */
+            provider: string;
+            /**
+             * Request Count
+             * @description Number of requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost in USD
+             */
+            total_cost: number;
+        };
+        /**
+         * InternalCostsByPeriod
+         * @description Internal costs aggregated by time period.
+         *
+         *     Attributes:
+         *         today: Costs from today
+         *         week: Costs from last 7 days
+         *         month: Costs from last 30 days
+         *         all_time: All-time costs
+         */
+        InternalCostsByPeriod: {
+            /**
+             * All Time
+             * @description All-time cost (USD)
+             * @default 0
+             */
+            all_time: number;
+            /**
+             * Month
+             * @description Cost this month (USD)
+             * @default 0
+             */
+            month: number;
+            /**
+             * Today
+             * @description Cost today (USD)
+             * @default 0
+             */
+            today: number;
+            /**
+             * Week
+             * @description Cost this week (USD)
+             * @default 0
+             */
+            week: number;
+        };
+        /**
+         * InternalCostsResponse
+         * @description Response model for internal costs endpoint.
+         *
+         *     Attributes:
+         *         seo: SEO-related internal costs breakdown
+         *         system: System/background job costs breakdown
+         *         by_period: Costs aggregated by time period
+         *         total_usd: Total internal costs
+         *         total_requests: Total number of API requests
+         */
+        InternalCostsResponse: {
+            /** @description Costs by period */
+            by_period: components["schemas"]["InternalCostsByPeriod"];
+            /**
+             * Seo
+             * @description SEO costs breakdown
+             */
+            seo: components["schemas"]["InternalCostItem"][];
+            /**
+             * System
+             * @description System costs breakdown
+             */
+            system: components["schemas"]["InternalCostItem"][];
+            /**
+             * Total Requests
+             * @description Total number of requests
+             */
+            total_requests: number;
+            /**
+             * Total Usd
+             * @description Total internal costs (USD)
+             */
+            total_usd: number;
         };
         /**
          * InternalErrorResponse
@@ -19131,6 +20707,30 @@ export interface components {
          */
         MetricSourceCategory: "user" | "competitor" | "industry";
         /**
+         * MetricStatResponse
+         * @description Statistics for a single metric.
+         */
+        MetricStatResponse: {
+            /** Avg */
+            avg: number;
+            /** Count */
+            count: number;
+            /** Max Val */
+            max_val: number;
+            /** Metric Name */
+            metric_name: string;
+            /** Min Val */
+            min_val: number;
+            /** P50 */
+            p50: number;
+            /** P95 */
+            p95: number;
+            /** P99 */
+            p99: number;
+            /** Window Minutes */
+            window_minutes: number;
+        };
+        /**
          * MetricTemplate
          * @description Predefined metric template.
          */
@@ -19227,6 +20827,106 @@ export interface components {
              * @description Unfilled template metrics
              */
             templates: components["schemas"]["MetricTemplate"][];
+        };
+        /**
+         * ModelImpactItem
+         * @description Model impact stats for a single model.
+         *
+         *     Attributes:
+         *         model_name: Normalized model name
+         *         model_display: Display-friendly model name
+         *         request_count: Number of API requests
+         *         total_cost: Total cost (USD)
+         *         avg_cost_per_request: Average cost per request (USD)
+         *         cache_hit_rate: Cache hit rate for this model (0.0-1.0)
+         *         total_tokens: Total tokens used
+         */
+        ModelImpactItem: {
+            /**
+             * Avg Cost Per Request
+             * @description Avg cost per request (USD)
+             */
+            avg_cost_per_request: number;
+            /**
+             * Cache Hit Rate
+             * @description Cache hit rate (0.0-1.0)
+             */
+            cache_hit_rate: number;
+            /**
+             * Model Display
+             * @description Display-friendly model name
+             */
+            model_display: string;
+            /**
+             * Model Name
+             * @description Normalized model name
+             */
+            model_name: string;
+            /**
+             * Request Count
+             * @description Number of API requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Tokens
+             * @description Total tokens used
+             */
+            total_tokens: number;
+        };
+        /**
+         * ModelImpactResponse
+         * @description Response model for model impact drill-down.
+         *
+         *     Attributes:
+         *         models: List of per-model stats
+         *         total_cost: Total cost across all models (USD)
+         *         total_requests: Total API requests
+         *         cost_if_all_opus: Hypothetical cost if all were Opus
+         *         cost_if_all_haiku: Hypothetical cost if all were Haiku
+         *         savings_from_model_mix: Actual savings from using model mix
+         *         period: Time period filter applied
+         */
+        ModelImpactResponse: {
+            /**
+             * Cost If All Haiku
+             * @description Hypothetical cost if all Haiku (USD)
+             */
+            cost_if_all_haiku: number;
+            /**
+             * Cost If All Opus
+             * @description Hypothetical cost if all Opus (USD)
+             */
+            cost_if_all_opus: number;
+            /**
+             * Models
+             * @description Per-model stats
+             */
+            models: components["schemas"]["ModelImpactItem"][];
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Savings From Model Mix
+             * @description Savings from model mix (USD)
+             */
+            savings_from_model_mix: number;
+            /**
+             * Total Cost
+             * @description Total cost (USD)
+             */
+            total_cost: number;
+            /**
+             * Total Requests
+             * @description Total API requests
+             */
+            total_requests: number;
         };
         /**
          * MultiConsentRequest
@@ -19895,6 +21595,38 @@ export interface components {
             users: components["schemas"]["PerUserCostItem"][];
         };
         /**
+         * PerformanceMetricsResponse
+         * @description Current performance metrics summary.
+         */
+        PerformanceMetricsResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Metrics */
+            metrics: components["schemas"]["MetricStatResponse"][];
+        };
+        /**
+         * PerformanceTrendsResponse
+         * @description 24-hour performance trend data.
+         */
+        PerformanceTrendsResponse: {
+            /** Critical Count */
+            critical_count: number;
+            /** Degraded Count */
+            degraded_count: number;
+            /** Metrics */
+            metrics: components["schemas"]["DegradationInfo"][];
+            /** Overall Health */
+            overall_health: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+        };
+        /**
          * PersistenceHealthResponse
          * @description Event persistence health response.
          *
@@ -20234,11 +21966,117 @@ export interface components {
             sample_count: number;
         };
         /**
+         * PriceCreate
+         * @description Create a new price for a product.
+         */
+        PriceCreate: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Currency
+             * @default GBP
+             */
+            currency: string;
+            /** Interval */
+            interval?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /**
+         * PriceUpdate
+         * @description Update a price.
+         */
+        PriceUpdate: {
+            /** Active */
+            active?: boolean | null;
+            /** Amount Cents */
+            amount_cents?: number | null;
+        };
+        /**
          * PrimaryObjective
          * @description Primary business objective.
          * @enum {string}
          */
         PrimaryObjective: "acquire_customers" | "improve_retention" | "raise_capital" | "launch_product" | "reduce_costs";
+        /**
+         * ProductCreate
+         * @description Create a new product.
+         */
+        ProductCreate: {
+            /**
+             * Api Daily
+             * @default 0
+             */
+            api_daily: number;
+            /**
+             * Datasets Total
+             * @default 0
+             */
+            datasets_total: number;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Highlighted
+             * @default false
+             */
+            highlighted: boolean;
+            /**
+             * Meetings Monthly
+             * @default 0
+             */
+            meetings_monthly: number;
+            /**
+             * Mentor Daily
+             * @default 0
+             */
+            mentor_daily: number;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * ProductUpdate
+         * @description Update an existing product.
+         */
+        ProductUpdate: {
+            /** Active */
+            active?: boolean | null;
+            /** Api Daily */
+            api_daily?: number | null;
+            /** Datasets Total */
+            datasets_total?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order?: number | null;
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            } | null;
+            /** Highlighted */
+            highlighted?: boolean | null;
+            /** Meetings Monthly */
+            meetings_monthly?: number | null;
+            /** Mentor Daily */
+            mentor_daily?: number | null;
+            /** Name */
+            name?: string | null;
+        };
         /**
          * ProjectActionSummary
          * @description Summary of an action within a project.
@@ -20868,6 +22706,62 @@ export interface components {
              * @description ISO 8601 timestamp
              */
             timestamp: string;
+        };
+        /**
+         * QualityIndicatorsResponse
+         * @description Response model for quality correlation indicators.
+         *
+         *     Attributes:
+         *         overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)
+         *         session_continuation_rate: Rate of session continuation after response (0.0-1.0)
+         *         correlation_score: Correlation between cache hit and continuation (-1.0 to 1.0)
+         *         sample_size: Number of sessions in analysis
+         *         cached_continuation_rate: Continuation rate for cached responses (0.0-1.0)
+         *         uncached_continuation_rate: Continuation rate for uncached responses (0.0-1.0)
+         *         quality_assessment: Human-readable quality assessment
+         *         period: Time period filter applied
+         */
+        QualityIndicatorsResponse: {
+            /**
+             * Cached Continuation Rate
+             * @description Continuation for cached
+             */
+            cached_continuation_rate?: number | null;
+            /**
+             * Correlation Score
+             * @description Cache-continuation correlation
+             */
+            correlation_score?: number | null;
+            /**
+             * Overall Cache Hit Rate
+             * @description Overall cache hit rate
+             */
+            overall_cache_hit_rate: number;
+            /**
+             * Period
+             * @description Time period filter applied
+             */
+            period: string;
+            /**
+             * Quality Assessment
+             * @description Human-readable assessment
+             */
+            quality_assessment: string;
+            /**
+             * Sample Size
+             * @description Sessions analyzed
+             */
+            sample_size: number;
+            /**
+             * Session Continuation Rate
+             * @description Session continuation rate
+             */
+            session_continuation_rate: number;
+            /**
+             * Uncached Continuation Rate
+             * @description Continuation for uncached
+             */
+            uncached_continuation_rate?: number | null;
         };
         /**
          * QueryResultResponse
@@ -21628,6 +23522,22 @@ export interface components {
             total_cached_results: number;
         };
         /**
+         * ResearchCategory
+         * @description Category summary for legend display.
+         */
+        ResearchCategory: {
+            /**
+             * Count
+             * @description Number of research items in category
+             */
+            count: number;
+            /**
+             * Name
+             * @description Category name
+             */
+            name: string;
+        };
+        /**
          * ResearchCostItem
          * @description Cost data for a single research provider.
          *
@@ -21723,6 +23633,69 @@ export interface components {
              * @description Total research costs (USD)
              */
             total_usd: number;
+        };
+        /**
+         * ResearchEmbeddingsResponse
+         * @description Response containing user's research embeddings for visualization.
+         */
+        ResearchEmbeddingsResponse: {
+            /**
+             * Categories
+             * @description Category counts for legend
+             */
+            categories?: components["schemas"]["ResearchCategory"][];
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Points
+             * @description 2D coordinates with metadata for scatter plot
+             */
+            points?: components["schemas"]["ResearchPoint"][];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Total Count
+             * @description Total research items (may exceed points if > limit)
+             * @default 0
+             */
+            total_count: number;
+        };
+        /**
+         * ResearchPoint
+         * @description A single point in the research embeddings visualization.
+         */
+        ResearchPoint: {
+            /**
+             * Category
+             * @description Research category (e.g., 'saas_metrics')
+             */
+            category?: string | null;
+            /**
+             * Created At
+             * @description ISO datetime when research was created
+             */
+            created_at: string;
+            /**
+             * Preview
+             * @description First ~100 chars of question
+             */
+            preview: string;
+            /**
+             * X
+             * @description X coordinate (PCA reduced)
+             */
+            x: number;
+            /**
+             * Y
+             * @description Y coordinate (PCA reduced)
+             */
+            y: number;
         };
         /**
          * RetentionReminderSettingsResponse
@@ -21925,6 +23898,792 @@ export interface components {
              * @description Next scheduled autopilot run
              */
             next_run?: string | null;
+        };
+        /**
+         * ContributionEvent
+         * @description Emitted when an expert makes a contribution.
+         */
+        SSEEvent_contribution: {
+            /**
+             * Archetype
+             * @description Expert archetype
+             * @default
+             */
+            archetype: string;
+            /**
+             * Content
+             * @description Full contribution content
+             */
+            content: string;
+            /**
+             * Contribution Type
+             * @description Type of contribution
+             * @enum {string}
+             */
+            contribution_type: "initial" | "followup";
+            /**
+             * Domain Expertise
+             * @description Expert domains
+             */
+            domain_expertise?: string[];
+            /**
+             * Event Type
+             * @default contribution
+             * @constant
+             */
+            event_type: "contribution";
+            /**
+             * Persona Code
+             * @description Expert persona code
+             */
+            persona_code: string;
+            /**
+             * Persona Name
+             * @description Expert display name
+             */
+            persona_name: string;
+            /**
+             * Round
+             * @description Round number
+             */
+            round: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * @description Structured summary (optional)
+             * @default null
+             */
+            summary: components["schemas"]["SSEEvent_contribution_ContributionSummary"] | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ContributionSummary
+         * @description Structured summary of a contribution.
+         */
+        SSEEvent_contribution_ContributionSummary: {
+            /**
+             * Concerns
+             * @description Key concerns raised
+             */
+            concerns?: string[];
+            /**
+             * Concise
+             * @description One-sentence summary
+             * @default
+             */
+            concise: string;
+            /**
+             * Looking For
+             * @description What the expert is looking for
+             * @default
+             */
+            looking_for: string;
+            /**
+             * Questions
+             * @description Questions posed
+             */
+            questions?: string[];
+            /**
+             * Value Added
+             * @description Value this contribution adds
+             * @default
+             */
+            value_added: string;
+        };
+        /**
+         * ConvergenceEvent
+         * @description Emitted when convergence is checked.
+         */
+        SSEEvent_convergence: {
+            /**
+             * Conflict Score
+             * @description Conflict score
+             * @default null
+             */
+            conflict_score: number | null;
+            /**
+             * Converged
+             * @description Whether convergence was reached
+             */
+            converged: boolean;
+            /**
+             * Drift Events
+             * @description Number of drift events
+             * @default 0
+             */
+            drift_events: number;
+            /**
+             * Event Type
+             * @default convergence
+             * @constant
+             */
+            event_type: "convergence";
+            /**
+             * Max Rounds
+             * @description Maximum rounds
+             */
+            max_rounds: number;
+            /**
+             * Novelty Score
+             * @description Novelty score
+             * @default null
+             */
+            novelty_score: number | null;
+            /**
+             * Round
+             * @description Current round
+             */
+            round: number;
+            /**
+             * Score
+             * @description Convergence score
+             */
+            score: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Should Stop
+             * @description Whether deliberation should stop
+             */
+            should_stop: boolean;
+            /**
+             * Stop Reason
+             * @description Reason for stopping
+             * @default null
+             */
+            stop_reason: string | null;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Threshold
+             * @description Convergence threshold
+             */
+            threshold: number;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * DecompositionCompleteEvent
+         * @description Emitted when problem decomposition completes.
+         */
+        SSEEvent_decomposition_complete: {
+            /**
+             * Count
+             * @description Number of sub-problems
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default decomposition_complete
+             * @constant
+             */
+            event_type: "decomposition_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Sub Problems
+             * @description Decomposed sub-problems
+             */
+            sub_problems: components["schemas"]["SSEEvent_decomposition_complete_SubProblemSchema"][];
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemSchema
+         * @description Schema for sub-problem data in events.
+         */
+        SSEEvent_decomposition_complete_SubProblemSchema: {
+            /** Complexity Score */
+            complexity_score: number;
+            /** Dependencies */
+            dependencies?: string[];
+            /** Goal */
+            goal: string;
+            /** Id */
+            id: string;
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+        };
+        /**
+         * ErrorEvent
+         * @description Emitted when an error occurs during deliberation.
+         */
+        SSEEvent_error: {
+            /**
+             * Error
+             * @description Error message
+             */
+            error: string;
+            /**
+             * Error Type
+             * @description Error type/class name
+             * @default UnknownError
+             */
+            error_type: string;
+            /**
+             * Event Type
+             * @default error
+             * @constant
+             */
+            event_type: "error";
+            /**
+             * Node
+             * @description Graph node where error occurred
+             * @default null
+             */
+            node: string | null;
+            /**
+             * Recoverable
+             * @description Whether the error is recoverable
+             * @default false
+             */
+            recoverable: boolean;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Goal
+             * @description Goal of failed sub-problem if applicable
+             * @default null
+             */
+            sub_problem_goal: string | null;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * MetaSynthesisCompleteEvent
+         * @description Emitted when meta-synthesis (across all sub-problems) completes.
+         */
+        SSEEvent_meta_synthesis_complete: {
+            /**
+             * Event Type
+             * @default meta_synthesis_complete
+             * @constant
+             */
+            event_type: "meta_synthesis_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Synthesis
+             * @description Final meta-synthesis content
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Word Count
+             * @description Word count of synthesis
+             */
+            word_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSelectedEvent
+         * @description Emitted when a persona is selected for deliberation.
+         */
+        SSEEvent_persona_selected: {
+            /**
+             * Event Type
+             * @default persona_selected
+             * @constant
+             */
+            event_type: "persona_selected";
+            /**
+             * Order
+             * @description Selection order (1-based)
+             */
+            order: number;
+            persona: components["schemas"]["SSEEvent_persona_selected_PersonaSchema"];
+            /**
+             * Rationale
+             * @description Why this persona was selected
+             */
+            rationale: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSchema
+         * @description Schema for persona data in events.
+         */
+        SSEEvent_persona_selected_PersonaSchema: {
+            /**
+             * Archetype
+             * @default
+             */
+            archetype: string;
+            /** Code */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Domain Expertise */
+            domain_expertise?: string[];
+            /** Name */
+            name: string;
+        };
+        /**
+         * PersonaSelectionCompleteEvent
+         * @description Emitted when all personas have been selected.
+         */
+        SSEEvent_persona_selection_complete: {
+            /**
+             * Count
+             * @description Number of personas selected
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default persona_selection_complete
+             * @constant
+             */
+            event_type: "persona_selection_complete";
+            /**
+             * Personas
+             * @description All selected personas
+             */
+            personas: components["schemas"]["SSEEvent_persona_selection_complete_PersonaSchema"][];
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSchema
+         * @description Schema for persona data in events.
+         */
+        SSEEvent_persona_selection_complete_PersonaSchema: {
+            /**
+             * Archetype
+             * @default
+             */
+            archetype: string;
+            /** Code */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Domain Expertise */
+            domain_expertise?: string[];
+            /** Name */
+            name: string;
+        };
+        /**
+         * RoundStartedEvent
+         * @description Emitted when a deliberation round begins.
+         */
+        SSEEvent_round_started: {
+            /**
+             * Event Type
+             * @default round_started
+             * @constant
+             */
+            event_type: "round_started";
+            /**
+             * Round Number
+             * @description Round number (1-based)
+             */
+            round_number: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SessionStartedEvent
+         * @description Emitted when a deliberation session starts.
+         */
+        SSEEvent_session_started: {
+            /**
+             * Event Type
+             * @default session_started
+             * @constant
+             */
+            event_type: "session_started";
+            /**
+             * Max Rounds
+             * @description Maximum rounds allowed
+             */
+            max_rounds: number;
+            /**
+             * Problem Statement
+             * @description The problem being deliberated
+             */
+            problem_statement: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * User Id
+             * @description User who started the session
+             */
+            user_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemCompleteEvent
+         * @description Emitted when a sub-problem deliberation completes.
+         */
+        SSEEvent_subproblem_complete: {
+            /**
+             * Contribution Count
+             * @description Number of contributions
+             */
+            contribution_count: number;
+            /**
+             * Cost
+             * @description Cost in USD
+             */
+            cost: number;
+            /**
+             * Duration Seconds
+             * @description Duration in seconds
+             */
+            duration_seconds: number;
+            /**
+             * Event Type
+             * @default subproblem_complete
+             * @constant
+             */
+            event_type: "subproblem_complete";
+            /**
+             * Expert Panel
+             * @description Expert codes
+             */
+            expert_panel?: string[];
+            /**
+             * Goal
+             * @description Goal of this sub-problem
+             */
+            goal: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Id
+             * @description Sub-problem unique ID
+             * @default
+             */
+            sub_problem_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based)
+             */
+            sub_problem_index: number;
+            /**
+             * Synthesis
+             * @description Synthesis for this sub-problem
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemStartedEvent
+         * @description Emitted when a sub-problem deliberation begins.
+         *
+         *     CRITICAL: This event must be emitted immediately when parallel sub-problem
+         *     execution starts, so the frontend knows deliberation is in progress.
+         */
+        SSEEvent_subproblem_started: {
+            /**
+             * Event Type
+             * @default subproblem_started
+             * @constant
+             */
+            event_type: "subproblem_started";
+            /**
+             * Goal
+             * @description Goal of this sub-problem
+             */
+            goal: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Id
+             * @description Sub-problem unique ID
+             */
+            sub_problem_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based)
+             */
+            sub_problem_index: number;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Total Sub Problems
+             * @description Total number of sub-problems
+             */
+            total_sub_problems: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SynthesisCompleteEvent
+         * @description Emitted when synthesis completes for a sub-problem.
+         */
+        SSEEvent_synthesis_complete: {
+            /**
+             * Event Type
+             * @default synthesis_complete
+             * @constant
+             */
+            event_type: "synthesis_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Synthesis
+             * @description Synthesis content
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Word Count
+             * @description Word count of synthesis
+             */
+            word_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * VotingCompleteEvent
+         * @description Emitted when voting completes.
+         */
+        SSEEvent_voting_complete: {
+            /**
+             * Consensus Level
+             * @description Level of consensus
+             * @enum {string}
+             */
+            consensus_level: "strong" | "moderate" | "weak";
+            /**
+             * Event Type
+             * @default voting_complete
+             * @constant
+             */
+            event_type: "voting_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Votes Count
+             * @description Number of votes cast
+             */
+            votes_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * VotingStartedEvent
+         * @description Emitted when voting begins.
+         */
+        SSEEvent_voting_started: {
+            /**
+             * Count
+             * @description Number of experts
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default voting_started
+             * @constant
+             */
+            event_type: "voting_started";
+            /**
+             * Experts
+             * @description Expert codes participating
+             */
+            experts: string[];
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * SendEmailRequest
@@ -22382,6 +25141,18 @@ export interface components {
              */
             by_sub_problem?: components["schemas"]["SubProblemCost"][];
             /**
+             * Cache Hit Rate
+             * @description Overall cache hit rate (0.0-1.0)
+             * @default 0
+             */
+            cache_hit_rate: number;
+            /**
+             * Prompt Cache Hit Rate
+             * @description Anthropic prompt cache effectiveness (0.0-1.0)
+             * @default 0
+             */
+            prompt_cache_hit_rate: number;
+            /**
              * Session Id
              * @description Session identifier
              */
@@ -22396,6 +25167,12 @@ export interface components {
              * @description Total session cost in USD
              */
             total_cost: number;
+            /**
+             * Total Saved
+             * @description Cost savings from caching (USD)
+             * @default 0
+             */
+            total_saved: number;
             /**
              * Total Tokens
              * @description Total tokens used
@@ -23179,6 +25956,26 @@ export interface components {
             total_tokens: number;
         };
         /**
+         * SyncResult
+         * @description Result of a Stripe sync operation.
+         */
+        SyncResult: {
+            /** Errors */
+            errors?: string[];
+            /** Success */
+            success: boolean;
+            /**
+             * Synced Prices
+             * @default 0
+             */
+            synced_prices: number;
+            /**
+             * Synced Products
+             * @default 0
+             */
+            synced_products: number;
+        };
+        /**
          * SystemHealthResponse
          * @description System health status.
          */
@@ -23684,6 +26481,34 @@ export interface components {
              * @description Theme tag
              */
             theme: string;
+        };
+        /**
+         * ThresholdListResponse
+         * @description List of all thresholds.
+         */
+        ThresholdListResponse: {
+            /** Thresholds */
+            thresholds: components["schemas"]["ThresholdResponse"][];
+        };
+        /**
+         * ThresholdResponse
+         * @description Performance threshold configuration.
+         */
+        ThresholdResponse: {
+            /** Critical Value */
+            critical_value: number;
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Metric Name */
+            metric_name: string;
+            /** Unit */
+            unit: string;
+            /** Warn Value */
+            warn_value: number;
+            /** Window Minutes */
+            window_minutes: number;
         };
         /**
          * TierLimitsResponse
@@ -24240,6 +27065,76 @@ export interface components {
             trends?: components["schemas"]["MarketTrend"][];
         };
         /**
+         * TuningRecommendation
+         * @description Single tuning recommendation.
+         *
+         *     Attributes:
+         *         area: Area of recommendation (cache, model, feature)
+         *         current_value: Current setting or metric value
+         *         recommended_value: Recommended setting or target
+         *         impact_description: Description of expected impact
+         *         estimated_savings_usd: Estimated monthly savings (USD)
+         *         confidence: Confidence level (low, medium, high)
+         */
+        TuningRecommendation: {
+            /**
+             * Area
+             * @description Area: cache, model, or feature
+             */
+            area: string;
+            /**
+             * Confidence
+             * @description Confidence: low, medium, high
+             */
+            confidence: string;
+            /**
+             * Current Value
+             * @description Current setting or metric
+             */
+            current_value: string;
+            /**
+             * Estimated Savings Usd
+             * @description Estimated monthly savings
+             */
+            estimated_savings_usd?: number | null;
+            /**
+             * Impact Description
+             * @description Expected impact description
+             */
+            impact_description: string;
+            /**
+             * Recommended Value
+             * @description Recommended setting
+             */
+            recommended_value: string;
+        };
+        /**
+         * TuningRecommendationsResponse
+         * @description Response model for tuning recommendations endpoint.
+         *
+         *     Attributes:
+         *         recommendations: List of tuning recommendations
+         *         analysis_period_days: Days of data analyzed
+         *         data_quality: Quality of underlying data (sufficient, limited, insufficient)
+         */
+        TuningRecommendationsResponse: {
+            /**
+             * Analysis Period Days
+             * @description Days of data analyzed
+             */
+            analysis_period_days: number;
+            /**
+             * Data Quality
+             * @description Data quality: sufficient, limited, insufficient
+             */
+            data_quality: string;
+            /**
+             * Recommendations
+             * @description Recommendations
+             */
+            recommendations: components["schemas"]["TuningRecommendation"][];
+        };
+        /**
          * UnassignedCountResponse
          * @description Response model for unassigned actions count.
          *
@@ -24264,6 +27159,34 @@ export interface components {
              * @description Actions without project assignment
              */
             unassigned_count: number;
+        };
+        /**
+         * UnauthorizedErrorResponse
+         * @description Error response for 401 Unauthorized.
+         *
+         *     Used when authentication is missing or invalid.
+         * @example {
+         *       "error_code": "API_UNAUTHORIZED",
+         *       "message": "Authentication required"
+         *     }
+         * @example {
+         *       "error_code": "AUTH_TOKEN_ERROR",
+         *       "message": "Invalid or expired token"
+         *     }
+         */
+        UnauthorizedErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for authentication failures
+             * @default API_UNAUTHORIZED
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Unauthorized error message
+             * @default Authentication required
+             */
+            message: string;
         };
         /**
          * UnblockActionRequest
@@ -24499,6 +27422,20 @@ export interface components {
              * @description Updated T&C content (markdown)
              */
             content: string;
+        };
+        /**
+         * UpdateThresholdRequest
+         * @description Request to update a threshold.
+         */
+        UpdateThresholdRequest: {
+            /** Critical Value */
+            critical_value?: number | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Warn Value */
+            warn_value?: number | null;
+            /** Window Minutes */
+            window_minutes?: number | null;
         };
         /**
          * UpdateUserRequest
@@ -25416,6 +28353,41 @@ export interface components {
             metrics?: components["schemas"]["ValueMetricResponse"][];
         };
         /**
+         * VariantAssignmentResponse
+         * @description Variant assignment response.
+         */
+        VariantAssignmentResponse: {
+            /** Experiment Name */
+            experiment_name: string;
+            /** User Id */
+            user_id: string;
+            /**
+             * Variant
+             * @description Assigned variant or null if not running
+             */
+            variant?: string | null;
+        };
+        /**
+         * VariantModel
+         * @description Experiment variant.
+         */
+        VariantModel: {
+            /**
+             * Name
+             * @description Variant name
+             * @example control
+             * @example treatment
+             */
+            name: string;
+            /**
+             * Weight
+             * @description Variant weight (0-100)
+             * @default 50
+             * @example 50
+             */
+            weight: number;
+        };
+        /**
          * VolatilityLevel
          * @description Metric volatility classification for refresh scheduling.
          * @enum {string}
@@ -25671,6 +28643,56 @@ export interface components {
              * @description Total count
              */
             total: number;
+        };
+        /**
+         * WorkingPattern
+         * @description User's regular working pattern for activity visualization.
+         *
+         *     Stores which days of the week the user typically works.
+         *     Non-working days are greyed out in ActivityHeatmap.
+         */
+        WorkingPattern: {
+            /**
+             * Working Days
+             * @description Working days as ISO weekday numbers (1=Mon, 7=Sun). Default: Mon-Fri
+             * @default [
+             *       1,
+             *       2,
+             *       3,
+             *       4,
+             *       5
+             *     ]
+             */
+            working_days: number[];
+        };
+        /**
+         * WorkingPatternResponse
+         * @description Response for working pattern endpoint.
+         */
+        WorkingPatternResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /** @description User's working pattern (defaults to Mon-Fri) */
+            pattern?: components["schemas"]["WorkingPattern"];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * WorkingPatternUpdate
+         * @description Request to update working pattern.
+         */
+        WorkingPatternUpdate: {
+            /**
+             * Working Days
+             * @description Working days as ISO weekday numbers (1=Mon, 7=Sun). At least one day required.
+             */
+            working_days: number[];
         };
         /**
          * WorkspaceBillingInfoResponse
@@ -26171,7 +29193,14 @@ export interface components {
     responses: never;
     parameters: never;
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Maximum requests allowed per window for this endpoint */
+        "X-RateLimit-Limit": number;
+        /** @description Requests remaining in current window */
+        "X-RateLimit-Remaining": number;
+        /** @description Unix timestamp when rate limit window resets */
+        "X-RateLimit-Reset": number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -27021,6 +30050,257 @@ export interface operations {
             };
         };
     };
+    create_price_api_admin_billing_prices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPrice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_price_api_admin_billing_prices__price_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                price_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPrice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_products_api_admin_billing_products_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingConfigResponse"];
+                };
+            };
+        };
+    };
+    create_product_api_admin_billing_products_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_product_api_admin_billing_products__product_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_product_api_admin_billing_products__product_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_products_api_admin_billing_public_products_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingProduct"][];
+                };
+            };
+        };
+    };
+    get_sync_status_api_admin_billing_sync_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    sync_to_stripe_api_admin_billing_sync_stripe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResult"];
+                };
+            };
+        };
+    };
     generate_post_api_admin_blog_generate_post: {
         parameters: {
             query?: {
@@ -27602,6 +30882,40 @@ export interface operations {
             };
         };
     };
+    get_cost_aggregations_api_admin_costs_aggregations_get: {
+        parameters: {
+            query?: {
+                /** @description Number of days to include */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostAggregationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_meeting_costs_api_admin_costs_by_meeting__session_id__get: {
         parameters: {
             query?: never;
@@ -27981,6 +31295,70 @@ export interface operations {
             };
         };
     };
+    get_internal_costs_api_admin_costs_internal_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalCostsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_paying_users_count_api_admin_costs_paying_users_count_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_per_user_costs_api_admin_costs_per_user_get: {
         parameters: {
             query?: {
@@ -28086,6 +31464,49 @@ export interface operations {
             };
         };
     };
+    get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cache effectiveness data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CacheEffectivenessResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_costs_drilldown_api_admin_drilldown_costs_get: {
         parameters: {
             query?: {
@@ -28124,6 +31545,175 @@ export interface operations {
             };
             /** @description Insufficient permissions */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_feature_efficiency_api_admin_drilldown_feature_efficiency_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature efficiency data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureEfficiencyResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_model_impact_api_admin_drilldown_model_impact_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Model impact data retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelImpactResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quality_indicators_api_admin_drilldown_quality_indicators_get: {
+        parameters: {
+            query?: {
+                /** @description Time period filter */
+                period?: components["schemas"]["TimePeriod"];
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Quality indicators retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityIndicatorsResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tuning_recommendations_api_admin_drilldown_tuning_recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tuning recommendations retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningRecommendationsResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28527,6 +32117,75 @@ export interface operations {
             };
         };
     };
+    list_experiments_api_admin_experiments_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status */
+                status?: string | null;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_experiment_api_admin_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_persona_count_experiment_api_admin_experiments_persona_count_get: {
         parameters: {
             query?: never;
@@ -28563,6 +32222,244 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_experiment_api_admin_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_admin_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_experiment_api_admin_experiments__experiment_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    conclude_experiment_api_admin_experiments__experiment_id__conclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pause_experiment_api_admin_experiments__experiment_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_experiment_api_admin_experiments__experiment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_variant_api_admin_experiments__experiment_name__variant__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                experiment_name: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantAssignmentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -30174,6 +34071,140 @@ export interface operations {
             };
         };
     };
+    get_performance_metrics_api_admin_ops_performance_metrics_get: {
+        parameters: {
+            query?: {
+                window_minutes?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_thresholds_api_admin_ops_performance_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThresholdListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_performance_threshold_api_admin_ops_performance_thresholds__metric_name__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                metric_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateThresholdRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_trends_api_admin_ops_performance_trends_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceTrendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_remediations_api_admin_ops_remediations_get: {
         parameters: {
             query?: {
@@ -31172,6 +35203,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSeoAnalyticsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_blog_performance_api_admin_seo_performance_get: {
+        parameters: {
+            query?: {
+                /** @description Max posts to return */
+                limit?: number;
+                /** @description Sort by: views, ctr, cost_per_click, roi */
+                sort_by?: string;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlogPerformanceResponse"];
                 };
             };
             /** @description Validation Error */
@@ -35887,6 +39954,64 @@ export interface operations {
             };
         };
     };
+    track_click_api_v1_blog_posts__slug__click_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_view_api_v1_blog_posts__slug__view_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_metrics_api_v1_business_metrics_get: {
         parameters: {
             query?: {
@@ -36274,12 +40399,14 @@ export interface operations {
                     "application/json": components["schemas"]["ContextResponse"];
                 };
             };
-            /** @description Database error */
-            500: {
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
         };
     };
@@ -36312,6 +40439,24 @@ export interface operations {
                     };
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -36320,13 +40465,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description Database error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -36355,19 +40493,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description No context found to delete */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Database error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -36391,6 +40533,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompetitorDetectResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36433,6 +40584,15 @@ export interface operations {
                     "application/json": components["schemas"]["CompetitorInsightsListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     generate_competitor_insight_api_v1_context_competitors__name__insights_post: {
@@ -36457,6 +40617,24 @@ export interface operations {
                     "application/json": components["schemas"]["CompetitorInsightResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -36466,19 +40644,16 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Analysis failed */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -36502,6 +40677,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36550,6 +40743,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -36581,6 +40783,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     dismiss_refresh_prompt_api_v1_context_dismiss_refresh_post: {
@@ -36605,6 +40816,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36640,12 +40869,32 @@ export interface operations {
                     "application/json": components["schemas"]["EnrichmentResponse"];
                 };
             };
-            /** @description Invalid URL format */
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
@@ -36657,13 +40906,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RateLimitResponse"];
                 };
-            };
-            /** @description Enrichment service error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -36685,6 +40927,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoalHistoryResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36716,6 +40967,15 @@ export interface operations {
                     "application/json": components["schemas"]["GoalProgressResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     check_goal_staleness_api_v1_context_goal_staleness_get: {
@@ -36734,6 +40994,117 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoalStalenessResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    get_heatmap_depth_api_v1_context_heatmap_depth_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    update_heatmap_depth_api_v1_context_heatmap_depth_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeatmapHistoryDepthUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -36769,6 +41140,15 @@ export interface operations {
                     "application/json": components["schemas"]["InsightsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     delete_insight_api_v1_context_insights__question_hash__delete: {
@@ -36791,6 +41171,33 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36828,6 +41235,33 @@ export interface operations {
                     "application/json": components["schemas"]["ClarificationInsight"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -36855,6 +41289,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeyMetricsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -36890,6 +41333,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeyMetricsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -36932,6 +41384,15 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     add_managed_competitor_api_v1_context_managed_competitors_post: {
@@ -36956,12 +41417,23 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorResponse"];
                 };
             };
-            /** @description Competitor with this name already exists */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -36996,12 +41468,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Competitor not found */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -37038,12 +41521,23 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorResponse"];
                 };
             };
-            /** @description Competitor not found */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -37072,6 +41566,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectiveProgressListResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -37109,6 +41612,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectiveProgressResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37155,6 +41685,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -37195,6 +41734,15 @@ export interface operations {
                     "application/json": components["schemas"]["PendingUpdatesResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     dismiss_pending_update_api_v1_context_pending_updates__suggestion_id__delete: {
@@ -37217,6 +41765,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37250,6 +41816,24 @@ export interface operations {
                     "application/json": components["schemas"]["ApproveUpdateResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -37279,6 +41863,55 @@ export interface operations {
                     "application/json": components["schemas"]["RefreshCheckResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    get_research_embeddings_api_v1_context_research_embeddings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchEmbeddingsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     get_stale_metrics_api_v1_context_stale_metrics_get: {
@@ -37297,6 +41930,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaleMetricsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
         };
@@ -37325,6 +41967,24 @@ export interface operations {
                     "application/json": components["schemas"]["TrendInsightResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -37334,19 +41994,16 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Analysis failed */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -37372,12 +42029,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Invalid timeframe */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -37412,19 +42080,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Industry not set or invalid timeframe */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
             };
-            /** @description Tier insufficient for requested timeframe */
+            /** @description Forbidden - user lacks permission to access this resource */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -37455,6 +42127,15 @@ export interface operations {
                     "application/json": components["schemas"]["TrendInsightsListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     delete_trend_insight_api_v1_context_trends_insights__url_hash__delete: {
@@ -37477,6 +42158,33 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37510,6 +42218,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrendsRefreshResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37554,6 +42271,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     refresh_trend_summary_api_v1_context_trends_summary_refresh_post: {
@@ -37576,19 +42302,34 @@ export interface operations {
                     };
                 };
             };
-            /** @description Industry not set */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
             };
-            /** @description Free tier refresh blocked (28-day limit) */
-            429: {
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
             };
         };
     };
@@ -37608,6 +42349,117 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContextWithTrends"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    get_working_pattern_api_v1_context_working_pattern_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPatternResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    update_working_pattern_api_v1_context_working_pattern_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkingPatternUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPatternResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -38438,6 +43290,33 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Gone - resource no longer available (e.g., expired invitation) */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoneErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38468,6 +43347,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -38521,6 +43418,15 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38557,6 +43463,24 @@ export interface operations {
                      *     data: {"content": "..."}
                      */
                     "text/event-stream": unknown;
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -38602,6 +43526,24 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationListResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38633,6 +43575,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationDetailResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38661,6 +43630,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -38697,6 +43693,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38731,6 +43754,24 @@ export interface operations {
                     "application/json": components["schemas"]["FailurePatternsResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38763,6 +43804,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImprovementPlanResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -38814,6 +43873,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentionSearchResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -38843,6 +43929,15 @@ export interface operations {
                     "application/json": components["schemas"]["MentorPersonaListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_repeated_topics_api_v1_mentor_repeated_topics_get: {
@@ -38868,6 +43963,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepeatedTopicsListResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39187,6 +44300,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39218,6 +44340,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39253,6 +44393,24 @@ export interface operations {
                     "application/json": components["schemas"]["AutogenCreateResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39282,6 +44440,15 @@ export interface operations {
                     "application/json": components["schemas"]["AutogenSuggestionsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_context_suggestions_api_v1_projects_context_suggestions_get: {
@@ -39300,6 +44467,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContextSuggestionsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
         };
@@ -39324,6 +44500,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutogenCreateResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39355,6 +44549,15 @@ export interface operations {
                     "application/json": components["schemas"]["UnassignedCountResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_project_api_v1_projects__project_id__get: {
@@ -39375,6 +44578,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39405,6 +44626,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -39439,6 +44678,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39479,6 +44745,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectActionsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39508,6 +44792,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -39539,6 +44841,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39568,6 +44888,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GanttResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39605,6 +44943,33 @@ export interface operations {
                     "application/json": components["schemas"]["SessionResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39612,6 +44977,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -39638,6 +45012,24 @@ export interface operations {
                             [key: string]: unknown;
                         }[];
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39677,6 +45069,24 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39706,6 +45116,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -39742,6 +45170,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39771,6 +45226,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -41179,6 +46661,57 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Available projects retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description User does not own this session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_checkpoint_state_api_v1_sessions__session_id__checkpoint_state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checkpoint state retrieved */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -42832,6 +48365,28 @@ export interface operations {
             };
         };
     };
+    get_sse_schemas_api_v1_sse_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     get_public_status_api_v1_status_get: {
         parameters: {
             query?: never;
@@ -44160,6 +49715,15 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44167,6 +49731,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -44189,6 +49762,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44219,6 +49801,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -44255,6 +49846,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44284,6 +49893,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceBillingInfoResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44321,6 +49948,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceCheckoutResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44350,6 +50004,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspacePortalResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44418,6 +50099,33 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44447,6 +50155,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -44481,6 +50198,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JoinRequestResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44546,6 +50290,15 @@ export interface operations {
                     "application/json": components["schemas"]["JoinRequestResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44580,6 +50333,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JoinRequestResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44648,6 +50410,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44677,6 +50466,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -44714,6 +50521,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44746,6 +50571,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44776,6 +50619,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44846,6 +50707,15 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44881,6 +50751,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -44888,6 +50785,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };

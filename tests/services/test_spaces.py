@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 
 from backend.services.spaces import (
     SpacesClient,
+    SpacesConfigurationError,
     SpacesError,
     get_spaces_client,
     reset_spaces_client,
@@ -206,8 +207,18 @@ class TestSpacesClientSingleton:
         """Test singleton returns same instance."""
         reset_spaces_client()
 
-        client1 = get_spaces_client()
-        client2 = get_spaces_client()
+        # Mock settings to provide credentials
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = "test-key"
+            mock_settings.return_value.do_spaces_secret = "test-secret"  # noqa: S105
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = "test-bucket"
+            mock_settings.return_value.do_spaces_endpoint_url = (
+                "https://lon1.digitaloceanspaces.com"
+            )
+
+            client1 = get_spaces_client()
+            client2 = get_spaces_client()
 
         assert client1 is client2
 
@@ -215,8 +226,88 @@ class TestSpacesClientSingleton:
         """Test reset creates new instance."""
         reset_spaces_client()
 
-        client1 = get_spaces_client()
-        reset_spaces_client()
-        client2 = get_spaces_client()
+        # Mock settings to provide credentials
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = "test-key"
+            mock_settings.return_value.do_spaces_secret = "test-secret"  # noqa: S105
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = "test-bucket"
+            mock_settings.return_value.do_spaces_endpoint_url = (
+                "https://lon1.digitaloceanspaces.com"
+            )
+
+            client1 = get_spaces_client()
+            reset_spaces_client()
+            client2 = get_spaces_client()
 
         assert client1 is not client2
+
+
+class TestSpacesConfigurationError:
+    """Tests for configuration validation."""
+
+    def test_missing_access_key_raises_error(self, mock_boto3_client):
+        """Test missing access key raises SpacesConfigurationError."""
+        # Directly pass empty values to bypass settings defaults
+        with pytest.raises(SpacesConfigurationError) as exc:
+            SpacesClient(
+                access_key="",
+                secret_key="secret",  # noqa: S106
+                bucket="bucket",
+            )
+        assert "DO_SPACES_KEY" in exc.value.missing_fields
+        assert exc.value.operation == "init"
+
+    def test_missing_secret_key_raises_error(self, mock_boto3_client):
+        """Test missing secret key raises SpacesConfigurationError."""
+        with pytest.raises(SpacesConfigurationError) as exc:
+            SpacesClient(
+                access_key="key",
+                secret_key="",  # noqa: S106
+                bucket="bucket",
+            )
+        assert "DO_SPACES_SECRET" in exc.value.missing_fields
+
+    def test_missing_bucket_raises_error(self, mock_boto3_client):
+        """Test missing bucket raises SpacesConfigurationError."""
+        # Mock settings to return empty bucket (otherwise default is used)
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = ""
+            mock_settings.return_value.do_spaces_secret = ""
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = ""  # Empty bucket
+            mock_settings.return_value.do_spaces_endpoint_url = ""
+
+            with pytest.raises(SpacesConfigurationError) as exc:
+                SpacesClient(
+                    access_key="key",
+                    secret_key="secret",  # noqa: S106
+                    # Don't pass bucket - let it use settings default (which is mocked to empty)
+                )
+            assert "DO_SPACES_BUCKET" in exc.value.missing_fields
+
+    def test_missing_all_credentials_raises_error(self, mock_boto3_client):
+        """Test missing all credentials lists all fields."""
+        # Mock settings to return all empty
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = ""
+            mock_settings.return_value.do_spaces_secret = ""
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = ""
+            mock_settings.return_value.do_spaces_endpoint_url = ""
+
+            with pytest.raises(SpacesConfigurationError) as exc:
+                SpacesClient()  # No explicit args - uses settings
+            assert len(exc.value.missing_fields) == 3
+            assert "DO_SPACES_KEY" in exc.value.missing_fields
+            assert "DO_SPACES_SECRET" in exc.value.missing_fields
+            assert "DO_SPACES_BUCKET" in exc.value.missing_fields
+
+    def test_valid_credentials_no_error(self, mock_boto3_client):
+        """Test valid credentials don't raise error."""
+        client = SpacesClient(
+            access_key="key",
+            secret_key="secret",  # noqa: S106
+            bucket="bucket",
+        )
+        assert client.bucket == "bucket"

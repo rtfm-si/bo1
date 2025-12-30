@@ -287,6 +287,13 @@ bo1_llm_provider_fallback_total = Counter(
     ["from_provider", "to_provider", "reason"],
 )
 
+# LLM within-provider model fallback metrics
+bo1_llm_model_fallback_total = Counter(
+    "llm_model_fallback_total",
+    "Total within-provider model fallback activations",
+    ["provider", "from_model", "to_model"],
+)
+
 # LLM session rate limiter metrics
 bo1_llm_rate_limit_exceeded_total = Counter(
     "llm_rate_limit_exceeded_total",
@@ -460,6 +467,19 @@ bo1_model_tier_selected_total = Counter(
     "bo1_model_tier_selected_total",
     "Total model tier selections for A/B test analysis",
     ["tier", "round", "ab_group"],  # tier: fast/core, round: 1-6, ab_group: test/control/none
+)
+
+# LLM retry metrics (Anthropic API resilience)
+bo1_llm_retries_total = Counter(
+    "bo1_llm_retries_total",
+    "Total LLM API retry attempts",
+    ["provider", "attempt", "error_type"],
+)
+
+bo1_llm_retries_exhausted_total = Counter(
+    "bo1_llm_retries_exhausted_total",
+    "Total LLM API calls that exhausted all retry attempts",
+    ["provider", "error_type"],
 )
 
 # File scan metrics (ClamAV antivirus)
@@ -786,6 +806,19 @@ def record_provider_fallback(from_provider: str, to_provider: str, reason: str) 
     ).inc()
 
 
+def record_model_fallback(provider: str, from_model: str, to_model: str) -> None:
+    """Record a within-provider model fallback activation.
+
+    Args:
+        provider: LLM provider (e.g., "anthropic")
+        from_model: Original model that failed (e.g., "claude-opus-4-20250514")
+        to_model: Fallback model used (e.g., "claude-sonnet-4-20250514")
+    """
+    bo1_llm_model_fallback_total.labels(
+        provider=provider, from_model=from_model, to_model=to_model
+    ).inc()
+
+
 def record_llm_rate_limit_exceeded(limit_type: str, session_id: str) -> None:
     """Record an LLM rate limit exceeded event.
 
@@ -1005,3 +1038,26 @@ def increment_sse_active_connections() -> None:
 def decrement_sse_active_connections() -> None:
     """Decrement active SSE connections gauge."""
     bo1_sse_active_connections.dec()
+
+
+def record_llm_retry(provider: str, attempt: int, error_type: str) -> None:
+    """Record an LLM API retry attempt.
+
+    Args:
+        provider: Provider name (e.g., "anthropic", "openai")
+        attempt: Retry attempt number (1-based)
+        error_type: Type of error that triggered retry (e.g., "overloaded", "rate_limit", "server_error")
+    """
+    bo1_llm_retries_total.labels(
+        provider=provider, attempt=str(attempt), error_type=error_type
+    ).inc()
+
+
+def record_llm_retries_exhausted(provider: str, error_type: str) -> None:
+    """Record when an LLM API call exhausted all retry attempts.
+
+    Args:
+        provider: Provider name (e.g., "anthropic", "openai")
+        error_type: Type of error that caused exhaustion (e.g., "overloaded", "rate_limit")
+    """
+    bo1_llm_retries_exhausted_total.labels(provider=provider, error_type=error_type).inc()

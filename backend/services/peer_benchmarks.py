@@ -13,8 +13,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
-
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -109,28 +107,31 @@ def get_consent_status(user_id: str) -> ConsentStatus:
     Returns:
         ConsentStatus with current state
     """
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT consented_at, revoked_at
                 FROM peer_benchmark_consent
-                WHERE user_id = :user_id
-            """),
-            {"user_id": user_id},
-        ).fetchone()
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            result = cur.fetchone()
 
-        if not result:
-            return ConsentStatus(consented=False)
+            if not result:
+                return ConsentStatus(consented=False)
 
-        consented_at, revoked_at = result
-        # User is consented if they have a consent timestamp and haven't revoked
-        is_consented = consented_at is not None and revoked_at is None
+            consented_at = result["consented_at"]
+            revoked_at = result["revoked_at"]
+            # User is consented if they have a consent timestamp and haven't revoked
+            is_consented = consented_at is not None and revoked_at is None
 
-        return ConsentStatus(
-            consented=is_consented,
-            consented_at=consented_at,
-            revoked_at=revoked_at,
-        )
+            return ConsentStatus(
+                consented=is_consented,
+                consented_at=consented_at,
+                revoked_at=revoked_at,
+            )
 
 
 def give_consent(user_id: str) -> ConsentStatus:
@@ -142,23 +143,24 @@ def give_consent(user_id: str) -> ConsentStatus:
     Returns:
         Updated ConsentStatus
     """
-    with db_session() as session:
-        now = datetime.now(UTC)
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            now = datetime.now(UTC)
 
-        # Upsert: insert or update existing record
-        session.execute(
-            text("""
+            # Upsert: insert or update existing record
+            cur.execute(
+                """
                 INSERT INTO peer_benchmark_consent (user_id, consented_at, revoked_at)
-                VALUES (:user_id, :now, NULL)
+                VALUES (%s, %s, NULL)
                 ON CONFLICT (user_id)
-                DO UPDATE SET consented_at = :now, revoked_at = NULL
-            """),
-            {"user_id": user_id, "now": now},
-        )
-        session.commit()
+                DO UPDATE SET consented_at = %s, revoked_at = NULL
+                """,
+                (user_id, now, now),
+            )
+            conn.commit()
 
-        logger.info("peer_benchmark_consent_given", extra={"user_id": user_id})
-        return ConsentStatus(consented=True, consented_at=now)
+            logger.info("peer_benchmark_consent_given", extra={"user_id": user_id})
+            return ConsentStatus(consented=True, consented_at=now)
 
 
 def revoke_consent(user_id: str) -> ConsentStatus:
@@ -172,30 +174,31 @@ def revoke_consent(user_id: str) -> ConsentStatus:
     Returns:
         Updated ConsentStatus
     """
-    with db_session() as session:
-        now = datetime.now(UTC)
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            now = datetime.now(UTC)
 
-        result = session.execute(
-            text("""
+            cur.execute(
+                """
                 UPDATE peer_benchmark_consent
-                SET revoked_at = :now
-                WHERE user_id = :user_id
+                SET revoked_at = %s
+                WHERE user_id = %s
                 RETURNING consented_at
-            """),
-            {"user_id": user_id, "now": now},
-        ).fetchone()
-
-        session.commit()
-
-        if result:
-            logger.info("peer_benchmark_consent_revoked", extra={"user_id": user_id})
-            return ConsentStatus(
-                consented=False,
-                consented_at=result[0],
-                revoked_at=now,
+                """,
+                (now, user_id),
             )
+            result = cur.fetchone()
+            conn.commit()
 
-        return ConsentStatus(consented=False)
+            if result:
+                logger.info("peer_benchmark_consent_revoked", extra={"user_id": user_id})
+                return ConsentStatus(
+                    consented=False,
+                    consented_at=result["consented_at"],
+                    revoked_at=now,
+                )
+
+            return ConsentStatus(consented=False)
 
 
 def is_consented(user_id: str) -> bool:
@@ -224,19 +227,21 @@ def get_contributing_users(industry: str) -> list[str]:
     Returns:
         List of user IDs eligible for aggregation
     """
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT pbc.user_id
                 FROM peer_benchmark_consent pbc
                 JOIN user_context uc ON pbc.user_id = uc.user_id
                 WHERE pbc.revoked_at IS NULL
-                AND uc.industry = :industry
-            """),
-            {"industry": industry},
-        ).fetchall()
+                AND uc.industry = %s
+                """,
+                (industry,),
+            )
+            result = cur.fetchall()
 
-        return [row[0] for row in result]
+            return [row["user_id"] for row in result]
 
 
 def _parse_numeric_value(value: Any) -> float | None:
@@ -288,10 +293,11 @@ def aggregate_industry_metrics(industry: str) -> dict[str, PeerPercentile]:
     Returns:
         Dict of metric_name -> PeerPercentile
     """
-    with db_session() as session:
-        # Get all consented users' metrics for this industry
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get all consented users' metrics for this industry
+            cur.execute(
+                """
                 SELECT
                     uc.revenue, uc.customers, uc.growth_rate, uc.team_size,
                     uc.mau_bucket, uc.traffic_range, uc.revenue_stage,
@@ -302,88 +308,93 @@ def aggregate_industry_metrics(industry: str) -> dict[str, PeerPercentile]:
                 FROM user_context uc
                 JOIN peer_benchmark_consent pbc ON uc.user_id = pbc.user_id
                 WHERE pbc.revoked_at IS NULL
-                AND uc.industry = :industry
-            """),
-            {"industry": industry},
-        ).fetchall()
+                AND uc.industry = %s
+                """,
+                (industry,),
+            )
+            result = cur.fetchall()
 
-        if not result:
-            return {}
+            if not result:
+                return {}
 
-        # Collect values per metric
-        metric_values: dict[str, list[float]] = {metric: [] for metric in PEER_BENCHMARK_METRICS}
-
-        for row in result:
-            # Map row to metrics
-            row_dict = {
-                "revenue": row[0],
-                "customers": row[1],
-                "growth_rate": row[2],
-                "team_size": row[3],
-                "mau_bucket": row[4],
-                "traffic_range": row[5],
-                "revenue_stage": row[6],
-                "dau_mau_ratio": row[9],
-                "arpu": row[10],
-                "arr_growth_rate": row[11],
-                "grr": row[12],
-                "active_churn": row[13],
-                "revenue_churn": row[14],
-                "nps": row[15],
-                "quick_ratio": row[16],
+            # Collect values per metric
+            metric_values: dict[str, list[float]] = {
+                metric: [] for metric in PEER_BENCHMARK_METRICS
             }
 
-            for metric in PEER_BENCHMARK_METRICS:
-                val = _parse_numeric_value(row_dict.get(metric))
-                if val is not None:
-                    metric_values[metric].append(val)
+            for row in result:
+                # Map row to metrics
+                row_dict = {
+                    "revenue": row["revenue"],
+                    "customers": row["customers"],
+                    "growth_rate": row["growth_rate"],
+                    "team_size": row["team_size"],
+                    "mau_bucket": row["mau_bucket"],
+                    "traffic_range": row["traffic_range"],
+                    "revenue_stage": row["revenue_stage"],
+                    "dau_mau_ratio": row["dau_mau_ratio"],
+                    "arpu": row["arpu"],
+                    "arr_growth_rate": row["arr_growth_rate"],
+                    "grr": row["grr"],
+                    "active_churn": row["active_churn"],
+                    "revenue_churn": row["revenue_churn"],
+                    "nps": row["nps"],
+                    "quick_ratio": row["quick_ratio"],
+                }
 
-        # Compute percentiles per metric
-        percentiles: dict[str, PeerPercentile] = {}
-        now = datetime.now(UTC)
+                for metric in PEER_BENCHMARK_METRICS:
+                    val = _parse_numeric_value(row_dict.get(metric))
+                    if val is not None:
+                        metric_values[metric].append(val)
 
-        for metric, values in metric_values.items():
-            sample_count = len(values)
+            # Compute percentiles per metric
+            percentiles: dict[str, PeerPercentile] = {}
+            now = datetime.now(UTC)
 
-            if sample_count < K_ANONYMITY_THRESHOLD:
-                # Not enough data for k-anonymity
-                percentiles[metric] = PeerPercentile(
-                    metric=metric,
-                    display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
-                    p10=None,
-                    p25=None,
-                    p50=None,
-                    p75=None,
-                    p90=None,
-                    sample_count=sample_count,
-                )
-            else:
-                # Compute percentiles
-                sorted_vals = sorted(values)
-                n = len(sorted_vals)
+            for metric, values in metric_values.items():
+                sample_count = len(values)
 
-                def percentile(p: float, _vals: list[float] = sorted_vals, _n: int = n) -> float:
-                    idx = (_n - 1) * p
-                    lower = int(idx)
-                    upper = min(lower + 1, _n - 1)
-                    weight = idx - lower
-                    return _vals[lower] * (1 - weight) + _vals[upper] * weight
+                if sample_count < K_ANONYMITY_THRESHOLD:
+                    # Not enough data for k-anonymity
+                    percentiles[metric] = PeerPercentile(
+                        metric=metric,
+                        display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
+                        p10=None,
+                        p25=None,
+                        p50=None,
+                        p75=None,
+                        p90=None,
+                        sample_count=sample_count,
+                    )
+                else:
+                    # Compute percentiles
+                    sorted_vals = sorted(values)
+                    n = len(sorted_vals)
 
-                percentiles[metric] = PeerPercentile(
-                    metric=metric,
-                    display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
-                    p10=percentile(0.10),
-                    p25=percentile(0.25),
-                    p50=percentile(0.50),
-                    p75=percentile(0.75),
-                    p90=percentile(0.90),
-                    sample_count=sample_count,
-                )
+                    def percentile(
+                        p: float, _vals: list[float] = sorted_vals, _n: int = n
+                    ) -> float:
+                        idx = (_n - 1) * p
+                        lower = int(idx)
+                        upper = min(lower + 1, _n - 1)
+                        weight = idx - lower
+                        return _vals[lower] * (1 - weight) + _vals[upper] * weight
 
-        # Update cached aggregates
-        _update_aggregate_cache(industry, percentiles, now)
+                    percentiles[metric] = PeerPercentile(
+                        metric=metric,
+                        display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
+                        p10=percentile(0.10),
+                        p25=percentile(0.25),
+                        p50=percentile(0.50),
+                        p75=percentile(0.75),
+                        p90=percentile(0.90),
+                        sample_count=sample_count,
+                    )
 
-        return percentiles
+            # Update cached aggregates
+            _update_aggregate_cache(industry, percentiles, now)
+
+            return percentiles
 
 
 def _update_aggregate_cache(
@@ -396,32 +407,34 @@ def _update_aggregate_cache(
         percentiles: Computed percentiles
         updated_at: Timestamp for cache
     """
-    with db_session() as session:
-        for metric, data in percentiles.items():
-            session.execute(
-                text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            for metric, data in percentiles.items():
+                cur.execute(
+                    """
                     INSERT INTO peer_benchmark_aggregates
                         (industry, metric_name, p10, p25, p50, p75, p90, sample_count, updated_at)
                     VALUES
-                        (:industry, :metric, :p10, :p25, :p50, :p75, :p90, :sample_count, :updated_at)
+                        (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (industry, metric_name)
                     DO UPDATE SET
-                        p10 = :p10, p25 = :p25, p50 = :p50, p75 = :p75, p90 = :p90,
-                        sample_count = :sample_count, updated_at = :updated_at
-                """),
-                {
-                    "industry": industry,
-                    "metric": metric,
-                    "p10": data.p10,
-                    "p25": data.p25,
-                    "p50": data.p50,
-                    "p75": data.p75,
-                    "p90": data.p90,
-                    "sample_count": data.sample_count,
-                    "updated_at": updated_at,
-                },
-            )
-        session.commit()
+                        p10 = EXCLUDED.p10, p25 = EXCLUDED.p25, p50 = EXCLUDED.p50,
+                        p75 = EXCLUDED.p75, p90 = EXCLUDED.p90,
+                        sample_count = EXCLUDED.sample_count, updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        industry,
+                        metric,
+                        data.p10,
+                        data.p25,
+                        data.p50,
+                        data.p75,
+                        data.p90,
+                        data.sample_count,
+                        updated_at,
+                    ),
+                )
+            conn.commit()
 
 
 def get_cached_aggregates(industry: str) -> dict[str, PeerPercentile] | None:
@@ -433,34 +446,36 @@ def get_cached_aggregates(industry: str) -> dict[str, PeerPercentile] | None:
     Returns:
         Dict of metric_name -> PeerPercentile, or None if no cache
     """
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT metric_name, p10, p25, p50, p75, p90, sample_count, updated_at
                 FROM peer_benchmark_aggregates
-                WHERE industry = :industry
-            """),
-            {"industry": industry},
-        ).fetchall()
-
-        if not result:
-            return None
-
-        percentiles: dict[str, PeerPercentile] = {}
-        for row in result:
-            metric = row[0]
-            percentiles[metric] = PeerPercentile(
-                metric=metric,
-                display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
-                p10=row[1],
-                p25=row[2],
-                p50=row[3],
-                p75=row[4],
-                p90=row[5],
-                sample_count=row[6],
+                WHERE industry = %s
+                """,
+                (industry,),
             )
+            result = cur.fetchall()
 
-        return percentiles
+            if not result:
+                return None
+
+            percentiles: dict[str, PeerPercentile] = {}
+            for row in result:
+                metric = row["metric_name"]
+                percentiles[metric] = PeerPercentile(
+                    metric=metric,
+                    display_name=METRIC_DISPLAY_NAMES.get(metric, metric),
+                    p10=row["p10"],
+                    p25=row["p25"],
+                    p50=row["p50"],
+                    p75=row["p75"],
+                    p90=row["p90"],
+                    sample_count=row["sample_count"],
+                )
+
+            return percentiles
 
 
 # =============================================================================
@@ -482,38 +497,45 @@ def get_user_percentile_rank(
     Returns:
         Percentile rank (0-100), or None if insufficient data
     """
-    with db_session() as session:
-        # Get all values for this metric from consented users
-        result = session.execute(
-            text(f"""
+    # Validate metric name to prevent SQL injection
+    if metric not in PEER_BENCHMARK_METRICS:
+        return None
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get all values for this metric from consented users
+            # Using format() here is safe because metric is validated against whitelist
+            cur.execute(
+                f"""
                 SELECT uc.{metric}
                 FROM user_context uc
                 JOIN peer_benchmark_consent pbc ON uc.user_id = pbc.user_id
                 WHERE pbc.revoked_at IS NULL
-                AND uc.industry = :industry
+                AND uc.industry = %s
                 AND uc.{metric} IS NOT NULL
-            """),  # noqa: S608
-            {"industry": industry},
-        ).fetchall()
+                """,  # noqa: S608
+                (industry,),
+            )
+            result = cur.fetchall()
 
-        if len(result) < K_ANONYMITY_THRESHOLD:
-            return None
+            if len(result) < K_ANONYMITY_THRESHOLD:
+                return None
 
-        # Parse all values
-        values = []
-        for row in result:
-            val = _parse_numeric_value(row[0])
-            if val is not None:
-                values.append(val)
+            # Parse all values
+            values = []
+            for row in result:
+                val = _parse_numeric_value(row[metric])
+                if val is not None:
+                    values.append(val)
 
-        if len(values) < K_ANONYMITY_THRESHOLD:
-            return None
+            if len(values) < K_ANONYMITY_THRESHOLD:
+                return None
 
-        # Calculate percentile rank
-        count_below = sum(1 for v in values if v < user_value)
-        percentile = (count_below / len(values)) * 100
+            # Calculate percentile rank
+            count_below = sum(1 for v in values if v < user_value)
+            percentile = (count_below / len(values)) * 100
 
-        return round(percentile, 1)
+            return round(percentile, 1)
 
 
 def get_preview_metric(user_id: str) -> dict | None:
@@ -528,17 +550,19 @@ def get_preview_metric(user_id: str) -> dict | None:
     Returns:
         Dict with metric, display_name, industry, p50, sample_count or None
     """
-    with db_session() as session:
-        # Get user's industry
-        result = session.execute(
-            text("SELECT industry FROM user_context WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        ).fetchone()
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get user's industry
+            cur.execute(
+                "SELECT industry FROM user_context WHERE user_id = %s",
+                (user_id,),
+            )
+            result = cur.fetchone()
 
-        if not result or not result[0]:
-            return None
+            if not result or not result["industry"]:
+                return None
 
-        industry = result[0]
+            industry = result["industry"]
 
     # Get cached aggregates for this industry
     aggregates = get_cached_aggregates(industry)
@@ -572,21 +596,23 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
     Returns:
         PeerBenchmarkResult with industry percentiles and user rankings, or None
     """
-    with db_session() as session:
-        # Get user's industry
-        result = session.execute(
-            text("SELECT industry FROM user_context WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        ).fetchone()
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get user's industry
+            cur.execute(
+                "SELECT industry FROM user_context WHERE user_id = %s",
+                (user_id,),
+            )
+            result = cur.fetchone()
 
-        if not result or not result[0]:
-            return None
+            if not result or not result["industry"]:
+                return None
 
-        industry = result[0]
+            industry = result["industry"]
 
-        # Get user's benchmark values
-        user_result = session.execute(
-            text("""
+            # Get user's benchmark values
+            cur.execute(
+                """
                 SELECT
                     revenue, customers, growth_rate, team_size,
                     mau_bucket, traffic_range, revenue_stage,
@@ -595,30 +621,31 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
                     arpu, arr_growth_rate, grr,
                     active_churn, revenue_churn, nps, quick_ratio
                 FROM user_context
-                WHERE user_id = :user_id
-            """),
-            {"user_id": user_id},
-        ).fetchone()
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            user_result = cur.fetchone()
 
-        user_values = {}
-        if user_result:
-            user_values = {
-                "revenue": _parse_numeric_value(user_result[0]),
-                "customers": _parse_numeric_value(user_result[1]),
-                "growth_rate": _parse_numeric_value(user_result[2]),
-                "team_size": _parse_numeric_value(user_result[3]),
-                "mau_bucket": _parse_numeric_value(user_result[4]),
-                "traffic_range": _parse_numeric_value(user_result[5]),
-                "revenue_stage": _parse_numeric_value(user_result[6]),
-                "dau_mau_ratio": user_result[9],
-                "arpu": _parse_numeric_value(user_result[10]),
-                "arr_growth_rate": _parse_numeric_value(user_result[11]),
-                "grr": _parse_numeric_value(user_result[12]),
-                "active_churn": _parse_numeric_value(user_result[13]),
-                "revenue_churn": _parse_numeric_value(user_result[14]),
-                "nps": _parse_numeric_value(user_result[15]),
-                "quick_ratio": _parse_numeric_value(user_result[16]),
-            }
+            user_values = {}
+            if user_result:
+                user_values = {
+                    "revenue": _parse_numeric_value(user_result["revenue"]),
+                    "customers": _parse_numeric_value(user_result["customers"]),
+                    "growth_rate": _parse_numeric_value(user_result["growth_rate"]),
+                    "team_size": _parse_numeric_value(user_result["team_size"]),
+                    "mau_bucket": _parse_numeric_value(user_result["mau_bucket"]),
+                    "traffic_range": _parse_numeric_value(user_result["traffic_range"]),
+                    "revenue_stage": _parse_numeric_value(user_result["revenue_stage"]),
+                    "dau_mau_ratio": user_result["dau_mau_ratio"],
+                    "arpu": _parse_numeric_value(user_result["arpu"]),
+                    "arr_growth_rate": _parse_numeric_value(user_result["arr_growth_rate"]),
+                    "grr": _parse_numeric_value(user_result["grr"]),
+                    "active_churn": _parse_numeric_value(user_result["active_churn"]),
+                    "revenue_churn": _parse_numeric_value(user_result["revenue_churn"]),
+                    "nps": _parse_numeric_value(user_result["nps"]),
+                    "quick_ratio": _parse_numeric_value(user_result["quick_ratio"]),
+                }
 
     # Get or compute aggregates
     aggregates = get_cached_aggregates(industry)
@@ -651,17 +678,19 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
 
     # Get cache timestamp
     updated_at = None
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT MAX(updated_at)
                 FROM peer_benchmark_aggregates
-                WHERE industry = :industry
-            """),
-            {"industry": industry},
-        ).fetchone()
-        if result:
-            updated_at = result[0]
+                WHERE industry = %s
+                """,
+                (industry,),
+            )
+            result = cur.fetchone()
+            if result:
+                updated_at = result["max"]
 
     return PeerBenchmarkResult(
         industry=industry,

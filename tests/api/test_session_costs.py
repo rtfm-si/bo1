@@ -60,6 +60,9 @@ class TestSessionCostBreakdownModel:
                     by_phase=PhaseCosts(deliberation=0.10, synthesis=0.05),
                 ),
             ],
+            cache_hit_rate=0.35,
+            prompt_cache_hit_rate=0.72,
+            total_saved=0.08,
         )
 
         data = breakdown.model_dump()
@@ -72,6 +75,62 @@ class TestSessionCostBreakdownModel:
         assert len(data["by_sub_problem"]) == 2
         assert data["by_sub_problem"][0]["label"] == "Overhead"
         assert data["by_sub_problem"][1]["sub_problem_index"] == 0
+        # Cache metrics
+        assert data["cache_hit_rate"] == 0.35
+        assert data["prompt_cache_hit_rate"] == 0.72
+        assert data["total_saved"] == 0.08
+
+    def test_session_cost_breakdown_cache_metrics_defaults(self):
+        """Test that cache metrics default to 0.0."""
+        breakdown = SessionCostBreakdown(
+            session_id="bo1_test123",
+            total_cost=0.0,
+            total_tokens=0,
+            total_api_calls=0,
+            by_provider=ProviderCosts(),
+        )
+
+        assert breakdown.cache_hit_rate == 0.0
+        assert breakdown.prompt_cache_hit_rate == 0.0
+        assert breakdown.total_saved == 0.0
+
+    def test_session_cost_breakdown_cache_metrics_validation(self):
+        """Test that cache hit rates are validated between 0 and 1."""
+        import pydantic
+
+        # Valid range
+        breakdown = SessionCostBreakdown(
+            session_id="bo1_test",
+            total_cost=0.0,
+            total_tokens=0,
+            total_api_calls=0,
+            by_provider=ProviderCosts(),
+            cache_hit_rate=1.0,
+            prompt_cache_hit_rate=0.0,
+        )
+        assert breakdown.cache_hit_rate == 1.0
+
+        # Invalid: > 1.0
+        with pytest.raises(pydantic.ValidationError):
+            SessionCostBreakdown(
+                session_id="bo1_test",
+                total_cost=0.0,
+                total_tokens=0,
+                total_api_calls=0,
+                by_provider=ProviderCosts(),
+                cache_hit_rate=1.5,
+            )
+
+        # Invalid: < 0.0
+        with pytest.raises(pydantic.ValidationError):
+            SessionCostBreakdown(
+                session_id="bo1_test",
+                total_cost=0.0,
+                total_tokens=0,
+                total_api_calls=0,
+                by_provider=ProviderCosts(),
+                cache_hit_rate=-0.1,
+            )
 
     def test_provider_costs_defaults(self):
         """Test that ProviderCosts has correct defaults."""
@@ -125,6 +184,7 @@ class TestGetSessionCostsEndpoint:
             "total_tokens": 10000,
             "total_saved": 0.05,
             "cache_hit_rate": 0.3,
+            "prompt_cache_hit_rate": 0.65,
         }
 
         mock_subproblem_costs = [
@@ -179,6 +239,7 @@ class TestGetSessionCostsEndpoint:
             "total_tokens": 0,
             "total_saved": 0.0,
             "cache_hit_rate": 0.0,
+            "prompt_cache_hit_rate": 0.0,
         }
 
         with (

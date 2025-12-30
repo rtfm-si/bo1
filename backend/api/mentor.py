@@ -23,6 +23,12 @@ from backend.api.middleware.tier_limits import record_mentor_usage, require_ment
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.honeypot import HoneypotMixin, validate_honeypot_fields
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_401_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+)
 from backend.services.mention_parser import parse_mentions
 from backend.services.mention_resolver import get_mention_resolver
 from backend.services.mentor_context import MentorContext, get_mentor_context_service
@@ -463,6 +469,8 @@ async def _stream_mentor_response(
                 "text/event-stream": {"example": 'event: response\ndata: {"content": "..."}\n\n'}
             },
         },
+        401: ERROR_401_RESPONSE,
+        403: ERROR_403_RESPONSE,
         429: RATE_LIMIT_RESPONSE,
     },
 )
@@ -512,6 +520,7 @@ async def mentor_chat(
     response_model=MentorPersonaListResponse,
     summary="List available mentor personas",
     description="Get all available mentor personas for manual selection",
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("list mentor personas")
 async def list_personas(
@@ -543,6 +552,7 @@ async def list_personas(
     response_model=MentionSearchResponse,
     summary="Search for mentionable entities",
     description="Search meetings, actions, datasets, or chats for @mention autocomplete",
+    responses={400: ERROR_400_RESPONSE, 401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("search mentions")
 async def search_mentions(
@@ -682,6 +692,7 @@ async def search_mentions(
     response_model=MentorConversationListResponse,
     summary="List mentor conversations",
     description="List recent mentor conversations for the current user",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("list mentor conversations")
 async def list_mentor_conversations(
@@ -719,6 +730,7 @@ async def list_mentor_conversations(
     response_model=MentorConversationDetailResponse,
     summary="Get mentor conversation",
     description="Get a mentor conversation with full message history",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("get mentor conversation")
 async def get_mentor_conversation(
@@ -761,6 +773,7 @@ async def get_mentor_conversation(
     response_model=MentorConversationResponse,
     summary="Update mentor conversation",
     description="Update a mentor conversation (currently supports label update)",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("update mentor conversation")
 async def update_mentor_conversation(
@@ -801,6 +814,7 @@ async def update_mentor_conversation(
     status_code=204,
     summary="Delete mentor conversation",
     description="Delete a mentor conversation",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("delete mentor conversation")
 async def delete_mentor_conversation(
@@ -824,6 +838,7 @@ async def delete_mentor_conversation(
     response_model=RepeatedTopicsListResponse,
     summary="Detect repeated help request topics",
     description="Analyze mentor conversations to find repeated topic patterns",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("detect repeated topics")
 async def get_repeated_topics(
@@ -885,6 +900,7 @@ async def get_repeated_topics(
     response_model=FailurePatternsResponse,
     summary="Detect action failure patterns",
     description="Analyze actions to find failure patterns for proactive mentoring",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("detect failure patterns")
 async def get_failure_patterns(
@@ -950,7 +966,7 @@ async def get_failure_patterns(
     response_model=ImprovementPlanResponse,
     summary="Get improvement plan",
     description="Generate a proactive improvement plan based on detected patterns",
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(MENTOR_RATE_LIMIT)
 @handle_api_errors("get improvement plan")

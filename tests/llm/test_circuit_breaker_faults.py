@@ -418,3 +418,34 @@ class TestRecoveryTimeout:
         breaker.last_fault_type = FaultType.UNKNOWN
 
         assert breaker._get_recovery_timeout() == 30
+
+
+class TestModelSpecificFaultType:
+    """Tests for MODEL_SPECIFIC fault classification (529 overloaded)."""
+
+    def test_status_529_is_model_specific(self) -> None:
+        """529 (overloaded) should be classified as MODEL_SPECIFIC."""
+        try:
+            from anthropic import APIStatusError
+
+            error = APIStatusError.__new__(APIStatusError)
+            error.status_code = 529
+            result = classify_fault(error)
+            assert result == FaultType.MODEL_SPECIFIC
+        except ImportError:
+            pytest.skip("anthropic not installed")
+
+    def test_generic_529_is_model_specific(self) -> None:
+        """Generic exceptions with 529 status_code should be MODEL_SPECIFIC."""
+
+        class GenericError(Exception):
+            status_code = 529
+
+        error = GenericError("Model overloaded")
+        result = classify_fault(error)
+        assert result == FaultType.MODEL_SPECIFIC
+
+    def test_model_specific_fault_type_exists(self) -> None:
+        """FaultType should have MODEL_SPECIFIC value."""
+        assert hasattr(FaultType, "MODEL_SPECIFIC")
+        assert FaultType.MODEL_SPECIFIC.value == "model_specific"

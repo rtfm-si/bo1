@@ -21,12 +21,12 @@ from backend.api.dependencies import (
     get_session_manager,
     get_session_metadata_cache,
 )
-from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTROL_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
     ERROR_403_RESPONSE,
@@ -1187,8 +1187,9 @@ async def resume_deliberation(
 async def kill_deliberation(
     request: Request,
     session_id: str,
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     kill_request: KillRequest | None = None,
-    user: dict[str, Any] = Depends(get_current_user),
     redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Kill a running deliberation (user must own the session).

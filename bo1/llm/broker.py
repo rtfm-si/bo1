@@ -39,6 +39,9 @@ try:
         record_llm_cost,
         record_llm_rate_limit_exceeded,
         record_llm_request,
+        record_llm_retries_exhausted,
+        record_llm_retry,
+        record_model_fallback,
         record_output_length_warning,
         record_provider_fallback,
         record_xml_retry_success,
@@ -69,6 +72,15 @@ except ImportError:
         """No-op when metrics unavailable."""
 
     def record_llm_rate_limit_exceeded(limit_type: str, session_id: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_llm_retry(provider: str, attempt: int, error_type: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_llm_retries_exhausted(provider: str, error_type: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_model_fallback(provider: str, from_model: str, to_model: str) -> None:  # noqa: D103
         """No-op when metrics unavailable."""
 
 
@@ -237,12 +249,19 @@ class PromptBroker:
         """Backward compatibility: return Anthropic circuit breaker."""
         return self._get_circuit_breaker("anthropic")
 
-    async def call(self, request: PromptRequest, *, _used_fallback: bool = False) -> LLMResponse:
+    async def call(
+        self,
+        request: PromptRequest,
+        *,
+        _used_fallback: bool = False,
+        _used_model_fallback: bool = False,
+    ) -> LLMResponse:
         """Execute an LLM call with retry/rate-limit handling and caching.
 
         Args:
             request: Structured prompt request
-            _used_fallback: Internal flag to prevent infinite fallback loops
+            _used_fallback: Internal flag to prevent infinite provider fallback loops
+            _used_model_fallback: Internal flag to prevent infinite model fallback loops
 
         Returns:
             LLMResponse with comprehensive metrics
@@ -435,6 +454,9 @@ class PromptBroker:
                 last_error = e
                 retry_count += 1
 
+                # Record retry metric
+                record_llm_retry(provider=provider, attempt=retry_count, error_type="rate_limit")
+
                 # Check if we have retries left
                 if attempt >= self.retry_policy.max_retries:
                     log_error(
@@ -444,6 +466,7 @@ class PromptBroker:
                         request_id=request.request_id,
                     )
                     record_llm_request(model=model_id, provider=provider, success=False)
+                    record_llm_retries_exhausted(provider=provider, error_type="rate_limit")
                     raise
 
                 # Extract Retry-After header if present
@@ -466,11 +489,18 @@ class PromptBroker:
                 await asyncio.sleep(delay)
 
             except APIError as e:
+                # Classify error type for metrics (529=overloaded, 5xx=server_error)
+                status_code = getattr(e, "status_code", 0)
+                error_type = "overloaded" if status_code == 529 else "server_error"
+
                 # Check if error is retryable (5xx errors)
                 if self._is_retryable(e) and attempt < self.retry_policy.max_retries:
                     last_error = e
                     retry_count += 1
                     delay = self.retry_policy.calculate_delay(attempt)
+
+                    # Record retry metric
+                    record_llm_retry(provider=provider, attempt=retry_count, error_type=error_type)
 
                     logger.warning(
                         f"[{request.request_id}] API error (retryable), "
@@ -483,10 +513,81 @@ class PromptBroker:
                     log_error(
                         logger,
                         ErrorCode.LLM_API_ERROR,
-                        f"[{request.request_id}] API error (non-retryable): {e}",
+                        f"[{request.request_id}] API error (non-retryable or retries exhausted): {e}",
                         request_id=request.request_id,
                     )
                     record_llm_request(model=model_id, provider=provider, success=False)
+
+                    # Record exhaustion metric if retries were attempted
+                    if self._is_retryable(e) and retry_count > 0:
+                        record_llm_retries_exhausted(provider=provider, error_type=error_type)
+
+                    # Try within-provider model fallback for 529/503 (model overloaded)
+                    # This is tried BEFORE provider fallback
+                    if (
+                        status_code in (529, 503)
+                        and settings.llm_model_fallback_enabled
+                        and not _used_model_fallback
+                    ):
+                        from bo1.llm.model_fallback import (
+                            emit_model_fallback_event,
+                            get_fallback_model,
+                        )
+
+                        fallback_model = get_fallback_model(provider, model_id)
+                        if fallback_model:
+                            logger.warning(
+                                f"[{request.request_id}] Model fallback: "
+                                f"{model_id} → {fallback_model} (reason: {error_type})"
+                            )
+                            record_model_fallback(
+                                provider=provider,
+                                from_model=model_id,
+                                to_model=fallback_model,
+                            )
+                            # Emit SSE event to notify client
+                            emit_model_fallback_event(
+                                session_id=cost_ctx.get("session_id"),
+                                provider=provider,
+                                from_model=model_id,
+                                to_model=fallback_model,
+                            )
+                            return await self._call_with_model_fallback(
+                                request=request,
+                                provider=provider,
+                                fallback_model=fallback_model,
+                                start_time=start_time,
+                                cost_ctx=cost_ctx,
+                                cache=cache,
+                                _used_model_fallback=True,
+                            )
+
+                    # Attempt provider fallback on retry exhaustion with transient errors
+                    # This handles cases where retries exhaust before circuit breaker opens
+                    if (
+                        self._is_retryable(e)
+                        and settings.llm_fallback_enabled
+                        and not _used_fallback
+                    ):
+                        fallback_cb = self._get_circuit_breaker(fallback_provider)
+                        if fallback_cb.state.name.lower() != "open":
+                            logger.warning(
+                                f"[{request.request_id}] Provider fallback: "
+                                f"{provider} → {fallback_provider} (reason: retries_exhausted)"
+                            )
+                            record_provider_fallback(
+                                from_provider=provider,
+                                to_provider=fallback_provider,
+                                reason="retries_exhausted",
+                            )
+                            return await self._call_with_provider(
+                                request=request,
+                                provider=fallback_provider,
+                                start_time=start_time,
+                                cost_ctx=cost_ctx,
+                                cache=cache,
+                                _used_fallback=True,
+                            )
                     raise
 
             except CircuitBreakerOpenError as e:
@@ -675,6 +776,128 @@ class PromptBroker:
         record_llm_request(model=model_id, provider=provider, success=True)
         cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
         record_llm_cost(model=model_id, provider=provider, cost_cents=cost_cents)
+
+        # Cache the response
+        await cache.set(request, llm_response)
+
+        return llm_response
+
+    async def _call_with_model_fallback(
+        self,
+        request: PromptRequest,
+        provider: str,
+        fallback_model: str,
+        start_time: float,
+        cost_ctx: dict[str, Any],
+        cache: Any,
+        _used_model_fallback: bool = False,
+    ) -> LLMResponse:
+        """Execute LLM call with a fallback model (same provider).
+
+        Args:
+            request: Structured prompt request
+            provider: Provider to use ("anthropic" or "openai")
+            fallback_model: Fallback model ID to use
+            start_time: Original request start time for duration tracking
+            cost_ctx: Cost tracking context
+            cache: LLM cache instance
+            _used_model_fallback: Flag indicating model fallback already used
+
+        Returns:
+            LLMResponse from the fallback model
+        """
+        logger.info(
+            f"[{request.request_id}] Model fallback call: "
+            f"provider={provider}, model={fallback_model}, phase={request.phase}"
+        )
+
+        # Get circuit breaker for provider
+        circuit_breaker = self._get_circuit_breaker(provider)
+
+        # Single attempt for model fallback (no retry loop)
+        with CostTracker.track_call(
+            provider=provider,
+            operation_type="completion",
+            model_name=fallback_model,
+            session_id=cost_ctx.get("session_id"),
+            user_id=cost_ctx.get("user_id"),
+            node_name=cost_ctx.get("node_name"),
+            phase=cost_ctx.get("phase") or request.phase,
+            prompt_type=cost_ctx.get("prompt_type") or request.prompt_type,
+            persona_name=cost_ctx.get("persona_name"),
+            round_number=cost_ctx.get("round_number"),
+            sub_problem_index=cost_ctx.get("sub_problem_index"),
+            metadata={"prompt_name": cost_ctx.get("prompt_name", request.agent_type)},
+        ) as cost_record:
+            # Make the LLM call with circuit breaker protection
+            async def _make_api_call() -> tuple[str, TokenUsage]:
+                if provider == "openai":
+                    openai_client = self._get_openai_client()
+                    return await openai_client.call(  # type: ignore[no-any-return]
+                        model=fallback_model,
+                        messages=[{"role": "user", "content": request.user_message}],
+                        system=request.system,
+                        cache_system=request.cache_system,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        prefill=request.prefill,
+                    )
+                else:
+                    return await self.client.call(
+                        model=fallback_model,
+                        messages=[{"role": "user", "content": request.user_message}],
+                        system=request.system,
+                        cache_system=request.cache_system,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        prefill=request.prefill,
+                    )
+
+            response_text, token_usage = await circuit_breaker.call(_make_api_call)
+
+            # Populate cost record
+            cost_record.input_tokens = token_usage.input_tokens
+            cost_record.output_tokens = token_usage.output_tokens
+            cost_record.cache_creation_tokens = token_usage.cache_creation_tokens
+            cost_record.cache_read_tokens = token_usage.cache_read_tokens
+
+        # Calculate duration from original start
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Build LLMResponse
+        llm_response = LLMResponse(
+            content=response_text,
+            model=fallback_model,
+            token_usage=token_usage,
+            duration_ms=duration_ms,
+            retry_count=0,  # Model fallback is not a retry
+            request_id=request.request_id,
+            phase=request.phase,
+            agent_type=request.agent_type,
+        )
+
+        # Log structured metrics
+        log_llm_call(
+            logger,
+            model=fallback_model,
+            prompt_tokens=token_usage.input_tokens,
+            completion_tokens=token_usage.output_tokens,
+            cost=llm_response.cost_total,
+            duration_ms=duration_ms,
+            phase=request.phase or "unknown",
+            agent=request.agent_type or "unknown",
+            request_id=request.request_id,
+            retry_count=0,
+            output_ratio=f"{token_usage.output_tokens / request.max_tokens:.2%}"
+            if request.max_tokens > 0
+            else "0.00%",
+            max_tokens=request.max_tokens,
+        )
+
+        # Track Prometheus metrics
+        record_llm_request(model=fallback_model, provider=provider, success=True)
+        cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
+        record_llm_cost(model=fallback_model, provider=provider, cost_cents=cost_cents)
 
         # Cache the response
         await cache.set(request, llm_response)

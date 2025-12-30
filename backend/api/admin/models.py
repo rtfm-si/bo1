@@ -1676,3 +1676,298 @@ class FeatureCostBreakdownResponse(BaseModel):
     features: list[FeatureCostBreakdown] = Field(..., description="Feature breakdowns")
     period_days: int = Field(..., description="Analysis period in days")
     total_cost: float = Field(..., description="Total cost across all features (USD)")
+
+
+# ==============================================================================
+# Cost Aggregations Models
+# ==============================================================================
+
+
+class CategoryCostAggregation(BaseModel):
+    """Cost aggregation for a single category.
+
+    Attributes:
+        category: Category name (llm, research, embeddings, etc.)
+        total_cost: Total cost in USD
+        avg_per_session: Average cost per session (None if no sessions)
+        avg_per_user: Average cost per paying user (None if no paying users)
+        session_count: Number of sessions in the period
+        user_count: Number of paying users
+    """
+
+    category: str = Field(..., description="Category name")
+    total_cost: float = Field(..., description="Total cost in USD")
+    avg_per_session: float | None = Field(None, description="Average cost per session")
+    avg_per_user: float | None = Field(None, description="Average cost per paying user")
+    session_count: int = Field(..., description="Number of sessions in period")
+    user_count: int = Field(..., description="Number of paying users")
+
+
+class CostAggregationsResponse(BaseModel):
+    """Response model for cost aggregations endpoint.
+
+    Provides per-category cost breakdowns with per-meeting and per-user averages.
+
+    Attributes:
+        categories: List of per-category aggregations
+        overall: Overall aggregation across all categories
+        period_start: Start of the period (ISO 8601)
+        period_end: End of the period (ISO 8601)
+    """
+
+    categories: list[CategoryCostAggregation] = Field(
+        ..., description="Per-category cost aggregations"
+    )
+    overall: CategoryCostAggregation = Field(..., description="Overall aggregation")
+    period_start: str = Field(..., description="Period start date (ISO 8601)")
+    period_end: str = Field(..., description="Period end date (ISO 8601)")
+
+
+# ==============================================================================
+# Internal Costs Models
+# ==============================================================================
+
+
+class InternalCostItem(BaseModel):
+    """Single internal cost entry.
+
+    Attributes:
+        provider: Provider name
+        prompt_type: Type of prompt (blog_generation, blog_outline, etc.)
+        total_cost: Total cost in USD
+        request_count: Number of API calls
+        input_tokens: Total input tokens
+        output_tokens: Total output tokens
+    """
+
+    provider: str = Field(..., description="Provider name")
+    prompt_type: str | None = Field(None, description="Prompt type")
+    total_cost: float = Field(..., description="Total cost in USD")
+    request_count: int = Field(..., description="Number of requests")
+    input_tokens: int = Field(0, description="Total input tokens")
+    output_tokens: int = Field(0, description="Total output tokens")
+
+
+class InternalCostsByPeriod(BaseModel):
+    """Internal costs aggregated by time period.
+
+    Attributes:
+        today: Costs from today
+        week: Costs from last 7 days
+        month: Costs from last 30 days
+        all_time: All-time costs
+    """
+
+    today: float = Field(0.0, description="Cost today (USD)")
+    week: float = Field(0.0, description="Cost this week (USD)")
+    month: float = Field(0.0, description="Cost this month (USD)")
+    all_time: float = Field(0.0, description="All-time cost (USD)")
+
+
+class InternalCostsResponse(BaseModel):
+    """Response model for internal costs endpoint.
+
+    Attributes:
+        seo: SEO-related internal costs breakdown
+        system: System/background job costs breakdown
+        by_period: Costs aggregated by time period
+        total_usd: Total internal costs
+        total_requests: Total number of API requests
+    """
+
+    seo: list[InternalCostItem] = Field(..., description="SEO costs breakdown")
+    system: list[InternalCostItem] = Field(..., description="System costs breakdown")
+    by_period: InternalCostsByPeriod = Field(..., description="Costs by period")
+    total_usd: float = Field(..., description="Total internal costs (USD)")
+    total_requests: int = Field(..., description="Total number of requests")
+
+
+# ==============================================================================
+# Cache/Model/Feature Insight Drill-Down Models
+# ==============================================================================
+
+
+class CacheEffectivenessBucket(BaseModel):
+    """Cache effectiveness bucket for drill-down.
+
+    Attributes:
+        bucket_label: Human-readable bucket name (e.g., "0-25%", "25-50%")
+        bucket_min: Minimum hit rate in bucket (0.0-1.0)
+        bucket_max: Maximum hit rate in bucket (0.0-1.0)
+        session_count: Number of sessions in this bucket
+        avg_cost: Average cost per session (USD)
+        total_cost: Total cost for sessions in bucket (USD)
+        total_saved: Total cost saved via cache (USD)
+        avg_optimization_savings: Average optimization savings per session (USD)
+    """
+
+    bucket_label: str = Field(..., description="Bucket label (e.g., '0-25%')")
+    bucket_min: float = Field(..., description="Min hit rate in bucket")
+    bucket_max: float = Field(..., description="Max hit rate in bucket")
+    session_count: int = Field(..., description="Number of sessions in bucket")
+    avg_cost: float = Field(..., description="Average cost per session (USD)")
+    total_cost: float = Field(..., description="Total cost for bucket (USD)")
+    total_saved: float = Field(..., description="Total cost saved (USD)")
+    avg_optimization_savings: float = Field(..., description="Avg savings per session (USD)")
+
+
+class CacheEffectivenessResponse(BaseModel):
+    """Response model for cache effectiveness drill-down.
+
+    Attributes:
+        buckets: List of cache hit rate buckets with stats
+        overall_hit_rate: Overall cache hit rate (0.0-1.0)
+        total_sessions: Total sessions analyzed
+        total_cost: Total cost across all sessions (USD)
+        total_saved: Total cost saved across all sessions (USD)
+        period: Time period filter applied
+        min_sample_warning: Warning if sample size is low
+    """
+
+    buckets: list[CacheEffectivenessBucket] = Field(..., description="Hit rate buckets")
+    overall_hit_rate: float = Field(..., description="Overall cache hit rate (0.0-1.0)")
+    total_sessions: int = Field(..., description="Total sessions analyzed")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    total_saved: float = Field(..., description="Total cost saved (USD)")
+    period: str = Field(..., description="Time period filter applied")
+    min_sample_warning: str | None = Field(None, description="Warning if sample size is low")
+
+
+class ModelImpactItem(BaseModel):
+    """Model impact stats for a single model.
+
+    Attributes:
+        model_name: Normalized model name
+        model_display: Display-friendly model name
+        request_count: Number of API requests
+        total_cost: Total cost (USD)
+        avg_cost_per_request: Average cost per request (USD)
+        cache_hit_rate: Cache hit rate for this model (0.0-1.0)
+        total_tokens: Total tokens used
+    """
+
+    model_name: str = Field(..., description="Normalized model name")
+    model_display: str = Field(..., description="Display-friendly model name")
+    request_count: int = Field(..., description="Number of API requests")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    avg_cost_per_request: float = Field(..., description="Avg cost per request (USD)")
+    cache_hit_rate: float = Field(..., description="Cache hit rate (0.0-1.0)")
+    total_tokens: int = Field(..., description="Total tokens used")
+
+
+class ModelImpactResponse(BaseModel):
+    """Response model for model impact drill-down.
+
+    Attributes:
+        models: List of per-model stats
+        total_cost: Total cost across all models (USD)
+        total_requests: Total API requests
+        cost_if_all_opus: Hypothetical cost if all were Opus
+        cost_if_all_haiku: Hypothetical cost if all were Haiku
+        savings_from_model_mix: Actual savings from using model mix
+        period: Time period filter applied
+    """
+
+    models: list[ModelImpactItem] = Field(..., description="Per-model stats")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    total_requests: int = Field(..., description="Total API requests")
+    cost_if_all_opus: float = Field(..., description="Hypothetical cost if all Opus (USD)")
+    cost_if_all_haiku: float = Field(..., description="Hypothetical cost if all Haiku (USD)")
+    savings_from_model_mix: float = Field(..., description="Savings from model mix (USD)")
+    period: str = Field(..., description="Time period filter applied")
+
+
+class FeatureEfficiencyItem(BaseModel):
+    """Feature efficiency stats for a single feature.
+
+    Attributes:
+        feature: Feature name
+        request_count: Number of API requests
+        total_cost: Total cost (USD)
+        avg_cost: Average cost per request (USD)
+        cache_hit_rate: Cache hit rate for this feature (0.0-1.0)
+        unique_sessions: Number of unique sessions using feature
+        cost_per_session: Average cost per session using feature (USD)
+    """
+
+    feature: str = Field(..., description="Feature name")
+    request_count: int = Field(..., description="Number of API requests")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    avg_cost: float = Field(..., description="Avg cost per request (USD)")
+    cache_hit_rate: float = Field(..., description="Cache hit rate (0.0-1.0)")
+    unique_sessions: int = Field(..., description="Unique sessions using feature")
+    cost_per_session: float = Field(..., description="Avg cost per session (USD)")
+
+
+class FeatureEfficiencyResponse(BaseModel):
+    """Response model for feature efficiency drill-down.
+
+    Attributes:
+        features: List of per-feature stats
+        total_cost: Total cost across all features (USD)
+        total_requests: Total API requests
+        period: Time period filter applied
+    """
+
+    features: list[FeatureEfficiencyItem] = Field(..., description="Per-feature stats")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    total_requests: int = Field(..., description="Total API requests")
+    period: str = Field(..., description="Time period filter applied")
+
+
+class TuningRecommendation(BaseModel):
+    """Single tuning recommendation.
+
+    Attributes:
+        area: Area of recommendation (cache, model, feature)
+        current_value: Current setting or metric value
+        recommended_value: Recommended setting or target
+        impact_description: Description of expected impact
+        estimated_savings_usd: Estimated monthly savings (USD)
+        confidence: Confidence level (low, medium, high)
+    """
+
+    area: str = Field(..., description="Area: cache, model, or feature")
+    current_value: str = Field(..., description="Current setting or metric")
+    recommended_value: str = Field(..., description="Recommended setting")
+    impact_description: str = Field(..., description="Expected impact description")
+    estimated_savings_usd: float | None = Field(None, description="Estimated monthly savings")
+    confidence: str = Field(..., description="Confidence: low, medium, high")
+
+
+class TuningRecommendationsResponse(BaseModel):
+    """Response model for tuning recommendations endpoint.
+
+    Attributes:
+        recommendations: List of tuning recommendations
+        analysis_period_days: Days of data analyzed
+        data_quality: Quality of underlying data (sufficient, limited, insufficient)
+    """
+
+    recommendations: list[TuningRecommendation] = Field(..., description="Recommendations")
+    analysis_period_days: int = Field(..., description="Days of data analyzed")
+    data_quality: str = Field(..., description="Data quality: sufficient, limited, insufficient")
+
+
+class QualityIndicatorsResponse(BaseModel):
+    """Response model for quality correlation indicators.
+
+    Attributes:
+        overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)
+        session_continuation_rate: Rate of session continuation after response (0.0-1.0)
+        correlation_score: Correlation between cache hit and continuation (-1.0 to 1.0)
+        sample_size: Number of sessions in analysis
+        cached_continuation_rate: Continuation rate for cached responses (0.0-1.0)
+        uncached_continuation_rate: Continuation rate for uncached responses (0.0-1.0)
+        quality_assessment: Human-readable quality assessment
+        period: Time period filter applied
+    """
+
+    overall_cache_hit_rate: float = Field(..., description="Overall cache hit rate")
+    session_continuation_rate: float = Field(..., description="Session continuation rate")
+    correlation_score: float | None = Field(None, description="Cache-continuation correlation")
+    sample_size: int = Field(..., description="Sessions analyzed")
+    cached_continuation_rate: float | None = Field(None, description="Continuation for cached")
+    uncached_continuation_rate: float | None = Field(None, description="Continuation for uncached")
+    quality_assessment: str = Field(..., description="Human-readable assessment")
+    period: str = Field(..., description="Time period filter applied")

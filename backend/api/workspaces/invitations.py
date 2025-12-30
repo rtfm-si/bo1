@@ -14,12 +14,20 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.workspace_auth import (
     WorkspaceAccessChecker,
     WorkspacePermissionChecker,
+)
+from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+    ERROR_409_RESPONSE,
+    ERROR_410_RESPONSE,
 )
 from backend.api.workspaces.models import (
     InvitationAcceptRequest,
@@ -39,6 +47,7 @@ from backend.services.invitation_service import (
     InvitationNotFoundError,
 )
 from backend.services.workspace_auth import Permission
+from bo1.logging.errors import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +64,9 @@ user_router = APIRouter(prefix="/v1/invitations", tags=["invitations"])
     status_code=201,
     summary="Send workspace invitation",
     dependencies=[Depends(WorkspacePermissionChecker(Permission.MANAGE_MEMBERS))],
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 409: ERROR_409_RESPONSE},
 )
+@handle_api_errors("send invitation")
 async def send_invitation(
     request: InvitationCreate,
     workspace_id: uuid.UUID = Path(...),
@@ -84,9 +95,10 @@ async def send_invitation(
 
     # Prevent admins from inviting owners
     if request.role == MemberRole.OWNER:
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot invite users as owners",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Cannot invite users as owners",
+            status=403,
         )
 
     # Admins can only invite members, not other admins
@@ -94,9 +106,10 @@ async def send_invitation(
 
     actor_role = workspace_repository.get_member_role(workspace_id, actor_id)
     if actor_role == MemberRole.ADMIN and request.role not in [MemberRole.MEMBER]:
-        raise HTTPException(
-            status_code=403,
-            detail="Admins can only invite members",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Admins can only invite members",
+            status=403,
         )
 
     try:
@@ -108,11 +121,11 @@ async def send_invitation(
         )
         return invitation
     except AlreadyMemberError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        raise http_error(ErrorCode.API_CONFLICT, str(e), status=409) from e
     except DuplicateInvitationError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        raise http_error(ErrorCode.API_CONFLICT, str(e), status=409) from e
     except InvitationError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, str(e), status=400) from e
 
 
 @workspace_router.get(
@@ -145,7 +158,9 @@ async def list_invitations(
     status_code=204,
     summary="Revoke invitation",
     dependencies=[Depends(WorkspacePermissionChecker(Permission.MANAGE_MEMBERS))],
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("revoke invitation")
 async def revoke_invitation(
     workspace_id: uuid.UUID = Path(...),
     invitation_id: uuid.UUID = Path(...),
@@ -169,9 +184,10 @@ async def revoke_invitation(
         actor_id=user["user_id"],
     )
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail="Invitation not found or already processed",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Invitation not found or already processed",
+            status=404,
         )
 
 
@@ -210,7 +226,9 @@ async def get_pending_invitations(
     "/{token}",
     response_model=InvitationResponse,
     summary="Get invitation by token",
+    responses={404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("get invitation")
 async def get_invitation(
     token: str = Path(..., description="Invitation token"),
 ) -> InvitationResponse:
@@ -230,7 +248,7 @@ async def get_invitation(
     """
     invitation = invitation_service.get_invitation_by_token(token)
     if not invitation:
-        raise HTTPException(status_code=404, detail="Invitation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Invitation not found", status=404)
     return invitation
 
 
@@ -238,7 +256,9 @@ async def get_invitation(
     "/accept",
     response_model=InvitationResponse,
     summary="Accept invitation",
+    responses={400: ERROR_400_RESPONSE, 404: ERROR_404_RESPONSE, 410: ERROR_410_RESPONSE},
 )
+@handle_api_errors("accept invitation")
 async def accept_invitation(
     request: InvitationAcceptRequest,
     user: dict[str, Any] = Depends(get_current_user),
@@ -270,18 +290,20 @@ async def accept_invitation(
         )
         return invitation
     except InvitationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise http_error(ErrorCode.API_NOT_FOUND, str(e), status=404) from e
     except InvitationExpiredError as e:
-        raise HTTPException(status_code=410, detail=str(e)) from e
+        raise http_error(ErrorCode.API_GONE, str(e), status=410) from e
     except InvitationInvalidError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, str(e), status=400) from e
 
 
 @user_router.post(
     "/decline",
     status_code=204,
     summary="Decline invitation",
+    responses={400: ERROR_400_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("decline invitation")
 async def decline_invitation(
     request: InvitationDeclineRequest,
 ) -> None:
@@ -300,6 +322,6 @@ async def decline_invitation(
     try:
         invitation_service.decline_invitation(request.token)
     except InvitationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise http_error(ErrorCode.API_NOT_FOUND, str(e), status=404) from e
     except InvitationInvalidError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, str(e), status=400) from e

@@ -1,5 +1,6 @@
-# SuperTokens Core 9.3.0 (compatible with Python SDK 0.29.x - CDI 5.2)
-FROM registry.supertokens.io/supertokens/supertokens-postgresql:9.3.0
+# SuperTokens Core 10.1.4 (compatible with Python SDK 0.30.x - CDI 5.3)
+# Core 10.x adds WebAuthn/Passkeys support matching Python SDK 0.30.x
+FROM registry.supertokens.io/supertokens/supertokens-postgresql:10.1.4
 
 # Install curl for healthcheck
 USER root

@@ -19,6 +19,36 @@
 	// State for tour restart
 	let isRestartingTour = $state(false);
 
+	// State for working pattern
+	let workingDays = $state<number[]>([1, 2, 3, 4, 5]); // Default Mon-Fri
+	let isLoadingPattern = $state(true);
+	let isSavingPattern = $state(false);
+	let patternError = $state<string | null>(null);
+
+	// State for heatmap history depth
+	let heatmapDepth = $state<1 | 3 | 6>(3); // Default 3 months
+	let isLoadingDepth = $state(true);
+	let isSavingDepth = $state(false);
+	let depthError = $state<string | null>(null);
+
+	// Depth options
+	const depthOptions: { value: 1 | 3 | 6; label: string }[] = [
+		{ value: 1, label: '1 month' },
+		{ value: 3, label: '3 months' },
+		{ value: 6, label: '6 months' }
+	];
+
+	// Day labels (ISO weekday: 1=Mon, 7=Sun)
+	const dayLabels = [
+		{ value: 1, label: 'Mon' },
+		{ value: 2, label: 'Tue' },
+		{ value: 3, label: 'Wed' },
+		{ value: 4, label: 'Thu' },
+		{ value: 5, label: 'Fri' },
+		{ value: 6, label: 'Sat' },
+		{ value: 7, label: 'Sun' }
+	];
+
 	// Restart onboarding tour
 	async function restartTour() {
 		isRestartingTour = true;
@@ -33,8 +63,62 @@
 		}
 	}
 
-	// Load preferences on mount
+	// Update heatmap depth and auto-save
+	async function selectHeatmapDepth(depth: 1 | 3 | 6) {
+		if (isSavingDepth || depth === heatmapDepth) return;
+
+		const previousDepth = heatmapDepth;
+		heatmapDepth = depth; // Optimistic update
+		isSavingDepth = true;
+		depthError = null;
+
+		try {
+			const result = await apiClient.updateHeatmapDepth(depth);
+			heatmapDepth = result.depth.history_months;
+		} catch (e) {
+			heatmapDepth = previousDepth; // Revert on error
+			depthError = e instanceof Error ? e.message : 'Failed to save heatmap depth';
+		} finally {
+			isSavingDepth = false;
+		}
+	}
+
+	// Toggle working day and auto-save
+	async function toggleWorkingDay(day: number) {
+		if (isSavingPattern) return;
+
+		const previousDays = [...workingDays];
+		let newDays: number[];
+
+		if (workingDays.includes(day)) {
+			// Don't allow removing last day
+			if (workingDays.length <= 1) {
+				patternError = 'At least one working day is required';
+				return;
+			}
+			newDays = workingDays.filter((d) => d !== day);
+		} else {
+			newDays = [...workingDays, day].sort((a, b) => a - b);
+		}
+
+		workingDays = newDays; // Optimistic update
+		isSavingPattern = true;
+		patternError = null;
+
+		try {
+			const result = await apiClient.updateWorkingPattern(newDays);
+			workingDays = result.pattern.working_days;
+		} catch (e) {
+			workingDays = previousDays; // Revert on error
+			patternError = e instanceof Error ? e.message : 'Failed to save working days';
+		} finally {
+			isSavingPattern = false;
+		}
+	}
+
+	// Load preferences, working pattern, and heatmap depth on mount
 	onMount(async () => {
+		// Load meeting preferences
 		try {
 			const prefs = await apiClient.getUserPreferences();
 			skipClarification = prefs.skip_clarification;
@@ -42,6 +126,26 @@
 			prefsError = e instanceof Error ? e.message : 'Failed to load preferences';
 		} finally {
 			isLoadingPrefs = false;
+		}
+
+		// Load working pattern
+		try {
+			const patternResp = await apiClient.getWorkingPattern();
+			workingDays = patternResp.pattern.working_days;
+		} catch (e) {
+			patternError = e instanceof Error ? e.message : 'Failed to load working pattern';
+		} finally {
+			isLoadingPattern = false;
+		}
+
+		// Load heatmap depth
+		try {
+			const depthResp = await apiClient.getHeatmapDepth();
+			heatmapDepth = depthResp.depth.history_months;
+		} catch (e) {
+			depthError = e instanceof Error ? e.message : 'Failed to load heatmap depth';
+		} finally {
+			isLoadingDepth = false;
 		}
 	});
 
@@ -174,6 +278,86 @@
 					Skipping them may result in more generic recommendations unless you've provided detailed business context.
 				</p>
 			</div>
+		{/if}
+	</div>
+
+	<!-- Working Pattern Section -->
+	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+			Working Days
+		</h2>
+		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			Select which days you typically work. Non-working days are greyed out in activity visualizations.
+		</p>
+
+		{#if patternError}
+			<Alert variant="error" class="mb-4" dismissable ondismiss={() => (patternError = null)}>{patternError}</Alert>
+		{/if}
+
+		{#if isLoadingPattern}
+			<div class="flex items-center justify-center py-4">
+				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+			</div>
+		{:else}
+			<div class="flex flex-wrap gap-2">
+				{#each dayLabels as { value, label }}
+					<button
+						type="button"
+						disabled={isSavingPattern}
+						onclick={() => toggleWorkingDay(value)}
+						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
+							{workingDays.includes(value)
+								? 'bg-brand-600 text-white hover:bg-brand-700'
+								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+							{isSavingPattern ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
+					>
+						{label}
+					</button>
+				{/each}
+			</div>
+			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+				Changes save automatically. At least one day must be selected.
+			</p>
+		{/if}
+	</div>
+
+	<!-- Activity Heatmap Section -->
+	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+			Activity Heatmap
+		</h2>
+		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			Choose how much history to display in the activity heatmap on your dashboard.
+		</p>
+
+		{#if depthError}
+			<Alert variant="error" class="mb-4" dismissable ondismiss={() => (depthError = null)}>{depthError}</Alert>
+		{/if}
+
+		{#if isLoadingDepth}
+			<div class="flex items-center justify-center py-4">
+				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+			</div>
+		{:else}
+			<div class="flex flex-wrap gap-2">
+				{#each depthOptions as { value, label }}
+					<button
+						type="button"
+						disabled={isSavingDepth}
+						onclick={() => selectHeatmapDepth(value)}
+						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
+							{heatmapDepth === value
+								? 'bg-brand-600 text-white hover:bg-brand-700'
+								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+							{isSavingDepth ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
+					>
+						{label}
+					</button>
+				{/each}
+			</div>
+			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+				Changes save automatically. A shorter history shows a more compact heatmap.
+			</p>
 		{/if}
 	</div>
 

@@ -9,9 +9,9 @@ import logging
 from datetime import UTC, datetime
 from typing import Any  # noqa: F401
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
+from psycopg2.extras import Json
 from pydantic import BaseModel, Field
-from sqlalchemy import text
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import (
@@ -22,7 +22,7 @@ from backend.api.middleware.rate_limit import (
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.agents.researcher import ResearcherAgent
 from bo1.billing import PlanConfig
 from bo1.logging.errors import ErrorCode, log_error
@@ -253,19 +253,18 @@ def _get_monthly_usage(user_id: str) -> int:
     Returns:
         Number of analyses this month
     """
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM seo_trend_analyses
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
-            """),
-            {"user_id": user_id},
-        )
-        row = result.fetchone()
-        return row[0] if row else 0
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+            return row[0] if row else 0
 
 
 def _save_analysis(
@@ -283,27 +282,20 @@ def _save_analysis(
     Returns:
         Analysis ID
     """
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 INSERT INTO seo_trend_analyses
                 (user_id, workspace_id, keywords, industry, results_json)
-                VALUES (:user_id, :workspace_id, :keywords, :industry, :results_json)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
-            """),
-            {
-                "user_id": user_id,
-                "workspace_id": workspace_id,
-                "keywords": keywords,
-                "industry": industry,
-                "results_json": results,
-            },
-        )
-        row = result.fetchone()
-        session.commit()
-        return row[0]
+                """,
+                (user_id, workspace_id, keywords, industry, Json(results)),
+            )
+            row = cursor.fetchone()
+            conn.commit()
+            return row[0]
 
 
 async def _perform_trend_analysis(
@@ -431,9 +423,10 @@ async def analyze_trends(
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise HTTPException(
-            status_code=403,
-            detail="SEO tools are not available on your plan. Please upgrade to access this feature.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan. Please upgrade to access this feature.",
+            status=403,
         )
 
     # Check monthly limit
@@ -441,9 +434,10 @@ async def analyze_trends(
     usage = _get_monthly_usage(user_id)
 
     if not PlanConfig.is_unlimited(limit) and usage >= limit:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Monthly SEO analysis limit reached ({limit}). Upgrade your plan for more analyses.",
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            f"Monthly SEO analysis limit reached ({limit}). Upgrade your plan for more analyses.",
+            status=429,
         )
 
     # Perform analysis
@@ -491,40 +485,39 @@ async def get_history(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Get total count
+            cursor.execute(
+                "SELECT COUNT(*) FROM seo_trend_analyses WHERE user_id = %s",
+                (user_id,),
+            )
+            total = cursor.fetchone()[0]
 
-    with db_session() as session:
-        # Get total count
-        count_result = session.execute(
-            text("SELECT COUNT(*) FROM seo_trend_analyses WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        )
-        total = count_result.fetchone()[0]
-
-        # Get paginated results
-        result = session.execute(
-            text("""
+            # Get paginated results
+            cursor.execute(
+                """
                 SELECT id, keywords, industry, results_json, created_at
                 FROM seo_trend_analyses
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """),
-            {"user_id": user_id, "limit": limit, "offset": offset},
-        )
-
-        analyses = []
-        for row in result.fetchall():
-            results_json = row[3] or {}
-            analyses.append(
-                HistoryEntry(
-                    id=row[0],
-                    keywords=row[1] or [],
-                    industry=row[2],
-                    executive_summary=results_json.get("executive_summary", ""),
-                    created_at=row[4],
-                )
+                LIMIT %s OFFSET %s
+                """,
+                (user_id, limit, offset),
             )
+
+            analyses = []
+            for row in cursor.fetchall():
+                results_json = row[3] or {}
+                analyses.append(
+                    HistoryEntry(
+                        id=row[0],
+                        keywords=row[1] or [],
+                        industry=row[2],
+                        executive_summary=results_json.get("executive_summary", ""),
+                        created_at=row[4],
+                    )
+                )
 
     # Calculate remaining this month
     tier_limit = PlanConfig.get_seo_analyses_limit(tier)
@@ -557,41 +550,40 @@ async def list_topics(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Get total count
+            cursor.execute(
+                "SELECT COUNT(*) FROM seo_topics WHERE user_id = %s",
+                (user_id,),
+            )
+            total = cursor.fetchone()[0]
 
-    with db_session() as session:
-        # Get total count
-        count_result = session.execute(
-            text("SELECT COUNT(*) FROM seo_topics WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        )
-        total = count_result.fetchone()[0]
-
-        # Get paginated results
-        result = session.execute(
-            text("""
+            # Get paginated results
+            cursor.execute(
+                """
                 SELECT id, keyword, status, source_analysis_id, notes, created_at, updated_at
                 FROM seo_topics
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """),
-            {"user_id": user_id, "limit": limit, "offset": offset},
-        )
-
-        topics = []
-        for row in result.fetchall():
-            topics.append(
-                SeoTopic(
-                    id=row[0],
-                    keyword=row[1],
-                    status=row[2],
-                    source_analysis_id=row[3],
-                    notes=row[4],
-                    created_at=row[5],
-                    updated_at=row[6],
-                )
+                LIMIT %s OFFSET %s
+                """,
+                (user_id, limit, offset),
             )
+
+            topics = []
+            for row in cursor.fetchall():
+                topics.append(
+                    SeoTopic(
+                        id=row[0],
+                        keyword=row[1],
+                        status=row[2],
+                        source_analysis_id=row[3],
+                        notes=row[4],
+                        created_at=row[5],
+                        updated_at=row[6],
+                    )
+                )
 
     return SeoTopicListResponse(topics=topics, total=total)
 
@@ -610,48 +602,43 @@ async def create_topic(
     user_id = extract_user_id(user)
     workspace_id = getattr(request.state, "workspace_id", None)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # If source_analysis_id provided, verify it belongs to user
-        if body.source_analysis_id:
-            verify_result = session.execute(
-                text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # If source_analysis_id provided, verify it belongs to user
+            if body.source_analysis_id:
+                cursor.execute(
+                    """
                     SELECT id FROM seo_trend_analyses
-                    WHERE id = :id AND user_id = :user_id
-                """),
-                {"id": body.source_analysis_id, "user_id": user_id},
-            )
-            if not verify_result.fetchone():
-                raise HTTPException(status_code=404, detail="Source analysis not found")
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (body.source_analysis_id, user_id),
+                )
+                if not cursor.fetchone():
+                    raise http_error(
+                        ErrorCode.API_NOT_FOUND, "Source analysis not found", status=404
+                    )
 
-        result = session.execute(
-            text("""
+            cursor.execute(
+                """
                 INSERT INTO seo_topics
                 (user_id, workspace_id, keyword, status, source_analysis_id, notes)
-                VALUES (:user_id, :workspace_id, :keyword, 'researched', :source_analysis_id, :notes)
+                VALUES (%s, %s, %s, 'researched', %s, %s)
                 RETURNING id, keyword, status, source_analysis_id, notes, created_at, updated_at
-            """),
-            {
-                "user_id": user_id,
-                "workspace_id": workspace_id,
-                "keyword": body.keyword.strip(),
-                "source_analysis_id": body.source_analysis_id,
-                "notes": body.notes,
-            },
-        )
-        row = result.fetchone()
-        session.commit()
+                """,
+                (user_id, workspace_id, body.keyword.strip(), body.source_analysis_id, body.notes),
+            )
+            row = cursor.fetchone()
+            conn.commit()
 
-        return SeoTopic(
-            id=row[0],
-            keyword=row[1],
-            status=row[2],
-            source_analysis_id=row[3],
-            notes=row[4],
-            created_at=row[5],
-            updated_at=row[6],
-        )
+            return SeoTopic(
+                id=row[0],
+                keyword=row[1],
+                status=row[2],
+                source_analysis_id=row[3],
+                notes=row[4],
+                created_at=row[5],
+                updated_at=row[6],
+            )
 
 
 @router.patch("/topics/{topic_id}", response_model=SeoTopic)
@@ -671,57 +658,58 @@ async def update_topic(
     # Validate status if provided
     valid_statuses = ["researched", "writing", "published"]
     if body.status and body.status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
+            status=400,
         )
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Check topic exists and belongs to user
+            cursor.execute(
+                "SELECT id FROM seo_topics WHERE id = %s AND user_id = %s",
+                (topic_id, user_id),
+            )
+            if not cursor.fetchone():
+                raise http_error(ErrorCode.API_NOT_FOUND, "Topic not found", status=404)
 
-    with db_session() as session:
-        # Check topic exists and belongs to user
-        check_result = session.execute(
-            text("""
-                SELECT id FROM seo_topics WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": topic_id, "user_id": user_id},
-        )
-        if not check_result.fetchone():
-            raise HTTPException(status_code=404, detail="Topic not found")
+            # Build dynamic update query
+            updates = ["updated_at = now()"]
+            params: list = []
 
-        # Build dynamic update query
-        updates = ["updated_at = now()"]
-        params: dict = {"id": topic_id, "user_id": user_id}
+            if body.status:
+                updates.append("status = %s")
+                params.append(body.status)
 
-        if body.status:
-            updates.append("status = :status")
-            params["status"] = body.status
+            if body.notes is not None:
+                updates.append("notes = %s")
+                params.append(body.notes)
 
-        if body.notes is not None:
-            updates.append("notes = :notes")
-            params["notes"] = body.notes
+            # Add WHERE clause params
+            params.extend([topic_id, user_id])
 
-        result = session.execute(
-            text(f"""
+            cursor.execute(
+                f"""
                 UPDATE seo_topics
                 SET {", ".join(updates)}
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = %s AND user_id = %s
                 RETURNING id, keyword, status, source_analysis_id, notes, created_at, updated_at
-            """),
-            params,
-        )
-        row = result.fetchone()
-        session.commit()
+                """,
+                params,
+            )
+            row = cursor.fetchone()
+            conn.commit()
 
-        return SeoTopic(
-            id=row[0],
-            keyword=row[1],
-            status=row[2],
-            source_analysis_id=row[3],
-            notes=row[4],
-            created_at=row[5],
-            updated_at=row[6],
-        )
+            return SeoTopic(
+                id=row[0],
+                keyword=row[1],
+                status=row[2],
+                source_analysis_id=row[3],
+                notes=row[4],
+                created_at=row[5],
+                updated_at=row[6],
+            )
 
 
 @router.delete("/topics/{topic_id}", status_code=204, response_model=None)
@@ -737,19 +725,18 @@ async def delete_topic(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
-                DELETE FROM seo_topics WHERE id = :id AND user_id = :user_id
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM seo_topics WHERE id = %s AND user_id = %s
                 RETURNING id
-            """),
-            {"id": topic_id, "user_id": user_id},
-        )
-        if not result.fetchone():
-            raise HTTPException(status_code=404, detail="Topic not found")
-        session.commit()
+                """,
+                (topic_id, user_id),
+            )
+            if not cursor.fetchone():
+                raise http_error(ErrorCode.API_NOT_FOUND, "Topic not found", status=404)
+            conn.commit()
 
 
 # =============================================================================
@@ -802,19 +789,18 @@ class SeoBlogArticleListResponse(BaseModel):
 
 def _get_monthly_article_usage(user_id: str) -> int:
     """Get user's SEO article generation usage for current month."""
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM seo_blog_articles
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
-            """),
-            {"user_id": user_id},
-        )
-        row = result.fetchone()
-        return row[0] if row else 0
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+            return row[0] if row else 0
 
 
 # =============================================================================
@@ -843,8 +829,6 @@ async def generate_article(
     Rate limited to 2 requests per minute.
     Tier limits: free=1/month, starter=5/month, pro=unlimited.
     """
-    from sqlalchemy import text
-
     from backend.services.content_generator import generate_blog_post
 
     user_id = extract_user_id(user)
@@ -852,35 +836,38 @@ async def generate_article(
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise HTTPException(
-            status_code=403,
-            detail="SEO tools are not available on your plan. Please upgrade to access this feature.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan. Please upgrade to access this feature.",
+            status=403,
         )
 
     # Check monthly limit
-    limit = PlanConfig.get_seo_articles_limit(tier)
+    monthly_limit = PlanConfig.get_seo_articles_limit(tier)
     usage = _get_monthly_article_usage(user_id)
 
-    if not PlanConfig.is_unlimited(limit) and usage >= limit:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Monthly SEO article limit reached ({limit}). Upgrade your plan for more generations.",
+    if not PlanConfig.is_unlimited(monthly_limit) and usage >= monthly_limit:
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            f"Monthly SEO article limit reached ({monthly_limit}). Upgrade your plan for more generations.",
+            status=429,
         )
 
     # Get topic and verify ownership
-    with db_session() as session:
-        topic_result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT id, keyword, status FROM seo_topics
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": topic_id, "user_id": user_id},
-        )
-        topic_row = topic_result.fetchone()
-        if not topic_row:
-            raise HTTPException(status_code=404, detail="Topic not found")
+                WHERE id = %s AND user_id = %s
+                """,
+                (topic_id, user_id),
+            )
+            topic_row = cursor.fetchone()
+            if not topic_row:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Topic not found", status=404)
 
-        keyword = topic_row[1]
+            keyword = topic_row[1]
 
     # Generate blog content
     logger.info(f"Generating SEO article for user {user_id[:8]}... keyword={keyword}")
@@ -895,58 +882,61 @@ async def generate_article(
             topic_id=topic_id,
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"Article generation failed: {e}") from e
+        raise http_error(
+            ErrorCode.LLM_API_ERROR, f"Article generation failed: {e}", status=500
+        ) from e
 
     # Get workspace ID if in workspace context
     workspace_id = getattr(request.state, "workspace_id", None)
 
     # Save article and update topic status
-    with db_session() as session:
-        # Insert article
-        article_result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Insert article
+            cursor.execute(
+                """
                 INSERT INTO seo_blog_articles
                 (user_id, workspace_id, topic_id, title, excerpt, content, meta_title, meta_description, status)
-                VALUES (:user_id, :workspace_id, :topic_id, :title, :excerpt, :content, :meta_title, :meta_description, 'draft')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'draft')
                 RETURNING id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
-            """),
-            {
-                "user_id": user_id,
-                "workspace_id": workspace_id,
-                "topic_id": topic_id,
-                "title": blog_content.title,
-                "excerpt": blog_content.excerpt,
-                "content": blog_content.content,
-                "meta_title": blog_content.meta_title,
-                "meta_description": blog_content.meta_description,
-            },
-        )
-        article_row = article_result.fetchone()
+                """,
+                (
+                    user_id,
+                    workspace_id,
+                    topic_id,
+                    blog_content.title,
+                    blog_content.excerpt,
+                    blog_content.content,
+                    blog_content.meta_title,
+                    blog_content.meta_description,
+                ),
+            )
+            article_row = cursor.fetchone()
 
-        # Update topic status to 'writing'
-        session.execute(
-            text("""
+            # Update topic status to 'writing'
+            cursor.execute(
+                """
                 UPDATE seo_topics SET status = 'writing', updated_at = now()
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": topic_id, "user_id": user_id},
-        )
-        session.commit()
+                WHERE id = %s AND user_id = %s
+                """,
+                (topic_id, user_id),
+            )
+            conn.commit()
 
-        logger.info(f"Generated article id={article_row[0]} for topic {topic_id}")
+            logger.info(f"Generated article id={article_row[0]} for topic {topic_id}")
 
-        return SeoBlogArticle(
-            id=article_row[0],
-            topic_id=article_row[1],
-            title=article_row[2],
-            excerpt=article_row[3],
-            content=article_row[4],
-            meta_title=article_row[5],
-            meta_description=article_row[6],
-            status=article_row[7],
-            created_at=article_row[8],
-            updated_at=article_row[9],
-        )
+            return SeoBlogArticle(
+                id=article_row[0],
+                topic_id=article_row[1],
+                title=article_row[2],
+                excerpt=article_row[3],
+                content=article_row[4],
+                meta_title=article_row[5],
+                meta_description=article_row[6],
+                status=article_row[7],
+                created_at=article_row[8],
+                updated_at=article_row[9],
+            )
 
 
 @router.get("/articles", response_model=SeoBlogArticleListResponse)
@@ -964,44 +954,43 @@ async def list_articles(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Get total count
+            cursor.execute(
+                "SELECT COUNT(*) FROM seo_blog_articles WHERE user_id = %s",
+                (user_id,),
+            )
+            total = cursor.fetchone()[0]
 
-    with db_session() as session:
-        # Get total count
-        count_result = session.execute(
-            text("SELECT COUNT(*) FROM seo_blog_articles WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        )
-        total = count_result.fetchone()[0]
-
-        # Get paginated results
-        result = session.execute(
-            text("""
+            # Get paginated results
+            cursor.execute(
+                """
                 SELECT id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
                 FROM seo_blog_articles
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """),
-            {"user_id": user_id, "limit": limit, "offset": offset},
-        )
-
-        articles = []
-        for row in result.fetchall():
-            articles.append(
-                SeoBlogArticle(
-                    id=row[0],
-                    topic_id=row[1],
-                    title=row[2],
-                    excerpt=row[3],
-                    content=row[4],
-                    meta_title=row[5],
-                    meta_description=row[6],
-                    status=row[7],
-                    created_at=row[8],
-                    updated_at=row[9],
-                )
+                LIMIT %s OFFSET %s
+                """,
+                (user_id, limit, offset),
             )
+
+            articles = []
+            for row in cursor.fetchall():
+                articles.append(
+                    SeoBlogArticle(
+                        id=row[0],
+                        topic_id=row[1],
+                        title=row[2],
+                        excerpt=row[3],
+                        content=row[4],
+                        meta_title=row[5],
+                        meta_description=row[6],
+                        status=row[7],
+                        created_at=row[8],
+                        updated_at=row[9],
+                    )
+                )
 
     # Calculate remaining this month
     tier_limit = PlanConfig.get_seo_articles_limit(tier)
@@ -1025,33 +1014,32 @@ async def get_article(
     """Get a single article by ID."""
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
                 FROM seo_blog_articles
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Article not found")
+                WHERE id = %s AND user_id = %s
+                """,
+                (article_id, user_id),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-        return SeoBlogArticle(
-            id=row[0],
-            topic_id=row[1],
-            title=row[2],
-            excerpt=row[3],
-            content=row[4],
-            meta_title=row[5],
-            meta_description=row[6],
-            status=row[7],
-            created_at=row[8],
-            updated_at=row[9],
-        )
+            return SeoBlogArticle(
+                id=row[0],
+                topic_id=row[1],
+                title=row[2],
+                excerpt=row[3],
+                content=row[4],
+                meta_title=row[5],
+                meta_description=row[6],
+                status=row[7],
+                created_at=row[8],
+                updated_at=row[9],
+            )
 
 
 @router.patch("/articles/{article_id}", response_model=SeoBlogArticle)
@@ -1072,91 +1060,92 @@ async def update_article(
     # Validate status if provided
     valid_statuses = ["draft", "published"]
     if body.status and body.status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
+            status=400,
         )
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Check article exists and belongs to user
+            cursor.execute(
+                "SELECT id, topic_id, status FROM seo_blog_articles WHERE id = %s AND user_id = %s",
+                (article_id, user_id),
+            )
+            existing = cursor.fetchone()
+            if not existing:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-    with db_session() as session:
-        # Check article exists and belongs to user
-        check_result = session.execute(
-            text("""
-                SELECT id, topic_id, status FROM seo_blog_articles WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        existing = check_result.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Article not found")
+            topic_id = existing[1]
+            old_status = existing[2]
 
-        topic_id = existing[1]
-        old_status = existing[2]
+            # Build dynamic update query
+            updates = ["updated_at = now()"]
+            params: list = []
 
-        # Build dynamic update query
-        updates = ["updated_at = now()"]
-        params: dict = {"id": article_id, "user_id": user_id}
+            if body.title is not None:
+                updates.append("title = %s")
+                params.append(body.title)
 
-        if body.title is not None:
-            updates.append("title = :title")
-            params["title"] = body.title
+            if body.excerpt is not None:
+                updates.append("excerpt = %s")
+                params.append(body.excerpt)
 
-        if body.excerpt is not None:
-            updates.append("excerpt = :excerpt")
-            params["excerpt"] = body.excerpt
+            if body.content is not None:
+                updates.append("content = %s")
+                params.append(body.content)
 
-        if body.content is not None:
-            updates.append("content = :content")
-            params["content"] = body.content
+            if body.meta_title is not None:
+                updates.append("meta_title = %s")
+                params.append(body.meta_title)
 
-        if body.meta_title is not None:
-            updates.append("meta_title = :meta_title")
-            params["meta_title"] = body.meta_title
+            if body.meta_description is not None:
+                updates.append("meta_description = %s")
+                params.append(body.meta_description)
 
-        if body.meta_description is not None:
-            updates.append("meta_description = :meta_description")
-            params["meta_description"] = body.meta_description
+            if body.status is not None:
+                updates.append("status = %s")
+                params.append(body.status)
 
-        if body.status is not None:
-            updates.append("status = :status")
-            params["status"] = body.status
+            # Add WHERE clause params
+            params.extend([article_id, user_id])
 
-        result = session.execute(
-            text(f"""
+            cursor.execute(
+                f"""
                 UPDATE seo_blog_articles
                 SET {", ".join(updates)}
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = %s AND user_id = %s
                 RETURNING id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
-            """),
-            params,
-        )
-        row = result.fetchone()
-
-        # If status changed to published, update topic status too
-        if body.status == "published" and old_status != "published" and topic_id:
-            session.execute(
-                text("""
-                    UPDATE seo_topics SET status = 'published', updated_at = now()
-                    WHERE id = :id AND user_id = :user_id
-                """),
-                {"id": topic_id, "user_id": user_id},
+                """,
+                params,
             )
+            row = cursor.fetchone()
 
-        session.commit()
+            # If status changed to published, update topic status too
+            if body.status == "published" and old_status != "published" and topic_id:
+                cursor.execute(
+                    """
+                    UPDATE seo_topics SET status = 'published', updated_at = now()
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (topic_id, user_id),
+                )
 
-        return SeoBlogArticle(
-            id=row[0],
-            topic_id=row[1],
-            title=row[2],
-            excerpt=row[3],
-            content=row[4],
-            meta_title=row[5],
-            meta_description=row[6],
-            status=row[7],
-            created_at=row[8],
-            updated_at=row[9],
-        )
+            conn.commit()
+
+            return SeoBlogArticle(
+                id=row[0],
+                topic_id=row[1],
+                title=row[2],
+                excerpt=row[3],
+                content=row[4],
+                meta_title=row[5],
+                meta_description=row[6],
+                status=row[7],
+                created_at=row[8],
+                updated_at=row[9],
+            )
 
 
 @router.delete("/articles/{article_id}", status_code=204, response_model=None)
@@ -1172,19 +1161,18 @@ async def delete_article(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
-                DELETE FROM seo_blog_articles WHERE id = :id AND user_id = :user_id
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM seo_blog_articles WHERE id = %s AND user_id = %s
                 RETURNING id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        if not result.fetchone():
-            raise HTTPException(status_code=404, detail="Article not found")
-        session.commit()
+                """,
+                (article_id, user_id),
+            )
+            if not cursor.fetchone():
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
+            conn.commit()
 
 
 # =============================================================================
@@ -1321,44 +1309,44 @@ async def record_article_event(
     # Validate event type
     valid_event_types = ["view", "click", "signup"]
     if body.event_type not in valid_event_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid event_type. Must be one of: {', '.join(valid_event_types)}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid event_type. Must be one of: {', '.join(valid_event_types)}",
+            status=400,
         )
-
-    from sqlalchemy import text
 
     # Get user agent from request
     user_agent = request.headers.get("user-agent", "")[:500]
 
-    with db_session() as session:
-        # Verify article exists (public, so no user_id check)
-        article_check = session.execute(
-            text("SELECT id FROM seo_blog_articles WHERE id = :id"),
-            {"id": article_id},
-        )
-        if not article_check.fetchone():
-            raise HTTPException(status_code=404, detail="Article not found")
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Verify article exists (public, so no user_id check)
+            cursor.execute(
+                "SELECT id FROM seo_blog_articles WHERE id = %s",
+                (article_id,),
+            )
+            if not cursor.fetchone():
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-        # Insert event
-        session.execute(
-            text("""
+            # Insert event
+            cursor.execute(
+                """
                 INSERT INTO seo_article_events
                 (article_id, event_type, referrer, utm_source, utm_medium, utm_campaign, session_id, user_agent)
-                VALUES (:article_id, :event_type, :referrer, :utm_source, :utm_medium, :utm_campaign, :session_id, :user_agent)
-            """),
-            {
-                "article_id": article_id,
-                "event_type": body.event_type,
-                "referrer": body.referrer,
-                "utm_source": body.utm_source,
-                "utm_medium": body.utm_medium,
-                "utm_campaign": body.utm_campaign,
-                "session_id": body.session_id,
-                "user_agent": user_agent,
-            },
-        )
-        session.commit()
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    article_id,
+                    body.event_type,
+                    body.referrer,
+                    body.utm_source,
+                    body.utm_medium,
+                    body.utm_campaign,
+                    body.session_id,
+                    user_agent,
+                ),
+            )
+            conn.commit()
 
     logger.debug(f"Recorded {body.event_type} event for article {article_id}")
 
@@ -1377,55 +1365,54 @@ async def get_article_analytics(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # Verify article exists and belongs to user
-        article_result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Verify article exists and belongs to user
+            cursor.execute(
+                """
                 SELECT id, title FROM seo_blog_articles
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        article = article_result.fetchone()
-        if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
+                WHERE id = %s AND user_id = %s
+                """,
+                (article_id, user_id),
+            )
+            article = cursor.fetchone()
+            if not article:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-        # Get event counts
-        analytics_result = session.execute(
-            text("""
+            # Get event counts
+            cursor.execute(
+                """
                 SELECT
                     event_type,
                     COUNT(*) as count
                 FROM seo_article_events
-                WHERE article_id = :article_id
+                WHERE article_id = %s
                 GROUP BY event_type
-            """),
-            {"article_id": article_id},
-        )
+                """,
+                (article_id,),
+            )
 
-        counts = {"view": 0, "click": 0, "signup": 0}
-        for row in analytics_result.fetchall():
-            counts[row[0]] = row[1]
+            counts = {"view": 0, "click": 0, "signup": 0}
+            for row in cursor.fetchall():
+                counts[row[0]] = row[1]
 
-        views = counts["view"]
-        clicks = counts["click"]
-        signups = counts["signup"]
+            views = counts["view"]
+            clicks = counts["click"]
+            signups = counts["signup"]
 
-        # Calculate rates (handle division by zero)
-        ctr = clicks / views if views > 0 else 0.0
-        signup_rate = signups / views if views > 0 else 0.0
+            # Calculate rates (handle division by zero)
+            ctr = clicks / views if views > 0 else 0.0
+            signup_rate = signups / views if views > 0 else 0.0
 
-        return ArticleAnalytics(
-            article_id=article[0],
-            title=article[1],
-            views=views,
-            clicks=clicks,
-            signups=signups,
-            ctr=round(ctr, 4),
-            signup_rate=round(signup_rate, 4),
-        )
+            return ArticleAnalytics(
+                article_id=article[0],
+                title=article[1],
+                views=views,
+                clicks=clicks,
+                signups=signups,
+                ctr=round(ctr, 4),
+                signup_rate=round(signup_rate, 4),
+            )
 
 
 @router.get("/analytics", response_model=ArticleAnalyticsListResponse)
@@ -1440,12 +1427,11 @@ async def get_all_analytics(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # Get all user's articles with their event counts
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Get all user's articles with their event counts
+            cursor.execute(
+                """
                 SELECT
                     a.id,
                     a.title,
@@ -1454,53 +1440,53 @@ async def get_all_analytics(
                     COALESCE(SUM(CASE WHEN e.event_type = 'signup' THEN 1 ELSE 0 END), 0) as signups
                 FROM seo_blog_articles a
                 LEFT JOIN seo_article_events e ON e.article_id = a.id
-                WHERE a.user_id = :user_id
+                WHERE a.user_id = %s
                 GROUP BY a.id, a.title
                 ORDER BY views DESC
-            """),
-            {"user_id": user_id},
-        )
-
-        articles = []
-        total_views = 0
-        total_clicks = 0
-        total_signups = 0
-
-        for row in result.fetchall():
-            views = row[2]
-            clicks = row[3]
-            signups = row[4]
-
-            total_views += views
-            total_clicks += clicks
-            total_signups += signups
-
-            ctr = clicks / views if views > 0 else 0.0
-            signup_rate = signups / views if views > 0 else 0.0
-
-            articles.append(
-                ArticleAnalytics(
-                    article_id=row[0],
-                    title=row[1],
-                    views=views,
-                    clicks=clicks,
-                    signups=signups,
-                    ctr=round(ctr, 4),
-                    signup_rate=round(signup_rate, 4),
-                )
+                """,
+                (user_id,),
             )
 
-        overall_ctr = total_clicks / total_views if total_views > 0 else 0.0
-        overall_signup_rate = total_signups / total_views if total_views > 0 else 0.0
+            articles = []
+            total_views = 0
+            total_clicks = 0
+            total_signups = 0
 
-        return ArticleAnalyticsListResponse(
-            articles=articles,
-            total_views=total_views,
-            total_clicks=total_clicks,
-            total_signups=total_signups,
-            overall_ctr=round(overall_ctr, 4),
-            overall_signup_rate=round(overall_signup_rate, 4),
-        )
+            for row in cursor.fetchall():
+                views = row[2]
+                clicks = row[3]
+                signups = row[4]
+
+                total_views += views
+                total_clicks += clicks
+                total_signups += signups
+
+                ctr = clicks / views if views > 0 else 0.0
+                signup_rate = signups / views if views > 0 else 0.0
+
+                articles.append(
+                    ArticleAnalytics(
+                        article_id=row[0],
+                        title=row[1],
+                        views=views,
+                        clicks=clicks,
+                        signups=signups,
+                        ctr=round(ctr, 4),
+                        signup_rate=round(signup_rate, 4),
+                    )
+                )
+
+            overall_ctr = total_clicks / total_views if total_views > 0 else 0.0
+            overall_signup_rate = total_signups / total_views if total_views > 0 else 0.0
+
+            return ArticleAnalyticsListResponse(
+                articles=articles,
+                total_views=total_views,
+                total_clicks=total_clicks,
+                total_signups=total_signups,
+                overall_ctr=round(overall_ctr, 4),
+                overall_signup_rate=round(overall_signup_rate, 4),
+            )
 
 
 # =============================================================================
@@ -1517,32 +1503,31 @@ def _get_autopilot_stats(user_id: str) -> tuple[int, int]:
     Returns:
         Tuple of (articles_this_week, articles_pending_review)
     """
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # Articles generated this week (by autopilot - status pending_review or via autopilot source)
-        week_result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Articles generated this week (by autopilot - status pending_review or via autopilot source)
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM seo_blog_articles
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 AND created_at >= date_trunc('week', CURRENT_TIMESTAMP)
-            """),
-            {"user_id": user_id},
-        )
-        articles_this_week = week_result.fetchone()[0] or 0
+                """,
+                (user_id,),
+            )
+            articles_this_week = cursor.fetchone()[0] or 0
 
-        # Articles pending review
-        pending_result = session.execute(
-            text("""
+            # Articles pending review
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM seo_blog_articles
-                WHERE user_id = :user_id
+                WHERE user_id = %s
                 AND status = 'pending_review'
-            """),
-            {"user_id": user_id},
-        )
-        articles_pending = pending_result.fetchone()[0] or 0
+                """,
+                (user_id,),
+            )
+            articles_pending = cursor.fetchone()[0] or 0
 
-        return articles_this_week, articles_pending
+            return articles_this_week, articles_pending
 
 
 @router.get("/autopilot/config", response_model=SEOAutopilotConfigResponse)
@@ -1560,22 +1545,21 @@ async def get_autopilot_config(
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise HTTPException(
-            status_code=403,
-            detail="SEO tools are not available on your plan. Please upgrade.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan. Please upgrade.",
+            status=403,
         )
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
-                SELECT seo_autopilot_config FROM user_context
-                WHERE user_id = :user_id
-            """),
-            {"user_id": user_id},
+    with db_session() as cursor:
+        cursor.execute(
+            """
+            SELECT seo_autopilot_config FROM user_context
+            WHERE user_id = %s
+            """,
+            (user_id,),
         )
-        row = result.fetchone()
+        row = cursor.fetchone()
 
     # Parse config or return defaults
     if row and row[0]:
@@ -1623,47 +1607,48 @@ async def update_autopilot_config(
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise HTTPException(
-            status_code=403,
-            detail="SEO tools are not available on your plan. Please upgrade.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan. Please upgrade.",
+            status=403,
         )
 
     # Check tier limits - autopilot is only available if user has article quota
-    limit = PlanConfig.get_seo_articles_limit(tier)
-    if not PlanConfig.is_unlimited(limit) and limit <= 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Autopilot requires SEO article generation quota. Upgrade your plan.",
+    autopilot_limit = PlanConfig.get_seo_articles_limit(tier)
+    if not PlanConfig.is_unlimited(autopilot_limit) and autopilot_limit <= 0:
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "Autopilot requires SEO article generation quota. Upgrade your plan.",
+            status=403,
         )
 
-    from sqlalchemy import text
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Check if user_context exists
+            cursor.execute(
+                "SELECT 1 FROM user_context WHERE user_id = %s",
+                (user_id,),
+            )
+            exists = cursor.fetchone()
 
-    with db_session() as session:
-        # Check if user_context exists
-        check = session.execute(
-            text("SELECT 1 FROM user_context WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        )
-        exists = check.fetchone()
-
-        if exists:
-            session.execute(
-                text("""
+            if exists:
+                cursor.execute(
+                    """
                     UPDATE user_context
-                    SET seo_autopilot_config = :config, updated_at = now()
-                    WHERE user_id = :user_id
-                """),
-                {"user_id": user_id, "config": body.model_dump()},
-            )
-        else:
-            session.execute(
-                text("""
+                    SET seo_autopilot_config = %s, updated_at = now()
+                    WHERE user_id = %s
+                    """,
+                    (Json(body.model_dump()), user_id),
+                )
+            else:
+                cursor.execute(
+                    """
                     INSERT INTO user_context (user_id, seo_autopilot_config)
-                    VALUES (:user_id, :config)
-                """),
-                {"user_id": user_id, "config": body.model_dump()},
-            )
-        session.commit()
+                    VALUES (%s, %s)
+                    """,
+                    (user_id, Json(body.model_dump())),
+                )
+            conn.commit()
 
     logger.info(f"Updated autopilot config for user {user_id[:8]}...: enabled={body.enabled}")
 
@@ -1726,31 +1711,30 @@ async def get_pending_articles(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT a.id, a.title, a.excerpt, t.keyword, a.created_at
                 FROM seo_blog_articles a
                 LEFT JOIN seo_topics t ON a.topic_id = t.id
-                WHERE a.user_id = :user_id AND a.status = 'pending_review'
+                WHERE a.user_id = %s AND a.status = 'pending_review'
                 ORDER BY a.created_at DESC
-            """),
-            {"user_id": user_id},
-        )
-
-        articles = []
-        for row in result.fetchall():
-            articles.append(
-                PendingArticle(
-                    id=row[0],
-                    title=row[1],
-                    excerpt=row[2],
-                    keyword=row[3],
-                    created_at=row[4],
-                )
+                """,
+                (user_id,),
             )
+
+            articles = []
+            for row in cursor.fetchall():
+                articles.append(
+                    PendingArticle(
+                        id=row[0],
+                        title=row[1],
+                        excerpt=row[2],
+                        keyword=row[3],
+                        created_at=row[4],
+                    )
+                )
 
     return PendingArticlesResponse(articles=articles, count=len(articles))
 
@@ -1768,68 +1752,68 @@ async def approve_article(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # Check article exists and is pending
-        check = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Check article exists and is pending
+            cursor.execute(
+                """
                 SELECT id, status, topic_id FROM seo_blog_articles
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        row = check.fetchone()
-
-        if not row:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        if row[1] != "pending_review":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Article is not pending review (status: {row[1]})",
+                WHERE id = %s AND user_id = %s
+                """,
+                (article_id, user_id),
             )
+            row = cursor.fetchone()
 
-        topic_id = row[2]
+            if not row:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-        # Update to published
-        result = session.execute(
-            text("""
+            if row[1] != "pending_review":
+                raise http_error(
+                    ErrorCode.VALIDATION_ERROR,
+                    f"Article is not pending review (status: {row[1]})",
+                    status=400,
+                )
+
+            topic_id = row[2]
+
+            # Update to published
+            cursor.execute(
+                """
                 UPDATE seo_blog_articles
                 SET status = 'published', updated_at = now()
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = %s AND user_id = %s
                 RETURNING id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        article_row = result.fetchone()
-
-        # Update topic status if linked
-        if topic_id:
-            session.execute(
-                text("""
-                    UPDATE seo_topics SET status = 'published', updated_at = now()
-                    WHERE id = :id AND user_id = :user_id
-                """),
-                {"id": topic_id, "user_id": user_id},
+                """,
+                (article_id, user_id),
             )
+            article_row = cursor.fetchone()
 
-        session.commit()
+            # Update topic status if linked
+            if topic_id:
+                cursor.execute(
+                    """
+                    UPDATE seo_topics SET status = 'published', updated_at = now()
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (topic_id, user_id),
+                )
 
-        logger.info(f"Approved article {article_id} for user {user_id[:8]}...")
+            conn.commit()
 
-        return SeoBlogArticle(
-            id=article_row[0],
-            topic_id=article_row[1],
-            title=article_row[2],
-            excerpt=article_row[3],
-            content=article_row[4],
-            meta_title=article_row[5],
-            meta_description=article_row[6],
-            status=article_row[7],
-            created_at=article_row[8],
-            updated_at=article_row[9],
-        )
+            logger.info(f"Approved article {article_id} for user {user_id[:8]}...")
+
+            return SeoBlogArticle(
+                id=article_row[0],
+                topic_id=article_row[1],
+                title=article_row[2],
+                excerpt=article_row[3],
+                content=article_row[4],
+                meta_title=article_row[5],
+                meta_description=article_row[6],
+                status=article_row[7],
+                created_at=article_row[8],
+                updated_at=article_row[9],
+            )
 
 
 @router.post("/autopilot/articles/{article_id}/reject", status_code=204, response_model=None)
@@ -1845,38 +1829,38 @@ async def reject_article(
     """
     user_id = extract_user_id(user)
 
-    from sqlalchemy import text
-
-    with db_session() as session:
-        # Check article exists and is pending
-        check = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            # Check article exists and is pending
+            cursor.execute(
+                """
                 SELECT id, status FROM seo_blog_articles
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        row = check.fetchone()
-
-        if not row:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        if row[1] != "pending_review":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Article is not pending review (status: {row[1]})",
+                WHERE id = %s AND user_id = %s
+                """,
+                (article_id, user_id),
             )
+            row = cursor.fetchone()
 
-        # Update to rejected
-        session.execute(
-            text("""
+            if not row:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
+
+            if row[1] != "pending_review":
+                raise http_error(
+                    ErrorCode.VALIDATION_ERROR,
+                    f"Article is not pending review (status: {row[1]})",
+                    status=400,
+                )
+
+            # Update to rejected
+            cursor.execute(
+                """
                 UPDATE seo_blog_articles
                 SET status = 'rejected', updated_at = now()
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        session.commit()
+                WHERE id = %s AND user_id = %s
+                """,
+                (article_id, user_id),
+            )
+            conn.commit()
 
     logger.info(f"Rejected article {article_id} for user {user_id[:8]}...")
 
@@ -1914,9 +1898,10 @@ async def upload_asset(
 
     # Check feature access
     if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise HTTPException(
-            status_code=403,
-            detail="SEO tools are not available on your plan.",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan.",
+            status=403,
         )
 
     # Check storage limit
@@ -1924,9 +1909,10 @@ async def upload_asset(
     current_count = asset_service.get_asset_count(user_id)
 
     if not PlanConfig.is_unlimited(limit) and current_count >= limit:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Asset storage limit reached ({limit}). Upgrade your plan for more storage.",
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            f"Asset storage limit reached ({limit}). Upgrade your plan for more storage.",
+            status=429,
         )
 
     # Parse multipart form data
@@ -1938,10 +1924,10 @@ async def upload_asset(
     tags_str = form.get("tags", "")
 
     if not file or not hasattr(file, "read"):
-        raise HTTPException(status_code=400, detail="File is required")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "File is required", status=400)
 
     if not title:
-        raise HTTPException(status_code=400, detail="Title is required")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Title is required", status=400)
 
     # Parse tags from comma-separated string
     tags = [t.strip() for t in str(tags_str).split(",") if t.strip()] if tags_str else []
@@ -1966,9 +1952,9 @@ async def upload_asset(
             tags=tags,
         )
     except asset_service.AssetValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from e
     except asset_service.AssetStorageError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise http_error(ErrorCode.EXT_SPACES_ERROR, str(e), status=500) from e
 
     return MarketingAsset(
         id=record.id,
@@ -2059,21 +2045,22 @@ async def suggest_assets_for_article(
     user_id = extract_user_id(user)
 
     # Get article to extract keywords
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
                 SELECT a.title, a.content, t.keyword
                 FROM seo_blog_articles a
                 LEFT JOIN seo_topics t ON a.topic_id = t.id
-                WHERE a.id = :id AND a.user_id = :user_id
-            """),
-            {"id": article_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Article not found")
+                WHERE a.id = %s AND a.user_id = %s
+                """,
+                (article_id, user_id),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-        title, content, topic_keyword = row
+            title, content, topic_keyword = row
 
     # Extract keywords from title and topic
     keywords = []
@@ -2120,7 +2107,7 @@ async def get_asset(
 
     record = asset_service.get_asset(user_id, asset_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Asset not found", status=404)
 
     return MarketingAsset(
         id=record.id,
@@ -2162,10 +2149,10 @@ async def update_asset(
             tags=body.tags,
         )
     except asset_service.AssetValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from e
 
     if not record:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Asset not found", status=404)
 
     return MarketingAsset(
         id=record.id,
@@ -2199,4 +2186,4 @@ async def delete_asset(
 
     deleted = asset_service.delete_asset(user_id, asset_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Asset not found", status=404)

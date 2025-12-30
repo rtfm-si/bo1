@@ -3,6 +3,8 @@
 Provides:
 - GET /api/v1/blog/posts - List published posts
 - GET /api/v1/blog/posts/{slug} - Get post by slug
+- POST /api/v1/blog/posts/{slug}/view - Track page view
+- POST /api/v1/blog/posts/{slug}/click - Track CTA click
 """
 
 import logging
@@ -74,3 +76,39 @@ async def get_post_by_slug(
         )
 
     return BlogPostResponse(id=str(post["id"]), **{k: v for k, v in post.items() if k != "id"})
+
+
+@router.post(
+    "/posts/{slug}/view",
+    status_code=204,
+    summary="Track blog post view",
+    description="Increment view counter for a published blog post. Rate limited per IP.",
+)
+@limiter.limit("10/minute")  # Prevent gaming - max 10 views per minute per IP
+@handle_api_errors("track blog view")
+async def track_view(request: Request, slug: str) -> None:
+    """Track a page view for analytics."""
+    success = blog_repository.increment_view(slug)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
+        )
+
+
+@router.post(
+    "/posts/{slug}/click",
+    status_code=204,
+    summary="Track blog post CTA click",
+    description="Increment click-through counter when user clicks CTA. Rate limited per IP.",
+)
+@limiter.limit("5/minute")  # Even stricter - max 5 clicks per minute per IP
+@handle_api_errors("track blog click")
+async def track_click(request: Request, slug: str) -> None:
+    """Track a CTA click-through for analytics."""
+    success = blog_repository.increment_click(slug)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
+        )

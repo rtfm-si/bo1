@@ -8,6 +8,10 @@
 	import Footer from '$lib/components/Footer.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { PublicBlogPost } from '$lib/api/types';
+	import { createBlogSchema, serializeJsonLd } from '$lib/utils/jsonld';
+
+	// JSON-LD structured data for blog listing
+	const blogJsonLd = serializeJsonLd(createBlogSchema());
 
 	// State
 	let posts = $state<PublicBlogPost[]>([]);
@@ -94,6 +98,8 @@
 		name="description"
 		content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders."
 	/>
+	<!-- JSON-LD Structured Data -->
+	{@html `<script type="application/ld+json">${blogJsonLd}</script>`}
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">

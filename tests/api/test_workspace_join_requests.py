@@ -187,7 +187,9 @@ class TestJoinRequestEndpoints:
                 )
 
             assert exc_info.value.status_code == 403
-            assert "does not accept join requests" in exc_info.value.detail
+            detail = exc_info.value.detail
+            detail_str = detail.get("message", "") if isinstance(detail, dict) else str(detail)
+            assert "does not accept join requests" in detail_str
 
     def test_submit_join_request_success(self, workspace_id, user):
         """Should create join request for eligible workspace."""

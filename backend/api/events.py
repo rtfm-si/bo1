@@ -14,7 +14,7 @@ Pydantic Schemas:
 TypeScript Interfaces:
     See frontend/src/lib/api/sse-events.ts for frontend types.
 
-Event Types (33 total):
+Event Types (34 total):
     Session: session_started
     Decomposition: decomposition_started, decomposition_complete
     Persona: persona_selection_started, persona_selected, persona_selection_complete
@@ -32,6 +32,7 @@ Event Types (33 total):
     Node: node_start, node_end
     Facilitator: facilitator_decision
     Interjection: user_interjection_raised, interjection_response, interjection_complete
+    Infrastructure: model_fallback
 """
 
 import json
@@ -360,13 +361,16 @@ def error_event(
     session_id: str,
     error: str,
     error_type: str | None = None,
+    error_code: str | None = None,
 ) -> str:
     """Create SSE event for error.
 
     Args:
         session_id: Session identifier
         error: Error message
-        error_type: Optional error type/category
+        error_type: Optional error type/category (e.g., "LLMError", "TimeoutError")
+        error_code: Optional backend ErrorCode (e.g., "LLM_CIRCUIT_OPEN", "LLM_RATE_LIMIT")
+            Used by frontend for specific error messaging and recovery guidance.
 
     Returns:
         SSE-formatted event string
@@ -378,6 +382,8 @@ def error_event(
     }
     if error_type:
         data["error_type"] = error_type
+    if error_code:
+        data["error_code"] = error_code
 
     return format_sse_event("error", data)
 

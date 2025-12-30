@@ -269,3 +269,112 @@ class TestGetCachedUserId:
             result = manager.get_cached_user_id("bo1_missing")
 
         assert result is None
+
+
+class TestMetadataDualWrite:
+    """Test save_metadata PostgreSQL dual-write behavior."""
+
+    @pytest.fixture
+    def connected_manager(self):
+        """Create a connected RedisManager with mocked Redis."""
+        with patch("bo1.state.redis_manager.redis.ConnectionPool"):
+            mock_redis = MagicMock()
+            mock_redis.ping.return_value = True
+
+            with patch("bo1.state.redis_manager.redis.Redis", return_value=mock_redis):
+                manager = RedisManager(host="localhost", port=6379)
+                yield manager, mock_redis
+
+    def test_save_metadata_writes_to_both_redis_and_postgres(self, connected_manager):
+        """save_metadata writes to Redis and dual-writes to PostgreSQL."""
+        manager, mock_redis = connected_manager
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.save_metadata.return_value = True
+        mock_repo_class = MagicMock(return_value=mock_repo_instance)
+
+        mock_counter = MagicMock()
+        mock_prom = MagicMock()
+        mock_prom.redis_metadata_dualwrite_total.labels.return_value = mock_counter
+
+        metadata = {"user_id": "user123", "status": "running"}
+
+        # Patch at the import location (inside _dualwrite_metadata_to_postgres)
+        with patch(
+            "bo1.state.repositories.session_repository.SessionRepository",
+            mock_repo_class,
+        ):
+            with patch("backend.api.metrics.prom_metrics", mock_prom):
+                result = manager.save_metadata("bo1_test", metadata)
+
+        assert result is True
+        # Verify Redis write
+        mock_redis.setex.assert_called_once()
+        # Verify PostgreSQL dual-write
+        mock_repo_instance.save_metadata.assert_called_once_with("bo1_test", metadata)
+        # Verify success metric
+        mock_prom.redis_metadata_dualwrite_total.labels.assert_called_with(result="success")
+        mock_counter.inc.assert_called_once()
+
+    def test_save_metadata_succeeds_even_if_postgres_fails(self, connected_manager):
+        """save_metadata returns True even when PostgreSQL write fails."""
+        manager, mock_redis = connected_manager
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.save_metadata.side_effect = Exception("DB error")
+        mock_repo_class = MagicMock(return_value=mock_repo_instance)
+
+        mock_counter = MagicMock()
+        mock_prom = MagicMock()
+        mock_prom.redis_metadata_dualwrite_total.labels.return_value = mock_counter
+
+        metadata = {"user_id": "user123"}
+
+        with patch(
+            "bo1.state.repositories.session_repository.SessionRepository",
+            mock_repo_class,
+        ):
+            with patch("backend.api.metrics.prom_metrics", mock_prom):
+                result = manager.save_metadata("bo1_test", metadata)
+
+        assert result is True  # Still succeeds - Redis write is primary
+        mock_redis.setex.assert_called_once()
+        mock_prom.redis_metadata_dualwrite_total.labels.assert_called_with(result="failure")
+        mock_counter.inc.assert_called_once()
+
+    def test_save_metadata_records_failure_metric_when_save_returns_false(self, connected_manager):
+        """Failure metric recorded when PostgreSQL save_metadata returns False."""
+        manager, mock_redis = connected_manager
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.save_metadata.return_value = False
+        mock_repo_class = MagicMock(return_value=mock_repo_instance)
+
+        mock_counter = MagicMock()
+        mock_prom = MagicMock()
+        mock_prom.redis_metadata_dualwrite_total.labels.return_value = mock_counter
+
+        with patch(
+            "bo1.state.repositories.session_repository.SessionRepository",
+            mock_repo_class,
+        ):
+            with patch("backend.api.metrics.prom_metrics", mock_prom):
+                result = manager.save_metadata("bo1_test", {"status": "running"})
+
+        assert result is True  # Redis still succeeded
+        mock_prom.redis_metadata_dualwrite_total.labels.assert_called_with(result="failure")
+        mock_counter.inc.assert_called_once()
+
+    def test_save_metadata_fails_when_redis_unavailable(self):
+        """save_metadata returns False when Redis is unavailable."""
+        import redis
+
+        with patch("bo1.state.redis_manager.redis.ConnectionPool"):
+            mock_redis = MagicMock()
+            mock_redis.ping.side_effect = redis.ConnectionError("Connection refused")
+
+            with patch("bo1.state.redis_manager.redis.Redis", return_value=mock_redis):
+                manager = RedisManager(host="localhost", port=6379)
+                result = manager.save_metadata("bo1_test", {"status": "test"})
+
+        assert result is False

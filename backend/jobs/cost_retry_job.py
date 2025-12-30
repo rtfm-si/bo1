@@ -106,6 +106,7 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                             "retry",  # status
                             record.get("error"),  # error_message
                             json.dumps({"retry_source": "cost_retry_job"}),  # metadata
+                            record.get("cost_category", "user"),  # cost_category
                         )
                     )
 
@@ -126,7 +127,7 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                         input_cost, output_cost, cache_write_cost, cache_read_cost, total_cost,
                         optimization_type, cost_without_optimization,
                         latency_ms, status, error_message,
-                        metadata
+                        metadata, cost_category
                     ) VALUES (
                         %s, %s, %s, %s,
                         %s, %s, %s,
@@ -136,7 +137,7 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                         %s, %s, %s, %s, %s,
                         %s, %s,
                         %s, %s, %s,
-                        %s
+                        %s, %s
                     )
                     ON CONFLICT (request_id, created_at) DO NOTHING
                     """,

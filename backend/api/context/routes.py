@@ -46,6 +46,9 @@ from backend.api.context.models import (
     GoalHistoryResponse,
     GoalProgressResponse,
     GoalStalenessResponse,
+    HeatmapHistoryDepth,
+    HeatmapHistoryDepthResponse,
+    HeatmapHistoryDepthUpdate,
     InsightCategory,
     InsightMetricResponse,
     InsightsResponse,
@@ -63,6 +66,9 @@ from backend.api.context.models import (
     ObjectiveProgressUpdate,
     PendingUpdatesResponse,
     RefreshCheckResponse,
+    ResearchCategory,
+    ResearchEmbeddingsResponse,
+    ResearchPoint,
     StaleFieldSummary,
     StaleMetricResponse,
     StaleMetricsResponse,
@@ -73,6 +79,9 @@ from backend.api.context.models import (
     TrendsRefreshRequest,
     TrendsRefreshResponse,
     UpdateInsightRequest,
+    WorkingPattern,
+    WorkingPatternResponse,
+    WorkingPatternUpdate,
 )
 from backend.api.context.models import (
     StalenessReason as ModelStalenessReason,
@@ -98,9 +107,15 @@ from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+    ERROR_409_RESPONSE,
+)
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.services.enrichment import EnrichmentService
-from bo1.state.repositories import user_repository
+from bo1.state.repositories import cache_repository, user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +179,7 @@ CONTEXT_REFRESH_DAYS = 90
                 }
             },
         },
-        500: {"description": "Database error"},
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("get context")
@@ -228,7 +243,8 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
             "description": "Context updated successfully",
             "content": {"application/json": {"example": {"status": "updated"}}},
         },
-        500: {"description": "Database error"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("update context")
@@ -323,8 +339,8 @@ async def update_context(
             "description": "Context deleted successfully",
             "content": {"application/json": {"example": {"status": "deleted"}}},
         },
-        404: {"description": "No context found to delete"},
-        500: {"description": "Database error"},
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
     },
 )
 @handle_api_errors("delete context")
@@ -365,8 +381,8 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
         200: {
             "description": "Enrichment completed (check success field)",
         },
-        422: {"description": "Invalid URL format"},
-        500: {"description": "Enrichment service error"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
         429: RATE_LIMIT_RESPONSE,
     },
 )
@@ -446,6 +462,7 @@ async def enrich_context(
     Also returns stale_metrics array with field names, volatility, and urgency
     for the refresh banner to display specific fields needing attention.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("check refresh needed")
 async def check_refresh_needed(
@@ -598,6 +615,7 @@ async def check_refresh_needed(
 
     If no volatility provided, defaults to 30 days.
     """,
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("dismiss refresh prompt")
 async def dismiss_refresh_prompt(
@@ -668,7 +686,7 @@ async def dismiss_refresh_prompt(
 
     Returns a list of detected competitors with names, URLs, and descriptions.
     """,
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("detect competitors")
@@ -697,7 +715,7 @@ async def detect_competitors(
 
     Returns a list of trends with sources.
     """,
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("refresh trends")
@@ -756,6 +774,7 @@ async def refresh_trends(
                 }
             },
         },
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("get insights")
@@ -848,6 +867,7 @@ async def get_insights(
     When updated, the answer and updated timestamp are persisted, allowing
     users to keep their responses current as their business evolves.
     """,
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("update insight")
 async def update_insight(
@@ -975,6 +995,7 @@ async def update_insight(
     The question_hash is a URL-safe base64 encoding of the question text.
     This allows deleting clarifications that may contain special characters.
     """,
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("delete insight")
 async def delete_insight(
@@ -1056,6 +1077,7 @@ async def delete_insight(
                 }
             },
         },
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("get demo questions")
@@ -1097,6 +1119,7 @@ async def get_demo_questions(
 
     Next call to GET /demo-questions will regenerate.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("clear demo questions cache")
 async def clear_demo_questions(
@@ -1132,6 +1155,7 @@ async def clear_demo_questions(
     - Display "Suggested Updates" section in Settings > Context
     - Allow users to review and approve/dismiss detected changes
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get pending updates")
 async def get_pending_updates(
@@ -1183,6 +1207,7 @@ async def get_pending_updates(
     2. Record the change in metric history for trend tracking
     3. Remove the suggestion from pending updates
     """,
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("approve pending update")
 async def approve_pending_update(
@@ -1256,6 +1281,7 @@ async def approve_pending_update(
 
     The suggestion is removed from the pending list and will not be shown again.
     """,
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("dismiss pending update")
 async def dismiss_pending_update(
@@ -1296,6 +1322,7 @@ async def dismiss_pending_update(
     - Display metrics with up/down indicators in the context overview
     - Show change percentages for revenue, customers, growth, etc.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get context with trends")
 async def get_context_with_trends(
@@ -1350,6 +1377,7 @@ async def get_context_with_trends(
     - Check before starting a meeting to prompt user to update context
     - Show stale metric warnings in context settings page
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get stale metrics")
 async def get_stale_metrics(
@@ -1432,8 +1460,9 @@ def _get_insight_limit_for_tier(tier: str) -> int:
     """,
     responses={
         200: {"description": "Insight generated or retrieved from cache"},
-        429: {"description": "Rate limit exceeded"},
-        500: {"description": "Analysis failed"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @handle_api_errors("generate competitor insight")
@@ -1516,6 +1545,7 @@ async def generate_competitor_insight(
     Returns `visible_count` and `total_count` to show users what they're missing.
     Includes `upgrade_prompt` when tier limit is reached.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("list competitor insights")
 async def list_competitor_insights(
@@ -1585,6 +1615,7 @@ async def list_competitor_insights(
     This frees up a slot for users on limited tiers.
     The insight can be regenerated by calling the POST endpoint.
     """,
+    responses={403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("delete competitor insight")
 async def delete_competitor_insight(
@@ -1631,6 +1662,7 @@ async def delete_competitor_insight(
 
     Returns competitors sorted by added_at (newest first).
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("list managed competitors")
 async def list_managed_competitors(
@@ -1694,7 +1726,8 @@ async def list_managed_competitors(
     """,
     responses={
         200: {"description": "Competitor added successfully"},
-        409: {"description": "Competitor with this name already exists"},
+        403: ERROR_403_RESPONSE,
+        409: ERROR_409_RESPONSE,
     },
 )
 @handle_api_errors("add managed competitor")
@@ -1765,7 +1798,8 @@ async def add_managed_competitor(
     """,
     responses={
         200: {"description": "Competitor updated successfully"},
-        404: {"description": "Competitor not found"},
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
     },
 )
 @handle_api_errors("update managed competitor")
@@ -1818,7 +1852,8 @@ async def update_managed_competitor(
     """,
     responses={
         200: {"description": "Competitor removed successfully"},
-        404: {"description": "Competitor not found"},
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
     },
 )
 @handle_api_errors("remove managed competitor")
@@ -1859,6 +1894,7 @@ async def remove_managed_competitor(
 
     Useful for displaying goal progress on the dashboard.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get goal progress")
 async def get_goal_progress(
@@ -1975,8 +2011,9 @@ async def get_goal_progress(
     """,
     responses={
         200: {"description": "Insight generated or retrieved from cache"},
-        429: {"description": "Rate limit exceeded"},
-        500: {"description": "Analysis failed"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @handle_api_errors("analyze trend")
@@ -2050,6 +2087,7 @@ async def analyze_trend(
 
     Returns insights sorted by analysis date (newest first).
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("list trend insights")
 async def list_trend_insights(
@@ -2100,6 +2138,7 @@ async def list_trend_insights(
 
     The url_hash is a URL-safe base64 encoding of the URL.
     """,
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
 @handle_api_errors("delete trend insight")
 async def delete_trend_insight(
@@ -2163,6 +2202,7 @@ TREND_SUMMARY_STALENESS_DAYS = 7
 
     **Auto-refresh:** Frontend should call POST /refresh if stale=true.
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get trend summary")
 async def get_trend_summary(
@@ -2172,9 +2212,13 @@ async def get_trend_summary(
     from datetime import timedelta
 
     from backend.api.context.models import TrendSummary, TrendSummaryResponse
+    from backend.services.trend_summary_generator import get_available_timeframes
 
     user_id = extract_user_id(user)
     tier = user.get("subscription_tier", "free")
+
+    # Get available forecast timeframes for this tier
+    available_timeframes = get_available_timeframes(tier)
 
     # Load user context
     context_data = user_repository.get_context(user_id)
@@ -2184,6 +2228,7 @@ async def get_trend_summary(
             summary=None,
             stale=False,
             needs_industry=True,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Check if user has industry
@@ -2194,6 +2239,7 @@ async def get_trend_summary(
             summary=None,
             stale=False,
             needs_industry=True,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Get cached trend summary
@@ -2205,6 +2251,7 @@ async def get_trend_summary(
             stale=True,  # No summary = stale
             needs_industry=False,
             can_refresh_now=True,  # Allow initial generation
+            available_timeframes=available_timeframes,
         ).model_dump()
 
     # Check staleness
@@ -2258,6 +2305,7 @@ async def get_trend_summary(
             needs_industry=False,
             can_refresh_now=can_refresh_now,
             refresh_blocked_reason=refresh_blocked_reason,
+            available_timeframes=available_timeframes,
         ).model_dump()
     except Exception as e:
         logger.warning(f"Failed to parse trend summary: {e}")
@@ -2266,6 +2314,7 @@ async def get_trend_summary(
             summary=None,
             stale=True,
             needs_industry=False,
+            available_timeframes=available_timeframes,
         ).model_dump()
 
 
@@ -2293,8 +2342,9 @@ async def get_trend_summary(
     """,
     responses={
         200: {"description": "Summary generated or rate limited"},
-        400: {"description": "Industry not set"},
-        429: {"description": "Free tier refresh blocked (28-day limit)"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
     },
 )
 @handle_api_errors("refresh trend summary")
@@ -2425,7 +2475,8 @@ async def refresh_trend_summary(
     """,
     responses={
         200: {"description": "Forecast retrieved or tier-gated"},
-        400: {"description": "Invalid timeframe"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("get trend forecast")
@@ -2575,8 +2626,8 @@ async def get_trend_forecast(
     """,
     responses={
         200: {"description": "Forecast generated or rate limited"},
-        400: {"description": "Industry not set or invalid timeframe"},
-        403: {"description": "Tier insufficient for requested timeframe"},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
     },
 )
 @handle_api_errors("refresh trend forecast")
@@ -2726,6 +2777,7 @@ GOAL_STALENESS_THRESHOLD_DAYS = 180
     - Display goal evolution timeline in strategic context page
     - Show users how their focus has shifted over time
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("get goal history")
 async def get_goal_history_endpoint(
@@ -2777,6 +2829,7 @@ async def get_goal_history_endpoint(
     - Dashboard banner prompting goal review
     - Strategic context page staleness indicator
     """,
+    responses={403: ERROR_403_RESPONSE},
 )
 @handle_api_errors("check goal staleness")
 async def check_goal_staleness(
@@ -2833,7 +2886,7 @@ async def check_goal_staleness(
     - Dashboard goal banner progress display
     - Context overview progress tracking
     """,
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("get objective progress")
@@ -2895,7 +2948,12 @@ async def get_objectives_progress(
     - Dashboard progress modal save
     - Quick progress update from goal banner
     """,
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+    },
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("update objective progress")
@@ -2954,7 +3012,7 @@ async def update_objective_progress(
     "/v1/context/objectives/{objective_index}/progress",
     summary="Delete objective progress",
     description="Remove progress tracking for a specific objective.",
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("delete objective progress")
@@ -2991,7 +3049,7 @@ async def delete_objective_progress(
     response_model=KeyMetricsResponse,
     summary="Get key metrics",
     description="Returns user's prioritized key metrics with current values and trends.",
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("get key metrics")
@@ -3030,7 +3088,7 @@ async def get_key_metrics(
     response_model=KeyMetricsResponse,
     summary="Update key metrics config",
     description="Update user's key metrics prioritization and configuration.",
-    responses={429: RATE_LIMIT_RESPONSE},
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONTEXT_RATE_LIMIT)
 @handle_api_errors("update key metrics config")
@@ -3062,4 +3120,201 @@ async def update_key_metrics_config(
         now_count=now_count,
         later_count=later_count,
         monitor_count=monitor_count,
+    )
+
+
+# =============================================================================
+# Working Pattern (Activity Heatmap)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/working-pattern",
+    response_model=WorkingPatternResponse,
+    summary="Get working pattern",
+    description="Returns user's working days pattern for activity visualization. Defaults to Mon-Fri.",
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get working pattern")
+async def get_working_pattern(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> WorkingPatternResponse:
+    """Get user's working pattern (defaults to Mon-Fri)."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    working_pattern_data = context_data.get("working_pattern") if context_data else None
+
+    if working_pattern_data and isinstance(working_pattern_data, dict):
+        pattern = WorkingPattern(**working_pattern_data)
+    else:
+        pattern = WorkingPattern()  # Default Mon-Fri
+
+    return WorkingPatternResponse(success=True, pattern=pattern)
+
+
+@router.put(
+    "/v1/context/working-pattern",
+    response_model=WorkingPatternResponse,
+    summary="Update working pattern",
+    description="Update user's working days pattern. Used to grey out non-working days in ActivityHeatmap.",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update working pattern")
+async def update_working_pattern(
+    request: Request,
+    body: WorkingPatternUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> WorkingPatternResponse:
+    """Update user's working pattern."""
+    user_id = extract_user_id(user)
+
+    # Validate days are in range 1-7
+    invalid_days = [d for d in body.working_days if d < 1 or d > 7]
+    if invalid_days:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid days: {invalid_days}. Days must be 1 (Mon) through 7 (Sun).",
+        )
+
+    # Build pattern (sorts and deduplicates)
+    pattern = WorkingPattern(working_days=body.working_days)
+
+    # Save to context
+    user_repository.save_context(
+        user_id, {"working_pattern": {"working_days": pattern.working_days}}
+    )
+
+    logger.info(f"Updated working pattern for user {user_id}: {pattern.working_days}")
+
+    return WorkingPatternResponse(success=True, pattern=pattern)
+
+
+# =============================================================================
+# Heatmap History Depth (Activity Heatmap)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/heatmap-depth",
+    response_model=HeatmapHistoryDepthResponse,
+    summary="Get heatmap history depth",
+    description="Returns user's preferred activity heatmap history depth. Defaults to 3 months.",
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get heatmap depth")
+async def get_heatmap_depth(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> HeatmapHistoryDepthResponse:
+    """Get user's heatmap history depth (defaults to 3 months)."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    history_months = context_data.get("heatmap_history_months") if context_data else None
+
+    if history_months in (1, 3, 6):
+        depth = HeatmapHistoryDepth(history_months=history_months)
+    else:
+        depth = HeatmapHistoryDepth()  # Default 3 months
+
+    return HeatmapHistoryDepthResponse(success=True, depth=depth)
+
+
+@router.put(
+    "/v1/context/heatmap-depth",
+    response_model=HeatmapHistoryDepthResponse,
+    summary="Update heatmap history depth",
+    description="Update user's preferred activity heatmap history depth (1, 3, or 6 months).",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("update heatmap depth")
+async def update_heatmap_depth(
+    request: Request,
+    body: HeatmapHistoryDepthUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> HeatmapHistoryDepthResponse:
+    """Update user's heatmap history depth."""
+    user_id = extract_user_id(user)
+
+    # Save to context
+    user_repository.save_context(user_id, {"heatmap_history_months": body.history_months})
+
+    logger.info(f"Updated heatmap depth for user {user_id}: {body.history_months} months")
+
+    depth = HeatmapHistoryDepth(history_months=body.history_months)
+    return HeatmapHistoryDepthResponse(success=True, depth=depth)
+
+
+# =============================================================================
+# Research Embeddings Visualization
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/research-embeddings",
+    response_model=ResearchEmbeddingsResponse,
+    summary="Get research embeddings for visualization",
+    description="Returns user's research topics as 2D coordinates for scatter plot visualization.",
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get research embeddings")
+async def get_research_embeddings(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ResearchEmbeddingsResponse:
+    """Get user's research embeddings reduced to 2D for visualization."""
+    from backend.services.embedding_visualizer import reduce_dimensions
+
+    user_id = extract_user_id(user)
+
+    # Get user's research with embeddings (limit 100)
+    research_entries = cache_repository.get_user_research_with_embeddings(user_id, limit=100)
+
+    if not research_entries:
+        # No research data - return empty response
+        return ResearchEmbeddingsResponse(
+            success=True,
+            points=[],
+            categories=[],
+            total_count=0,
+        )
+
+    # Get category counts for legend
+    category_counts = cache_repository.get_user_research_category_counts(user_id)
+    categories = [ResearchCategory(name=c["name"], count=c["count"]) for c in category_counts]
+
+    # Get total count (may exceed 100 limit)
+    total_count = cache_repository.get_user_research_total_count(user_id)
+
+    # Extract embeddings and reduce to 2D using PCA
+    embeddings = [entry["embedding"] for entry in research_entries]
+    coords = reduce_dimensions(embeddings, method="pca", n_components=2)
+
+    # Build points with 2D coordinates
+    points = []
+    for entry, (x, y) in zip(research_entries, coords, strict=True):
+        points.append(
+            ResearchPoint(
+                x=float(x),
+                y=float(y),
+                preview=entry["preview"] or "",
+                category=entry["category"],
+                created_at=entry["created_at"] or "",
+            )
+        )
+
+    logger.info(f"Returned {len(points)} research embeddings for user {user_id}")
+
+    return ResearchEmbeddingsResponse(
+        success=True,
+        points=points,
+        categories=categories,
+        total_count=total_count,
     )

@@ -149,6 +149,8 @@ export interface CompletePayload {
 export interface ErrorPayload {
 	error: string;
 	error_type: string;
+	/** Backend ErrorCode for specific error handling (e.g., 'LLM_CIRCUIT_OPEN', 'LLM_RATE_LIMIT') */
+	error_code?: string;
 	event_type_attempted?: string;
 	sub_problem_index?: number;
 }
@@ -710,6 +712,17 @@ export interface InterjectionCompletePayload {
 	timestamp: string;
 }
 
+/**
+ * Model fallback notification
+ * Emitted: When the primary LLM model is overloaded and a fallback model is used
+ */
+export interface ModelFallbackPayload {
+	provider: string;
+	from_model: string;
+	to_model: string;
+	message: string;
+}
+
 // =============================================================================
 // Event Map & Wrapper
 // =============================================================================
@@ -772,6 +785,8 @@ export interface SSEEventMap {
 	interjection_complete: InterjectionCompletePayload;
 	// State transitions
 	state_transition: StateTransitionPayload;
+	// Infrastructure
+	model_fallback: ModelFallbackPayload;
 }
 
 /**
@@ -978,7 +993,7 @@ export type StateTransitionEvent = SSEEvent<'state_transition'>;
  *   event.data.persona_code; // TypeScript knows this is ContributionPayload
  * }
  */
-export function isEventType<T extends keyof SSEEventMap>(
+export function isEventType<T extends SSEEventType>(
 	event: SSEEvent,
 	type: T
 ): event is SSEEvent<T> {

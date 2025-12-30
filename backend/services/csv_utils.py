@@ -29,6 +29,121 @@ class CSVMetadata:
     column_count: int
     delimiter: str
     encoding: str
+    warnings: list[str] | None = None
+
+
+# CSV injection prefixes (Excel formula triggers)
+_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# Pattern for safe minus: negative number like -123 or -12.5 (only digits/dots after minus)
+_SAFE_MINUS_PATTERN = r"^-[\d.]+$"
+# Pattern for safe plus: phone number like +1234567890 (only digits/spaces after plus)
+_SAFE_PLUS_PATTERN = r"^\+[\d\s]+$"
+# Max cell size (Excel limit is 32KB)
+MAX_CELL_SIZE = 32 * 1024
+
+
+def sanitize_csv_cell(value: str) -> str:
+    """Sanitize a CSV cell value to prevent formula injection.
+
+    Escapes dangerous prefixes (=, +, @, tab, CR) with a leading single quote,
+    strips control characters, and truncates cells exceeding 32KB.
+
+    Args:
+        value: Raw cell value
+
+    Returns:
+        Sanitized cell value
+    """
+    import re
+
+    if not value:
+        return value
+
+    # Strip null bytes and control characters (0x00-0x08, 0x0B-0x0C, 0x0E-0x1F)
+    # Keep tab (0x09), newline (0x0A), carriage return (0x0D)
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", value)
+
+    # Truncate cells exceeding max size
+    if len(value) > MAX_CELL_SIZE:
+        value = value[:MAX_CELL_SIZE]
+        logger.warning(f"Truncated cell value exceeding {MAX_CELL_SIZE} bytes")
+
+    # Check for injection prefixes
+    if value.startswith(_INJECTION_PREFIXES):
+        # Allow safe minus (negative numbers like -123)
+        if value.startswith("-") and re.match(_SAFE_MINUS_PATTERN, value):
+            return value
+        # Allow safe plus (phone numbers like +1234567890)
+        if value.startswith("+") and re.match(_SAFE_PLUS_PATTERN, value):
+            return value
+        # Escape with leading single quote
+        return f"'{value}"
+
+    return value
+
+
+def detect_injection_patterns(content: bytes, max_rows: int = 100) -> list[str]:
+    """Detect potential formula injection patterns in CSV content.
+
+    Scans first N rows for cells starting with injection prefixes.
+    Returns warnings (not errors) for security monitoring.
+
+    Args:
+        content: Raw CSV bytes
+        max_rows: Max rows to scan (default 100 for performance)
+
+    Returns:
+        List of warning messages
+    """
+    import re
+
+    warnings_list: list[str] = []
+    encoding = detect_encoding(content)
+
+    try:
+        text = content.decode(encoding)
+    except UnicodeDecodeError:
+        return warnings_list
+
+    lines = text.strip().split("\n")
+    if len(lines) < 2:
+        return warnings_list
+
+    # Detect delimiter
+    sample = "\n".join(lines[:5])
+    delimiter = detect_delimiter(sample)
+
+    # Skip header, scan data rows
+    reader = csv.reader(io.StringIO("\n".join(lines[1:])), delimiter=delimiter)
+
+    injection_cells = 0
+    for row_idx, row in enumerate(reader):
+        if row_idx >= max_rows:
+            break
+        for _col_idx, cell in enumerate(row):
+            if not cell:
+                continue
+            # Check for injection prefixes (excluding safe patterns)
+            if cell.startswith(_INJECTION_PREFIXES):
+                # Skip safe negative numbers
+                if cell.startswith("-") and re.match(_SAFE_MINUS_PATTERN, cell):
+                    continue
+                # Skip safe phone numbers
+                if cell.startswith("+") and re.match(_SAFE_PLUS_PATTERN, cell):
+                    continue
+                injection_cells += 1
+
+    if injection_cells > 0:
+        warnings_list.append(
+            f"Detected {injection_cells} cell(s) with formula injection prefixes "
+            f"(=, +, @, tab, CR). Values will be sanitized when queried."
+        )
+        logger.info(
+            f"CSV injection detection: {injection_cells} cells with "
+            f"injection prefixes in first {min(max_rows, len(lines) - 1)} rows"
+        )
+
+    return warnings_list
 
 
 def detect_encoding(content: bytes) -> str:
@@ -157,7 +272,7 @@ def validate_csv_structure(content: bytes, max_columns: int = 100) -> CSVMetadat
         max_columns: Maximum allowed columns
 
     Returns:
-        CSVMetadata with full validation
+        CSVMetadata with full validation (includes injection warnings)
 
     Raises:
         CSVValidationError: If CSV structure is invalid
@@ -187,5 +302,10 @@ def validate_csv_structure(content: bytes, max_columns: int = 100) -> CSVMetadat
                 f"Row {i + 2} has {len(row)} columns, expected {metadata.column_count}",
                 field="structure",
             )
+
+    # Detect injection patterns and add warnings
+    warnings_list = detect_injection_patterns(content)
+    if warnings_list:
+        metadata.warnings = warnings_list
 
     return metadata

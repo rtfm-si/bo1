@@ -37,6 +37,44 @@ sys.stdout = _stdout
 sys.stderr = _stderr
 
 
+def hoist_defs_to_schemas(spec: dict) -> dict:
+    """Hoist inline $defs to components/schemas for openapi-typescript compatibility.
+
+    Must match the transformation in export_openapi.py.
+    """
+    schemas = spec.get("components", {}).get("schemas", {})
+    hoisted: dict[str, dict] = {}
+
+    def rewrite_refs(obj: dict | list, parent_schema: str) -> dict | list:
+        if isinstance(obj, dict):
+            if "$ref" in obj:
+                ref = obj["$ref"]
+                if ref.startswith("#/$defs/"):
+                    def_name = ref.split("/")[-1]
+                    hoisted_name = f"{parent_schema}_{def_name}"
+                    return {"$ref": f"#/components/schemas/{hoisted_name}"}
+            return {k: rewrite_refs(v, parent_schema) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [rewrite_refs(item, parent_schema) for item in obj]
+        return obj
+
+    for schema_name, schema in list(schemas.items()):
+        if "$defs" in schema:
+            for def_name, def_schema in schema["$defs"].items():
+                hoisted_name = f"{schema_name}_{def_name}"
+                hoisted[hoisted_name] = def_schema
+
+    for schema_name, schema in list(schemas.items()):
+        if "$defs" in schema:
+            rewritten = rewrite_refs(schema, schema_name)
+            if isinstance(rewritten, dict):
+                rewritten.pop("$defs", None)
+                schemas[schema_name] = rewritten
+
+    schemas.update(hoisted)
+    return spec
+
+
 def normalize_openapi(spec: dict) -> str:
     """Normalize OpenAPI spec for stable comparison.
 
@@ -70,8 +108,9 @@ def main() -> None:
         print("Run `make openapi-export` to generate it", file=sys.stderr)
         sys.exit(1)
 
-    # Get current spec from backend
+    # Get current spec from backend and apply same transformations as export
     current_spec = app.openapi()
+    current_spec = hoist_defs_to_schemas(current_spec)
     current_normalized = normalize_openapi(current_spec)
     current_hash = compute_hash(current_normalized)
 

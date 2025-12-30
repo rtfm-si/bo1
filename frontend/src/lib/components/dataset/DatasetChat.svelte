@@ -8,11 +8,24 @@
 	import { Button } from '$lib/components/ui';
 	import ChatMessage from './ChatMessage.svelte';
 
-	let {
-		datasetId
-	}: {
+	interface Props {
 		datasetId: string;
-	} = $props();
+	}
+
+	let { datasetId }: Props = $props();
+
+	/**
+	 * Public method to ask a question programmatically
+	 * Used by parent components to trigger questions from suggested prompts
+	 */
+	export function askQuestion(question: string) {
+		inputValue = question;
+		// Focus the input to show the user what's happening
+		const inputEl = document.querySelector<HTMLInputElement>('#dataset-chat-input');
+		if (inputEl) {
+			inputEl.focus();
+		}
+	}
 
 	// Chat state
 	let messages = $state<ConversationMessage[]>([]);
@@ -174,6 +187,18 @@
 		}
 	}
 
+	function handleNextStepClick(question: string) {
+		// Set the input value and submit
+		inputValue = question;
+		// Trigger submit after a brief delay to allow state update
+		setTimeout(() => {
+			const form = document.querySelector('#dataset-chat-form') as HTMLFormElement;
+			if (form) {
+				form.requestSubmit();
+			}
+		}, 50);
+	}
+
 	function handleCancel() {
 		if (currentAbort) {
 			currentAbort();
@@ -225,7 +250,11 @@
 			</div>
 		{:else}
 			{#each messages as message, i (i)}
-				<ChatMessage {message} isStreaming={isStreaming && i === messages.length - 1 && message.role === 'assistant'} />
+				<ChatMessage
+					{message}
+					isStreaming={isStreaming && i === messages.length - 1 && message.role === 'assistant'}
+					onNextStepClick={handleNextStepClick}
+				/>
 			{/each}
 		{/if}
 	</div>
@@ -238,9 +267,10 @@
 	{/if}
 
 	<!-- Input -->
-	<form onsubmit={handleSubmit} class="p-4 border-t border-neutral-200 dark:border-neutral-700">
+	<form id="dataset-chat-form" onsubmit={handleSubmit} class="p-4 border-t border-neutral-200 dark:border-neutral-700">
 		<div class="flex gap-2">
 			<input
+				id="dataset-chat-input"
 				type="text"
 				bind:value={inputValue}
 				onkeydown={handleKeyDown}

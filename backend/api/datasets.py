@@ -50,6 +50,7 @@ from backend.services.chart_generator import ChartError, generate_chart_json, ge
 from backend.services.conversation_repo import ConversationRepository
 from backend.services.csv_utils import CSVValidationError, validate_csv_structure
 from backend.services.dataframe_loader import DataFrameLoadError, load_dataframe
+from backend.services.insight_generator import generate_dataset_insights, invalidate_insight_cache
 from backend.services.profiler import ProfileError, profile_dataset, save_profile
 from backend.services.query_engine import QueryError, execute_query
 from backend.services.spaces import SpacesConfigurationError, SpacesError, get_spaces_client
@@ -605,6 +606,103 @@ async def trigger_profile(
         profiles=[_format_profile_response(p) for p in profiles],
         summary=summary,
     )
+
+
+@router.get(
+    "/{dataset_id}/insights",
+    summary="Get dataset insights",
+    description="Get structured business intelligence for a dataset",
+)
+@handle_api_errors("get dataset insights")
+async def get_dataset_insights(
+    dataset_id: str,
+    regenerate: bool = Query(False, description="Force regeneration (bypass cache)"),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    """Get structured business intelligence for a dataset.
+
+    Returns actionable insights including:
+    - Data identity (what this data represents)
+    - Headline metrics (key numbers at a glance)
+    - Business insights (trends, patterns, risks)
+    - Data quality assessment
+    - Suggested questions to explore
+    - Column-level semantic understanding
+    """
+    from datetime import datetime
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Get profiles
+    profiles = dataset_repository.get_profiles(dataset_id)
+    if not profiles:
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Dataset not profiled. Generate a profile first.",
+            status=422,
+        )
+
+    # Build profile dict for insight generator
+    profile_dict = {
+        "dataset_id": dataset_id,
+        "row_count": dataset.get("row_count", 0),
+        "column_count": dataset.get("column_count", 0),
+        "columns": [
+            {
+                "name": p.get("column_name", ""),
+                "inferred_type": p.get("data_type", "unknown"),
+                "stats": {
+                    "null_count": p.get("null_count"),
+                    "unique_count": p.get("unique_count"),
+                    "min_value": p.get("min_value"),
+                    "max_value": p.get("max_value"),
+                    "mean_value": p.get("mean_value"),
+                    "sample_values": p.get("sample_values", []),
+                },
+            }
+            for p in profiles
+        ],
+    }
+
+    # Invalidate cache if regenerating
+    if regenerate:
+        invalidate_insight_cache(dataset_id)
+
+    # Generate insights
+    try:
+        insights, metadata = await generate_dataset_insights(
+            profile_dict,
+            dataset_name=dataset["name"],
+            use_cache=not regenerate,
+        )
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            f"Failed to generate insights for {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            "Failed to generate insights",
+            status=500,
+        ) from None
+
+    return {
+        "insights": insights.model_dump(mode="json"),
+        "generated_at": datetime.utcnow().isoformat(),
+        "model_used": metadata.get("model_used", "sonnet"),
+        "tokens_used": metadata.get("tokens_used", 0),
+        "cached": metadata.get("cached", False),
+    }
 
 
 @router.post(

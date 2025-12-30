@@ -90,6 +90,7 @@ import type {
 	DatasetDetailResponse,
 	DatasetListResponse,
 	DatasetProfile,
+	DatasetInsightsResponse,
 	ChartSpec,
 	ChartResultResponse,
 	DatasetAnalysis,
@@ -2153,6 +2154,19 @@ export class ApiClient {
 	 */
 	async profileDataset(datasetId: string): Promise<{ profiles: DatasetProfile[]; summary: string }> {
 		return this.post<{ profiles: DatasetProfile[]; summary: string }>(`/api/v1/datasets/${datasetId}/profile`);
+	}
+
+	/**
+	 * Get structured business insights for a dataset
+	 */
+	async getDatasetInsights(
+		datasetId: string,
+		regenerate: boolean = false
+	): Promise<DatasetInsightsResponse> {
+		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/insights`, {
+			regenerate: regenerate ? 'true' : undefined
+		});
+		return this.fetch<DatasetInsightsResponse>(endpoint);
 	}
 
 	/**

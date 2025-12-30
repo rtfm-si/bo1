@@ -45,11 +45,12 @@ class TestSSESchemasEndpoint:
             "voting_complete",
             "synthesis_complete",
             "meta_synthesis_complete",
+            "truncation_warning",
             "error",
         }
 
         assert set(data["event_types"]) == expected_events
-        assert data["count"] == 14
+        assert data["count"] == 15
 
     def test_sse_schemas_has_schema_dict(self, client):
         """Test endpoint returns schemas dict with JSON Schema for each event."""
@@ -58,7 +59,7 @@ class TestSSESchemasEndpoint:
 
         schemas = data["schemas"]
         assert isinstance(schemas, dict)
-        assert len(schemas) == 14
+        assert len(schemas) == 15
 
         # Each schema should be a valid JSON Schema
         for _event_type, schema in schemas.items():
@@ -98,7 +99,7 @@ class TestOpenAPISSESchemas:
 
         # Check SSE event schemas are present with prefix
         sse_schemas = [k for k in schemas.keys() if k.startswith("SSEEvent_")]
-        assert len(sse_schemas) == 14
+        assert len(sse_schemas) == 15
 
         expected_sse_schemas = {
             "SSEEvent_session_started",
@@ -114,6 +115,7 @@ class TestOpenAPISSESchemas:
             "SSEEvent_voting_complete",
             "SSEEvent_synthesis_complete",
             "SSEEvent_meta_synthesis_complete",
+            "SSEEvent_truncation_warning",
             "SSEEvent_error",
         }
         assert set(sse_schemas) == expected_sse_schemas

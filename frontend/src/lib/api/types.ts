@@ -978,6 +978,92 @@ export interface DatasetProfile {
 }
 
 // =============================================================================
+// Dataset Insight Types (Business Intelligence)
+// =============================================================================
+
+export type BusinessDomain =
+	| 'ecommerce'
+	| 'saas'
+	| 'services'
+	| 'marketing'
+	| 'finance'
+	| 'operations'
+	| 'hr'
+	| 'product'
+	| 'unknown';
+
+export type InsightSeverity = 'positive' | 'neutral' | 'warning' | 'critical';
+export type InsightType = 'trend' | 'pattern' | 'anomaly' | 'risk' | 'opportunity' | 'benchmark';
+
+export interface DataIdentity {
+	domain: BusinessDomain;
+	confidence: number;
+	entity_type: string;
+	description: string;
+	time_range: string | null;
+}
+
+export interface HeadlineMetric {
+	label: string;
+	value: string;
+	context: string | null;
+	trend: string | null;
+	is_good: boolean | null;
+}
+
+export interface Insight {
+	type: InsightType;
+	severity: InsightSeverity;
+	headline: string;
+	detail: string;
+	metric: string | null;
+	action: string | null;
+}
+
+export interface DataQualityScore {
+	overall_score: number;
+	completeness: number;
+	consistency: number;
+	freshness: number | null;
+	issues: string[];
+	missing_data: string[];
+	suggestions: string[];
+}
+
+export interface ColumnSemantic {
+	column_name: string;
+	technical_type: string;
+	semantic_type: string;
+	confidence: number;
+	business_meaning: string;
+	sample_insight: string | null;
+}
+
+export interface SuggestedQuestion {
+	question: string;
+	category: string;
+	why_relevant: string;
+}
+
+export interface DatasetInsights {
+	identity: DataIdentity;
+	headline_metrics: HeadlineMetric[];
+	insights: Insight[];
+	quality: DataQualityScore;
+	suggested_questions: SuggestedQuestion[];
+	column_semantics: ColumnSemantic[];
+	narrative_summary: string;
+}
+
+export interface DatasetInsightsResponse {
+	insights: DatasetInsights;
+	generated_at: string;
+	model_used: string;
+	tokens_used: number;
+	cached: boolean;
+}
+
+// =============================================================================
 // Competitor Insight Types
 // =============================================================================
 

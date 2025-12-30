@@ -2,13 +2,14 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiClient } from '$lib/api/client';
-	import type { DatasetDetailResponse, DatasetAnalysis } from '$lib/api/types';
+	import type { DatasetDetailResponse, DatasetAnalysis, DatasetInsights } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import DatasetChat from '$lib/components/dataset/DatasetChat.svelte';
 	import AnalysisGallery from '$lib/components/dataset/AnalysisGallery.svelte';
+	import DataInsightsPanel from '$lib/components/dataset/DataInsightsPanel.svelte';
 
 	const datasetId = $derived(page.params.dataset_id || '');
 
@@ -24,10 +25,39 @@
 	let isProfiling = $state(false);
 	let profileError = $state<string | null>(null);
 
+	// Insights state
+	let insights = $state<DatasetInsights | null>(null);
+	let insightsLoading = $state(false);
+	let insightsError = $state<string | null>(null);
+
 	// Analysis history state
 	let analyses = $state<DatasetAnalysis[]>([]);
 	let analysesLoading = $state(false);
 	let analysesError = $state<string | null>(null);
+
+	// Reference to chat component for asking questions
+	let chatComponent = $state<{ askQuestion: (q: string) => void } | null>(null);
+
+	async function fetchInsights(regenerate = false) {
+		insightsLoading = true;
+		insightsError = null;
+		try {
+			const response = await apiClient.getDatasetInsights(datasetId, regenerate);
+			insights = response.insights;
+		} catch (err) {
+			const errMsg = err instanceof Error ? err.message : String(err);
+			// 422 means not profiled yet - not an error state, just silently skip
+			if (errMsg.includes('profiled') || errMsg.includes('422')) {
+				insights = null;
+				insightsError = null;
+			} else {
+				console.error('[Insights] Error fetching insights:', err);
+				insightsError = errMsg || 'Failed to load insights';
+			}
+		} finally {
+			insightsLoading = false;
+		}
+	}
 
 	async function fetchAnalyses() {
 		analysesLoading = true;
@@ -42,9 +72,23 @@
 		}
 	}
 
+	function handleQuestionClick(question: string) {
+		// Scroll to chat and pre-fill question
+		const chatSection = document.getElementById('dataset-chat');
+		if (chatSection) {
+			chatSection.scrollIntoView({ behavior: 'smooth' });
+		}
+		// Use the chat component's method if available
+		if (chatComponent?.askQuestion) {
+			chatComponent.askQuestion(question);
+		}
+	}
+
 	onMount(() => {
 		datasetData.fetch();
 		fetchAnalyses();
+		// Fetch insights after a small delay to let profile load first
+		setTimeout(() => fetchInsights(), 100);
 	});
 
 	function formatDate(dateString: string): string {
@@ -104,6 +148,8 @@
 		try {
 			await apiClient.profileDataset(datasetId);
 			await datasetData.fetch();
+			// Fetch insights after profiling
+			await fetchInsights();
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Profiling failed';
 		} finally {
@@ -203,18 +249,16 @@
 				</div>
 			</div>
 
-			<!-- Summary Section -->
-			{#if dataset.summary}
-				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 mb-6">
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-						<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-						</svg>
-						AI Summary
-					</h2>
-					<div class="prose prose-neutral dark:prose-invert max-w-none text-sm">
-						{dataset.summary}
-					</div>
+			<!-- Data Insights Section -->
+			{#if (dataset.profiles?.length ?? 0) > 0}
+				<div class="mb-6">
+					<DataInsightsPanel
+						{insights}
+						loading={insightsLoading}
+						error={insightsError}
+						onQuestionClick={handleQuestionClick}
+						onRefresh={() => fetchInsights(true)}
+					/>
 				</div>
 			{/if}
 
@@ -308,8 +352,8 @@
 			</div>
 
 			<!-- Chat Section -->
-			<div class="mt-6">
-				<DatasetChat {datasetId} />
+			<div id="dataset-chat" class="mt-6">
+				<DatasetChat {datasetId} bind:this={chatComponent} />
 			</div>
 
 			<!-- Analysis History Section -->

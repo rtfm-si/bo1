@@ -6,6 +6,7 @@ examples, and security constraints.
 
 import re
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -4279,3 +4280,191 @@ class MeetingTemplateListResponse(BaseModel):
     templates: list[MeetingTemplate] = Field(..., description="List of templates")
     total: int = Field(..., description="Total count")
     categories: list[str] = Field(..., description="Available categories for filtering")
+
+
+# =============================================================================
+# Dataset Insight Models (Business Intelligence)
+# =============================================================================
+
+
+class BusinessDomain(str, Enum):
+    """Detected business domain of the dataset."""
+
+    ECOMMERCE = "ecommerce"
+    SAAS = "saas"
+    SERVICES = "services"
+    MARKETING = "marketing"
+    FINANCE = "finance"
+    OPERATIONS = "operations"
+    HR = "hr"
+    PRODUCT = "product"
+    UNKNOWN = "unknown"
+
+
+class SemanticColumnType(str, Enum):
+    """Business-semantic column types (beyond technical types)."""
+
+    # Financial
+    REVENUE = "revenue"
+    PRICE = "price"
+    COST = "cost"
+    MARGIN = "margin"
+    DISCOUNT = "discount"
+
+    # Identifiers
+    CUSTOMER_ID = "customer_id"
+    ORDER_ID = "order_id"
+    PRODUCT_ID = "product_id"
+    TRANSACTION_ID = "transaction_id"
+
+    # Contact
+    EMAIL = "email"
+    PHONE = "phone"
+    NAME = "name"
+    COMPANY = "company"
+
+    # Temporal
+    ORDER_DATE = "order_date"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    EVENT_DATE = "event_date"
+
+    # Quantities
+    QUANTITY = "quantity"
+    COUNT = "count"
+    UNITS = "units"
+
+    # Rates
+    CONVERSION_RATE = "conversion_rate"
+    PERCENTAGE = "percentage"
+    RATE = "rate"
+
+    # Categories
+    STATUS = "status"
+    CATEGORY = "category"
+    TYPE = "type"
+    CHANNEL = "channel"
+    SOURCE = "source"
+
+    # Location
+    COUNTRY = "country"
+    REGION = "region"
+    CITY = "city"
+    ADDRESS = "address"
+
+    # Product
+    PRODUCT_NAME = "product_name"
+    SKU = "sku"
+    DESCRIPTION = "description"
+
+    # Generic
+    METRIC = "metric"
+    DIMENSION = "dimension"
+    UNKNOWN = "unknown"
+
+
+class InsightSeverity(str, Enum):
+    """Severity/importance of an insight."""
+
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+class InsightType(str, Enum):
+    """Category of insight."""
+
+    TREND = "trend"
+    PATTERN = "pattern"
+    ANOMALY = "anomaly"
+    RISK = "risk"
+    OPPORTUNITY = "opportunity"
+    BENCHMARK = "benchmark"
+
+
+class DataIdentity(BaseModel):
+    """What this dataset represents in business terms."""
+
+    domain: BusinessDomain = Field(description="Business domain (e-commerce, SaaS, etc.)")
+    confidence: float = Field(ge=0, le=1, description="Confidence in domain detection")
+    entity_type: str = Field(description="What the rows represent (orders, customers, etc.)")
+    description: str = Field(description="Plain English description of the data")
+    time_range: str | None = Field(
+        default=None, description="Detected time span if date columns exist"
+    )
+
+
+class HeadlineMetric(BaseModel):
+    """Key metric displayed prominently."""
+
+    label: str = Field(description="Metric name (e.g., 'Total Revenue')")
+    value: str = Field(description="Formatted value (e.g., '$127,450')")
+    context: str | None = Field(default=None, description="Additional context")
+    trend: str | None = Field(default=None, description="Trend indicator")
+    is_good: bool | None = Field(default=None, description="Whether this is positive/negative")
+
+
+class Insight(BaseModel):
+    """A single business insight."""
+
+    type: InsightType
+    severity: InsightSeverity
+    headline: str = Field(description="Short headline")
+    detail: str = Field(description="Full explanation")
+    metric: str | None = Field(default=None, description="Related metric if applicable")
+    action: str | None = Field(default=None, description="Suggested action")
+
+
+class DataQualityScore(BaseModel):
+    """Assessment of data quality and completeness."""
+
+    overall_score: int = Field(ge=0, le=100, description="Overall quality score 0-100")
+    completeness: int = Field(ge=0, le=100, description="Percentage of non-null values")
+    consistency: int = Field(ge=0, le=100, description="Data consistency score")
+    freshness: int | None = Field(default=None, ge=0, le=100, description="How recent the data is")
+    issues: list[str] = Field(default_factory=list, description="Specific quality issues found")
+    missing_data: list[str] = Field(
+        default_factory=list, description="Important data that's missing"
+    )
+    suggestions: list[str] = Field(default_factory=list, description="How to improve the data")
+
+
+class ColumnSemantic(BaseModel):
+    """Semantic understanding of a column."""
+
+    column_name: str
+    technical_type: str = Field(description="Technical type (integer, float, etc.)")
+    semantic_type: SemanticColumnType
+    confidence: float = Field(ge=0, le=1)
+    business_meaning: str = Field(description="Plain English explanation")
+    sample_insight: str | None = Field(default=None, description="Quick insight about this column")
+
+
+class SuggestedQuestion(BaseModel):
+    """A question the user might want to explore."""
+
+    question: str
+    category: str = Field(description="Category (performance, trend, segment, etc.)")
+    why_relevant: str = Field(description="Why this question matters for the data")
+
+
+class DatasetInsights(BaseModel):
+    """Complete structured intelligence for a dataset."""
+
+    identity: DataIdentity
+    headline_metrics: list[HeadlineMetric] = Field(max_length=5)
+    insights: list[Insight] = Field(max_length=8)
+    quality: DataQualityScore
+    suggested_questions: list[SuggestedQuestion] = Field(max_length=5)
+    column_semantics: list[ColumnSemantic]
+    narrative_summary: str = Field(description="Prose summary for fallback display")
+
+
+class DatasetInsightsResponse(BaseModel):
+    """API response wrapper for insights."""
+
+    insights: DatasetInsights
+    generated_at: str
+    model_used: str
+    tokens_used: int

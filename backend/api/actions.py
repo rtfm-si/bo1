@@ -15,7 +15,6 @@ from typing import Any
 import redis
 from fastapi import APIRouter, Depends, Query, Request
 
-from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import limiter
 from backend.api.models import (
     ActionBlockedResponse,
@@ -75,6 +74,7 @@ from backend.api.models import (
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.services.blocker_analyzer import get_blocker_analyzer
 from backend.services.gantt_service import GanttColorService
 from bo1.config import get_settings
@@ -164,7 +164,7 @@ def _count_by_status(tasks: list[dict[str, Any]]) -> dict[str, int]:
 )
 @handle_api_errors("get all actions")
 async def get_all_actions(
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
     status_filter: str | None = Query(
         None,
         description="Filter by status",
@@ -303,7 +303,7 @@ async def get_all_actions(
 )
 @handle_api_errors("get global gantt data")
 async def get_global_gantt(
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
     status_filter: str | None = Query(
         None,
         description="Filter by status",
@@ -546,7 +546,7 @@ async def get_global_gantt(
 )
 @handle_api_errors("get action reminders")
 async def get_action_reminders(
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
     limit: int = Query(50, ge=1, le=100, description="Max reminders to return"),
 ) -> ActionRemindersResponse:
     """Get pending action reminders for the current user.
@@ -606,7 +606,7 @@ async def get_action_reminders(
 )
 @handle_api_errors("get action stats")
 async def get_action_stats(
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
     days: int = Query(30, ge=7, le=365, description="Number of days to include (7-365)"),
 ) -> ActionStatsResponse:
     """Get action statistics for dashboard progress visualization.
@@ -766,7 +766,7 @@ async def get_action_stats(
 @handle_api_errors("get action detail")
 async def get_action_detail(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> ActionDetailResponse:
     """Get detailed information about a specific action.
 
@@ -856,7 +856,8 @@ async def get_action_detail(
 @handle_api_errors("start action")
 async def start_action(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionStartedResponse:
     """Start an action (mark as in_progress).
 
@@ -902,8 +903,9 @@ async def start_action(
 @handle_api_errors("complete action")
 async def complete_action(
     action_id: str,
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     request: ActionCompleteRequest | None = None,
-    user_data: dict = Depends(get_current_user),
 ) -> ActionCompletedResponse:
     """Complete an action (mark as done).
 
@@ -1026,7 +1028,8 @@ async def complete_action(
 async def close_action(
     action_id: str,
     request: ActionCloseRequest,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionCloseResponse:
     """Close an action as failed or abandoned.
 
@@ -1086,7 +1089,8 @@ async def close_action(
 async def clone_replan_action(
     action_id: str,
     request: ActionCloneReplanRequest,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionCloneReplanResponse:
     """Create a new action by replanning a failed/abandoned one.
 
@@ -1160,7 +1164,8 @@ async def clone_replan_action(
 async def update_action_status(
     action_id: str,
     status_update: ActionStatusUpdate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     _pool_check: None = Depends(check_pool_health),
 ) -> ActionStatusUpdatedResponse:
     """Update action status.
@@ -1364,7 +1369,7 @@ async def update_action_status(
 @handle_api_errors("get replan context")
 async def get_replan_context(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> ActionReplanContextResponse:
     """Get context for replanning a cancelled action.
 
@@ -1430,7 +1435,8 @@ async def get_replan_context(
 @handle_api_errors("delete action")
 async def delete_action(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionDeletedResponse:
     """Soft delete an action.
 
@@ -1490,7 +1496,7 @@ async def delete_action(
 @handle_api_errors("get action dependencies")
 async def get_action_dependencies(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> DependencyListResponse:
     """Get all dependencies for an action.
 
@@ -1547,7 +1553,8 @@ async def get_action_dependencies(
 async def add_action_dependency(
     action_id: str,
     dependency: DependencyCreate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> DependencyAddedResponse:
     """Add a dependency to an action.
 
@@ -1623,7 +1630,8 @@ async def add_action_dependency(
 async def remove_action_dependency(
     action_id: str,
     depends_on_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> DependencyRemovedResponse:
     """Remove a dependency from an action.
 
@@ -1691,7 +1699,8 @@ async def remove_action_dependency(
 async def block_action(
     action_id: str,
     block_request: BlockActionRequest,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionBlockedResponse:
     """Block an action with a reason.
 
@@ -1749,8 +1758,9 @@ async def block_action(
 @handle_api_errors("unblock action")
 async def unblock_action(
     action_id: str,
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     unblock_request: UnblockActionRequest | None = None,
-    user_data: dict = Depends(get_current_user),
 ) -> ActionUnblockedResponse:
     """Unblock a blocked action.
 
@@ -1833,7 +1843,8 @@ async def unblock_action(
 async def suggest_unblock_paths(
     request: Request,
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> UnblockPathsResponse:
     """Generate AI suggestions for unblocking a blocked action.
 
@@ -1921,8 +1932,9 @@ async def suggest_unblock_paths(
 async def escalate_blocker(
     request: Request,
     action_id: str,
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     body: EscalateBlockerRequest | None = None,
-    user_data: dict = Depends(get_current_user),
 ) -> EscalateBlockerResponse:
     """Escalate a blocked action to a meeting for AI-assisted resolution.
 
@@ -1987,8 +1999,9 @@ async def escalate_blocker(
 @handle_api_errors("request replan")
 async def request_replan(
     action_id: str,
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
     replan_request: ReplanRequest | None = None,
-    user_data: dict = Depends(get_current_user),
 ) -> ReplanResponse:
     """Request AI replanning for a blocked action.
 
@@ -2071,7 +2084,8 @@ async def request_replan(
 async def update_action_dates(
     action_id: str,
     dates_update: ActionDatesUpdate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionDatesResponse:
     """Update action dates and trigger cascade recalculation.
 
@@ -2191,7 +2205,8 @@ async def update_action_dates(
 @handle_api_errors("recalculate action dates")
 async def recalculate_action_dates(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionDatesResponse:
     """Force recalculation of estimated dates for an action.
 
@@ -2251,7 +2266,7 @@ async def recalculate_action_dates(
 @handle_api_errors("get action updates")
 async def get_action_updates(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
     limit: int = Query(50, ge=1, le=200, description="Max updates to fetch"),
 ) -> ActionUpdatesResponse:
     """Get activity updates for an action.
@@ -2318,7 +2333,8 @@ async def get_action_updates(
 async def add_action_update(
     action_id: str,
     update: ActionUpdateCreate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionUpdateResponse:
     """Add an update to an action.
 
@@ -2402,7 +2418,7 @@ async def add_action_update(
 @handle_api_errors("get action tags")
 async def get_action_tags(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> list[TagResponse]:
     """Get all tags for an action.
 
@@ -2453,7 +2469,8 @@ async def get_action_tags(
 async def set_action_tags(
     action_id: str,
     tags_update: ActionTagsUpdate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> list[TagResponse]:
     """Set tags for an action (replaces existing).
 
@@ -2515,7 +2532,8 @@ async def set_action_tags(
 async def update_action_progress(
     action_id: str,
     progress_update: ActionProgressUpdate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ActionDetailResponse:
     """Update action progress tracking.
 
@@ -2583,7 +2601,7 @@ async def update_action_progress(
 @handle_api_errors("get action variance")
 async def get_action_variance(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> ActionVariance:
     """Get action schedule variance analysis.
 
@@ -2631,7 +2649,7 @@ async def get_action_variance(
 @handle_api_errors("get reminder settings")
 async def get_action_reminder_settings(
     action_id: str,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
 ) -> ReminderSettingsResponse:
     """Get reminder settings for an action.
 
@@ -2676,7 +2694,8 @@ async def get_action_reminder_settings(
 async def update_action_reminder_settings(
     action_id: str,
     settings_update: ReminderSettingsUpdate,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ReminderSettingsResponse:
     """Update reminder settings for an action.
 
@@ -2729,7 +2748,8 @@ async def update_action_reminder_settings(
 async def snooze_action_reminder(
     action_id: str,
     snooze_request: SnoozeReminderRequest,
-    user_data: dict = Depends(get_current_user),
+    user_data: SessionAuthDep,
+    _csrf: CSRFTokenDep,
 ) -> ReminderSnoozedResponse:
     """Snooze reminders for an action.
 

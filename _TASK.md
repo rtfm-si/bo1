@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-29_
+_Last updated: 2025-12-30 (build pass: Implemented sub-problem checkpoint resume - E2E finding ISS-001)_
 
 ---
 
@@ -25,22 +25,83 @@ _Last updated: 2025-12-29_
 
 ### E2E Findings (2025-12-29)
 
-- [ ] [INFRA][P2] Add retry logic for Anthropic API failures with exponential backoff
+- [x] [INFRA][P2] Add retry logic for Anthropic API failures with exponential backoff
   - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
-  - Deferred: Third-party dependency (Anthropic API "overflow" error)
-  - Lead: Meeting failed on sub-problem 4 of 4; 3 sub-problems completed successfully before failure
-- [ ] [INFRA][P2] Implement circuit breaker pattern for LLM calls
+  - Implemented: MAX_RETRIES=5, RETRY_BASE_DELAY=1.0s, RETRY_MAX_DELAY=60.0s with jitter
+  - Metrics: `bo1_llm_retries_total{provider,attempt,error_type}`, `bo1_llm_retries_exhausted_total{provider,error_type}`
+- [x] [INFRA][P2] Implement circuit breaker pattern for LLM calls
   - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
-  - Deferred: Third-party dependency - requires infrastructure resilience work
-- [ ] [INFRA][P3] Add fallback model configuration (e.g., Claude 3.5 Sonnet when primary fails)
+  - Implemented: `bo1/llm/circuit_breaker.py` with CLOSED/OPEN/HALF_OPEN states, fault classification, metrics
+  - Tests: `tests/llm/test_circuit_breaker_faults.py`, `test_circuit_breaker_registry.py`, `test_circuit_breaker_provider.py`, `test_circuit_breaker_status.py`
+- [x] [INFRA][P3] Add fallback model configuration (e.g., Claude 3.5 Sonnet when primary fails)
   - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
-  - Deferred: Third-party dependency
-- [ ] [UX][P3] Improve error messaging for third-party API failures
+  - Implemented: `llm_model_fallback_enabled`, `llm_anthropic_fallback_chain`, `llm_openai_fallback_chain` settings
+  - Model fallback helper in `bo1/llm/model_fallback.py`, 529/503 classified as MODEL_SPECIFIC fault
+  - Metrics: `bo1_model_fallback_total{provider,from_model,to_model}`
+  - SSE event: `model_fallback` with user-friendly message
+- [x] [UX][P3] Improve error messaging for third-party API failures
   - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
-  - Deferred: Current message is generic; could be more helpful
-- [ ] [INFRA][P2] Enable resume from last successful sub-problem checkpoint
+  - Implemented: Centralized `apiErrorMessages.ts` utility, error_code in SSE events, MeetingError.svelte/ErrorEvent.svelte enhanced with actionable guidance and recovery times
+- [x] [INFRA][P2] Enable resume from last successful sub-problem checkpoint
   - Source: E2E run e2e-2025-12-29-golden-meeting ISS-001
-  - Deferred: Complex feature requiring checkpoint management
+  - Implemented: `zw_add_checkpoint_resume_fields` migration adds `last_completed_sp_index`, `sp_checkpoint_at`, `total_sub_problems` to sessions
+  - SP boundary checkpoint saved in `synthesis.py:next_subproblem_node` after each SP completes
+  - Resume router (`routers.py:route_on_resume`) routes to select_personas for incomplete sessions
+  - API endpoints: `GET /sessions/{id}/checkpoint-state`, `POST /sessions/{id}/resume`
+  - Frontend: `SessionRecoveryBanner.svelte` for resumable session UI
+  - Expert memory propagation via `prior_expert_summaries` state field
+
+### Audit-Derived Tasks (2025-12-30)
+
+#### P0 - Critical
+
+- [x] [PERF][P0] Increase database connection pool from 20 to 75 - `constants.py:445`
+- [x] [DATA][P0] Add user_id FK to recommendations table - `models/recommendations.py:26`
+- [x] [DATA][P0] Add workspace_id field to Session model - `models/session.py:54`
+- [x] [LLM][P0] Sanitize LLM outputs before re-injection - `persona_executor.py:149-150`
+- [x] [LLM][P0] Sanitize third-party API results (Brave, Tavily) - `agents/researcher.py:694-872`
+- [x] [OBS][P0] Add correlation ID (request_id) propagation - nodes/decomposition.py, research.py, synthesis.py, persona_executor.py
+
+#### P1 - High Priority
+
+- [x] [ARCH][P1] Parallelize initial_round_node - uses `_generate_parallel_contributions` in `rounds.py`
+- [x] [PERF][P1] Add composite indexes for partitioned tables - multiple migrations exist
+- [x] [PERF][P1] Optimize action tag filtering query - CTE+JOIN in `action_repository.py:185`
+- [x] [PERF][P1] Enable pg_stat_statements monitoring - `z16_enable_pg_stat_statements.py`
+- [x] [DATA][P1] Add missing fields to Recommendation model - all fields present
+- [x] [DATA][P1] Create comprehensive serialization roundtrip tests - `tests/graph/test_state_roundtrip.py`
+- [x] [LLM][P1] Sanitize user interjection and clarification - `control.py:2093-2094`
+- [x] [LLM][P1] Switch to SYNTHESIS_HIERARCHICAL_TEMPLATE as default (completed 2025-12-30)
+- [x] [OBS][P1] Expose circuit breaker state as Prometheus metrics - `middleware/metrics.py`
+- [x] [OBS][P1] Standardize ErrorCode usage - 137 occurrences across 50+ files
+- [x] [API][P1] Standardize error response format - 9 major files migrated (seo/routes, user, datasets, workspaces/*, projects, context/routes, mentor) ~250 endpoints
+- [x] [API][P1] Document SSE event schemas in OpenAPI spec - added SSEEvent_* schemas to OpenAPI, /api/v1/sse/schemas endpoint, updated streaming docstrings
+- [x] [REL][P1] Fix replanning service rollback - proper cleanup + error raising in `replanning_service.py`
+- [x] [REL][P1] Add Redis metadata fallback to PostgreSQL (dual-write session metadata)
+- [x] [COST][P1] Switch to hierarchical synthesis template (5-6% cost reduction) - completed 2025-12-30
+- [x] [COST][P1] Compress persona protocols - 27.8% per-call token reduction (545 tokens saved) - completed 2025-12-30
+
+#### P2 - Medium Priority
+
+- [x] [ARCH][P2] Consolidate router validation logic - `_validate_state_field` in `routers.py:18-42`
+- [x] [ARCH][P2] Add circuit breaker for Redis PubSub failures with PostgreSQL polling fallback - `streaming.py:859-862`, 4 new tests in `test_sse_redis_fallback.py`
+- [x] [PERF][P2] Implement session metadata caching with Redis backend - dual-write to PostgreSQL with fallback in `redis_manager.py:670-824`
+- [x] [PERF][P2] Increase embedding batch size from 5 to 20 - `constants.py:BATCH_SIZE=20`
+- [x] [PERF][P2] Implement aggregation result caching for cost queries - `/api/admin/costs/cache-metrics`, `AggregatedCacheMetrics` model
+- [x] [PERF][P2] Add contribution pruning in graph state after synthesis - `state.py:prune_contributions_for_phase()`, `synthesis.py:175-181`
+- [x] [DATA][P2] Add CI check for TypeScript type sync with backend models - `.github/workflows/ci.yml:92-93`, `npm run check:types-fresh`
+- [x] [DATA][P2] Create Pydantic models for domain entities (Action, Project, Workspace) - `backend/api/models.py`, `backend/api/workspaces/models.py`
+- [x] [LLM][P2] Add rate limiting to PromptBroker - `llm/rate_limiter.py`
+- [x] [LLM][P2] Audit dataset CSV handling for malicious cell values (injection risk) - `csv_utils.py:sanitize_csv_cell()`, `dataframe_loader.py:load_dataframe(sanitize=True)`
+- [x] [OBS][P2] Add event persistence metrics (batch size histogram, duration, retry queue depth) - `metrics.py:129-150`, `bo1_event_persistence_*` gauges
+- [x] [OBS][P2] Add Redis connection pool metrics (active connections, utilization, latency) - `metrics.py:298-317`, `bo1_redis_pool_*` gauges
+- [x] [OBS][P2] Configure Prometheus alerts for event persistence, circuit breakers, cost tracking - `monitoring/prometheus/alert_rules.yml:95-216`
+- [x] [API][P2] Add OpenAPI security schemes - `openapi_security.py`, SessionAuthDep/CSRFTokenDep applied to sessions, streaming, control, actions, projects
+- [x] [API][P2] Document rate limits in API responses - X-RateLimit-Limit/Remaining/Reset headers via middleware, OpenAPI x-rate-limits extension
+- [x] [REL][P2] Add SSE reconnection backoff with Retry-After header - `streaming.py:77-116`
+- [x] [REL][P2] Add deadlock retry to @retry_db decorator - 40P01 in `utils/retry.py:36`
+- [x] [COST][P2] Extend Haiku to Round 3 - `HAIKU_ROUNDS_THRESHOLD=3` in `constants.py:253`
+- [x] [COST][P2] Add cache hit rate metrics to get_session_costs() - SessionCostBreakdown now includes cache_hit_rate, prompt_cache_hit_rate, total_saved
 
 ### User-Owned
 

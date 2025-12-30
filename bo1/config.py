@@ -217,6 +217,18 @@ class Settings(BaseSettings):
         default=True,
         description="Enable fallback to secondary provider when primary is unavailable",
     )
+    llm_model_fallback_enabled: bool = Field(
+        default=True,
+        description="Enable within-provider model fallback (e.g., Opus → Sonnet when overloaded)",
+    )
+    llm_anthropic_fallback_chain: list[str] = Field(
+        default=["claude-sonnet-4-20250514"],
+        description="Anthropic model fallback chain (tried in order when primary fails)",
+    )
+    llm_openai_fallback_chain: list[str] = Field(
+        default=["gpt-4o-mini"],
+        description="OpenAI model fallback chain (tried in order when primary fails)",
+    )
 
     # Research API Keys (for external research features)
     tavily_api_key: str = Field(default="", description="Tavily API key for web search")

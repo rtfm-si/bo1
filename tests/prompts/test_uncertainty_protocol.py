@@ -1,36 +1,41 @@
-"""Tests for UNCERTAINTY_FALLBACK protocol and persona prompt injection."""
+"""Tests for uncertainty handling in protocols and persona prompts.
+
+Note: UNCERTAINTY_FALLBACK was consolidated into BEHAVIORAL_GUIDELINES
+for token efficiency. These tests verify the core uncertainty handling
+requirements are still enforced.
+"""
 
 from bo1.prompts.persona import compose_persona_contribution_prompt
-from bo1.prompts.protocols import UNCERTAINTY_FALLBACK
+from bo1.prompts.protocols import BEHAVIORAL_GUIDELINES, UNCERTAINTY_FALLBACK
 
 
-class TestUncertaintyFallbackConstant:
-    """Tests for UNCERTAINTY_FALLBACK constant existence and content."""
+class TestUncertaintyInBehavioralGuidelines:
+    """Tests for uncertainty handling now in BEHAVIORAL_GUIDELINES."""
 
-    def test_uncertainty_fallback_exists(self) -> None:
-        """UNCERTAINTY_FALLBACK constant should exist and be non-empty."""
-        assert UNCERTAINTY_FALLBACK is not None
-        assert len(UNCERTAINTY_FALLBACK) > 0
+    def test_uncertainty_fallback_deprecated(self) -> None:
+        """UNCERTAINTY_FALLBACK should be empty (deprecated)."""
+        assert UNCERTAINTY_FALLBACK == ""
 
-    def test_uncertainty_fallback_contains_key_guidance(self) -> None:
-        """UNCERTAINTY_FALLBACK should contain key uncertainty handling guidance."""
-        # Check for critical phrases from the protocol
-        assert "I don't have data" in UNCERTAINTY_FALLBACK
-        assert "never fabricate" in UNCERTAINTY_FALLBACK.lower()
-        assert "conditional analysis" in UNCERTAINTY_FALLBACK.lower()
-        assert "assumptions explicitly" in UNCERTAINTY_FALLBACK.lower()
+    def test_behavioral_guidelines_contains_uncertainty_handling(self) -> None:
+        """BEHAVIORAL_GUIDELINES should contain uncertainty handling guidance."""
+        # Critical uncertainty handling phrases
+        assert "WHEN UNCERTAIN" in BEHAVIORAL_GUIDELINES
+        assert "uncertain" in BEHAVIORAL_GUIDELINES.lower()
+        assert "defer" in BEHAVIORAL_GUIDELINES.lower()
 
-    def test_uncertainty_fallback_has_xml_structure(self) -> None:
-        """UNCERTAINTY_FALLBACK should use XML tags for structure."""
-        assert "<uncertainty_protocol>" in UNCERTAINTY_FALLBACK
-        assert "</uncertainty_protocol>" in UNCERTAINTY_FALLBACK
+    def test_behavioral_guidelines_has_xml_structure(self) -> None:
+        """BEHAVIORAL_GUIDELINES should use XML tags for structure."""
+        assert "<behavioral_guidelines>" in BEHAVIORAL_GUIDELINES
+        assert "</behavioral_guidelines>" in BEHAVIORAL_GUIDELINES
 
 
-class TestPersonaPromptUncertaintyInjection:
-    """Tests for uncertainty guidance injection into persona prompts."""
+class TestPersonaPromptBehavioralInjection:
+    """Tests for behavioral guidelines injection into persona prompts."""
 
-    def test_compose_persona_contribution_prompt_includes_uncertainty(self) -> None:
-        """compose_persona_contribution_prompt should include uncertainty guidance."""
+    def test_compose_persona_contribution_prompt_includes_behavioral_guidelines(
+        self,
+    ) -> None:
+        """compose_persona_contribution_prompt should include behavioral guidelines."""
         system_prompt, user_message = compose_persona_contribution_prompt(
             persona_name="Test Expert",
             persona_description="A test expert for testing",
@@ -42,12 +47,12 @@ class TestPersonaPromptUncertaintyInjection:
             round_number=1,
         )
 
-        # Check uncertainty protocol is injected
-        assert "<uncertainty_protocol>" in system_prompt
-        assert "I don't have data" in system_prompt
+        # Check behavioral guidelines (which includes uncertainty handling) are injected
+        assert "<behavioral_guidelines>" in system_prompt
+        assert "WHEN UNCERTAIN" in system_prompt
 
-    def test_uncertainty_guidance_present_in_all_phases(self) -> None:
-        """Uncertainty guidance should be present regardless of round/phase."""
+    def test_behavioral_guidelines_present_in_all_phases(self) -> None:
+        """Behavioral guidelines should be present regardless of round/phase."""
         for round_number in [1, 2, 3, 4, 5, 6]:
             system_prompt, _ = compose_persona_contribution_prompt(
                 persona_name="Test Expert",
@@ -60,12 +65,12 @@ class TestPersonaPromptUncertaintyInjection:
                 round_number=round_number,
             )
 
-            assert "<uncertainty_protocol>" in system_prompt, (
-                f"Uncertainty protocol missing in round {round_number}"
+            assert "<behavioral_guidelines>" in system_prompt, (
+                f"Behavioral guidelines missing in round {round_number}"
             )
 
-    def test_uncertainty_appears_after_forbidden_patterns(self) -> None:
-        """Uncertainty protocol should appear after forbidden_patterns block."""
+    def test_response_format_in_persona_prompt(self) -> None:
+        """Response format block should appear in persona prompts."""
         system_prompt, _ = compose_persona_contribution_prompt(
             persona_name="Test Expert",
             persona_description="A test expert",
@@ -77,9 +82,6 @@ class TestPersonaPromptUncertaintyInjection:
             round_number=1,
         )
 
-        forbidden_pos = system_prompt.find("</forbidden_patterns>")
-        uncertainty_pos = system_prompt.find("<uncertainty_protocol>")
-
-        assert forbidden_pos < uncertainty_pos, (
-            "Uncertainty protocol should come after forbidden_patterns"
-        )
+        # Check new compact response_format block exists
+        assert "<response_format>" in system_prompt
+        assert "actionable recommendation" in system_prompt

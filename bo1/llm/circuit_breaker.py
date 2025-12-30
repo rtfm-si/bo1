@@ -44,11 +44,13 @@ class FaultType(str, Enum):
 
     TRANSIENT: Temporary failures that may recover (retry-worthy)
     PERMANENT: Deterministic failures that won't recover (fail-fast)
+    MODEL_SPECIFIC: Model overloaded - try fallback model, not circuit break
     UNKNOWN: Unclassified errors (treated as transient for safety)
     """
 
     TRANSIENT = "transient"  # Rate limits, timeouts, 5xx - retry-worthy
     PERMANENT = "permanent"  # 400, 401, 403, 404 - fail-fast
+    MODEL_SPECIFIC = "model_specific"  # 529 overloaded - model fallback
     UNKNOWN = "unknown"  # Unclassified - treat as transient
 
 
@@ -83,6 +85,9 @@ def classify_fault(error: Exception) -> FaultType:
             status = getattr(error, "status_code", None)
             if status is None:
                 return FaultType.UNKNOWN
+            # 529 is model-specific overload - try fallback model
+            if status == 529:
+                return FaultType.MODEL_SPECIFIC
             # 5xx errors are transient (server issues)
             if 500 <= status < 600:
                 return FaultType.TRANSIENT
@@ -108,6 +113,8 @@ def classify_fault(error: Exception) -> FaultType:
     # Generic HTTP status code extraction
     status = getattr(error, "status_code", None) or getattr(error, "status", None)
     if status is not None:
+        if status == 529:
+            return FaultType.MODEL_SPECIFIC
         if 500 <= status < 600 or status == 429:
             return FaultType.TRANSIENT
         if 400 <= status < 500:

@@ -159,13 +159,18 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (synthesis report, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
+    from bo1.prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE, get_limited_context_sections
 
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
     user_id = state.get("user_id")
+    request_id = state.get("request_id")
     dlog = get_deliberation_logger(session_id, user_id, "synthesize_node")
-    dlog.info("Starting synthesis with lean McKinsey-style template")
+    dlog.info("Starting synthesis with hierarchical template")
+
+    log_with_session(
+        logger, logging.INFO, session_id, "synthesize_node: Starting", request_id=request_id
+    )
 
     # Prune contributions to reduce token usage (post-convergence)
     # Safe: synthesis uses round_summaries for context, not raw contributions
@@ -228,8 +233,8 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     if limited_context_mode:
         logger.info("synthesize_node: Limited context mode active - including assumptions section")
 
-    # Compose synthesis prompt using lean McKinsey-style template
-    synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
+    # Compose synthesis prompt using hierarchical template
+    synthesis_prompt = SYNTHESIS_HIERARCHICAL_TEMPLATE.format(
         problem_statement=_get_problem_attr(problem, "description", ""),
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
@@ -257,11 +262,11 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     request = PromptRequest(
         system=synthesis_prompt,
-        user_message="Generate the executive brief now. Follow the output format exactly.",
-        prefill="## The Bottom Line",  # Force immediate answer-first structure (no trailing whitespace)
+        user_message="Generate the synthesis report now. Follow the XML output format exactly.",
+        prefill="<synthesis_report>\n<executive_summary>",
         model=synthesis_model,
         temperature=0.7,
-        max_tokens=1500,  # Lean template produces ~800-1000 tokens, leaving headroom
+        max_tokens=2000,  # Hierarchical template produces ~800-1200 tokens, leaving headroom
         phase="synthesis",
         agent_type="synthesizer",
         cache_system=True,  # Enable prompt caching (system prompt = static template)
@@ -284,10 +289,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
                 f"Sub-problem: {state.get('sub_problem_index', 0)}",
             )
 
-    # Clean up response - ensure proper markdown structure
+    # Clean up response - prepend the prefill since it's not included in response
     raw_content = response.content.strip()
-    # Prepend the prefill since it's not included in response
-    synthesis_report = "## The Bottom Line\n\n" + raw_content
+    synthesis_report = "<synthesis_report>\n<executive_summary>" + raw_content
 
     # ISSUE #2 FIX: Validate synthesis is not empty/suspiciously short
     synthesis_length = len(synthesis_report)
@@ -535,6 +539,33 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Add to results
     sub_problem_results = list(previous_results)
     sub_problem_results.append(result)
+
+    # Save SP boundary checkpoint to PostgreSQL for resume capability
+    if session_id:
+        try:
+            from bo1.state.repositories.session_repository import session_repository
+
+            # Determine if this is the first SP (need to set total_sub_problems)
+            is_first_sp = sub_problem_index == 0
+            session_repository.update_sp_checkpoint(
+                session_id=session_id,
+                last_completed_sp_index=sub_problem_index,
+                total_sub_problems=total_sub_problems if is_first_sp else None,
+            )
+            log_with_session(
+                logger,
+                logging.INFO,
+                session_id,
+                f"next_subproblem_node: Saved SP checkpoint {sub_problem_index + 1}/{total_sub_problems}",
+            )
+        except Exception as e:
+            # Non-blocking: checkpoint failure shouldn't stop deliberation
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"next_subproblem_node: Failed to save SP checkpoint: {e}",
+            )
 
     # Increment index
     next_index = sub_problem_index + 1

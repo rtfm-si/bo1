@@ -10,15 +10,22 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.workspace_auth import WorkspaceAccessChecker
+from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+)
 from backend.services.workspace_billing import (
     WorkspaceBillingError,
     workspace_billing_service,
 )
+from bo1.logging.errors import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +78,9 @@ class WorkspacePortalResponse(BaseModel):
     response_model=WorkspaceBillingInfoResponse,
     summary="Get workspace billing info",
     description="Returns billing information for a workspace.",
+    responses={400: ERROR_400_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("get workspace billing")
 async def get_workspace_billing(
     workspace_id: uuid.UUID = Path(..., description="Workspace UUID"),
     user: dict[str, Any] = Depends(get_current_user),
@@ -86,10 +95,9 @@ async def get_workspace_billing(
     try:
         info = workspace_billing_service.get_billing_info(workspace_id, user_id)
     except WorkspaceBillingError as e:
-        raise HTTPException(
-            status_code=404 if e.code == "not_found" else 400,
-            detail=e.message,
-        ) from e
+        if e.code == "not_found":
+            raise http_error(ErrorCode.API_NOT_FOUND, e.message, status=404) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, e.message, status=400) from e
 
     # Check if user can manage billing (owner, billing owner, or admin)
     from backend.api.workspaces.models import MemberRole
@@ -115,7 +123,9 @@ async def get_workspace_billing(
     response_model=WorkspaceCheckoutResponse,
     summary="Create workspace checkout session",
     description="Creates a Stripe checkout session for workspace subscription upgrade.",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("create workspace checkout")
 async def create_workspace_checkout(
     request: WorkspaceCheckoutRequest,
     workspace_id: uuid.UUID = Path(..., description="Workspace UUID"),
@@ -135,10 +145,11 @@ async def create_workspace_checkout(
             price_id=request.price_id,
         )
     except WorkspaceBillingError as e:
-        status_code = (
-            404 if e.code == "not_found" else 403 if e.code == "permission_denied" else 400
-        )
-        raise HTTPException(status_code=status_code, detail=e.message) from e
+        if e.code == "not_found":
+            raise http_error(ErrorCode.API_NOT_FOUND, e.message, status=404) from e
+        if e.code == "permission_denied":
+            raise http_error(ErrorCode.API_FORBIDDEN, e.message, status=403) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, e.message, status=400) from e
 
     logger.info(f"Created workspace checkout for {workspace_id} by {user_id}")
 
@@ -153,7 +164,9 @@ async def create_workspace_checkout(
     response_model=WorkspacePortalResponse,
     summary="Create workspace billing portal session",
     description="Creates a Stripe billing portal session for workspace subscription management.",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE, 404: ERROR_404_RESPONSE},
 )
+@handle_api_errors("create workspace portal")
 async def create_workspace_portal(
     workspace_id: uuid.UUID = Path(..., description="Workspace UUID"),
     user: dict[str, Any] = Depends(get_current_user),
@@ -172,12 +185,12 @@ async def create_workspace_portal(
         )
     except WorkspaceBillingError as e:
         if e.code == "not_found":
-            raise HTTPException(status_code=404, detail=e.message) from e
+            raise http_error(ErrorCode.API_NOT_FOUND, e.message, status=404) from e
         if e.code == "permission_denied":
-            raise HTTPException(status_code=403, detail=e.message) from e
+            raise http_error(ErrorCode.API_FORBIDDEN, e.message, status=403) from e
         if e.code == "no_billing_account":
-            raise HTTPException(status_code=400, detail=e.message) from e
-        raise HTTPException(status_code=400, detail=e.message) from e
+            raise http_error(ErrorCode.API_BAD_REQUEST, e.message, status=400) from e
+        raise http_error(ErrorCode.API_BAD_REQUEST, e.message, status=400) from e
 
     logger.info(f"Created workspace billing portal for {workspace_id} by {user_id}")
 

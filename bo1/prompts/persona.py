@@ -6,7 +6,7 @@ expert personas contributing to board deliberations.
 
 from bo1.prompts.protocols import (
     DELIBERATION_CONTEXT_TEMPLATE,
-    UNCERTAINTY_FALLBACK,
+    PERSONA_ROLE_PROTOCOL,
     _build_prompt_protocols,
     _get_security_task,
 )
@@ -145,34 +145,11 @@ def compose_persona_contribution_prompt(
 
 {phase_instruction}
 
-<critical_thinking_protocol>
-You MUST engage critically with the discussion:
-
-1. **Challenge Assumptions**: If someone makes an assumption, question it
-2. **Demand Evidence**: If a claim lacks support, ask for evidence
-3. **Identify Gaps**: Point out what's missing from the analysis
-4. **Build or Refute**: Explicitly agree/disagree with previous speakers
-5. **Recommend Actions**: End with specific, actionable recommendations
-
-**Format your response with explicit structure:**
-- Start with: "Based on [previous speaker's] point about X..."
-- Include: "I disagree/agree with [persona] because..."
-- End with: "My recommendation is to [specific action]..."
-</critical_thinking_protocol>
-
-<forbidden_patterns>
-NEVER do any of the following:
-- Generic agreement ("I agree with the previous speakers...")
-- Vague observations without conclusions
-- Listing facts without analysis
-- Ending without a recommendation or question
-- Meta-discussion about your role or how to respond (e.g., "Should I respond as X?")
-- Asking about communication protocol or format expectations
-- Analyzing the discussion framework instead of the problem itself
-- Breaking character to discuss the conversation structure
-</forbidden_patterns>
-
-{UNCERTAINTY_FALLBACK}
+<response_format>
+Structure: "Based on [speaker]'s point..." → agree/disagree with reason → specific recommendation.
+End every response with an actionable recommendation.
+Stay in character - no meta-discussion about roles or format.
+</response_format>
 
 <critical_instruction>
 IMPORTANT: You ARE the expert named above. You are already in character. Do NOT:
@@ -269,8 +246,8 @@ def compose_persona_prompt(
         ...     current_phase="discussion"
         ... )
     """
-    # Build parts list for composition
-    parts = [persona_system_role]
+    # Build parts list for composition (inject shared role protocol after persona identity)
+    parts = [persona_system_role, PERSONA_ROLE_PROTOCOL]
 
     # Inject expert memory if available (cross-sub-problem memory)
     if expert_memory:
@@ -452,8 +429,10 @@ def compose_persona_prompt_hierarchical(
     phase_config = get_round_phase_config(round_number, max_rounds)
     phase_directive = phase_config["directive"]
 
-    # Compose full prompt
+    # Compose full prompt (inject shared role protocol after persona identity)
     return f"""{persona_system_role}
+
+{PERSONA_ROLE_PROTOCOL}
 
 <problem_statement>
 {problem_statement}

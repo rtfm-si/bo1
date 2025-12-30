@@ -118,6 +118,8 @@ SYNTHESIS_HIERARCHICAL_TEMPLATE = (
 You are the Facilitator synthesizing the deliberation's conclusion.
 </system_role>
 
+{limited_context_section}
+
 <instructions>
 Generate a comprehensive synthesis report for the user.
 
@@ -213,6 +215,8 @@ DO NOT use numerical percentages or scores. Use natural language to describe con
 <open_questions>
 What remains uncertain or requires further investigation?
 </open_questions>
+
+{limited_context_output_section}
 </synthesis_report>
 
 <synthesis_examples>

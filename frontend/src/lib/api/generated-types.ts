@@ -7979,6 +7979,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/checkpoint-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get session checkpoint state
+         * @description Get checkpoint state for session resume capability
+         */
+        get: operations["get_checkpoint_state_api_v1_sessions__session_id__checkpoint_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/clarifications": {
         parameters: {
             query?: never;
@@ -8374,14 +8394,29 @@ export interface paths {
          *         with the ID from the last received event. The server will replay any missed
          *         events before resuming live streaming.
          *
-         *         Event types:
-         *         - `node_start` - Node execution started
-         *         - `node_end` - Node execution completed
-         *         - `contribution` - Persona contributed to discussion
-         *         - `facilitator_decision` - Facilitator made a decision
-         *         - `convergence` - Convergence check result
-         *         - `complete` - Deliberation finished
-         *         - `error` - Error occurred
+         *         **Event Types** (see `/api/v1/sse/schemas` for full JSON Schema definitions):
+         *
+         *         | Event Type | Schema Reference | Description |
+         *         |------------|------------------|-------------|
+         *         | `session_started` | `SSEEvent_session_started` | Session begins |
+         *         | `decomposition_complete` | `SSEEvent_decomposition_complete` | Problem decomposed |
+         *         | `persona_selected` | `SSEEvent_persona_selected` | Expert selected |
+         *         | `persona_selection_complete` | `SSEEvent_persona_selection_complete` | Panel assembled |
+         *         | `subproblem_started` | `SSEEvent_subproblem_started` | Sub-problem begins |
+         *         | `round_started` | `SSEEvent_round_started` | Round begins |
+         *         | `contribution` | `SSEEvent_contribution` | Expert contribution |
+         *         | `convergence` | `SSEEvent_convergence` | Convergence check |
+         *         | `voting_started` | `SSEEvent_voting_started` | Voting begins |
+         *         | `voting_complete` | `SSEEvent_voting_complete` | Voting ends |
+         *         | `synthesis_complete` | `SSEEvent_synthesis_complete` | Sub-problem synthesis |
+         *         | `subproblem_complete` | `SSEEvent_subproblem_complete` | Sub-problem ends |
+         *         | `meta_synthesis_complete` | `SSEEvent_meta_synthesis_complete` | Final synthesis |
+         *         | `error` | `SSEEvent_error` | Error occurred |
+         *
+         *         **Event Lifecycle:**
+         *         `session_started` → `decomposition_complete` → persona selection →
+         *         (per sub-problem: `subproblem_started` → rounds → `synthesis_complete` → `subproblem_complete`) →
+         *         `meta_synthesis_complete`
          *
          *         The connection will remain open until the deliberation completes or
          *         the client disconnects.
@@ -8447,6 +8482,42 @@ export interface paths {
          * @description Retrieve session data via a public share token. No authentication required.
          */
         get: operations["get_shared_session_api_v1_share__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sse/schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get SSE event schemas
+         * @description Returns JSON Schema definitions for all SSE event types emitted during deliberation.
+         *
+         *         This endpoint is public (no auth required) to support frontend codegen and documentation.
+         *
+         *         **Event Lifecycle:**
+         *         1. `session_started` - Session begins
+         *         2. `decomposition_complete` - Problem broken into sub-problems
+         *         3. `persona_selected` / `persona_selection_complete` - Expert panel assembled
+         *         4. `subproblem_started` - Sub-problem deliberation begins
+         *         5. `round_started` - Deliberation round begins
+         *         6. `contribution` - Expert makes a contribution
+         *         7. `convergence` - Convergence check result
+         *         8. `voting_started` / `voting_complete` - Expert voting phase
+         *         9. `synthesis_complete` - Sub-problem synthesis ready
+         *         10. `subproblem_complete` - Sub-problem deliberation ends
+         *         11. `meta_synthesis_complete` - Final synthesis across all sub-problems
+         *         12. `error` - Error occurred during deliberation
+         */
+        get: operations["get_sse_schemas_api_v1_sse_schemas_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15956,6 +16027,11 @@ export interface components {
              * @description Owner user ID
              */
             user_id: string;
+            /**
+             * Warnings
+             * @description CSV validation warnings
+             */
+            warnings?: string[] | null;
         };
         /**
          * DatasetListResponse
@@ -16081,6 +16157,7 @@ export interface components {
          *         file_size_bytes: File size in bytes
          *         created_at: Creation timestamp
          *         updated_at: Last update timestamp
+         *         warnings: CSV validation warnings (e.g., injection patterns detected)
          */
         DatasetResponse: {
             /**
@@ -16148,6 +16225,11 @@ export interface components {
              * @description Owner user ID
              */
             user_id: string;
+            /**
+             * Warnings
+             * @description CSV validation warnings
+             */
+            warnings?: string[] | null;
         };
         /**
          * DegradationInfo
@@ -18298,6 +18380,30 @@ export interface components {
              * @default false
              */
             should_prompt: boolean;
+        };
+        /**
+         * GoneErrorResponse
+         * @description Error response for 410 Gone.
+         *
+         *     Used when a resource is no longer available (e.g., expired invitation).
+         * @example {
+         *       "error_code": "API_GONE",
+         *       "message": "Invitation has expired"
+         *     }
+         */
+        GoneErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for gone resources
+             * @default API_GONE
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Gone error message
+             * @default Resource no longer available
+             */
+            message: string;
         };
         /**
          * GroupBySpec
@@ -23794,6 +23900,792 @@ export interface components {
             next_run?: string | null;
         };
         /**
+         * ContributionEvent
+         * @description Emitted when an expert makes a contribution.
+         */
+        SSEEvent_contribution: {
+            /**
+             * Archetype
+             * @description Expert archetype
+             * @default
+             */
+            archetype: string;
+            /**
+             * Content
+             * @description Full contribution content
+             */
+            content: string;
+            /**
+             * Contribution Type
+             * @description Type of contribution
+             * @enum {string}
+             */
+            contribution_type: "initial" | "followup";
+            /**
+             * Domain Expertise
+             * @description Expert domains
+             */
+            domain_expertise?: string[];
+            /**
+             * Event Type
+             * @default contribution
+             * @constant
+             */
+            event_type: "contribution";
+            /**
+             * Persona Code
+             * @description Expert persona code
+             */
+            persona_code: string;
+            /**
+             * Persona Name
+             * @description Expert display name
+             */
+            persona_name: string;
+            /**
+             * Round
+             * @description Round number
+             */
+            round: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * @description Structured summary (optional)
+             * @default null
+             */
+            summary: components["schemas"]["SSEEvent_contribution_ContributionSummary"] | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ContributionSummary
+         * @description Structured summary of a contribution.
+         */
+        SSEEvent_contribution_ContributionSummary: {
+            /**
+             * Concerns
+             * @description Key concerns raised
+             */
+            concerns?: string[];
+            /**
+             * Concise
+             * @description One-sentence summary
+             * @default
+             */
+            concise: string;
+            /**
+             * Looking For
+             * @description What the expert is looking for
+             * @default
+             */
+            looking_for: string;
+            /**
+             * Questions
+             * @description Questions posed
+             */
+            questions?: string[];
+            /**
+             * Value Added
+             * @description Value this contribution adds
+             * @default
+             */
+            value_added: string;
+        };
+        /**
+         * ConvergenceEvent
+         * @description Emitted when convergence is checked.
+         */
+        SSEEvent_convergence: {
+            /**
+             * Conflict Score
+             * @description Conflict score
+             * @default null
+             */
+            conflict_score: number | null;
+            /**
+             * Converged
+             * @description Whether convergence was reached
+             */
+            converged: boolean;
+            /**
+             * Drift Events
+             * @description Number of drift events
+             * @default 0
+             */
+            drift_events: number;
+            /**
+             * Event Type
+             * @default convergence
+             * @constant
+             */
+            event_type: "convergence";
+            /**
+             * Max Rounds
+             * @description Maximum rounds
+             */
+            max_rounds: number;
+            /**
+             * Novelty Score
+             * @description Novelty score
+             * @default null
+             */
+            novelty_score: number | null;
+            /**
+             * Round
+             * @description Current round
+             */
+            round: number;
+            /**
+             * Score
+             * @description Convergence score
+             */
+            score: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Should Stop
+             * @description Whether deliberation should stop
+             */
+            should_stop: boolean;
+            /**
+             * Stop Reason
+             * @description Reason for stopping
+             * @default null
+             */
+            stop_reason: string | null;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Threshold
+             * @description Convergence threshold
+             */
+            threshold: number;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * DecompositionCompleteEvent
+         * @description Emitted when problem decomposition completes.
+         */
+        SSEEvent_decomposition_complete: {
+            /**
+             * Count
+             * @description Number of sub-problems
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default decomposition_complete
+             * @constant
+             */
+            event_type: "decomposition_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Sub Problems
+             * @description Decomposed sub-problems
+             */
+            sub_problems: components["schemas"]["SSEEvent_decomposition_complete_SubProblemSchema"][];
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemSchema
+         * @description Schema for sub-problem data in events.
+         */
+        SSEEvent_decomposition_complete_SubProblemSchema: {
+            /** Complexity Score */
+            complexity_score: number;
+            /** Dependencies */
+            dependencies?: string[];
+            /** Goal */
+            goal: string;
+            /** Id */
+            id: string;
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+        };
+        /**
+         * ErrorEvent
+         * @description Emitted when an error occurs during deliberation.
+         */
+        SSEEvent_error: {
+            /**
+             * Error
+             * @description Error message
+             */
+            error: string;
+            /**
+             * Error Type
+             * @description Error type/class name
+             * @default UnknownError
+             */
+            error_type: string;
+            /**
+             * Event Type
+             * @default error
+             * @constant
+             */
+            event_type: "error";
+            /**
+             * Node
+             * @description Graph node where error occurred
+             * @default null
+             */
+            node: string | null;
+            /**
+             * Recoverable
+             * @description Whether the error is recoverable
+             * @default false
+             */
+            recoverable: boolean;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Goal
+             * @description Goal of failed sub-problem if applicable
+             * @default null
+             */
+            sub_problem_goal: string | null;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * MetaSynthesisCompleteEvent
+         * @description Emitted when meta-synthesis (across all sub-problems) completes.
+         */
+        SSEEvent_meta_synthesis_complete: {
+            /**
+             * Event Type
+             * @default meta_synthesis_complete
+             * @constant
+             */
+            event_type: "meta_synthesis_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Synthesis
+             * @description Final meta-synthesis content
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Word Count
+             * @description Word count of synthesis
+             */
+            word_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSelectedEvent
+         * @description Emitted when a persona is selected for deliberation.
+         */
+        SSEEvent_persona_selected: {
+            /**
+             * Event Type
+             * @default persona_selected
+             * @constant
+             */
+            event_type: "persona_selected";
+            /**
+             * Order
+             * @description Selection order (1-based)
+             */
+            order: number;
+            persona: components["schemas"]["SSEEvent_persona_selected_PersonaSchema"];
+            /**
+             * Rationale
+             * @description Why this persona was selected
+             */
+            rationale: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSchema
+         * @description Schema for persona data in events.
+         */
+        SSEEvent_persona_selected_PersonaSchema: {
+            /**
+             * Archetype
+             * @default
+             */
+            archetype: string;
+            /** Code */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Domain Expertise */
+            domain_expertise?: string[];
+            /** Name */
+            name: string;
+        };
+        /**
+         * PersonaSelectionCompleteEvent
+         * @description Emitted when all personas have been selected.
+         */
+        SSEEvent_persona_selection_complete: {
+            /**
+             * Count
+             * @description Number of personas selected
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default persona_selection_complete
+             * @constant
+             */
+            event_type: "persona_selection_complete";
+            /**
+             * Personas
+             * @description All selected personas
+             */
+            personas: components["schemas"]["SSEEvent_persona_selection_complete_PersonaSchema"][];
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PersonaSchema
+         * @description Schema for persona data in events.
+         */
+        SSEEvent_persona_selection_complete_PersonaSchema: {
+            /**
+             * Archetype
+             * @default
+             */
+            archetype: string;
+            /** Code */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Domain Expertise */
+            domain_expertise?: string[];
+            /** Name */
+            name: string;
+        };
+        /**
+         * RoundStartedEvent
+         * @description Emitted when a deliberation round begins.
+         */
+        SSEEvent_round_started: {
+            /**
+             * Event Type
+             * @default round_started
+             * @constant
+             */
+            event_type: "round_started";
+            /**
+             * Round Number
+             * @description Round number (1-based)
+             */
+            round_number: number;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SessionStartedEvent
+         * @description Emitted when a deliberation session starts.
+         */
+        SSEEvent_session_started: {
+            /**
+             * Event Type
+             * @default session_started
+             * @constant
+             */
+            event_type: "session_started";
+            /**
+             * Max Rounds
+             * @description Maximum rounds allowed
+             */
+            max_rounds: number;
+            /**
+             * Problem Statement
+             * @description The problem being deliberated
+             */
+            problem_statement: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * User Id
+             * @description User who started the session
+             */
+            user_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemCompleteEvent
+         * @description Emitted when a sub-problem deliberation completes.
+         */
+        SSEEvent_subproblem_complete: {
+            /**
+             * Contribution Count
+             * @description Number of contributions
+             */
+            contribution_count: number;
+            /**
+             * Cost
+             * @description Cost in USD
+             */
+            cost: number;
+            /**
+             * Duration Seconds
+             * @description Duration in seconds
+             */
+            duration_seconds: number;
+            /**
+             * Event Type
+             * @default subproblem_complete
+             * @constant
+             */
+            event_type: "subproblem_complete";
+            /**
+             * Expert Panel
+             * @description Expert codes
+             */
+            expert_panel?: string[];
+            /**
+             * Goal
+             * @description Goal of this sub-problem
+             */
+            goal: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Id
+             * @description Sub-problem unique ID
+             * @default
+             */
+            sub_problem_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based)
+             */
+            sub_problem_index: number;
+            /**
+             * Synthesis
+             * @description Synthesis for this sub-problem
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SubProblemStartedEvent
+         * @description Emitted when a sub-problem deliberation begins.
+         *
+         *     CRITICAL: This event must be emitted immediately when parallel sub-problem
+         *     execution starts, so the frontend knows deliberation is in progress.
+         */
+        SSEEvent_subproblem_started: {
+            /**
+             * Event Type
+             * @default subproblem_started
+             * @constant
+             */
+            event_type: "subproblem_started";
+            /**
+             * Goal
+             * @description Goal of this sub-problem
+             */
+            goal: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Id
+             * @description Sub-problem unique ID
+             */
+            sub_problem_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based)
+             */
+            sub_problem_index: number;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Total Sub Problems
+             * @description Total number of sub-problems
+             */
+            total_sub_problems: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SynthesisCompleteEvent
+         * @description Emitted when synthesis completes for a sub-problem.
+         */
+        SSEEvent_synthesis_complete: {
+            /**
+             * Event Type
+             * @default synthesis_complete
+             * @constant
+             */
+            event_type: "synthesis_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Synthesis
+             * @description Synthesis content
+             */
+            synthesis: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Word Count
+             * @description Word count of synthesis
+             */
+            word_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * VotingCompleteEvent
+         * @description Emitted when voting completes.
+         */
+        SSEEvent_voting_complete: {
+            /**
+             * Consensus Level
+             * @description Level of consensus
+             * @enum {string}
+             */
+            consensus_level: "strong" | "moderate" | "weak";
+            /**
+             * Event Type
+             * @default voting_complete
+             * @constant
+             */
+            event_type: "voting_complete";
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Votes Count
+             * @description Number of votes cast
+             */
+            votes_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * VotingStartedEvent
+         * @description Emitted when voting begins.
+         */
+        SSEEvent_voting_started: {
+            /**
+             * Count
+             * @description Number of experts
+             */
+            count: number;
+            /**
+             * Event Type
+             * @default voting_started
+             * @constant
+             */
+            event_type: "voting_started";
+            /**
+             * Experts
+             * @description Expert codes participating
+             */
+            experts: string[];
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * SendEmailRequest
          * @description Request model for sending admin email.
          *
@@ -24249,6 +25141,18 @@ export interface components {
              */
             by_sub_problem?: components["schemas"]["SubProblemCost"][];
             /**
+             * Cache Hit Rate
+             * @description Overall cache hit rate (0.0-1.0)
+             * @default 0
+             */
+            cache_hit_rate: number;
+            /**
+             * Prompt Cache Hit Rate
+             * @description Anthropic prompt cache effectiveness (0.0-1.0)
+             * @default 0
+             */
+            prompt_cache_hit_rate: number;
+            /**
              * Session Id
              * @description Session identifier
              */
@@ -24263,6 +25167,12 @@ export interface components {
              * @description Total session cost in USD
              */
             total_cost: number;
+            /**
+             * Total Saved
+             * @description Cost savings from caching (USD)
+             * @default 0
+             */
+            total_saved: number;
             /**
              * Total Tokens
              * @description Total tokens used
@@ -26249,6 +27159,34 @@ export interface components {
              * @description Actions without project assignment
              */
             unassigned_count: number;
+        };
+        /**
+         * UnauthorizedErrorResponse
+         * @description Error response for 401 Unauthorized.
+         *
+         *     Used when authentication is missing or invalid.
+         * @example {
+         *       "error_code": "API_UNAUTHORIZED",
+         *       "message": "Authentication required"
+         *     }
+         * @example {
+         *       "error_code": "AUTH_TOKEN_ERROR",
+         *       "message": "Invalid or expired token"
+         *     }
+         */
+        UnauthorizedErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for authentication failures
+             * @default API_UNAUTHORIZED
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Unauthorized error message
+             * @default Authentication required
+             */
+            message: string;
         };
         /**
          * UnblockActionRequest
@@ -28255,7 +29193,14 @@ export interface components {
     responses: never;
     parameters: never;
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Maximum requests allowed per window for this endpoint */
+        "X-RateLimit-Limit": number;
+        /** @description Requests remaining in current window */
+        "X-RateLimit-Remaining": number;
+        /** @description Unix timestamp when rate limit window resets */
+        "X-RateLimit-Reset": number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -39454,12 +40399,14 @@ export interface operations {
                     "application/json": components["schemas"]["ContextResponse"];
                 };
             };
-            /** @description Database error */
-            500: {
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
         };
     };
@@ -39492,6 +40439,24 @@ export interface operations {
                     };
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39500,13 +40465,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description Database error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -39535,19 +40493,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description No context found to delete */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Database error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -39571,6 +40533,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompetitorDetectResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39613,6 +40584,15 @@ export interface operations {
                     "application/json": components["schemas"]["CompetitorInsightsListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     generate_competitor_insight_api_v1_context_competitors__name__insights_post: {
@@ -39637,6 +40617,24 @@ export interface operations {
                     "application/json": components["schemas"]["CompetitorInsightResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39646,19 +40644,16 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Analysis failed */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -39682,6 +40677,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39730,6 +40743,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -39761,6 +40783,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     dismiss_refresh_prompt_api_v1_context_dismiss_refresh_post: {
@@ -39785,6 +40816,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39820,12 +40869,32 @@ export interface operations {
                     "application/json": components["schemas"]["EnrichmentResponse"];
                 };
             };
-            /** @description Invalid URL format */
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
@@ -39837,13 +40906,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RateLimitResponse"];
                 };
-            };
-            /** @description Enrichment service error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -39865,6 +40927,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoalHistoryResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -39896,6 +40967,15 @@ export interface operations {
                     "application/json": components["schemas"]["GoalProgressResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     check_goal_staleness_api_v1_context_goal_staleness_get: {
@@ -39916,6 +40996,15 @@ export interface operations {
                     "application/json": components["schemas"]["GoalStalenessResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_heatmap_depth_api_v1_context_heatmap_depth_get: {
@@ -39934,6 +41023,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -39971,12 +41069,32 @@ export interface operations {
                     "application/json": components["schemas"]["HeatmapHistoryDepthResponse"];
                 };
             };
-            /** @description Invalid depth (must be 1, 3, or 6) */
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
@@ -40022,6 +41140,15 @@ export interface operations {
                     "application/json": components["schemas"]["InsightsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     delete_insight_api_v1_context_insights__question_hash__delete: {
@@ -40044,6 +41171,33 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40081,6 +41235,33 @@ export interface operations {
                     "application/json": components["schemas"]["ClarificationInsight"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -40108,6 +41289,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeyMetricsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -40143,6 +41333,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeyMetricsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40185,6 +41384,15 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     add_managed_competitor_api_v1_context_managed_competitors_post: {
@@ -40209,12 +41417,23 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorResponse"];
                 };
             };
-            /** @description Competitor with this name already exists */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -40249,12 +41468,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Competitor not found */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -40291,12 +41521,23 @@ export interface operations {
                     "application/json": components["schemas"]["ManagedCompetitorResponse"];
                 };
             };
-            /** @description Competitor not found */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -40325,6 +41566,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectiveProgressListResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -40362,6 +41612,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectiveProgressResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40408,6 +41685,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -40448,6 +41734,15 @@ export interface operations {
                     "application/json": components["schemas"]["PendingUpdatesResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     dismiss_pending_update_api_v1_context_pending_updates__suggestion_id__delete: {
@@ -40470,6 +41765,24 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40503,6 +41816,24 @@ export interface operations {
                     "application/json": components["schemas"]["ApproveUpdateResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -40532,6 +41863,15 @@ export interface operations {
                     "application/json": components["schemas"]["RefreshCheckResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_research_embeddings_api_v1_context_research_embeddings_get: {
@@ -40550,6 +41890,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResearchEmbeddingsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -40583,6 +41932,15 @@ export interface operations {
                     "application/json": components["schemas"]["StaleMetricsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     analyze_trend_api_v1_context_trends_analyze_post: {
@@ -40609,6 +41967,24 @@ export interface operations {
                     "application/json": components["schemas"]["TrendInsightResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -40618,19 +41994,16 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Analysis failed */
-            500: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
-                content?: never;
             };
         };
     };
@@ -40656,12 +42029,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Invalid timeframe */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -40696,19 +42080,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Industry not set or invalid timeframe */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
             };
-            /** @description Tier insufficient for requested timeframe */
+            /** @description Forbidden - user lacks permission to access this resource */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -40739,6 +42127,15 @@ export interface operations {
                     "application/json": components["schemas"]["TrendInsightsListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     delete_trend_insight_api_v1_context_trends_insights__url_hash__delete: {
@@ -40761,6 +42158,33 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40794,6 +42218,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrendsRefreshResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40838,6 +42271,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     refresh_trend_summary_api_v1_context_trends_summary_refresh_post: {
@@ -40860,19 +42302,34 @@ export interface operations {
                     };
                 };
             };
-            /** @description Industry not set */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
             };
-            /** @description Free tier refresh blocked (28-day limit) */
-            429: {
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
             };
         };
     };
@@ -40894,6 +42351,15 @@ export interface operations {
                     "application/json": components["schemas"]["ContextWithTrends"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_working_pattern_api_v1_context_working_pattern_get: {
@@ -40912,6 +42378,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkingPatternResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
@@ -40949,12 +42424,32 @@ export interface operations {
                     "application/json": components["schemas"]["WorkingPatternResponse"];
                 };
             };
-            /** @description Invalid days (must be 1-7) */
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
             /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
@@ -41795,6 +43290,33 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Gone - resource no longer available (e.g., expired invitation) */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoneErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -41825,6 +43347,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -41878,6 +43418,15 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -41914,6 +43463,24 @@ export interface operations {
                      *     data: {"content": "..."}
                      */
                     "text/event-stream": unknown;
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -41959,6 +43526,24 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationListResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -41990,6 +43575,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationDetailResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42018,6 +43630,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -42054,6 +43693,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentorConversationResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42088,6 +43754,24 @@ export interface operations {
                     "application/json": components["schemas"]["FailurePatternsResponse"];
                 };
             };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42120,6 +43804,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImprovementPlanResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42171,6 +43873,33 @@ export interface operations {
                     "application/json": components["schemas"]["MentionSearchResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42200,6 +43929,15 @@ export interface operations {
                     "application/json": components["schemas"]["MentorPersonaListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_repeated_topics_api_v1_mentor_repeated_topics_get: {
@@ -42225,6 +43963,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepeatedTopicsListResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42544,6 +44300,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectListResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42575,6 +44340,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42610,6 +44393,24 @@ export interface operations {
                     "application/json": components["schemas"]["AutogenCreateResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42639,6 +44440,15 @@ export interface operations {
                     "application/json": components["schemas"]["AutogenSuggestionsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_context_suggestions_api_v1_projects_context_suggestions_get: {
@@ -42657,6 +44467,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContextSuggestionsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
         };
@@ -42681,6 +44500,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutogenCreateResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42712,6 +44549,15 @@ export interface operations {
                     "application/json": components["schemas"]["UnassignedCountResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
         };
     };
     get_project_api_v1_projects__project_id__get: {
@@ -42732,6 +44578,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42762,6 +44626,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -42796,6 +44678,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42836,6 +44745,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectActionsResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42865,6 +44792,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -42896,6 +44841,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42925,6 +44888,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GanttResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -42962,6 +44943,33 @@ export interface operations {
                     "application/json": components["schemas"]["SessionResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -42969,6 +44977,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -42995,6 +45012,24 @@ export interface operations {
                             [key: string]: unknown;
                         }[];
                     };
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -43034,6 +45069,24 @@ export interface operations {
                     };
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -43063,6 +45116,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -43099,6 +45170,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -43128,6 +45226,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetailResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -44536,6 +46661,57 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Available projects retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description User does not own this session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_checkpoint_state_api_v1_sessions__session_id__checkpoint_state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checkpoint state retrieved */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -46189,6 +48365,28 @@ export interface operations {
             };
         };
     };
+    get_sse_schemas_api_v1_sse_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     get_public_status_api_v1_status_get: {
         parameters: {
             query?: never;
@@ -47517,6 +49715,15 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47524,6 +49731,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -47546,6 +49762,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -47576,6 +49801,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -47612,6 +49846,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47641,6 +49893,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceBillingInfoResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -47678,6 +49948,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceCheckoutResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47707,6 +50004,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspacePortalResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -47775,6 +50099,33 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47804,6 +50155,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -47838,6 +50198,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JoinRequestResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -47903,6 +50290,15 @@ export interface operations {
                     "application/json": components["schemas"]["JoinRequestResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47937,6 +50333,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JoinRequestResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -48005,6 +50410,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Conflict - request conflicts with current resource state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -48034,6 +50466,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -48071,6 +50521,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -48103,6 +50571,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
                 };
             };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -48133,6 +50619,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -48203,6 +50707,15 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -48238,6 +50751,33 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -48245,6 +50785,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };

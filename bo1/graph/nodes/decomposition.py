@@ -36,8 +36,13 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
     user_id = state.get("user_id")
+    request_id = state.get("request_id")
     dlog = get_deliberation_logger(session_id, user_id, "decompose_node")
     dlog.info("Starting problem decomposition")
+
+    log_with_session(
+        logger, logging.INFO, session_id, "decompose_node: Starting", request_id=request_id
+    )
 
     # Create decomposer agent
     decomposer = DecomposerAgent()

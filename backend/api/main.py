@@ -93,6 +93,7 @@ from backend.api.middleware.degraded_mode import DegradedModeMiddleware  # noqa:
 from backend.api.middleware.metrics import create_instrumentator  # noqa: E402
 from backend.api.middleware.metrics_auth import MetricsAuthMiddleware  # noqa: E402
 from backend.api.middleware.rate_limit import GlobalRateLimitMiddleware, limiter  # noqa: E402
+from backend.api.middleware.rate_limit_headers import RateLimitHeadersMiddleware  # noqa: E402
 from backend.api.middleware.security_headers import add_security_headers_middleware  # noqa: E402
 from backend.api.supertokens_config import (  # noqa: E402
     add_supertokens_middleware,
@@ -503,8 +504,13 @@ app.add_middleware(MetricsAuthMiddleware)
 # Add global IP-based rate limiting middleware
 # IMPORTANT: Add AFTER MetricsAuth (middleware executes in reverse order)
 # This provides flood protection before any auth or endpoint-specific limits
-# Ordering: CORS > GZip > MetricsAuth > GlobalRateLimit > SecurityHeaders > ... > EndpointRateLimit
+# Ordering: CORS > GZip > MetricsAuth > GlobalRateLimit > RateLimitHeaders > SecurityHeaders > ...
 app.add_middleware(GlobalRateLimitMiddleware)
+
+# Add rate limit headers middleware (X-RateLimit-Limit/Remaining/Reset)
+# IMPORTANT: Add AFTER GlobalRateLimit (middleware executes in reverse order)
+# Headers are added AFTER rate limiting to show accurate remaining counts
+app.add_middleware(RateLimitHeadersMiddleware)
 
 # Add security headers middleware (X-Frame-Options, CSP, HSTS, etc.)
 # IMPORTANT: Add AFTER GZip (middleware executes in reverse order)
@@ -962,19 +968,23 @@ async def api_redoc(user: dict[str, Any] = Depends(require_admin_any)) -> HTMLRe
 
 
 def custom_openapi() -> dict[str, Any]:
-    """Generate custom OpenAPI schema with security schemes.
+    """Generate custom OpenAPI schema with security schemes and SSE event schemas.
 
     Adds sessionAuth (cookie-based) and adminAuth security schemes to the
     OpenAPI specification. This documents the SuperTokens session cookie
     authentication used by the API.
 
+    Also adds SSE event schemas to components.schemas for frontend codegen.
+
     Returns:
-        OpenAPI schema dict with security schemes
+        OpenAPI schema dict with security schemes and SSE event schemas
     """
     if app.openapi_schema:
         return app.openapi_schema
 
     from fastapi.openapi.utils import get_openapi
+
+    from bo1.events.schemas import get_event_json_schemas
 
     openapi_schema = get_openapi(
         title=app.title,
@@ -1007,11 +1017,54 @@ def custom_openapi() -> dict[str, Any]:
         },
     }
 
+    # Add SSE event schemas to components.schemas with SSEEvent_ prefix
+    sse_schemas = get_event_json_schemas()
+    schemas = openapi_schema["components"].get("schemas", {})
+    for event_type, schema in sse_schemas.items():
+        schema_name = f"SSEEvent_{event_type}"
+        schemas[schema_name] = schema
+    openapi_schema["components"]["schemas"] = schemas
+
     # Add global security requirement (most endpoints require auth)
     openapi_schema["security"] = [{"sessionAuth": [], "csrfToken": []}]
 
+    # Add rate limit headers documentation
+    openapi_schema["components"]["headers"] = {
+        "X-RateLimit-Limit": {
+            "description": "Maximum requests allowed per window for this endpoint",
+            "schema": {"type": "integer", "example": 60},
+        },
+        "X-RateLimit-Remaining": {
+            "description": "Requests remaining in current window",
+            "schema": {"type": "integer", "example": 55},
+        },
+        "X-RateLimit-Reset": {
+            "description": "Unix timestamp when rate limit window resets",
+            "schema": {"type": "integer", "example": 1704067260},
+        },
+    }
+
     # Add version metadata
     openapi_schema["info"]["x-api-version"] = API_VERSION
+
+    # Add rate limit documentation to info
+    openapi_schema["info"]["x-rate-limits"] = {
+        "description": "Rate limits are applied per endpoint and returned in response headers",
+        "headers": {
+            "X-RateLimit-Limit": "Maximum requests allowed per window",
+            "X-RateLimit-Remaining": "Requests remaining in current window",
+            "X-RateLimit-Reset": "Unix timestamp when window resets",
+        },
+        "endpoints": {
+            "auth": "10/minute",
+            "sessions_create": "30/minute",
+            "streaming": "30/minute",
+            "control": "20/minute",
+            "general": "60/minute",
+            "admin": "1200/minute",
+            "upload": "10/hour",
+        },
+    }
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -1032,6 +1085,62 @@ async def api_openapi(user: dict[str, Any] = Depends(require_admin_any)) -> dict
         OpenAPI JSON spec with version info
     """
     return app.openapi()
+
+
+@app.get(
+    "/api/v1/sse/schemas",
+    tags=["streaming"],
+    summary="Get SSE event schemas",
+    description="""
+    Returns JSON Schema definitions for all SSE event types emitted during deliberation.
+
+    This endpoint is public (no auth required) to support frontend codegen and documentation.
+
+    **Event Lifecycle:**
+    1. `session_started` - Session begins
+    2. `decomposition_complete` - Problem broken into sub-problems
+    3. `persona_selected` / `persona_selection_complete` - Expert panel assembled
+    4. `subproblem_started` - Sub-problem deliberation begins
+    5. `round_started` - Deliberation round begins
+    6. `contribution` - Expert makes a contribution
+    7. `convergence` - Convergence check result
+    8. `voting_started` / `voting_complete` - Expert voting phase
+    9. `synthesis_complete` - Sub-problem synthesis ready
+    10. `subproblem_complete` - Sub-problem deliberation ends
+    11. `meta_synthesis_complete` - Final synthesis across all sub-problems
+    12. `error` - Error occurred during deliberation
+    """,
+)
+async def get_sse_schemas() -> dict[str, Any]:
+    """Get JSON Schema definitions for all SSE event types.
+
+    Returns:
+        Dict with event_type → JSON Schema mapping and metadata
+    """
+    from bo1.events.schemas import EVENT_SCHEMA_REGISTRY, get_event_json_schemas
+
+    schemas = get_event_json_schemas()
+    return {
+        "schemas": schemas,
+        "event_types": list(EVENT_SCHEMA_REGISTRY.keys()),
+        "count": len(schemas),
+        "lifecycle": [
+            "session_started",
+            "decomposition_complete",
+            "persona_selected",
+            "persona_selection_complete",
+            "subproblem_started",
+            "round_started",
+            "contribution",
+            "convergence",
+            "voting_started",
+            "voting_complete",
+            "synthesis_complete",
+            "subproblem_complete",
+            "meta_synthesis_complete",
+            "error",
+        ],
+    }
 
 
 if __name__ == "__main__":

@@ -5,12 +5,15 @@ Validates:
 - Prometheus metrics for reconnections
 - Retry-After header in 429 responses
 - Session detail response includes reconnect_count
+- Exponential backoff calculation for SSE retry
 """
 
 import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from backend.api.constants import SSE_RETRY_BASE_MS, SSE_RETRY_MAX_MS
 
 
 class TestReconnectTracking:
@@ -349,3 +352,139 @@ class TestSessionDetailReconnectCount:
         )
 
         assert response.reconnect_count is None
+
+
+class TestSSERetryBackoff:
+    """Test SSE retry backoff calculation and formatting."""
+
+    def test_calculate_sse_retry_delay_exponential_growth(self):
+        """Verify retry delay grows exponentially with attempt number."""
+        from backend.api.streaming import calculate_sse_retry_delay
+
+        # Test increasing attempts - delays should grow (accounting for jitter)
+        delays = [calculate_sse_retry_delay(i) for i in range(5)]
+
+        # Each delay should be roughly 2x the previous (with jitter tolerance)
+        # Base is 1000ms, so: ~1000, ~2000, ~4000, ~8000, ~16000
+        assert delays[0] >= SSE_RETRY_BASE_MS * 0.9  # ~900-1100
+        assert delays[0] <= SSE_RETRY_BASE_MS * 1.1
+
+        # Check growth trend (allowing for jitter)
+        for i in range(1, len(delays)):
+            # Each should be roughly 2x previous (within 30% tolerance for jitter)
+            assert delays[i] >= delays[i - 1] * 0.7, f"Delay at {i} should grow"
+
+    def test_calculate_sse_retry_delay_caps_at_max(self):
+        """Verify retry delay is capped at SSE_RETRY_MAX_MS (30 seconds)."""
+        from backend.api.streaming import calculate_sse_retry_delay
+
+        # Large attempt number should still cap at max
+        delay = calculate_sse_retry_delay(100)
+        assert delay <= SSE_RETRY_MAX_MS
+
+        # Also test just beyond where it would exceed
+        delay_10 = calculate_sse_retry_delay(10)  # 2^10 * 1000 = 1,024,000 >> 30,000
+        assert delay_10 <= SSE_RETRY_MAX_MS
+
+    def test_calculate_sse_retry_delay_zero_attempt(self):
+        """Zero attempts should return base delay with jitter."""
+        from backend.api.streaming import calculate_sse_retry_delay
+
+        delay = calculate_sse_retry_delay(0)
+        # Should be base ± 10% jitter
+        assert delay >= SSE_RETRY_BASE_MS * 0.9
+        assert delay <= SSE_RETRY_BASE_MS * 1.1
+
+    def test_calculate_sse_retry_delay_negative_attempt(self):
+        """Negative attempts should be treated as zero."""
+        from backend.api.streaming import calculate_sse_retry_delay
+
+        delay = calculate_sse_retry_delay(-5)
+        # Should be same as attempt 0
+        assert delay >= SSE_RETRY_BASE_MS * 0.9
+        assert delay <= SSE_RETRY_BASE_MS * 1.1
+
+    def test_format_sse_with_retry_prepends_field(self):
+        """Verify format_sse_with_retry prepends retry: field correctly."""
+        from backend.api.streaming import format_sse_with_retry
+
+        event_str = "event: node_start\ndata: {}\n\n"
+        result = format_sse_with_retry(event_str, 5000)
+
+        assert result.startswith("retry: 5000\n")
+        assert "event: node_start" in result
+        assert "data: {}" in result
+
+    def test_format_sse_with_retry_preserves_event(self):
+        """Verify format_sse_with_retry preserves the original event content."""
+        from backend.api.streaming import format_sse_with_retry
+
+        original = 'id: bo1_test:1\nevent: contribution\ndata: {"persona": "analyst"}\n\n'
+        result = format_sse_with_retry(original, 2000)
+
+        # Original content should be preserved after retry line
+        assert original in result
+        assert result == f"retry: 2000\n{original}"
+
+
+class TestResetReconnectCount:
+    """Test resetting reconnect count on session completion."""
+
+    @pytest.mark.asyncio
+    async def test_reset_reconnect_count_sets_zero(self):
+        """Reset sets count to 0 in Redis."""
+        from backend.api.streaming import _reset_reconnect_count
+
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+
+        await _reset_reconnect_count(mock_manager, "bo1_test123")
+
+        mock_manager.redis.hset.assert_called_once_with("bo1_test123:reconnects", "count", "0")
+
+    @pytest.mark.asyncio
+    async def test_reset_reconnect_count_handles_redis_unavailable(self):
+        """Reset handles Redis unavailable gracefully."""
+        from backend.api.streaming import _reset_reconnect_count
+
+        mock_manager = MagicMock()
+        mock_manager.is_available = False
+
+        # Should not raise
+        await _reset_reconnect_count(mock_manager, "bo1_test123")
+
+        # Should not attempt Redis operations
+        mock_manager.redis.hset.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_track_reconnection_returns_count(self):
+        """Track reconnection returns the new reconnect count."""
+        from backend.api.streaming import _track_reconnection
+
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.redis.hgetall.return_value = {
+            b"count": b"3",
+        }
+        mock_pipeline = MagicMock()
+        mock_manager.redis.pipeline.return_value = mock_pipeline
+        mock_pipeline.execute.return_value = [4, True, True, True, True, True]
+
+        with patch("backend.api.middleware.metrics.record_sse_reconnect"):
+            count = await _track_reconnection(mock_manager, "bo1_test123", time.time())
+
+        # Should return new count (current + 1)
+        assert count == 4
+
+    @pytest.mark.asyncio
+    async def test_track_reconnection_returns_zero_on_unavailable(self):
+        """Track reconnection returns 0 when Redis unavailable (fail-open)."""
+        from backend.api.streaming import _track_reconnection
+
+        mock_manager = MagicMock()
+        mock_manager.is_available = False
+
+        with patch("backend.api.middleware.metrics.record_sse_reconnect"):
+            count = await _track_reconnection(mock_manager, "bo1_test123", time.time())
+
+        assert count == 0

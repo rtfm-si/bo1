@@ -9,6 +9,7 @@ Handles the complete lifecycle of a persona contribution:
 """
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -121,6 +122,8 @@ class PersonaExecutor:
         cache_system = override if override is not None else get_settings().enable_prompt_cache
 
         broker = PromptBroker(client=self.client)
+        # Propagate request_id from state for cross-system correlation
+        state_request_id = self.state.get("request_id") if self.state else None
         request = PromptRequest(
             system=system_prompt,
             user_message=user_message,
@@ -131,6 +134,7 @@ class PersonaExecutor:
             max_tokens=round_config["max_tokens"],
             phase="deliberation",
             agent_type=f"persona_{persona_profile.code}",
+            request_id=state_request_id or str(uuid.uuid4()),
         )
 
         # Execute LLM call with retry protection
@@ -315,6 +319,7 @@ class PersonaExecutor:
             override_retry if override_retry is not None else get_settings().enable_prompt_cache
         )
 
+        state_request_id = self.state.get("request_id") if self.state else None
         request_retry = PromptRequest(
             system=system_prompt,
             user_message=clarification_msg,
@@ -324,6 +329,7 @@ class PersonaExecutor:
             max_tokens=round_config["max_tokens"],
             phase="deliberation",
             agent_type=f"persona_{persona_profile.code}_retry",
+            request_id=state_request_id or str(uuid.uuid4()),
         )
 
         retry_response = await broker.call(request_retry)
@@ -384,6 +390,7 @@ class PersonaExecutor:
             override_retry if override_retry is not None else get_settings().enable_prompt_cache
         )
 
+        state_request_id = self.state.get("request_id") if self.state else None
         request_retry = PromptRequest(
             system=system_prompt,
             user_message=challenge_msg,
@@ -393,6 +400,7 @@ class PersonaExecutor:
             max_tokens=round_config["max_tokens"],
             phase="deliberation",
             agent_type=f"persona_{persona_profile.code}_challenge_retry",
+            request_id=state_request_id or str(uuid.uuid4()),
         )
 
         retry_response = await broker.call(request_retry)

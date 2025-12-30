@@ -3,11 +3,14 @@
 import pytest
 
 from backend.services.csv_utils import (
+    MAX_CELL_SIZE,
     CSVMetadata,
     CSVValidationError,
     count_csv_rows,
     detect_delimiter,
     detect_encoding,
+    detect_injection_patterns,
+    sanitize_csv_cell,
     validate_csv_headers,
     validate_csv_structure,
 )
@@ -193,3 +196,149 @@ class TestCSVValidationError:
         """Test error without field attribute."""
         error = CSVValidationError("Test error")
         assert error.field is None
+
+
+class TestSanitizeCSVCell:
+    """Tests for cell sanitization."""
+
+    def test_sanitize_cell_formula_prefix(self):
+        """Test =SUM() gets escaped."""
+        assert sanitize_csv_cell("=SUM(A1:A10)") == "'=SUM(A1:A10)"
+
+    def test_sanitize_cell_hyperlink_formula(self):
+        """Test HYPERLINK formula gets escaped."""
+        result = sanitize_csv_cell('=HYPERLINK("http://evil.com","Click")')
+        assert result.startswith("'=")
+
+    def test_sanitize_cell_plus_prefix_formula(self):
+        """Test +1+2 formula gets escaped."""
+        assert sanitize_csv_cell("+1+2") == "'+1+2"
+
+    def test_sanitize_cell_at_prefix(self):
+        """Test @mention gets escaped."""
+        assert sanitize_csv_cell("@mention") == "'@mention"
+
+    def test_sanitize_cell_tab_prefix(self):
+        """Test tab prefix gets escaped."""
+        assert sanitize_csv_cell("\tvalue") == "'\tvalue"
+
+    def test_sanitize_cell_cr_prefix(self):
+        """Test carriage return prefix gets escaped."""
+        assert sanitize_csv_cell("\rvalue") == "'\rvalue"
+
+    def test_sanitize_cell_safe_negative_number(self):
+        """Test negative number is preserved."""
+        assert sanitize_csv_cell("-123.45") == "-123.45"
+        assert sanitize_csv_cell("-1") == "-1"
+
+    def test_sanitize_cell_unsafe_minus(self):
+        """Test minus not followed by digit is escaped."""
+        assert sanitize_csv_cell("-@SUM()") == "'-@SUM()"
+
+    def test_sanitize_cell_safe_phone_number(self):
+        """Test phone number with + is preserved."""
+        assert sanitize_csv_cell("+1234567890") == "+1234567890"
+        assert sanitize_csv_cell("+44 123 456 7890") == "+44 123 456 7890"
+
+    def test_sanitize_cell_unsafe_plus(self):
+        """Test plus not followed by digit is escaped."""
+        assert sanitize_csv_cell("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+
+    def test_sanitize_cell_null_bytes(self):
+        """Test null bytes are stripped."""
+        assert sanitize_csv_cell("hello\x00world") == "helloworld"
+
+    def test_sanitize_cell_control_characters(self):
+        """Test control characters are stripped."""
+        # 0x01-0x08, 0x0B-0x0C, 0x0E-0x1F
+        assert sanitize_csv_cell("hello\x01\x02\x03world") == "helloworld"
+        assert sanitize_csv_cell("test\x0b\x0cvalue") == "testvalue"
+
+    def test_sanitize_cell_preserves_tab_newline_cr_in_content(self):
+        """Test tab/newline/CR in middle of string are kept."""
+        # Note: Only the prefix is escaped; tabs inside are kept
+        assert sanitize_csv_cell("hello\tworld") == "hello\tworld"
+        assert sanitize_csv_cell("hello\nworld") == "hello\nworld"
+
+    def test_sanitize_cell_length_limit(self):
+        """Test cells exceeding 32KB are truncated."""
+        long_value = "x" * (MAX_CELL_SIZE + 1000)
+        result = sanitize_csv_cell(long_value)
+        assert len(result) == MAX_CELL_SIZE
+
+    def test_sanitize_cell_empty(self):
+        """Test empty values pass through."""
+        assert sanitize_csv_cell("") == ""
+
+    def test_sanitize_cell_normal_text(self):
+        """Test normal text is unchanged."""
+        assert sanitize_csv_cell("Hello World") == "Hello World"
+        assert sanitize_csv_cell("Product Name") == "Product Name"
+
+    def test_sanitize_cell_unicode(self):
+        """Test unicode characters pass through."""
+        assert sanitize_csv_cell("Café Münch ñoño") == "Café Münch ñoño"
+
+
+class TestDetectInjectionPatterns:
+    """Tests for injection pattern detection."""
+
+    def test_detect_formula_injection(self):
+        """Test detection of formula cells."""
+        content = b"name,value\n=SUM(A1),100\ntest,200"
+        warnings = detect_injection_patterns(content)
+        assert len(warnings) == 1
+        assert "1 cell(s)" in warnings[0]
+        assert "formula injection" in warnings[0]
+
+    def test_detect_multiple_injection_cells(self):
+        """Test detection of multiple injection cells."""
+        content = b"name,value\n=SUM(A1),@mention\n+cmd,test"
+        warnings = detect_injection_patterns(content)
+        assert len(warnings) == 1
+        assert "3 cell(s)" in warnings[0]
+
+    def test_no_injection_in_clean_csv(self):
+        """Test no warnings for clean CSV."""
+        content = b"name,value,amount\nAlice,100,-50\nBob,200,+44123456"
+        warnings = detect_injection_patterns(content)
+        assert warnings == []
+
+    def test_safe_negative_numbers_ignored(self):
+        """Test negative numbers don't trigger warnings."""
+        content = b"name,amount\nProduct,-123.45\nService,-1"
+        warnings = detect_injection_patterns(content)
+        assert warnings == []
+
+    def test_safe_phone_numbers_ignored(self):
+        """Test phone numbers don't trigger warnings."""
+        content = b"name,phone\nAlice,+1234567890\nBob,+44 123"
+        warnings = detect_injection_patterns(content)
+        assert warnings == []
+
+    def test_max_rows_limit(self):
+        """Test only scans max_rows."""
+        # Create CSV with injection in row 150 (beyond default 100)
+        rows = ["name,value"] + ["test,normal"] * 149 + ["=EVIL,injected"]
+        content = "\n".join(rows).encode()
+        warnings = detect_injection_patterns(content, max_rows=100)
+        # Should not detect the injection at row 151
+        assert warnings == []
+
+
+class TestValidateCSVStructureWithWarnings:
+    """Tests for validate_csv_structure with injection warnings."""
+
+    def test_validate_csv_structure_with_injection_warning(self):
+        """Test warnings are populated for injection patterns."""
+        content = b"name,value\n=SUM(A1),100\ntest,200"
+        metadata = validate_csv_structure(content)
+        assert metadata.warnings is not None
+        assert len(metadata.warnings) == 1
+        assert "formula injection" in metadata.warnings[0]
+
+    def test_validate_csv_structure_no_warnings_for_clean(self):
+        """Test no warnings for clean CSV."""
+        content = b"name,value\nAlice,100\nBob,-200"
+        metadata = validate_csv_structure(content)
+        assert metadata.warnings is None

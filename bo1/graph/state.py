@@ -362,6 +362,12 @@ class DeliberationGraphState(TypedDict, total=False):
     # A/B TEST: Persona count experiment
     persona_count_variant: int | None  # 3 or 5 personas (A/B test for cost optimization)
 
+    # RESUME SUPPORT: Prior expert summaries from completed sub-problems
+    prior_expert_summaries: dict[str, str] | None  # {persona_code: summary} from previous SPs
+
+    # RESUME SUPPORT: Flag indicating this is a resumed session from checkpoint
+    is_resumed_session: bool
+
 
 def create_initial_state(
     session_id: str,
@@ -470,6 +476,9 @@ def create_initial_state(
         needs_interjection_response=False,  # Flag for interjection processing
         # A/B TEST: Persona count experiment
         persona_count_variant=persona_count_variant,
+        # RESUME SUPPORT
+        prior_expert_summaries=None,  # Will be populated on resume
+        is_resumed_session=False,  # Will be set to True on resume
     )
 
 

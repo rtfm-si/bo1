@@ -529,6 +529,33 @@ class InternalErrorResponse(ErrorResponse):
     }
 
 
+class GoneErrorResponse(ErrorResponse):
+    """Error response for 410 Gone.
+
+    Used when a resource is no longer available (e.g., expired invitation).
+    """
+
+    error_code: str = Field(
+        "API_GONE",
+        description="Error code for gone resources",
+    )
+    message: str = Field(
+        "Resource no longer available",
+        description="Gone error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_GONE",
+                    "message": "Invitation has expired",
+                },
+            ]
+        }
+    }
+
+
 class RateLimitResponse(BaseModel):
     """Response model for rate limit exceeded (HTTP 429).
 
@@ -2267,6 +2294,7 @@ class DatasetResponse(BaseModel):
         file_size_bytes: File size in bytes
         created_at: Creation timestamp
         updated_at: Last update timestamp
+        warnings: CSV validation warnings (e.g., injection patterns detected)
     """
 
     id: str = Field(..., description="Dataset UUID")
@@ -2282,6 +2310,7 @@ class DatasetResponse(BaseModel):
     file_size_bytes: int | None = Field(None, description="File size in bytes")
     created_at: str = Field(..., description="Creation timestamp (ISO)")
     updated_at: str = Field(..., description="Last update timestamp (ISO)")
+    warnings: list[str] | None = Field(None, description="CSV validation warnings")
 
 
 class DatasetDetailResponse(DatasetResponse):
@@ -2795,6 +2824,16 @@ class SessionCostBreakdown(BaseModel):
     by_sub_problem: list[SubProblemCost] = Field(
         default_factory=list, description="Cost breakdown per sub-problem"
     )
+    cache_hit_rate: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Overall cache hit rate (0.0-1.0)"
+    )
+    prompt_cache_hit_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Anthropic prompt cache effectiveness (0.0-1.0)",
+    )
+    total_saved: float = Field(default=0.0, ge=0.0, description="Cost savings from caching (USD)")
 
 
 # =============================================================================
@@ -3861,6 +3900,21 @@ class MessageResponse(BaseModel):
 
     status: str = Field(..., description="Operation status (e.g., 'success')")
     message: str = Field(..., description="Human-readable message")
+
+
+class CheckpointStateResponse(BaseModel):
+    """Response model for session checkpoint state (resume capability).
+
+    Used by /sessions/{id}/checkpoint-state to show resumable progress.
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    completed_sub_problems: int = Field(0, description="Number of completed sub-problems")
+    total_sub_problems: int | None = Field(None, description="Total sub-problems in session")
+    last_checkpoint_at: datetime | None = Field(None, description="When last checkpoint was saved")
+    can_resume: bool = Field(False, description="Whether session can be resumed from checkpoint")
+    status: str = Field(..., description="Current session status")
+    phase: str | None = Field(None, description="Current session phase")
 
 
 class WhitelistCheckResponse(BaseModel):

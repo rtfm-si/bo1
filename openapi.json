@@ -1,5 +1,28 @@
 {
   "components": {
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed per window for this endpoint",
+        "schema": {
+          "example": 60,
+          "type": "integer"
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in current window",
+        "schema": {
+          "example": 55,
+          "type": "integer"
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "Unix timestamp when rate limit window resets",
+        "schema": {
+          "example": 1704067260,
+          "type": "integer"
+        }
+      }
+    },
     "schemas": {
       "ActionBlockedResponse": {
         "description": "Response for blocking an action.",
@@ -9350,6 +9373,21 @@
             "description": "Owner user ID",
             "title": "User Id",
             "type": "string"
+          },
+          "warnings": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CSV validation warnings",
+            "title": "Warnings"
           }
         },
         "required": [
@@ -9518,7 +9556,7 @@
         "type": "object"
       },
       "DatasetResponse": {
-        "description": "Response model for a dataset.\n\nAttributes:\n    id: Dataset UUID\n    user_id: Owner user ID\n    name: Dataset name\n    description: Dataset description\n    source_type: Source type\n    source_uri: Original source location\n    file_key: Spaces object key\n    storage_path: Storage prefix path (e.g., user_id)\n    row_count: Number of rows\n    column_count: Number of columns\n    file_size_bytes: File size in bytes\n    created_at: Creation timestamp\n    updated_at: Last update timestamp",
+        "description": "Response model for a dataset.\n\nAttributes:\n    id: Dataset UUID\n    user_id: Owner user ID\n    name: Dataset name\n    description: Dataset description\n    source_type: Source type\n    source_uri: Original source location\n    file_key: Spaces object key\n    storage_path: Storage prefix path (e.g., user_id)\n    row_count: Number of rows\n    column_count: Number of columns\n    file_size_bytes: File size in bytes\n    created_at: Creation timestamp\n    updated_at: Last update timestamp\n    warnings: CSV validation warnings (e.g., injection patterns detected)",
         "properties": {
           "column_count": {
             "anyOf": [
@@ -9633,6 +9671,21 @@
             "description": "Owner user ID",
             "title": "User Id",
             "type": "string"
+          },
+          "warnings": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CSV validation warnings",
+            "title": "Warnings"
           }
         },
         "required": [
@@ -12760,6 +12813,31 @@
           }
         },
         "title": "GoalStalenessResponse",
+        "type": "object"
+      },
+      "GoneErrorResponse": {
+        "description": "Error response for 410 Gone.\n\nUsed when a resource is no longer available (e.g., expired invitation).",
+        "examples": [
+          {
+            "error_code": "API_GONE",
+            "message": "Invitation has expired"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_GONE",
+            "description": "Error code for gone resources",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Resource no longer available",
+            "description": "Gone error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "GoneErrorResponse",
         "type": "object"
       },
       "GroupBySpec": {
@@ -21032,6 +21110,1100 @@
         "title": "SEOAutopilotConfigResponse",
         "type": "object"
       },
+      "SSEEvent_contribution": {
+        "additionalProperties": true,
+        "description": "Emitted when an expert makes a contribution.",
+        "properties": {
+          "archetype": {
+            "default": "",
+            "description": "Expert archetype",
+            "title": "Archetype",
+            "type": "string"
+          },
+          "content": {
+            "description": "Full contribution content",
+            "title": "Content",
+            "type": "string"
+          },
+          "contribution_type": {
+            "description": "Type of contribution",
+            "enum": [
+              "initial",
+              "followup"
+            ],
+            "title": "Contribution Type",
+            "type": "string"
+          },
+          "domain_expertise": {
+            "description": "Expert domains",
+            "items": {
+              "type": "string"
+            },
+            "title": "Domain Expertise",
+            "type": "array"
+          },
+          "event_type": {
+            "const": "contribution",
+            "default": "contribution",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "persona_code": {
+            "description": "Expert persona code",
+            "title": "Persona Code",
+            "type": "string"
+          },
+          "persona_name": {
+            "description": "Expert display name",
+            "title": "Persona Name",
+            "type": "string"
+          },
+          "round": {
+            "description": "Round number",
+            "minimum": 1,
+            "title": "Round",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SSEEvent_contribution_ContributionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Structured summary (optional)"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "persona_code",
+          "persona_name",
+          "content",
+          "round",
+          "contribution_type"
+        ],
+        "title": "ContributionEvent",
+        "type": "object"
+      },
+      "SSEEvent_contribution_ContributionSummary": {
+        "description": "Structured summary of a contribution.",
+        "properties": {
+          "concerns": {
+            "description": "Key concerns raised",
+            "items": {
+              "type": "string"
+            },
+            "title": "Concerns",
+            "type": "array"
+          },
+          "concise": {
+            "default": "",
+            "description": "One-sentence summary",
+            "title": "Concise",
+            "type": "string"
+          },
+          "looking_for": {
+            "default": "",
+            "description": "What the expert is looking for",
+            "title": "Looking For",
+            "type": "string"
+          },
+          "questions": {
+            "description": "Questions posed",
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "value_added": {
+            "default": "",
+            "description": "Value this contribution adds",
+            "title": "Value Added",
+            "type": "string"
+          }
+        },
+        "title": "ContributionSummary",
+        "type": "object"
+      },
+      "SSEEvent_convergence": {
+        "additionalProperties": true,
+        "description": "Emitted when convergence is checked.",
+        "properties": {
+          "conflict_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Conflict score",
+            "title": "Conflict Score"
+          },
+          "converged": {
+            "description": "Whether convergence was reached",
+            "title": "Converged",
+            "type": "boolean"
+          },
+          "drift_events": {
+            "default": 0,
+            "description": "Number of drift events",
+            "minimum": 0,
+            "title": "Drift Events",
+            "type": "integer"
+          },
+          "event_type": {
+            "const": "convergence",
+            "default": "convergence",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "max_rounds": {
+            "description": "Maximum rounds",
+            "minimum": 1,
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "novelty_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Novelty score",
+            "title": "Novelty Score"
+          },
+          "round": {
+            "description": "Current round",
+            "minimum": 1,
+            "title": "Round",
+            "type": "integer"
+          },
+          "score": {
+            "description": "Convergence score",
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score",
+            "type": "number"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "should_stop": {
+            "description": "Whether deliberation should stop",
+            "title": "Should Stop",
+            "type": "boolean"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Reason for stopping",
+            "title": "Stop Reason"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "threshold": {
+            "description": "Convergence threshold",
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Threshold",
+            "type": "number"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "converged",
+          "score",
+          "threshold",
+          "should_stop",
+          "round",
+          "max_rounds"
+        ],
+        "title": "ConvergenceEvent",
+        "type": "object"
+      },
+      "SSEEvent_decomposition_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when problem decomposition completes.",
+        "properties": {
+          "count": {
+            "description": "Number of sub-problems",
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "event_type": {
+            "const": "decomposition_complete",
+            "default": "decomposition_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "sub_problems": {
+            "description": "Decomposed sub-problems",
+            "items": {
+              "$ref": "#/components/schemas/SSEEvent_decomposition_complete_SubProblemSchema"
+            },
+            "title": "Sub Problems",
+            "type": "array"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "sub_problems",
+          "count"
+        ],
+        "title": "DecompositionCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_decomposition_complete_SubProblemSchema": {
+        "description": "Schema for sub-problem data in events.",
+        "properties": {
+          "complexity_score": {
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Complexity Score",
+            "type": "integer"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "rationale": {
+            "default": "",
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "goal",
+          "complexity_score"
+        ],
+        "title": "SubProblemSchema",
+        "type": "object"
+      },
+      "SSEEvent_error": {
+        "additionalProperties": true,
+        "description": "Emitted when an error occurs during deliberation.",
+        "properties": {
+          "error": {
+            "description": "Error message",
+            "title": "Error",
+            "type": "string"
+          },
+          "error_type": {
+            "default": "UnknownError",
+            "description": "Error type/class name",
+            "title": "Error Type",
+            "type": "string"
+          },
+          "event_type": {
+            "const": "error",
+            "default": "error",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Graph node where error occurred",
+            "title": "Node"
+          },
+          "recoverable": {
+            "default": false,
+            "description": "Whether the error is recoverable",
+            "title": "Recoverable",
+            "type": "boolean"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Goal of failed sub-problem if applicable",
+            "title": "Sub Problem Goal"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "error"
+        ],
+        "title": "ErrorEvent",
+        "type": "object"
+      },
+      "SSEEvent_meta_synthesis_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when meta-synthesis (across all sub-problems) completes.",
+        "properties": {
+          "event_type": {
+            "const": "meta_synthesis_complete",
+            "default": "meta_synthesis_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "synthesis": {
+            "description": "Final meta-synthesis content",
+            "title": "Synthesis",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "word_count": {
+            "description": "Word count of synthesis",
+            "minimum": 0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "synthesis",
+          "word_count"
+        ],
+        "title": "MetaSynthesisCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_persona_selected": {
+        "additionalProperties": true,
+        "description": "Emitted when a persona is selected for deliberation.",
+        "properties": {
+          "event_type": {
+            "const": "persona_selected",
+            "default": "persona_selected",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "order": {
+            "description": "Selection order (1-based)",
+            "minimum": 1,
+            "title": "Order",
+            "type": "integer"
+          },
+          "persona": {
+            "$ref": "#/components/schemas/SSEEvent_persona_selected_PersonaSchema"
+          },
+          "rationale": {
+            "description": "Why this persona was selected",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "persona",
+          "rationale",
+          "order"
+        ],
+        "title": "PersonaSelectedEvent",
+        "type": "object"
+      },
+      "SSEEvent_persona_selected_PersonaSchema": {
+        "description": "Schema for persona data in events.",
+        "properties": {
+          "archetype": {
+            "default": "",
+            "title": "Archetype",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "domain_expertise": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Domain Expertise",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "PersonaSchema",
+        "type": "object"
+      },
+      "SSEEvent_persona_selection_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when all personas have been selected.",
+        "properties": {
+          "count": {
+            "description": "Number of personas selected",
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "event_type": {
+            "const": "persona_selection_complete",
+            "default": "persona_selection_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "personas": {
+            "description": "All selected personas",
+            "items": {
+              "$ref": "#/components/schemas/SSEEvent_persona_selection_complete_PersonaSchema"
+            },
+            "title": "Personas",
+            "type": "array"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "personas",
+          "count"
+        ],
+        "title": "PersonaSelectionCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_persona_selection_complete_PersonaSchema": {
+        "description": "Schema for persona data in events.",
+        "properties": {
+          "archetype": {
+            "default": "",
+            "title": "Archetype",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "domain_expertise": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Domain Expertise",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "PersonaSchema",
+        "type": "object"
+      },
+      "SSEEvent_round_started": {
+        "additionalProperties": true,
+        "description": "Emitted when a deliberation round begins.",
+        "properties": {
+          "event_type": {
+            "const": "round_started",
+            "default": "round_started",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "round_number": {
+            "description": "Round number (1-based)",
+            "minimum": 1,
+            "title": "Round Number",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "round_number"
+        ],
+        "title": "RoundStartedEvent",
+        "type": "object"
+      },
+      "SSEEvent_session_started": {
+        "additionalProperties": true,
+        "description": "Emitted when a deliberation session starts.",
+        "properties": {
+          "event_type": {
+            "const": "session_started",
+            "default": "session_started",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "max_rounds": {
+            "description": "Maximum rounds allowed",
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "problem_statement": {
+            "description": "The problem being deliberated",
+            "title": "Problem Statement",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User who started the session",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "problem_statement",
+          "max_rounds",
+          "user_id"
+        ],
+        "title": "SessionStartedEvent",
+        "type": "object"
+      },
+      "SSEEvent_subproblem_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when a sub-problem deliberation completes.",
+        "properties": {
+          "contribution_count": {
+            "description": "Number of contributions",
+            "minimum": 0,
+            "title": "Contribution Count",
+            "type": "integer"
+          },
+          "cost": {
+            "description": "Cost in USD",
+            "minimum": 0,
+            "title": "Cost",
+            "type": "number"
+          },
+          "duration_seconds": {
+            "description": "Duration in seconds",
+            "minimum": 0,
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "event_type": {
+            "const": "subproblem_complete",
+            "default": "subproblem_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "expert_panel": {
+            "description": "Expert codes",
+            "items": {
+              "type": "string"
+            },
+            "title": "Expert Panel",
+            "type": "array"
+          },
+          "goal": {
+            "description": "Goal of this sub-problem",
+            "title": "Goal",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_id": {
+            "default": "",
+            "description": "Sub-problem unique ID",
+            "title": "Sub Problem Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "description": "Sub-problem index (0-based)",
+            "minimum": 0,
+            "title": "Sub Problem Index",
+            "type": "integer"
+          },
+          "synthesis": {
+            "description": "Synthesis for this sub-problem",
+            "title": "Synthesis",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "sub_problem_index",
+          "goal",
+          "synthesis",
+          "cost",
+          "duration_seconds",
+          "contribution_count"
+        ],
+        "title": "SubProblemCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_subproblem_started": {
+        "additionalProperties": true,
+        "description": "Emitted when a sub-problem deliberation begins.\n\nCRITICAL: This event must be emitted immediately when parallel sub-problem\nexecution starts, so the frontend knows deliberation is in progress.",
+        "properties": {
+          "event_type": {
+            "const": "subproblem_started",
+            "default": "subproblem_started",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "goal": {
+            "description": "Goal of this sub-problem",
+            "title": "Goal",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_id": {
+            "description": "Sub-problem unique ID",
+            "title": "Sub Problem Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "description": "Sub-problem index (0-based)",
+            "minimum": 0,
+            "title": "Sub Problem Index",
+            "type": "integer"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "total_sub_problems": {
+            "description": "Total number of sub-problems",
+            "minimum": 1,
+            "title": "Total Sub Problems",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "sub_problem_index",
+          "sub_problem_id",
+          "goal",
+          "total_sub_problems"
+        ],
+        "title": "SubProblemStartedEvent",
+        "type": "object"
+      },
+      "SSEEvent_synthesis_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when synthesis completes for a sub-problem.",
+        "properties": {
+          "event_type": {
+            "const": "synthesis_complete",
+            "default": "synthesis_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "synthesis": {
+            "description": "Synthesis content",
+            "title": "Synthesis",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "word_count": {
+            "description": "Word count of synthesis",
+            "minimum": 0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "synthesis",
+          "word_count"
+        ],
+        "title": "SynthesisCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_voting_complete": {
+        "additionalProperties": true,
+        "description": "Emitted when voting completes.",
+        "properties": {
+          "consensus_level": {
+            "description": "Level of consensus",
+            "enum": [
+              "strong",
+              "moderate",
+              "weak"
+            ],
+            "title": "Consensus Level",
+            "type": "string"
+          },
+          "event_type": {
+            "const": "voting_complete",
+            "default": "voting_complete",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "votes_count": {
+            "description": "Number of votes cast",
+            "minimum": 0,
+            "title": "Votes Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "votes_count",
+          "consensus_level"
+        ],
+        "title": "VotingCompleteEvent",
+        "type": "object"
+      },
+      "SSEEvent_voting_started": {
+        "additionalProperties": true,
+        "description": "Emitted when voting begins.",
+        "properties": {
+          "count": {
+            "description": "Number of experts",
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "event_type": {
+            "const": "voting_started",
+            "default": "voting_started",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "experts": {
+            "description": "Expert codes participating",
+            "items": {
+              "type": "string"
+            },
+            "title": "Experts",
+            "type": "array"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "experts",
+          "count"
+        ],
+        "title": "VotingStartedEvent",
+        "type": "object"
+      },
       "SendEmailRequest": {
         "description": "Request model for sending admin email.\n\nAttributes:\n    template_type: Type of email template to use\n    subject: Custom subject (required for custom template)\n    body: Custom body (required for custom template)",
         "properties": {
@@ -21702,6 +22874,22 @@
             "title": "By Sub Problem",
             "type": "array"
           },
+          "cache_hit_rate": {
+            "default": 0.0,
+            "description": "Overall cache hit rate (0.0-1.0)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "prompt_cache_hit_rate": {
+            "default": 0.0,
+            "description": "Anthropic prompt cache effectiveness (0.0-1.0)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Prompt Cache Hit Rate",
+            "type": "number"
+          },
           "session_id": {
             "description": "Session identifier",
             "title": "Session Id",
@@ -21715,6 +22903,13 @@
           "total_cost": {
             "description": "Total session cost in USD",
             "title": "Total Cost",
+            "type": "number"
+          },
+          "total_saved": {
+            "default": 0.0,
+            "description": "Cost savings from caching (USD)",
+            "minimum": 0.0,
+            "title": "Total Saved",
             "type": "number"
           },
           "total_tokens": {
@@ -24565,6 +25760,35 @@
           "can_autogenerate"
         ],
         "title": "UnassignedCountResponse",
+        "type": "object"
+      },
+      "UnauthorizedErrorResponse": {
+        "description": "Error response for 401 Unauthorized.\n\nUsed when authentication is missing or invalid.",
+        "examples": [
+          {
+            "error_code": "API_UNAUTHORIZED",
+            "message": "Authentication required"
+          },
+          {
+            "error_code": "AUTH_TOKEN_ERROR",
+            "message": "Invalid or expired token"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_UNAUTHORIZED",
+            "description": "Error code for authentication failures",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Authentication required",
+            "description": "Unauthorized error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "UnauthorizedErrorResponse",
         "type": "object"
       },
       "UnblockActionRequest": {
@@ -27775,7 +28999,24 @@
     "description": "\n    **Board of One** is a multi-agent deliberation system that uses AI personas\n    to provide strategic decision-making insights through structured debate and synthesis.\n\n    ## Features\n\n    - **Multi-Agent Deliberation**: 3-5 expert personas debate your decision\n    - **Structured Synthesis**: AI-powered consensus building\n    - **Real-time Streaming**: Server-Sent Events (SSE) for live updates\n    - **Context Management**: Business context and clarification support\n    - **Session Control**: Pause, resume, and kill deliberations\n    - **Admin Monitoring**: Track and manage all active sessions\n\n    ## Authentication\n\n    This API uses cookie-based session authentication via SuperTokens.\n\n    - **User Endpoints**: Require valid `sAccessToken` session cookie\n    - **Admin Endpoints**: Require session cookie with admin privileges (is_admin=true)\n\n    Authentication flow:\n    1. User authenticates via OAuth (Google, LinkedIn, etc.) at `/auth/*` endpoints\n    2. SuperTokens sets httpOnly `sAccessToken` cookie on successful auth\n    3. All subsequent requests include cookie automatically\n    4. Session is validated on each request\n\n    ## Rate Limits\n\n    - Global: 500 requests/minute per IP\n    - Control endpoints: 30 requests/minute per user\n    - SSE: 5 concurrent connections per user\n\n    ## Support\n\n    - Documentation: [GitHub](https://github.com/anthropics/board-of-one)\n    - Issues: [GitHub Issues](https://github.com/anthropics/board-of-one/issues)\n    ",
     "title": "Board of One API",
     "version": "1.0.0",
-    "x-api-version": "1.0"
+    "x-api-version": "1.0",
+    "x-rate-limits": {
+      "description": "Rate limits are applied per endpoint and returned in response headers",
+      "endpoints": {
+        "admin": "1200/minute",
+        "auth": "10/minute",
+        "control": "20/minute",
+        "general": "60/minute",
+        "sessions_create": "30/minute",
+        "streaming": "30/minute",
+        "upload": "10/hour"
+      },
+      "headers": {
+        "X-RateLimit-Limit": "Maximum requests allowed per window",
+        "X-RateLimit-Remaining": "Requests remaining in current window",
+        "X-RateLimit-Reset": "Unix timestamp when window resets"
+      }
+    }
   },
   "openapi": "3.1.0",
   "paths": {
@@ -41322,6 +42563,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get all user actions",
         "tags": [
           "actions",
@@ -41430,6 +42676,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get global Gantt data",
         "tags": [
           "actions",
@@ -41479,6 +42730,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get pending action reminders",
         "tags": [
           "actions",
@@ -41528,6 +42784,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action statistics",
         "tags": [
           "actions",
@@ -41575,6 +42836,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Delete action (soft delete)",
         "tags": [
           "actions",
@@ -41637,6 +42906,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get single action details",
         "tags": [
           "actions",
@@ -41697,6 +42971,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Block an action",
         "tags": [
           "actions",
@@ -41757,6 +43039,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Replan action by cloning",
         "tags": [
           "actions",
@@ -41817,6 +43107,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Close an action",
         "tags": [
           "actions",
@@ -41881,6 +43179,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Complete an action",
         "tags": [
           "actions",
@@ -41941,6 +43247,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update action dates",
         "tags": [
           "actions",
@@ -41988,6 +43302,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action dependencies",
         "tags": [
           "actions",
@@ -42046,6 +43365,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Add action dependency",
         "tags": [
           "actions",
@@ -42102,6 +43429,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Remove action dependency",
         "tags": [
           "actions",
@@ -42193,6 +43528,14 @@
             "description": "Rate limit exceeded"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Escalate blocked action to a meeting",
         "tags": [
           "actions",
@@ -42253,6 +43596,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update action progress",
         "tags": [
           "actions",
@@ -42300,6 +43651,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Recalculate action dates",
         "tags": [
           "actions",
@@ -42347,6 +43706,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action reminder settings",
         "tags": [
           "actions",
@@ -42402,6 +43766,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update action reminder settings",
         "tags": [
           "actions",
@@ -42469,6 +43841,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Request AI replanning for blocked action",
         "tags": [
           "actions",
@@ -42516,6 +43896,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get replanning context for action",
         "tags": [
           "actions",
@@ -42573,6 +43958,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Snooze action reminder",
         "tags": [
           "actions",
@@ -42620,6 +44013,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Start an action",
         "tags": [
           "actions",
@@ -42683,6 +44084,14 @@
             "description": "Service unavailable - database pool exhausted"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update action status",
         "tags": [
           "actions",
@@ -42757,6 +44166,14 @@
             "description": "Rate limit exceeded"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Suggest ways to unblock a blocked action",
         "tags": [
           "actions",
@@ -42808,6 +44225,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action tags",
         "tags": [
           "actions",
@@ -42867,6 +44289,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Set action tags",
         "tags": [
           "actions",
@@ -42934,6 +44364,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Unblock an action",
         "tags": [
           "actions",
@@ -42995,6 +44433,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action updates",
         "tags": [
           "actions",
@@ -43050,6 +44493,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Add action update",
         "tags": [
           "actions",
@@ -43097,6 +44548,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get action schedule variance",
         "tags": [
           "actions",
@@ -44626,11 +46082,25 @@
             },
             "description": "Context deleted successfully"
           },
-          "404": {
-            "description": "No context found to delete"
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
-          "500": {
-            "description": "Database error"
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           }
         },
         "summary": "Delete user's saved context",
@@ -44682,8 +46152,15 @@
             },
             "description": "Context retrieved successfully (exists=true if saved, false if not)"
           },
-          "500": {
-            "description": "Database error"
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get user's saved business context",
@@ -44723,6 +46200,26 @@
             },
             "description": "Context updated successfully"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -44732,9 +46229,6 @@
               }
             },
             "description": "Validation Error"
-          },
-          "500": {
-            "description": "Database error"
           }
         },
         "summary": "Update user's business context",
@@ -44775,6 +46269,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -44827,6 +46331,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "List cached competitor insights",
@@ -44865,6 +46379,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -44918,6 +46452,26 @@
             },
             "description": "Insight generated or retrieved from cache"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -44929,10 +46483,23 @@
             "description": "Validation Error"
           },
           "429": {
-            "description": "Rate limit exceeded"
-          },
-          "500": {
-            "description": "Analysis failed"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Generate insight for a competitor",
@@ -44960,6 +46527,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Clear cached demo questions",
@@ -45006,6 +46583,16 @@
               }
             },
             "description": "Demo questions generated successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -45061,6 +46648,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -45104,8 +46711,35 @@
             },
             "description": "Enrichment completed (check success field)"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
-            "description": "Invalid URL format"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           },
           "429": {
             "content": {
@@ -45125,9 +46759,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "description": "Enrichment service error"
           }
         },
         "summary": "Enrich context from website",
@@ -45164,6 +46795,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -45196,6 +46837,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get goal progress metrics",
@@ -45219,6 +46870,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Check goal staleness",
@@ -45242,6 +46903,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
             "content": {
@@ -45293,8 +46964,35 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
-            "description": "Invalid depth (must be 1, 3, or 6)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           },
           "429": {
             "content": {
@@ -45348,6 +47046,16 @@
               }
             },
             "description": "Insights retrieved successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get accumulated insights from meetings",
@@ -45386,6 +47094,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -45439,6 +47177,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -45471,6 +47239,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
             "content": {
@@ -45524,6 +47302,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -45575,6 +47363,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "List user's managed competitors",
@@ -45607,8 +47405,25 @@
             },
             "description": "Competitor added successfully"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "409": {
-            "description": "Competitor with this name already exists"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
           },
           "422": {
             "content": {
@@ -45658,8 +47473,25 @@
             },
             "description": "Competitor removed successfully"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "404": {
-            "description": "Competitor not found"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -45713,8 +47545,25 @@
             },
             "description": "Competitor updated successfully"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "404": {
-            "description": "Competitor not found"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -45748,6 +47597,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
             "content": {
@@ -45805,6 +47664,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -45877,6 +47746,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -45928,6 +47827,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "List pending context update suggestions",
@@ -45966,6 +47875,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -46011,6 +47940,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -46043,6 +47992,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Check if context refresh needed",
@@ -46066,6 +48025,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
             "content": {
@@ -46108,6 +48077,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get stale business context metrics",
@@ -46154,6 +48133,26 @@
             },
             "description": "Insight generated or retrieved from cache"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -46165,10 +48164,23 @@
             "description": "Validation Error"
           },
           "429": {
-            "description": "Rate limit exceeded"
-          },
-          "500": {
-            "description": "Analysis failed"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Analyze a trend URL for insights",
@@ -46208,7 +48220,24 @@
             "description": "Forecast retrieved or tier-gated"
           },
           "400": {
-            "description": "Invalid timeframe"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -46258,10 +48287,24 @@
             "description": "Forecast generated or rate limited"
           },
           "400": {
-            "description": "Industry not set or invalid timeframe"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "403": {
-            "description": "Tier insufficient for requested timeframe"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -46295,6 +48338,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "List cached trend insights",
@@ -46333,6 +48386,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -46383,6 +48466,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -46437,6 +48530,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get cached trend summary",
@@ -46464,10 +48567,43 @@
             "description": "Summary generated or rate limited"
           },
           "400": {
-            "description": "Industry not set"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
-            "description": "Free tier refresh blocked (28-day limit)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Refresh trend summary",
@@ -46491,6 +48627,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "Get business context with trend indicators",
@@ -46514,6 +48660,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "429": {
             "content": {
@@ -46565,8 +48721,35 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
-            "description": "Invalid days (must be 1-7)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           },
           "429": {
             "content": {
@@ -47848,6 +50031,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoneErrorResponse"
+                }
+              }
+            },
+            "description": "Gone - resource no longer available (e.g., expired invitation)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -47883,6 +50096,26 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -47953,6 +50186,16 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -47996,6 +50239,26 @@
               }
             },
             "description": "SSE event stream"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -48065,6 +50328,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48101,6 +50384,36 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -48143,6 +50456,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -48195,6 +50538,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -48259,6 +50632,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48319,6 +50712,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -48429,6 +50842,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48461,6 +50904,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
         "summary": "List available mentor personas",
@@ -48528,6 +50981,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "422": {
             "content": {
@@ -48952,6 +51425,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48963,6 +51446,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get all projects",
         "tags": [
           "projects",
@@ -48993,6 +51481,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49004,6 +51512,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create a project",
         "tags": [
           "projects",
@@ -49036,6 +51552,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49047,6 +51583,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create projects from suggestions",
         "tags": [
           "projects",
@@ -49068,8 +51612,23 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get autogenerate suggestions",
         "tags": [
           "projects",
@@ -49091,8 +51650,23 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get context-based project suggestions",
         "tags": [
           "projects",
@@ -49123,6 +51697,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49134,6 +51728,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create projects from context suggestions",
         "tags": [
           "projects",
@@ -49155,8 +51757,23 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get unassigned actions count",
         "tags": [
           "projects",
@@ -49183,6 +51800,26 @@
           "204": {
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49194,6 +51831,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Archive a project",
         "tags": [
           "projects",
@@ -49225,6 +51870,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49236,6 +51901,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get project details",
         "tags": [
           "projects",
@@ -49277,6 +51947,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49288,6 +51988,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update a project",
         "tags": [
           "projects",
@@ -49366,6 +52074,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49377,6 +52105,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get project actions",
         "tags": [
           "projects",
@@ -49412,6 +52145,26 @@
           "204": {
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49423,6 +52176,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Remove action from project",
         "tags": [
           "projects",
@@ -49456,6 +52217,26 @@
           "204": {
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49467,6 +52248,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Assign action to project",
         "tags": [
           "projects",
@@ -49500,6 +52289,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49511,6 +52320,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get Gantt chart data",
         "tags": [
           "projects",
@@ -49554,6 +52368,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49563,8 +52407,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create meeting for project",
         "tags": [
           "projects",
@@ -49606,6 +52468,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49617,6 +52499,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get project sessions",
         "tags": [
           "projects",
@@ -49662,6 +52549,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49673,6 +52580,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Link session to project",
         "tags": [
           "projects",
@@ -49708,6 +52623,26 @@
           "204": {
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49719,6 +52654,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Unlink session from project",
         "tags": [
           "projects",
@@ -49762,6 +52705,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49773,6 +52746,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Update project status",
         "tags": [
           "projects",
@@ -49806,6 +52787,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -49817,6 +52828,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create new project version",
         "tags": [
           "projects",
@@ -51325,6 +54344,11 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "List user's sessions",
         "tags": [
           "sessions",
@@ -51429,6 +54453,14 @@
             "description": "Service unavailable - database pool exhausted"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Create new deliberation session",
         "tags": [
           "sessions",
@@ -51466,6 +54498,14 @@
             "description": "No session IDs provided"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Acknowledge failed meetings",
         "tags": [
           "sessions",
@@ -51499,6 +54539,11 @@
             "description": "Cap status retrieved successfully"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get meeting cap status",
         "tags": [
           "sessions",
@@ -51560,6 +54605,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get recent failed meetings",
         "tags": [
           "sessions",
@@ -51900,6 +54950,72 @@
           }
         },
         "summary": "Get projects available for linking",
+        "tags": [
+          "sessions",
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/checkpoint-state": {
+      "get": {
+        "description": "Get checkpoint state for session resume capability",
+        "operationId": "get_checkpoint_state_api_v1_sessions__session_id__checkpoint_state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Checkpoint State Api V1 Sessions  Session Id  Checkpoint State Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Checkpoint state retrieved"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "User does not own this session"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get session checkpoint state",
         "tags": [
           "sessions",
           "sessions"
@@ -52308,6 +55424,11 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get session cost breakdown (admin only)",
         "tags": [
           "sessions",
@@ -52469,6 +55590,11 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Get session event history",
         "tags": [
           "streaming",
@@ -52730,6 +55856,14 @@
             "description": "Internal server error - an unexpected error occurred"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
         "summary": "Kill deliberation",
         "tags": [
           "deliberation-control",
@@ -53670,7 +56804,7 @@
     },
     "/api/v1/sessions/{session_id}/stream": {
       "get": {
-        "description": "Stream real-time deliberation events for a session using Server-Sent Events (SSE).\n\n    **Rate Limited:** 5 connections per minute per IP to prevent connection exhaustion.\n\n    **Session Resume Support:**\n    If the client disconnects and reconnects, include the `Last-Event-ID` header\n    with the ID from the last received event. The server will replay any missed\n    events before resuming live streaming.\n\n    Event types:\n    - `node_start` - Node execution started\n    - `node_end` - Node execution completed\n    - `contribution` - Persona contributed to discussion\n    - `facilitator_decision` - Facilitator made a decision\n    - `convergence` - Convergence check result\n    - `complete` - Deliberation finished\n    - `error` - Error occurred\n\n    The connection will remain open until the deliberation completes or\n    the client disconnects.",
+        "description": "Stream real-time deliberation events for a session using Server-Sent Events (SSE).\n\n    **Rate Limited:** 5 connections per minute per IP to prevent connection exhaustion.\n\n    **Session Resume Support:**\n    If the client disconnects and reconnects, include the `Last-Event-ID` header\n    with the ID from the last received event. The server will replay any missed\n    events before resuming live streaming.\n\n    **Event Types** (see `/api/v1/sse/schemas` for full JSON Schema definitions):\n\n    | Event Type | Schema Reference | Description |\n    |------------|------------------|-------------|\n    | `session_started` | `SSEEvent_session_started` | Session begins |\n    | `decomposition_complete` | `SSEEvent_decomposition_complete` | Problem decomposed |\n    | `persona_selected` | `SSEEvent_persona_selected` | Expert selected |\n    | `persona_selection_complete` | `SSEEvent_persona_selection_complete` | Panel assembled |\n    | `subproblem_started` | `SSEEvent_subproblem_started` | Sub-problem begins |\n    | `round_started` | `SSEEvent_round_started` | Round begins |\n    | `contribution` | `SSEEvent_contribution` | Expert contribution |\n    | `convergence` | `SSEEvent_convergence` | Convergence check |\n    | `voting_started` | `SSEEvent_voting_started` | Voting begins |\n    | `voting_complete` | `SSEEvent_voting_complete` | Voting ends |\n    | `synthesis_complete` | `SSEEvent_synthesis_complete` | Sub-problem synthesis |\n    | `subproblem_complete` | `SSEEvent_subproblem_complete` | Sub-problem ends |\n    | `meta_synthesis_complete` | `SSEEvent_meta_synthesis_complete` | Final synthesis |\n    | `error` | `SSEEvent_error` | Error occurred |\n\n    **Event Lifecycle:**\n    `session_started` \u2192 `decomposition_complete` \u2192 persona selection \u2192\n    (per sub-problem: `subproblem_started` \u2192 rounds \u2192 `synthesis_complete` \u2192 `subproblem_complete`) \u2192\n    `meta_synthesis_complete`\n\n    The connection will remain open until the deliberation completes or\n    the client disconnects.",
         "operationId": "stream_deliberation_api_v1_sessions__session_id__stream_get",
         "parameters": [
           {
@@ -53807,6 +56941,11 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
         "summary": "Stream deliberation events via SSE",
         "tags": [
           "streaming",
@@ -54044,6 +57183,30 @@
         "tags": [
           "share",
           "share"
+        ]
+      }
+    },
+    "/api/v1/sse/schemas": {
+      "get": {
+        "description": "Returns JSON Schema definitions for all SSE event types emitted during deliberation.\n\n    This endpoint is public (no auth required) to support frontend codegen and documentation.\n\n    **Event Lifecycle:**\n    1. `session_started` - Session begins\n    2. `decomposition_complete` - Problem broken into sub-problems\n    3. `persona_selected` / `persona_selection_complete` - Expert panel assembled\n    4. `subproblem_started` - Sub-problem deliberation begins\n    5. `round_started` - Deliberation round begins\n    6. `contribution` - Expert makes a contribution\n    7. `convergence` - Convergence check result\n    8. `voting_started` / `voting_complete` - Expert voting phase\n    9. `synthesis_complete` - Sub-problem synthesis ready\n    10. `subproblem_complete` - Sub-problem deliberation ends\n    11. `meta_synthesis_complete` - Final synthesis across all sub-problems\n    12. `error` - Error occurred during deliberation",
+        "operationId": "get_sse_schemas_api_v1_sse_schemas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Sse Schemas Api V1 Sse Schemas Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get SSE event schemas",
+        "tags": [
+          "streaming"
         ]
       }
     },
@@ -55663,6 +58826,16 @@
             },
             "description": "Successful Response"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -55672,6 +58845,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Create new workspace",
@@ -55700,6 +58883,16 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -55743,6 +58936,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -55797,6 +59000,26 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -55841,6 +59064,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -55897,6 +59140,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -55941,6 +59214,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -56041,6 +59344,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56089,6 +59422,16 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -56145,6 +59488,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
           },
           "422": {
             "content": {
@@ -56246,6 +59619,16 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56310,6 +59693,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -56413,6 +59806,36 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict - request conflicts with current resource state"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56459,6 +59882,26 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -56522,6 +59965,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56576,6 +60039,26 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56629,6 +60112,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -56740,6 +60243,16 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56795,6 +60308,36 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -56804,6 +60347,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Transfer workspace ownership",

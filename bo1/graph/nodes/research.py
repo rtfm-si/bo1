@@ -38,11 +38,16 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.agents.researcher import ResearcherAgent
 
     session_id = state.get("session_id")
+    request_id = state.get("request_id")
     # Extract subscription tier from state (populated via init_state from user data)
     subscription_tier = state.get("subscription_tier") or "free"
     # Extract user context for research sharing
     user_id = state.get("user_id")
     sharing_consented = state.get("research_sharing_consented", False)
+
+    log_with_session(
+        logger, logging.INFO, session_id, "research_node: Starting", request_id=request_id
+    )
 
     # PROACTIVE RESEARCH: Check for pending queries first
     pending_queries = state.get("pending_research_queries", [])

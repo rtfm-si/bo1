@@ -111,3 +111,9 @@ SSE_RECONNECT_TRACKING_ENABLED: bool = (
 SSE_RECONNECT_TTL_SECONDS: int = int(
     os.environ.get("SSE_RECONNECT_TTL_SECONDS", str(REDIS_SESSION_TTL_SECONDS))
 )
+
+# SSE Retry Backoff Configuration
+# Used for exponential backoff on client reconnections
+SSE_RETRY_BASE_MS: int = int(os.environ.get("SSE_RETRY_BASE_MS", "1000"))  # 1 second base
+SSE_RETRY_MAX_MS: int = int(os.environ.get("SSE_RETRY_MAX_MS", "30000"))  # 30 second cap
+SSE_RETRY_BACKOFF_MULTIPLIER: float = float(os.environ.get("SSE_RETRY_BACKOFF_MULTIPLIER", "2.0"))

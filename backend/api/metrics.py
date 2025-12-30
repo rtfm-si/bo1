@@ -360,6 +360,13 @@ class PrometheusMetrics:
             ["result"],  # success, failure
         )
 
+        # Redis metadata dual-write to PostgreSQL
+        self.redis_metadata_dualwrite_total = Counter(
+            "bo1_redis_metadata_dualwrite_total",
+            "Redis metadata dual-writes to PostgreSQL after Redis save",
+            ["result"],  # success, failure
+        )
+
         # User context cache metrics
         self.user_context_cache_total = Counter(
             "bo1_user_context_cache_total",

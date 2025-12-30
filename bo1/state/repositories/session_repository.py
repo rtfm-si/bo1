@@ -269,6 +269,74 @@ class SessionRepository(BaseRepository):
             > 0
         )
 
+    def update_sp_checkpoint(
+        self,
+        session_id: str,
+        last_completed_sp_index: int,
+        total_sub_problems: int | None = None,
+    ) -> bool:
+        """Update sub-problem checkpoint for resume capability.
+
+        Called after each sub-problem synthesis completes to enable
+        resume from last successful boundary.
+
+        Args:
+            session_id: Session identifier
+            last_completed_sp_index: Index of completed sub-problem (0-based)
+            total_sub_problems: Total sub-problems count (set on first call)
+
+        Returns:
+            True if updated successfully, False otherwise
+        """
+        if total_sub_problems is not None:
+            return (
+                self._execute_count(
+                    """
+                UPDATE sessions
+                SET last_completed_sp_index = %s,
+                    total_sub_problems = %s,
+                    sp_checkpoint_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                    (last_completed_sp_index, total_sub_problems, session_id),
+                )
+                > 0
+            )
+        else:
+            return (
+                self._execute_count(
+                    """
+                UPDATE sessions
+                SET last_completed_sp_index = %s,
+                    sp_checkpoint_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                    (last_completed_sp_index, session_id),
+                )
+                > 0
+            )
+
+    def get_checkpoint_state(self, session_id: str) -> dict[str, Any] | None:
+        """Get checkpoint resume state for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Dict with checkpoint fields if session exists, None otherwise
+        """
+        return self._execute_one(
+            """
+            SELECT id, status, phase, last_completed_sp_index,
+                   total_sub_problems, sp_checkpoint_at
+            FROM sessions
+            WHERE id = %s
+            """,
+            (session_id,),
+        )
+
     def list_by_user(
         self,
         user_id: str,

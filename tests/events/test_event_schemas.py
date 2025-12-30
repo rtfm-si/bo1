@@ -11,6 +11,11 @@ from bo1.events import (
     SubProblemStartedEvent,
     VotingCompleteEvent,
 )
+from bo1.events.schemas import (
+    EVENT_SCHEMA_REGISTRY,
+    get_event_json_schemas,
+    get_schema_for_event,
+)
 
 
 class TestBaseEvent:
@@ -196,3 +201,90 @@ class TestEventTypeValidation:
             total_sub_problems=1,
         )
         assert event2.event_type == "subproblem_started"
+
+
+class TestEventSchemaRegistry:
+    """Test event schema registry and JSON schema export."""
+
+    def test_registry_contains_all_events(self):
+        """Test that registry contains all expected event types."""
+        expected_events = {
+            "session_started",
+            "decomposition_complete",
+            "persona_selected",
+            "persona_selection_complete",
+            "subproblem_started",
+            "subproblem_complete",
+            "round_started",
+            "contribution",
+            "convergence",
+            "voting_started",
+            "voting_complete",
+            "synthesis_complete",
+            "meta_synthesis_complete",
+            "error",
+        }
+        assert set(EVENT_SCHEMA_REGISTRY.keys()) == expected_events
+
+    def test_get_event_json_schemas_returns_valid_schemas(self):
+        """Test that get_event_json_schemas returns valid JSON Schema dicts."""
+        schemas = get_event_json_schemas()
+
+        # Should have same keys as registry
+        assert set(schemas.keys()) == set(EVENT_SCHEMA_REGISTRY.keys())
+
+        # Each schema should be a valid JSON Schema dict
+        for _event_type, schema in schemas.items():
+            assert isinstance(schema, dict)
+            # Should have standard JSON Schema fields
+            assert "properties" in schema or "$defs" in schema
+            assert "type" in schema
+            assert schema["type"] == "object"
+
+    def test_json_schema_has_required_fields(self):
+        """Test that JSON schemas include required event fields."""
+        schemas = get_event_json_schemas()
+
+        # All events should have event_type and session_id
+        for event_type, schema in schemas.items():
+            props = schema.get("properties", {})
+            assert "event_type" in props, f"{event_type} missing event_type"
+            assert "session_id" in props, f"{event_type} missing session_id"
+            assert "timestamp" in props, f"{event_type} missing timestamp"
+
+    def test_json_schema_contribution_has_expected_fields(self):
+        """Test that contribution schema has all expected fields."""
+        schemas = get_event_json_schemas()
+        contrib = schemas["contribution"]
+
+        props = contrib.get("properties", {})
+        expected_fields = {
+            "event_type",
+            "session_id",
+            "timestamp",
+            "sub_problem_index",
+            "persona_code",
+            "persona_name",
+            "content",
+            "round",
+            "contribution_type",
+            "archetype",
+            "domain_expertise",
+            "summary",
+        }
+        assert expected_fields.issubset(set(props.keys()))
+
+    def test_get_schema_for_event_returns_correct_class(self):
+        """Test get_schema_for_event returns the correct Pydantic class."""
+        from bo1.events import ContributionEvent, ErrorEvent, SessionStartedEvent
+
+        assert get_schema_for_event("contribution") is ContributionEvent
+        assert get_schema_for_event("error") is ErrorEvent
+        assert get_schema_for_event("session_started") is SessionStartedEvent
+        assert get_schema_for_event("unknown") is None
+
+    def test_schema_count_matches_registry(self):
+        """Test that schema count matches registry size."""
+        schemas = get_event_json_schemas()
+        assert len(schemas) == len(EVENT_SCHEMA_REGISTRY)
+        assert len(schemas) == 14  # Current known count

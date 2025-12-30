@@ -1,6 +1,6 @@
 # Architecture Flow Audit Report
 
-**Date:** 2025-12-22
+**Date:** 2025-12-30 (updated from 2025-12-22)
 **Scope:** LangGraph topology, state transitions, inter-service communication, event propagation
 **Files Analyzed:** bo1/graph/config.py, bo1/graph/state.py, bo1/graph/nodes/, bo1/orchestration/, backend/api/event_collector.py, backend/api/streaming.py
 

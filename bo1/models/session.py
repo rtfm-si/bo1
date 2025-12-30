@@ -63,6 +63,16 @@ class Session(BaseModel):
     template_id: str | None = Field(None, description="Template used to create this session")
     # A/B experiment (from ab1_add_persona_experiment migration)
     persona_count_variant: int | None = Field(None, description="A/B test variant: 3 or 5 personas")
+    # Checkpoint resume fields (from zw_add_checkpoint_resume_fields migration)
+    last_completed_sp_index: int | None = Field(
+        None, description="Index of last successfully completed sub-problem (0-based)"
+    )
+    sp_checkpoint_at: datetime | None = Field(
+        None, description="When last SP boundary checkpoint was saved"
+    )
+    total_sub_problems: int | None = Field(
+        None, description="Total number of sub-problems in decomposition"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -134,4 +144,8 @@ class Session(BaseModel):
             template_id=row.get("template_id"),
             # A/B experiment
             persona_count_variant=row.get("persona_count_variant"),
+            # Checkpoint resume fields
+            last_completed_sp_index=row.get("last_completed_sp_index"),
+            sp_checkpoint_at=row.get("sp_checkpoint_at"),
+            total_sub_problems=row.get("total_sub_problems"),
         )

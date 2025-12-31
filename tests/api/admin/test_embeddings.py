@@ -5,13 +5,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.api.middleware.rate_limit import limiter
+
 
 @pytest.fixture
 def client():
     """Create test client."""
     from backend.api.main import app
 
-    return TestClient(app, raise_server_exceptions=False)
+    # Disable rate limiter for tests (to avoid Redis connection)
+    original_enabled = limiter.enabled
+    limiter.enabled = False
+
+    yield TestClient(app, raise_server_exceptions=False)
+
+    # Restore original limiter state
+    limiter.enabled = original_enabled
 
 
 @pytest.fixture

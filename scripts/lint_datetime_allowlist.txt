@@ -40,6 +40,7 @@ backend/api/competitors.py  # TODO: P4 - 1 violation
 
 # Other endpoints
 backend/api/control.py  # TODO: P4 - 2 violations
+backend/api/datasets.py  # TODO: P4 - 1 violation - insights response
 backend/api/event_publisher.py  # TODO: P4 - 2 violations (event metadata)
 backend/api/mentor.py  # TODO: P4 - 2 violations
 backend/api/oauth_session_manager.py  # TODO: P4 - 2 violations

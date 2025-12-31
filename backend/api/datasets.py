@@ -629,7 +629,7 @@ async def get_dataset_insights(
     - Suggested questions to explore
     - Column-level semantic understanding
     """
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     user_id = user.get("user_id")
     if not user_id:
@@ -698,7 +698,7 @@ async def get_dataset_insights(
 
     return {
         "insights": insights.model_dump(mode="json"),
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "model_used": metadata.get("model_used", "sonnet"),
         "tokens_used": metadata.get("tokens_used", 0),
         "cached": metadata.get("cached", False),

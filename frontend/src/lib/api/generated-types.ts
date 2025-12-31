@@ -6148,6 +6148,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get dataset insights
+         * @description Get structured business intelligence for a dataset
+         */
+        get: operations["get_dataset_insights_api_v1_datasets__dataset_id__insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/profile": {
         parameters: {
             query?: never;
@@ -24605,6 +24625,70 @@ export interface components {
             [key: string]: unknown;
         };
         /**
+         * TruncationWarningEvent
+         * @description Emitted when an LLM response is truncated due to token limits (overflow).
+         *
+         *     This event is informational - the system will attempt to continue the response
+         *     automatically using the continuation pattern.
+         */
+        SSEEvent_truncation_warning: {
+            /**
+             * Event Type
+             * @default truncation_warning
+             * @constant
+             */
+            event_type: "truncation_warning";
+            /**
+             * Max Tokens
+             * @description Max tokens limit that was hit
+             */
+            max_tokens: number;
+            /**
+             * Model
+             * @description Model that produced truncated response
+             */
+            model: string;
+            /**
+             * Output Tokens
+             * @description Number of output tokens before truncation
+             */
+            output_tokens: number;
+            /**
+             * Phase
+             * @description Deliberation phase where truncation occurred
+             */
+            phase: string;
+            /**
+             * Session Id
+             * @description Session identifier
+             */
+            session_id: string;
+            /**
+             * Stop Reason
+             * @description API stop reason: 'max_tokens' or 'model_context_window_exceeded'
+             */
+            stop_reason: string;
+            /**
+             * Sub Problem Index
+             * @description Sub-problem index (0-based) if applicable
+             * @default null
+             */
+            sub_problem_index: number | null;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp?: string;
+            /**
+             * Will Continue
+             * @description Whether system will attempt automatic continuation
+             * @default true
+             */
+            will_continue: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * VotingCompleteEvent
          * @description Emitted when voting completes.
          */
@@ -42850,6 +42934,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_insights_api_v1_datasets__dataset_id__insights_get: {
+        parameters: {
+            query?: {
+                /** @description Force regeneration (bypass cache) */
+                regenerate?: boolean;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
             /** @description Validation Error */
             422: {

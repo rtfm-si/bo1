@@ -22090,6 +22090,84 @@
         "title": "SynthesisCompleteEvent",
         "type": "object"
       },
+      "SSEEvent_truncation_warning": {
+        "additionalProperties": true,
+        "description": "Emitted when an LLM response is truncated due to token limits (overflow).\n\nThis event is informational - the system will attempt to continue the response\nautomatically using the continuation pattern.",
+        "properties": {
+          "event_type": {
+            "const": "truncation_warning",
+            "default": "truncation_warning",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "max_tokens": {
+            "description": "Max tokens limit that was hit",
+            "minimum": 0,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "description": "Model that produced truncated response",
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "description": "Number of output tokens before truncation",
+            "minimum": 0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "phase": {
+            "description": "Deliberation phase where truncation occurred",
+            "title": "Phase",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session identifier",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "stop_reason": {
+            "description": "API stop reason: 'max_tokens' or 'model_context_window_exceeded'",
+            "title": "Stop Reason",
+            "type": "string"
+          },
+          "sub_problem_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sub-problem index (0-based) if applicable",
+            "title": "Sub Problem Index"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "will_continue": {
+            "default": true,
+            "description": "Whether system will attempt automatic continuation",
+            "title": "Will Continue",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "session_id",
+          "stop_reason",
+          "phase",
+          "model",
+          "output_tokens",
+          "max_tokens"
+        ],
+        "title": "TruncationWarningEvent",
+        "type": "object"
+      },
       "SSEEvent_voting_complete": {
         "additionalProperties": true,
         "description": "Emitted when voting completes.",
@@ -49367,6 +49445,64 @@
           }
         },
         "summary": "Get conversation",
+        "tags": [
+          "datasets",
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/insights": {
+      "get": {
+        "description": "Get structured business intelligence for a dataset",
+        "operationId": "get_dataset_insights_api_v1_datasets__dataset_id__insights_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Force regeneration (bypass cache)",
+            "in": "query",
+            "name": "regenerate",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Force regeneration (bypass cache)",
+              "title": "Regenerate",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Dataset Insights Api V1 Datasets  Dataset Id  Insights Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get dataset insights",
         "tags": [
           "datasets",
           "datasets"

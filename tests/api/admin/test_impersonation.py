@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.admin.impersonation import router
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import limiter
 
 
 def mock_admin_override():
@@ -27,10 +28,18 @@ def mock_admin_override():
 @pytest.fixture
 def app():
     """Create test app with impersonation router and admin auth override."""
+    # Disable rate limiter for tests (to avoid Redis connection)
+    original_enabled = limiter.enabled
+    limiter.enabled = False
+
     test_app = FastAPI()
     test_app.dependency_overrides[require_admin_any] = mock_admin_override
     test_app.include_router(router, prefix="/api/admin")
-    return test_app
+
+    yield test_app
+
+    # Restore original limiter state
+    limiter.enabled = original_enabled
 
 
 @pytest.fixture

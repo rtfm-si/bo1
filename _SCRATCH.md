@@ -19,3 +19,8 @@ A: 10
 =10 / 200 = 5%
 etc...
 user clicks a buttin and we populate all the metrics with q&a dialog. start with basic building blocjs and build up. store every answer as insight
+
+in data analytics stuff, theres an 'ask si' option
+ask a question only shows latest answer, but not history
+its ok, but doesnt lead users to right answer
+add chart analysis rendering - needs to be 'detail' and 'simple' (always 2 views of same data)

@@ -37,6 +37,7 @@ from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.prompts.sanitizer import sanitize_user_input
+from bo1.prompts.validation import validate_challenge_phase_contribution
 from bo1.utils.checkpoint_helpers import get_problem_context, get_problem_description
 from bo1.utils.deliberation_logger import get_deliberation_logger
 
@@ -496,7 +497,54 @@ async def _generate_parallel_contributions(
         f"Parallel contributions: {len(contribution_msgs)} experts, cost: ${base_cost + retry_cost:.4f}"
     )
 
+    # Validate challenge phase contributions (rounds 3-4)
+    # Phase 1: Soft enforcement - log + metric only, don't reject
+    if round_number in (3, 4):
+        _validate_challenge_contributions(contribution_msgs, round_number)
+
     return contribution_msgs
+
+
+def _validate_challenge_contributions(
+    contributions: list[Any],
+    round_number: int,
+) -> None:
+    """Validate challenge phase contributions for critical engagement markers.
+
+    Phase 1 implementation: Soft enforcement - logs warnings and emits metrics
+    but does not reject contributions. Phase 2 will add rejection/re-prompting.
+
+    Args:
+        contributions: List of ContributionMessage objects
+        round_number: Current round number (should be 3 or 4)
+    """
+    from backend.api.middleware.metrics import record_challenge_validation
+
+    for contribution in contributions:
+        expert_name = getattr(contribution, "persona_name", "unknown")
+        expert_type = getattr(contribution, "persona_type", "persona")
+        content = getattr(contribution, "content", "")
+
+        passed, result = validate_challenge_phase_contribution(
+            content=content,
+            round_number=round_number,
+            expert_name=expert_name,
+            expert_type=expert_type,
+        )
+
+        # Record metric for monitoring
+        record_challenge_validation(
+            passed=passed,
+            round_number=round_number,
+            expert_type=expert_type,
+        )
+
+        # Phase 1: Log but don't reject
+        if not passed:
+            logger.info(
+                f"Challenge validation: {expert_name} found {result.marker_count}/{result.threshold} markers. "
+                f"Detected: {result.detected_markers}"
+            )
 
 
 async def _apply_semantic_deduplication(

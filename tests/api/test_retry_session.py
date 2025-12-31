@@ -95,6 +95,8 @@ class TestRetrySessionEndpoint:
         mock_checkpoint = MagicMock()
         mock_checkpoint.values = {
             "problem": {"sub_problems": [{"goal": "SP1"}]},
+            "personas": [{"code": "expert1", "name": "Expert"}],
+            "phase": "deliberation",
             "should_stop": True,
             "stop_reason": "error",
             "pending_clarification": {"questions": ["Q1"]},
@@ -106,9 +108,10 @@ class TestRetrySessionEndpoint:
 
         config = {"configurable": {"thread_id": "bo1_test123"}}
 
-        state = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
+        state, is_fallback = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
 
         assert state is not None
+        assert is_fallback is False
         assert state["should_stop"] is False
         assert state["stop_reason"] is None
         assert state["pending_clarification"] is None
@@ -126,7 +129,7 @@ class TestRetrySessionEndpoint:
 
         config = {"configurable": {"thread_id": "bo1_test123"}}
 
-        state = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
+        state, is_fallback = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
 
         assert state is None
 
@@ -140,7 +143,7 @@ class TestRetrySessionEndpoint:
 
         config = {"configurable": {"thread_id": "bo1_test123"}}
 
-        state = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
+        state, is_fallback = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
 
         assert state is None
 
@@ -154,7 +157,7 @@ class TestRetrySessionEndpoint:
 
         config = {"configurable": {"thread_id": "bo1_test123"}}
 
-        state = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
+        state, is_fallback = await resume_session_from_checkpoint("bo1_test123", mock_graph, config)
 
         assert state is None
 

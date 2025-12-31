@@ -222,6 +222,7 @@ class TestEventSchemaRegistry:
             "voting_complete",
             "synthesis_complete",
             "meta_synthesis_complete",
+            "truncation_warning",
             "error",
         }
         assert set(EVENT_SCHEMA_REGISTRY.keys()) == expected_events
@@ -287,4 +288,4 @@ class TestEventSchemaRegistry:
         """Test that schema count matches registry size."""
         schemas = get_event_json_schemas()
         assert len(schemas) == len(EVENT_SCHEMA_REGISTRY)
-        assert len(schemas) == 14  # Current known count
+        assert len(schemas) == 15  # Current known count

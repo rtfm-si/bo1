@@ -26,6 +26,7 @@ class TestClaudeClientCaching:
         # Mock the Anthropic SDK
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="Test response")]
+        mock_response.stop_reason = "end_turn"
         mock_response.usage = MagicMock(
             input_tokens=1000,
             output_tokens=200,
@@ -65,6 +66,7 @@ class TestClaudeClientCaching:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="Test response")]
+        mock_response.stop_reason = "end_turn"
         mock_response.usage = MagicMock(
             input_tokens=1000,
             output_tokens=200,
@@ -97,6 +99,7 @@ class TestClaudeClientCaching:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="Cached response")]
+        mock_response.stop_reason = "end_turn"
         mock_response.usage = MagicMock(
             input_tokens=1000,
             output_tokens=200,

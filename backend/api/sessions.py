@@ -2845,22 +2845,43 @@ async def resume_session(
                 400,
             )
 
-        # Load checkpoint from Redis
+        # Load checkpoint from Redis with PostgreSQL fallback
         redis_manager = get_redis_manager()
-        if not redis_manager.is_available:
-            raise http_error(
-                ErrorCode.SERVICE_UNAVAILABLE,
-                "Redis unavailable for checkpoint retrieval",
-                503,
-            )
+        fallback_used = False
 
-        state = redis_manager.get_checkpoint(session_id)
+        if redis_manager.is_available:
+            state = redis_manager.get_checkpoint(session_id)
+        else:
+            state = None
+
+        # If Redis failed, try PostgreSQL reconstruction
         if not state:
-            raise http_error(
-                ErrorCode.VALIDATION_ERROR,
-                "No checkpoint found in Redis - session may have expired",
-                400,
+            import asyncio
+
+            from bo1.graph.execution import _reconstruct_state_from_postgres
+
+            state = asyncio.get_event_loop().run_until_complete(
+                _reconstruct_state_from_postgres(session_id)
             )
+            if state:
+                fallback_used = True
+                logger.info(f"Session {session_id} using PostgreSQL fallback for resume")
+            else:
+                # Publish resume_failed event before returning error
+                from bo1.graph.execution import publish_resume_failed_event
+
+                asyncio.get_event_loop().run_until_complete(
+                    publish_resume_failed_event(
+                        session_id,
+                        "GRAPH_RESUME_FAILED",
+                        "Session checkpoint expired or corrupted. Please start a new meeting.",
+                    )
+                )
+                raise http_error(
+                    ErrorCode.API_GONE,
+                    "Session checkpoint expired or corrupted - cannot resume",
+                    410,
+                )
 
         # Get problem to find next sub-problem
         problem = state.get("problem")
@@ -2920,6 +2941,7 @@ async def resume_session(
             "next_sub_problem_goal": next_sp_goal[:100],
             "prior_expert_count": len(prior_summaries),
             "status": "resumed",
+            "fallback_used": fallback_used,
         }
 
 

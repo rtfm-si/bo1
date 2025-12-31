@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-30 (build pass: Implemented sub-problem checkpoint resume - E2E finding ISS-001)_
+_Last updated: 2025-12-30 (Fresh full audit suite run - all 8 audits completed, 10 new P2/P3 tasks added)_
 
 ---
 
@@ -102,6 +102,56 @@ _Last updated: 2025-12-30 (build pass: Implemented sub-problem checkpoint resume
 - [x] [REL][P2] Add deadlock retry to @retry_db decorator - 40P01 in `utils/retry.py:36`
 - [x] [COST][P2] Extend Haiku to Round 3 - `HAIKU_ROUNDS_THRESHOLD=3` in `constants.py:253`
 - [x] [COST][P2] Add cache hit rate metrics to get_session_costs() - SessionCostBreakdown now includes cache_hit_rate, prompt_cache_hit_rate, total_saved
+
+#### P2/P3 - Fresh Audit (2025-12-30)
+
+- [x] [ARCH][P3] Migrate nodes to use nested state accessors (`get_problem_state()`, `get_phase_state()`) - cleaner data access
+  - Pattern established: `rounds.py` demonstrates full accessor usage
+  - Accessors available: `get_problem_state`, `get_phase_state`, `get_participant_state`, `get_discussion_state`, `get_research_state`, `get_comparison_state` in `state.py:755-820`
+  - Remaining nodes use direct access (works fine); migrate incrementally when touching nodes
+- [x] [ARCH][P3] Document parallel subproblems feature flag (`ENABLE_PARALLEL_SUBPROBLEMS`) impact on graph topology - ADR needed
+  - Implemented: `docs/adr/005-parallel-subproblems-graph-topology.md`
+  - Sequential mode: full LangGraph events, node-by-node checkpointing
+  - Parallel mode: `analyze_dependencies` → `parallel_subproblems` → `meta_synthesis`
+  - EventBridge pattern for event emission workaround documented
+  - Mermaid diagrams for both topologies
+- [x] [LLM][P3] Add challenge phase validation - reject round 3-4 contributions lacking critical engagement markers
+  - Implemented: `bo1/prompts/validation.py` with CHALLENGE_MARKERS patterns and detection functions
+  - Phase 1 (soft enforcement): Log warnings + emit Prometheus metric, don't reject
+  - Metric: `bo1_challenge_phase_validation_total{result,round_number,expert_type}`
+  - Tests: 31 unit tests in `tests/prompts/test_challenge_validation.py`, 11 integration tests in `tests/graph/test_challenge_phase.py`
+- [x] [LLM][P3] Add unit tests for sanitization injection defenses - `tests/test_sanitizer.py`
+  - Already comprehensive: 734 lines in `tests/test_sanitizer.py`, 452 in `tests/prompts/test_sanitizer.py`, 459 in `tests/prompts/test_injection_vectors.py`
+  - Covers: XML/HTML injection, instruction override, role switching, SQL injection, unicode attacks, encoding bypasses, boundary conditions
+- [x] [OBS][P3] Add event type distribution metric (`events_published_total{event_type}`)
+  - Already implemented: `bo1_event_type_published_total{event_type}` in `metrics.py:384-388`
+  - Recording: `event_publisher.py:1226` calls `record_event_type_published(event_type)`
+  - Tests: `test_event_stream_metrics.py:56-95`
+- [x] [API][P3] Add `has_more` field to pagination responses for infinite scroll
+  - Already implemented: `pagination.py:20-26` provides `has_more` and `next_offset`
+  - Used in: sessions, projects, datasets, admin/users, admin/terms, admin/drilldown
+  - All paginated response models include `has_more: bool` field
+- [x] [REL][P2] Implement LangGraph checkpoint recovery - `resume_session_from_checkpoint()` for retrying failed sessions
+  - Implemented: `bo1/graph/execution.py` with `is_safe_resume_boundary()`, `_validate_checkpoint_state()`, PostgreSQL fallback
+  - State validation: detects corrupted checkpoints (missing problem, personas, phase)
+  - Boundary detection: safe resume at start, between sub-problems, at synthesis node; unsafe mid-round
+  - PostgreSQL fallback: `_reconstruct_state_from_postgres()` replays session_events when Redis unavailable
+  - Resume failure event: `publish_resume_failed_event()` notifies frontend of unrecoverable state
+  - API endpoint: `/sessions/{id}/resume` returns 410 Gone with fallback_used flag
+  - Tests: 19 new tests in `tests/graph/test_checkpoint_recovery.py`
+- [x] [REL][P2] Add chaos test: Anthropic outage → OpenAI fallback validation
+  - Implemented: `tests/chaos/test_anthropic_outage_integration.py` with 12 tests
+  - Tests: circuit breaker trips, fallback activation, SSE events, Prometheus metrics, session completion via fallback, disabled fallback behavior
+- [x] [REL][P3] Add query timeout (`statement_timeout`) to long-running database operations
+  - Already implemented: `StatementTimeoutConfig` in `constants.py:1316-1346`
+  - `db_session()` accepts `statement_timeout_ms`, runs `SET LOCAL statement_timeout`
+  - Metric: `bo1_db_statement_timeout_total` for cancelled queries (SQLSTATE 57014)
+  - Tests: `tests/state/test_database.py` with 10+ test cases
+- [x] [COST][P3] Run persona count A/B test (3 vs 5 personas) - quality vs cost tradeoff
+  - Already running: 50/50 split in `sessions.py:383-401` via user_id hash
+  - Migration: `ab1_add_persona_experiment.py` adds `persona_count_variant` column
+  - Execution: `selection.py:51-60` uses variant for persona selection
+  - Analytics: `admin/extended_kpis.py:210-221` provides experiment metrics
 
 ### User-Owned
 

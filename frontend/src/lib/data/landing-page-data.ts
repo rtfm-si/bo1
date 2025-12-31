@@ -58,29 +58,29 @@ export const valueBlocks: readonly ValueBlock[] = [
 ] as const;
 
 /**
- * Quantified value metrics
- * Shows affordability, speed, expert perspectives, and availability
+ * Quantified value metrics - The 4 Pillars
+ * Speed, Cost, Quality, Accountability
  */
 export const metrics: readonly Metric[] = [
 	{
-		value: '100x',
-		label: 'More Affordable',
-		description: 'Than hiring consultants',
+		value: 'Minutes',
+		label: 'Not Meetings',
+		description: 'No calendars. No pre-reads. No follow-ups.',
 	},
 	{
-		value: '5-15',
-		label: 'Minutes',
-		description: 'Per decision',
+		value: '1%',
+		label: 'The Cost',
+		description: 'Of hiring an advisor or consultant.',
 	},
 	{
-		value: '3-5',
-		label: 'Balanced Perspectives',
-		description: 'Multiple expert viewpoints',
+		value: 'Every',
+		label: 'Decision Challenged',
+		description: 'Logged, documented, revisitable.',
 	},
 	{
-		value: '24/7',
-		label: 'Always Available',
-		description: 'No scheduling required',
+		value: 'One',
+		label: 'Owner. One Decision.',
+		description: 'What hierarchy pretends to deliver.',
 	},
 ] as const;
 
@@ -89,17 +89,17 @@ export const metrics: readonly Metric[] = [
  * Early access perks for beta users
  */
 export const betaBenefits: readonly string[] = [
-	'Priority access to new features',
-	'Locked-in early-user benefits',
-	'Direct influence on the product roadmap',
-	'No commitment required',
+	'Preferential pricing locked in forever',
+	'Priority access to new capabilities',
+	'Direct influence on the roadmap',
+	'No commitment — leave anytime',
 ] as const;
 
 /**
- * Decision types for carousel
+ * Decision types for carousel - Row 1 (scrolls left)
  * Realistic strategic decisions Board of One helps with
  */
-export const decisionTypes: readonly string[] = [
+export const decisionTypesRow1: readonly string[] = [
 	'Hiring',
 	'Pricing',
 	'Positioning',
@@ -112,6 +112,12 @@ export const decisionTypes: readonly string[] = [
 	'Competitor moves',
 	'Prioritization',
 	'Partnerships',
+] as const;
+
+/**
+ * Decision types for carousel - Row 2 (scrolls right)
+ */
+export const decisionTypesRow2: readonly string[] = [
 	'Marketing channels',
 	'Sales approach',
 	'Team structure',
@@ -127,41 +133,47 @@ export const decisionTypes: readonly string[] = [
 	'Exit planning',
 ] as const;
 
+/** @deprecated Use decisionTypesRow1 and decisionTypesRow2 instead */
+export const decisionTypes: readonly string[] = [
+	...decisionTypesRow1,
+	...decisionTypesRow2,
+] as const;
+
 /**
  * Frequently asked questions
  * Common questions about Board of One with detailed answers
  */
 export const faqs: readonly FAQ[] = [
 	{
-		question: 'What kind of decisions does Board of One help with?',
-		answer: 'Hiring, strategy, pricing, positioning, new opportunities, product choices, competitor moves, prioritization, and more. Any strategic decision where you need clarity.',
+		question: 'Does this replace my management team?',
+		answer: 'No. It compresses management work so you can delay management hires. You still own the decisions. Board of One handles the preparation — context, options, risks, trade-offs — so you can focus on the call itself.',
 	},
 	{
-		question: 'Is Board of One another AI chat tool?',
-		answer: 'No. Board of One analyzes your question, surfaces expert-level insights, and distills everything into a clear recommendation. Most AI tools answer questions. Board of One helps you think.',
+		question: 'Is this just ChatGPT with a fancy prompt?',
+		answer: 'No. It\'s a structured deliberation process with named perspectives, documented reasoning, and decision logs. Not chat — a management operating system. The output is a defensible recommendation with next steps, not a wall of text.',
 	},
 	{
-		question: 'How does it work?',
-		answer: 'Describe your decision in plain language. Board of One breaks it down, analyzes it from multiple expert perspectives, identifies blind spots and trade-offs, then delivers a clear recommendation with next steps. Minutes, not meetings.',
+		question: 'What kind of decisions does it help with?',
+		answer: 'Hiring, pricing, positioning, strategy, product launches, fundraising, market expansion, tool selection, team structure, budget allocation — any strategic decision where you need clarity and can\'t afford to get it wrong.',
 	},
 	{
-		question: 'Do I need to be technical?',
-		answer: 'Not at all. If you can describe your decision, you can use Board of One. It\'s designed for operators, founders, and decision-makers — not engineers.',
+		question: 'How is this different from hiring a consultant?',
+		answer: 'Consultants cost £500-2000/day and take weeks. Board of One delivers management-grade analysis in minutes for a fraction of the cost. No scheduling, no waiting, no scope creep.',
+	},
+	{
+		question: 'How does it actually work?',
+		answer: 'Describe your decision in plain language. Board of One breaks it down, analyzes it from multiple expert perspectives, surfaces blind spots and trade-offs, then delivers a clear recommendation with documented reasoning and next steps.',
 	},
 	{
 		question: 'Is my data safe?',
-		answer: 'Yes. Your questions are encrypted in transit and stored securely. You can delete everything with one click. We never share your data.',
+		answer: 'Yes. Your decisions are encrypted in transit and stored securely. You can delete everything with one click. We never share or train on your data.',
 	},
 	{
-		question: 'Will I get in?',
-		answer: 'We\'re sending invites in rolling batches throughout Q4 2025. Request access and you\'ll get notified when your spot is ready. First-come, first-served.',
+		question: 'Who is this built for?',
+		answer: 'Founders doing £10k–£2m ARR who feel the drag of decisions they shouldn\'t still be making. Solo operators who should hire a Head of X but can\'t justify £100k yet. Anyone scaling without a management layer.',
 	},
 	{
-		question: 'Does Board of One cost money right now?',
-		answer: 'No. Pricing launches later this year. Beta users get preferential pricing when we launch paid plans.',
-	},
-	{
-		question: 'What if Board of One doesn\'t work for me?',
-		answer: 'Leave anytime. No commitment. We focus on operators making real calls, not casual chat.',
+		question: 'Does it cost money right now?',
+		answer: 'Pricing launches later this year. Beta users get preferential rates locked in. No credit card required to join.',
 	},
 ] as const;

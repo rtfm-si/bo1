@@ -23,6 +23,15 @@ class TokenUsage(BaseModel):
     output_tokens: int = Field(default=0, description="Output tokens generated")
     cache_creation_tokens: int = Field(default=0, description="Tokens written to cache")
     cache_read_tokens: int = Field(default=0, description="Tokens read from cache")
+    stop_reason: str | None = Field(
+        default=None,
+        description="API stop reason: 'end_turn', 'max_tokens', 'stop_sequence', or 'model_context_window_exceeded'",
+    )
+
+    @property
+    def is_truncated(self) -> bool:
+        """Check if response was truncated due to token limits."""
+        return self.stop_reason in ("max_tokens", "model_context_window_exceeded")
 
     @property
     def total_input_tokens(self) -> int:
@@ -221,13 +230,24 @@ class ClaudeClient:
         if prefill:
             response_text = prefill + response_text
 
-        # Extract token usage from Anthropic SDK response
+        # Extract token usage and stop reason from Anthropic SDK response
+        # stop_reason values: "end_turn", "max_tokens", "stop_sequence", "tool_use"
+        stop_reason = getattr(response, "stop_reason", None)
+
         token_usage = TokenUsage(
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
             cache_creation_tokens=getattr(response.usage, "cache_creation_input_tokens", 0),
             cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0),
+            stop_reason=stop_reason,
         )
+
+        # Log warning if response was truncated
+        if token_usage.is_truncated:
+            logger.warning(
+                f"[OVERFLOW] Response truncated: stop_reason={stop_reason}, "
+                f"output_tokens={token_usage.output_tokens}, max_tokens={max_tokens}"
+            )
 
         # Log usage stats
         cost = token_usage.calculate_cost(full_model_id)

@@ -1,7 +1,10 @@
 """Tests for checkpoint recovery and resume functionality.
 
 This module tests the pause/resume capability of LangGraph deliberations
-using Redis checkpointing.
+using Redis checkpointing, including:
+- Boundary detection for safe resume
+- State corruption detection
+- PostgreSQL fallback reconstruction
 """
 
 import uuid
@@ -10,8 +13,230 @@ import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
 from bo1.graph.config import create_deliberation_graph
+from bo1.graph.execution import (
+    _validate_checkpoint_state,
+    is_safe_resume_boundary,
+)
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
+
+# =============================================================================
+# BOUNDARY DETECTION TESTS
+# =============================================================================
+
+
+class TestIsSafeResumeBoundary:
+    """Tests for is_safe_resume_boundary() checkpoint boundary detection."""
+
+    def test_at_start_is_safe(self):
+        """At start with no contributions is safe to resume."""
+        state = {
+            "contributions": [],
+            "round_number": 0,
+            "current_node": "start",
+            "personas": [],
+        }
+        assert is_safe_resume_boundary(state) is True
+
+    def test_pending_clarification_is_unsafe(self):
+        """Pending clarification awaiting user response is unsafe."""
+        state = {
+            "contributions": [],
+            "round_number": 0,
+            "pending_clarification": {"question": "What is your budget?"},
+            "personas": [],
+        }
+        assert is_safe_resume_boundary(state) is False
+
+    def test_between_subproblems_is_safe(self):
+        """Between sub-problems (after synthesis) is safe."""
+        state = {
+            "contributions": [{"round_number": 1}],
+            "round_number": 1,
+            "sub_problem_results": [{"goal": "SP1", "synthesis": "Done"}],
+            "sub_problem_index": 1,  # Equal to len(sub_problem_results)
+            "current_node": "next_subproblem",
+            "personas": [{"code": "strategist"}],
+        }
+        assert is_safe_resume_boundary(state) is True
+
+    def test_at_synthesis_node_is_safe(self):
+        """At synthesis node is safe to resume."""
+        state = {
+            "contributions": [{"round_number": 1}],
+            "round_number": 1,
+            "current_node": "synthesis",
+            "personas": [{"code": "strategist"}],
+        }
+        assert is_safe_resume_boundary(state) is True
+
+    def test_at_final_synthesis_node_is_safe(self):
+        """At final_synthesis node is safe."""
+        state = {
+            "contributions": [],
+            "round_number": 1,
+            "current_node": "final_synthesis",
+            "personas": [],
+        }
+        assert is_safe_resume_boundary(state) is True
+
+    def test_partial_round_contributions_is_unsafe(self):
+        """Partial contributions for current round is unsafe."""
+        state = {
+            "contributions": [
+                {"round_number": 1},  # Only 1 contribution
+            ],
+            "round_number": 1,
+            "current_node": "parallel_round",
+            "personas": [{"code": "strategist"}, {"code": "skeptic"}, {"code": "analyst"}],
+            "sub_problem_results": [],
+            "sub_problem_index": 0,
+        }
+        assert is_safe_resume_boundary(state) is False
+
+    def test_complete_round_contributions_is_safe(self):
+        """All contributions for current round is safe."""
+        state = {
+            "contributions": [
+                {"round_number": 1},
+                {"round_number": 1},
+                {"round_number": 1},
+            ],
+            "round_number": 1,
+            "current_node": "check_convergence",
+            "personas": [{"code": "strategist"}, {"code": "skeptic"}, {"code": "analyst"}],
+            "sub_problem_results": [],
+            "sub_problem_index": 0,
+        }
+        assert is_safe_resume_boundary(state) is True
+
+    def test_missing_fields_defaults_safe(self):
+        """Missing fields use defaults, empty state is safe."""
+        state = {}
+        assert is_safe_resume_boundary(state) is True
+
+
+# =============================================================================
+# STATE VALIDATION TESTS
+# =============================================================================
+
+
+class TestValidateCheckpointState:
+    """Tests for _validate_checkpoint_state() corruption detection."""
+
+    def test_valid_state_no_errors(self):
+        """Valid state returns no errors."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": [{"code": "strategist"}],
+            "contributions": [],
+            "phase": "deliberation",
+            "round_number": 0,
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert errors == []
+
+    def test_missing_problem_field(self):
+        """Missing problem field returns error."""
+        state = {
+            "personas": [],
+            "contributions": [],
+            "phase": "intake",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert "Missing problem field" in errors
+
+    def test_problem_no_subproblems(self):
+        """Problem without sub_problems returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": []},
+            "personas": [],
+            "contributions": [],
+            "phase": "intake",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert "Problem has no sub_problems" in errors
+
+    def test_missing_personas_field(self):
+        """Missing personas field returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "contributions": [],
+            "phase": "intake",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert "Missing personas field" in errors
+
+    def test_invalid_personas_type(self):
+        """Invalid personas type returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": "not a list",
+            "contributions": [],
+            "phase": "intake",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert any("Invalid personas type" in e for e in errors)
+
+    def test_empty_personas_after_round_0(self):
+        """Empty personas after round 0 returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": [],
+            "contributions": [],
+            "phase": "deliberation",
+            "round_number": 1,
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert "Empty personas list after round 0" in errors
+
+    def test_empty_personas_at_round_0_ok(self):
+        """Empty personas at round 0 is OK (before selection)."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": [],
+            "contributions": [],
+            "phase": "intake",
+            "round_number": 0,
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        # Should not have persona error
+        assert "Empty personas list after round 0" not in errors
+
+    def test_invalid_contributions_type(self):
+        """Invalid contributions type returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": [],
+            "contributions": "not a list",
+            "phase": "intake",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert any("Invalid contributions type" in e for e in errors)
+
+    def test_missing_phase_field(self):
+        """Missing phase field returns error."""
+        state = {
+            "problem": {"statement": "Test", "sub_problems": [{"goal": "SP1"}]},
+            "personas": [],
+            "contributions": [],
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert "Missing phase field" in errors
+
+    def test_multiple_errors_detected(self):
+        """Multiple errors detected in one pass."""
+        state = {
+            # Missing problem, personas, phase
+            "contributions": "not a list",
+        }
+        errors = _validate_checkpoint_state(state, "test-session")
+        assert len(errors) >= 3
+
+
+# =============================================================================
+# ORIGINAL CHECKPOINT TESTS
+# =============================================================================
 
 
 @pytest.mark.integration

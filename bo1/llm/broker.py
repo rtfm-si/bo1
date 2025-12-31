@@ -44,6 +44,7 @@ try:
         record_model_fallback,
         record_output_length_warning,
         record_provider_fallback,
+        record_truncation_event,
         record_xml_retry_success,
         record_xml_validation_failure,
     )
@@ -81,6 +82,9 @@ except ImportError:
         """No-op when metrics unavailable."""
 
     def record_model_fallback(provider: str, from_model: str, to_model: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_truncation_event(model: str, phase: str, stop_reason: str) -> None:  # noqa: D103
         """No-op when metrics unavailable."""
 
 
@@ -445,6 +449,20 @@ class PromptBroker:
                 if warning_type:
                     record_output_length_warning(warning_type, model_id)
 
+                # Detect API-level truncation (overflow)
+                if llm_response.is_truncated:
+                    logger.warning(
+                        f"[{request.request_id}] [OVERFLOW] Response truncated by API: "
+                        f"stop_reason={llm_response.stop_reason}, "
+                        f"output_tokens={token_usage.output_tokens}/{request.max_tokens}, "
+                        f"phase={request.phase}, agent={request.agent_type}"
+                    )
+                    record_truncation_event(
+                        model=model_id,
+                        phase=request.phase or "unknown",
+                        stop_reason=llm_response.stop_reason or "unknown",
+                    )
+
                 # Cache the response for future use
                 await cache.set(request, llm_response)
 
@@ -777,6 +795,18 @@ class PromptBroker:
         cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
         record_llm_cost(model=model_id, provider=provider, cost_cents=cost_cents)
 
+        # Detect API-level truncation (overflow)
+        if llm_response.is_truncated:
+            logger.warning(
+                f"[{request.request_id}] [OVERFLOW] Fallback response truncated: "
+                f"stop_reason={llm_response.stop_reason}, provider={provider}"
+            )
+            record_truncation_event(
+                model=model_id,
+                phase=request.phase or "unknown",
+                stop_reason=llm_response.stop_reason or "unknown",
+            )
+
         # Cache the response
         await cache.set(request, llm_response)
 
@@ -898,6 +928,18 @@ class PromptBroker:
         record_llm_request(model=fallback_model, provider=provider, success=True)
         cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
         record_llm_cost(model=fallback_model, provider=provider, cost_cents=cost_cents)
+
+        # Detect API-level truncation (overflow)
+        if llm_response.is_truncated:
+            logger.warning(
+                f"[{request.request_id}] [OVERFLOW] Model fallback response truncated: "
+                f"stop_reason={llm_response.stop_reason}, model={fallback_model}"
+            )
+            record_truncation_event(
+                model=fallback_model,
+                phase=request.phase or "unknown",
+                stop_reason=llm_response.stop_reason or "unknown",
+            )
 
         # Cache the response
         await cache.set(request, llm_response)

@@ -20,7 +20,8 @@
 		valueBlocks,
 		metrics,
 		betaBenefits,
-		decisionTypes,
+		decisionTypesRow1,
+		decisionTypesRow2,
 		faqs
 	} from '$lib/data/landing-page-data';
 	import { sampleDecisions } from '$lib/data/samples';
@@ -136,10 +137,10 @@
 </script>
 
 <svelte:head>
-	<title>Board of One - Decide With Confidence. Move With Clarity.</title>
+	<title>Board of One - Management-Grade Thinking. No Management Required.</title>
 	<meta
 		name="description"
-		content="A strategic thinking engine that turns complex decisions into clear, actionable recommendations — in minutes. Not another AI chat. A complete decision process."
+		content="A management operating system for founders making real calls. Compress management work, delay management hires, get senior-team leverage without senior-team overhead."
 	/>
 </svelte:head>
 
@@ -281,11 +282,20 @@
 		display: flex;
 		flex-shrink: 0;
 		gap: 0;
-		animation: scroll-left 50s linear infinite;
+		animation: scroll-left 45s linear infinite;
 		will-change: transform;
 	}
 
-	.carousel-container:hover .carousel-group {
+	.carousel-group-reverse {
+		display: flex;
+		flex-shrink: 0;
+		gap: 0;
+		animation: scroll-right 52s linear infinite;
+		will-change: transform;
+	}
+
+	.carousel-container:hover .carousel-group,
+	.carousel-container:hover .carousel-group-reverse {
 		animation-play-state: paused;
 	}
 
@@ -295,6 +305,15 @@
 		}
 		100% {
 			transform: translateX(-100%);
+		}
+	}
+
+	@keyframes scroll-right {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(0);
 		}
 	}
 
@@ -378,7 +397,7 @@
 
 	<MetricsGrid {metrics} visible={visibility.get('metrics-section') ?? false} />
 
-	<!-- Why This Matters -->
+	<!-- Why This Matters - Management Work Reframe -->
 	<section
 		class="py-20 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
 	>
@@ -387,20 +406,67 @@
 				class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 text-center leading-tight"
 			>
 				<span class="text-neutral-700 dark:text-neutral-300 font-normal"
-					>The toughest part of running a business isn't the work.</span
+					>Most founders don't need another advisor.</span
 				><br />
 				<span class="text-brand-600 dark:text-brand-400 emphasis-word"
-					>It's the <span class="italic font-extrabold">decisions</span>.</span
+					>They need to <span class="italic font-extrabold">compress management work</span>.</span
 				>
 			</h2>
-			<p
-				class="text-lg text-neutral-600 dark:text-neutral-400 text-center max-w-2xl mx-auto leading-relaxed"
-			>
-				Most founders operate in a fog: incomplete information, too many angles, no one to
-				sanity-check thinking. Bad decisions cost time. No decisions cost growth.
-			</p>
-			<p class="text-lg font-semibold text-brand-600 dark:text-brand-400 text-center mt-6">
-				You deserve clarity without hiring a team.
+
+			<!-- The 6 Management Functions -->
+			<div class="mt-12 max-w-3xl mx-auto">
+				<p class="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-6 text-center">
+					What management actually does
+				</p>
+				<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+					<!-- Function 1: Context aggregation -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">1</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Context aggregation</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What's going on?</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Data Analysis + Competition Intel</p>
+					</div>
+					<!-- Function 2: Option generation -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">2</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Option generation</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What could we do?</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Mentor 1:1s + Deliberation</p>
+					</div>
+					<!-- Function 3: Risk & downside -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">3</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Risk & downside pressure</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What could break?</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Expert Challenge Rounds</p>
+					</div>
+					<!-- Function 4: Alignment & trade-offs -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">4</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Alignment & trade-offs</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What do we prioritise?</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Multi-Perspective Synthesis</p>
+					</div>
+					<!-- Function 5: Decision documentation -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">5</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Decision documentation</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">Why did we choose this?</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Decision Logs + Reasoning</p>
+					</div>
+					<!-- Function 6: Follow-through -->
+					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
+						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">6</span>
+						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Follow-through</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">Course correction</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Actions + Kanban + Replanning</p>
+					</div>
+				</div>
+			</div>
+
+			<p class="text-lg font-semibold text-brand-600 dark:text-brand-400 text-center mt-10">
+				Most managers don't decide. They prepare decisions.<br />
+				<span class="text-neutral-700 dark:text-neutral-300 font-normal">Board of One does that work instantly.</span>
 			</p>
 		</div>
 	</section>
@@ -418,8 +484,8 @@
 				</h3>
 			</div>
 
-			<!-- Infinite horizontal carousel -->
-			<div class="relative w-full">
+			<!-- Infinite horizontal carousel - Two rows -->
+			<div class="relative w-full space-y-4">
 				<!-- Gradient fade edges -->
 				<div
 					class="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none"
@@ -428,19 +494,33 @@
 					class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none"
 				></div>
 
-				<!-- Carousel container with two identical groups for seamless loop -->
+				<!-- Row 1: Scrolling left (forwards) -->
 				<div
 					class="carousel-container text-lg font-medium text-neutral-700 dark:text-neutral-300"
 				>
-					<!-- First group -->
 					<div class="carousel-group">
-						{#each decisionTypes as decision, i (i)}
+						{#each decisionTypesRow1 as decision, i (i)}
 							<span class="carousel-item">{decision}</span>
 						{/each}
 					</div>
-					<!-- Second group (duplicate for seamless loop) -->
 					<div class="carousel-group" aria-hidden="true">
-						{#each decisionTypes as decision, i (`duplicate-${i}`)}
+						{#each decisionTypesRow1 as decision, i (`duplicate-${i}`)}
+							<span class="carousel-item">{decision}</span>
+						{/each}
+					</div>
+				</div>
+
+				<!-- Row 2: Scrolling right (backwards) -->
+				<div
+					class="carousel-container text-lg font-medium text-neutral-600 dark:text-neutral-400"
+				>
+					<div class="carousel-group-reverse">
+						{#each decisionTypesRow2 as decision, i (`row2-${i}`)}
+							<span class="carousel-item">{decision}</span>
+						{/each}
+					</div>
+					<div class="carousel-group-reverse" aria-hidden="true">
+						{#each decisionTypesRow2 as decision, i (`row2-duplicate-${i}`)}
 							<span class="carousel-item">{decision}</span>
 						{/each}
 					</div>
@@ -640,26 +720,36 @@
 		</div>
 	</section>
 
-	<!-- Who is it for -->
+	<!-- Who is it for - Sharpened ICP -->
 	<section
 		id="who-its-for"
 		class="py-24 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800"
 	>
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="text-center mb-16">
+			<!-- Primary ICP Statement -->
+			<div class="text-center mb-12">
 				<h2
-					class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 leading-tight"
+					class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-6 leading-tight"
 				>
-					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Built for people who</span
-					><br />
+					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Built for founders who</span><br />
 					<span class="text-brand-600 dark:text-brand-400 emphasis-word"
-						>decide <span class="italic font-extrabold">alone</span></span
+						>operate at the <span class="italic font-extrabold">next org size</span></span
 					>
 				</h2>
+				<p class="text-xl text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
+					Founders doing £10k–£2m ARR who feel the drag of decisions they shouldn't still be making.
+				</p>
+			</div>
+
+			<!-- Aspirational One-Liner -->
+			<div class="text-center mb-16">
+				<p class="text-2xl md:text-3xl font-bold text-brand-600 dark:text-brand-400">
+					Run a 10-person company with a 3-person team.
+				</p>
 			</div>
 
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-				<!-- Solopreneurs -->
+				<!-- Should hire but can't justify -->
 				<div
 					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
 				>
@@ -676,30 +766,32 @@
 							stroke-linejoin="round"
 							class="text-brand-600 dark:text-brand-400"
 						>
-							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-							<circle cx="12" cy="7" r="4" />
+							<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+							<circle cx="9" cy="7" r="4" />
+							<path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+							<path d="M16 3.13a4 4 0 0 1 0 7.75" />
 						</svg>
 					</div>
 					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
-						Solopreneurs
+						Delay Management Hires
 					</h3>
 					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>No co-founder to bounce ideas off</span>
+							<span>Should hire a Head of X but can't justify £100k yet</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Wearing every hat means deciding everything</span>
+							<span>Need senior thinking without senior headcount</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Need structure, not just more research</span>
+							<span>Get leverage before you get layers</span>
 						</li>
 					</ul>
 				</div>
 
-				<!-- Small Business Founders -->
+				<!-- Scaling from 1 → 20 -->
 				<div
 					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
 				>
@@ -716,30 +808,31 @@
 							stroke-linejoin="round"
 							class="text-brand-600 dark:text-brand-400"
 						>
-							<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-							<polyline points="9 22 9 12 15 12 15 22" />
+							<line x1="12" y1="20" x2="12" y2="10" />
+							<line x1="18" y1="20" x2="18" y2="4" />
+							<line x1="6" y1="20" x2="6" y2="16" />
 						</svg>
 					</div>
 					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
-						Small Business Founders
+						Reduce Coordination Tax
 					</h3>
 					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Team looks to you for direction</span>
+							<span>Scaling from 1 → 20 and decisions are stacking up</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Can't afford to hire consultants for every call</span>
+							<span>You're the bottleneck on every strategic call</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Strategic decisions stack up fast</span>
+							<span>Compress weeks of back-and-forth into minutes</span>
 						</li>
 					</ul>
 				</div>
 
-				<!-- Decision Makers -->
+				<!-- Lean team operators -->
 				<div
 					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
 				>
@@ -756,25 +849,24 @@
 							stroke-linejoin="round"
 							class="text-brand-600 dark:text-brand-400"
 						>
-							<circle cx="12" cy="12" r="10" />
-							<polyline points="12 6 12 12 16 14" />
+							<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
 						</svg>
 					</div>
 					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
-						Meeting Prep Power Users
+						Operate Without The Org
 					</h3>
 					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Walk into board meetings with clarity</span>
+							<span>Running a lean team by choice, not compromise</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Prepare for tough stakeholder questions</span>
+							<span>Want the output of hierarchy without the overhead</span>
 						</li>
 						<li class="flex items-start gap-2">
 							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
-							<span>Turn 3-hour prep into 15 minutes</span>
+							<span>Same headcount, higher leverage</span>
 						</li>
 					</ul>
 				</div>
@@ -782,7 +874,7 @@
 		</div>
 	</section>
 
-	<!-- Before/After Snippet -->
+	<!-- Before/After - Management Stack Framing -->
 	<section
 		class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800"
 	>
@@ -797,70 +889,145 @@
 				class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-16 text-center leading-tight"
 			>
 				<span class="text-neutral-700 dark:text-neutral-300 font-normal"
-					>From <span class="italic font-bold">Fog</span> to</span
+					>From the <span class="italic font-bold">old stack</span> to the</span
 				>
 				<span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word"
-					>Focus</span
+					>new stack</span
 				>
 			</h2>
-			<div class="grid md:grid-cols-2 gap-12 items-center">
-				<!-- Before -->
+			<div class="grid md:grid-cols-2 gap-12 items-stretch">
+				<!-- Old Stack -->
 				<div class="relative shake-stuck">
 					<div
 						class="absolute -inset-0.5 bg-gradient-to-br from-error-300/10 to-warning-300/10 dark:from-error-500/10 dark:to-warning-500/10 rounded-xl blur-sm"
 					></div>
 					<div
-						class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500 transition-all duration-300 shadow-md"
+						class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500 transition-all duration-300 shadow-md h-full"
 					>
 						<div
-							class="text-xs font-bold text-error-600 dark:text-error-400 mb-4 uppercase tracking-wider flex items-center gap-2"
+							class="text-xs font-bold text-error-600 dark:text-error-400 mb-6 uppercase tracking-wider flex items-center gap-2"
 						>
 							<span class="inline-block w-2 h-2 bg-error-500 rounded-full opacity-50"></span>
-							Before
+							Old Stack
 						</div>
-						<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed text-base font-medium">
-							Spinning in circles. Second-guessing yourself. Paralyzed by too many variables.
-							Reading everything but deciding nothing.
-						</p>
+						<ul class="space-y-3">
+							<li class="flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+								<span class="text-neutral-400">✗</span>
+								<span>Meetings</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+								<span class="text-neutral-400">✗</span>
+								<span>Status decks</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+								<span class="text-neutral-400">✗</span>
+								<span>Opinions</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+								<span class="text-neutral-400">✗</span>
+								<span>Memory</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+								<span class="text-neutral-400">✗</span>
+								<span>Politics</span>
+							</li>
+						</ul>
 					</div>
 				</div>
 
-				<!-- After -->
+				<!-- New Stack -->
 				<div class="relative after-card-wrapper nod-clarity">
 					<div
 						class="absolute -inset-0.5 bg-gradient-to-br from-brand-400/15 to-success-400/10 dark:from-brand-500/20 dark:to-success-500/15 rounded-xl blur-sm"
 					></div>
 					<div
-						class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-brand-200 dark:border-brand-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 shadow-md"
+						class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-brand-200 dark:border-brand-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 shadow-md h-full"
 					>
 						<div
-							class="text-xs font-bold text-brand-600 dark:text-brand-400 mb-4 uppercase tracking-wider flex items-center gap-2"
+							class="text-xs font-bold text-brand-600 dark:text-brand-400 mb-6 uppercase tracking-wider flex items-center gap-2"
 						>
 							<span class="inline-block w-2 h-2 bg-success-500 rounded-full"></span>
-							After
+							New Stack
 						</div>
-						<div class="space-y-4">
-							<p
-								class="text-neutral-900 dark:text-neutral-100 leading-relaxed font-semibold text-lg"
-							>
-								A clear recommendation with reasoning you can defend.
-							</p>
-							<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed text-base">
-								The key trade-offs mapped out. Blind spots surfaced. Concrete next steps. Decision
-								made.
-							</p>
-							<div class="pt-2 text-sm font-medium text-brand-600 dark:text-brand-400">
-								→ Move forward with confidence
-							</div>
-						</div>
+						<ul class="space-y-3">
+							<li class="flex items-center gap-3 text-neutral-900 dark:text-neutral-100 font-medium">
+								<span class="text-brand-600 dark:text-brand-400">✓</span>
+								<span>Structured deliberation</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-900 dark:text-neutral-100 font-medium">
+								<span class="text-brand-600 dark:text-brand-400">✓</span>
+								<span>Named perspectives with defined biases</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-900 dark:text-neutral-100 font-medium">
+								<span class="text-brand-600 dark:text-brand-400">✓</span>
+								<span>Evidence capture</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-900 dark:text-neutral-100 font-medium">
+								<span class="text-brand-600 dark:text-brand-400">✓</span>
+								<span>Decision logs</span>
+							</li>
+							<li class="flex items-center gap-3 text-neutral-900 dark:text-neutral-100 font-medium">
+								<span class="text-brand-600 dark:text-brand-400">✓</span>
+								<span>Action tracking + re-planning</span>
+							</li>
+						</ul>
 					</div>
 				</div>
 			</div>
+
+			<!-- OS Framing -->
+			<div class="text-center mt-12">
+				<p class="text-lg text-neutral-600 dark:text-neutral-400">
+					Board of One is a <span class="font-bold text-brand-600 dark:text-brand-400">management operating system</span>.
+				</p>
+				<p class="text-neutral-500 dark:text-neutral-500 mt-1">
+					Not a tool. Not an assistant. An <span class="font-bold text-brand-600 dark:text-brand-400">OS</span>.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Beyond Decisions -->
+	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-700">
+		<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+			<h3 class="text-xl md:text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
+				The decision is just the start.
+			</h3>
+			<p class="text-neutral-600 dark:text-neutral-400 mb-2 leading-relaxed">
+				Track actions through to completion. Replan when reality shifts.
+			</p>
+			<p class="text-neutral-600 dark:text-neutral-400 mb-6 leading-relaxed">
+				Connect your data. Understand your competition. Feed outcomes back into future decisions.
+			</p>
+			<p class="text-neutral-900 dark:text-neutral-100 font-medium mb-6">
+				A complete operating system — not just a decision tool.
+			</p>
+			<a
+				href="/features"
+				class="inline-flex items-center gap-2 text-brand-600 dark:text-brand-400 font-medium hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+			>
+				Explore all capabilities
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M5 12h14M12 5l7 7-7 7"/>
+				</svg>
+			</a>
 		</div>
 	</section>
 
 	<!-- Sample Decision Selector -->
 	<SampleSelector samples={sampleDecisions} onSelectSample={showSample} />
+
+	<!-- Killer One-Liner -->
+	<section
+		class="py-16 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 border-y border-neutral-200 dark:border-neutral-700"
+	>
+		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+			<blockquote class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 leading-relaxed">
+				"Board of One is what a great management team does —<br class="hidden md:inline" />
+				<span class="text-brand-600 dark:text-brand-400 italic">without the management team.</span>"
+			</blockquote>
+		</div>
+	</section>
 
 	<!-- Social Proof -->
 	<section
@@ -870,21 +1037,21 @@
 			<div class="grid md:grid-cols-3 gap-8">
 				<div class="text-center">
 					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
-						"Saved 3 days of research on a pricing decision."
+						"Like having a management team on tap."
 					</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Founder, B2B SaaS</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Solo Founder, SaaS</p>
 				</div>
 				<div class="text-center">
 					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
-						"Caught a risk I totally missed in my hiring plan."
+						"I was going to hire a consultant. This is faster and 1% of the cost."
 					</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Solo Consultant</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— E-commerce, £800k ARR</p>
 				</div>
 				<div class="text-center">
 					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
-						"Made my first confident pricing decision in minutes."
+						"Collapsed a week of back-and-forth into one session."
 					</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-400">— E-commerce Operator</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Agency Owner</p>
 				</div>
 			</div>
 		</div>
@@ -898,20 +1065,20 @@
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="text-center mb-12">
 				<h2 class="text-3xl md:text-4xl font-bold mb-4 leading-tight">
-					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Early access</span>
+					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Delay your next</span>
 					<span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word"
-						>is open</span
+						>management hire</span
 					>
 				</h2>
 				<p class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
-					For operators who need clarity, fast.
+					Board of One is in closed beta for operators who make real calls.
 				</p>
 			</div>
 
 			<div
 				class="bg-white dark:bg-neutral-800 rounded-xl p-8 md:p-12 border border-neutral-200 dark:border-neutral-700"
 			>
-				<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">What you get:</h3>
+				<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">Beta access includes:</h3>
 				<div class="grid md:grid-cols-2 gap-4 mb-8">
 					{#each betaBenefits as benefit, i}
 						<div
@@ -938,7 +1105,7 @@
 						Request Early Access
 					</Button>
 					<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-4">
-						Invites sent weekly. First-come, first-served.
+						Rolling invites. First-come, first-served.
 					</p>
 				</div>
 			</div>
@@ -990,10 +1157,10 @@
 		</div>
 		<div class="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 			<h2 class="text-3xl md:text-4xl font-bold !text-white mb-4 drop-shadow-md">
-				Get Clarity in Minutes
+				Management leverage. Minutes, not meetings.
 			</h2>
 			<p class="text-lg !text-white mb-8 max-w-xl mx-auto drop-shadow-md">
-				Small cohort. Rolling invites. Request access if you're ready.
+				For founders making real calls. Request access if you're ready.
 			</p>
 			<Button
 				variant="secondary"
@@ -1003,7 +1170,7 @@
 			>
 				Request Early Access
 			</Button>
-			<p class="text-sm !text-white/95 mt-6 drop-shadow-md">No credit card. Limited spots.</p>
+			<p class="text-sm !text-white/95 mt-6 drop-shadow-md">No credit card. Rolling invites.</p>
 		</div>
 	</section>
 

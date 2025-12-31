@@ -22,6 +22,9 @@ from bo1.prompts.synthesis import (
     META_SYNTHESIS_MAX_TOKENS,
     SYNTHESIS_MAX_TOKENS,
     SYNTHESIS_TOKEN_WARNING_THRESHOLD,
+    compose_continuation_prompt,
+    detect_overflow,
+    strip_continuation_marker,
 )
 from bo1.utils.checkpoint_helpers import get_sub_problem_goal_safe, get_sub_problem_id_safe
 from bo1.utils.deliberation_logger import get_deliberation_logger
@@ -251,6 +254,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Create broker and request
     broker = PromptBroker()
 
+    # Initialize metrics early (needed for overflow continuation tracking)
+    metrics = ensure_metrics(state)
+
     # Centralized model selection (respects experiment overrides and TASK_MODEL_DEFAULTS)
     synthesis_model = get_model_for_role("synthesis")
     log_with_session(
@@ -293,6 +299,52 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     raw_content = response.content.strip()
     synthesis_report = "<synthesis_report>\n<executive_summary>" + raw_content
 
+    # OVERFLOW HANDLING: Check for truncation or continuation markers
+    overflow_status = detect_overflow(synthesis_report, is_truncated=response.is_truncated)
+
+    if overflow_status.needs_continuation:
+        log_with_session(
+            logger,
+            logging.WARNING,
+            session_id,
+            f"[OVERFLOW] Synthesis truncated, initiating continuation. "
+            f"cursor={overflow_status.cursor}, is_truncated={response.is_truncated}",
+        )
+
+        # Build continuation prompt
+        continuation_prompt = compose_continuation_prompt(
+            previous_output=synthesis_report,
+            cursor=overflow_status.cursor,
+        )
+
+        continuation_request = PromptRequest(
+            system=synthesis_prompt,
+            user_message=continuation_prompt,
+            model=synthesis_model,
+            temperature=0.7,
+            max_tokens=1500,  # Smaller budget for continuation
+            phase="synthesis_continuation",
+            agent_type="synthesizer",
+            cache_system=True,
+        )
+
+        continuation_response = await broker.call(continuation_request)
+
+        # Merge outputs: strip marker from original, append continuation
+        clean_original = strip_continuation_marker(synthesis_report)
+        synthesis_report = clean_original + "\n" + continuation_response.content.strip()
+
+        # Track continuation cost
+        track_phase_cost(metrics, "synthesis_continuation", continuation_response)
+
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            f"[OVERFLOW] Continuation complete. Added {len(continuation_response.content)} chars. "
+            f"Total synthesis: {len(synthesis_report)} chars",
+        )
+
     # ISSUE #2 FIX: Validate synthesis is not empty/suspiciously short
     synthesis_length = len(synthesis_report)
     if synthesis_length < 100:
@@ -312,8 +364,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
     synthesis_report_with_disclaimer = synthesis_report + disclaimer
 
-    # Track cost in metrics
-    metrics = ensure_metrics(state)
+    # Track cost in metrics (metrics already initialized earlier for overflow handling)
     track_phase_cost(metrics, "synthesis", response)
 
     logger.info(

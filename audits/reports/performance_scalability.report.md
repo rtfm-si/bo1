@@ -1,6 +1,6 @@
 # Performance Scalability Audit Report
 
-**Generated:** 2025-12-30 (updated from 2025-12-22)
+**Generated:** 2025-12-30 (Re-audit - no new issues)
 **Scope:** Database queries, LLM parallelization, caching, concurrent session handling, graph execution hotspots
 
 ---
@@ -606,16 +606,11 @@ contributions: list[ContributionMessage]  # Grows with each round
 
 ### P0 (Critical - Implement Immediately)
 
-**1. Denormalize task_count in sessions table**
-- **File:** Add migration for sessions.task_count column + trigger
-- **Impact:** Eliminates JOIN in session listing (5-10x faster page loads)
-- **Effort:** 2-4 hours (migration + trigger + update repositories)
+**1. ~~Denormalize task_count in sessions table~~** ✅ DONE
+- task_count is now denormalized with PostgreSQL trigger (session_repository.py:358)
 
-**2. Increase database connection pool**
-- **File:** `/Users/si/projects/bo1/bo1/constants.py:374`
-- **Change:** `POOL_MAX_CONNECTIONS = 75` (from 20)
-- **Impact:** Prevents connection exhaustion at 30+ concurrent sessions
-- **Effort:** 10 minutes (config change + restart)
+**2. ~~Increase database connection pool~~** ✅ DONE
+- `POOL_MAX_CONNECTIONS = 75` (constants.py:445)
 
 ---
 
@@ -655,11 +650,8 @@ ON sessions(user_id, created_at DESC) INCLUDE (status, problem_statement);
 - **Impact:** 30-50% reduction in DB queries for SSE/streaming
 - **Effort:** 4-6 hours (implement + integrate + test)
 
-**7. Increase embedding batch size**
-- **File:** `/Users/si/projects/bo1/bo1/constants.py:272`
-- **Change:** `BATCH_SIZE = 20` (from 5)
-- **Impact:** 4x fewer embedding API calls, lower latency
-- **Effort:** 30 minutes (config change + monitor for issues)
+**7. ~~Increase embedding batch size~~** ✅ DONE
+- `BATCH_SIZE = 20` already configured (constants.py:299)
 
 **8. Implement aggregation result caching**
 - **Target:** `get_session_costs()`, `get_subproblem_costs()`

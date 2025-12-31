@@ -53,6 +53,19 @@ class LLMResponse(BaseModel):
         default=None, description="Agent that made the call (e.g., 'DecomposerAgent')"
     )
 
+    # Overflow/truncation tracking
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def stop_reason(self) -> str | None:
+        """API stop reason from token_usage."""
+        return self.token_usage.stop_reason
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_truncated(self) -> bool:
+        """True if response was truncated due to token limits (overflow)."""
+        return self.token_usage.is_truncated
+
     # Cost breakdown (computed from token_usage)
     def _calculate_token_cost(self, token_count: int, pricing_key: str) -> float:
         """Calculate cost for a specific token type.
@@ -178,6 +191,8 @@ class LLMResponse(BaseModel):
                 "phase": self.phase,
                 "agent_type": self.agent_type,
                 "cache_hit_rate": self.cache_hit_rate,
+                "stop_reason": self.stop_reason,
+                "is_truncated": self.is_truncated,
             },
         }
 

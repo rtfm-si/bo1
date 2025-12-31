@@ -280,6 +280,13 @@ bo1_llm_output_length_warnings_total = Counter(
     ["type", "model"],
 )
 
+# LLM truncation/overflow metrics (API-level truncation via stop_reason)
+bo1_llm_truncation_events_total = Counter(
+    "llm_truncation_events_total",
+    "Total LLM responses truncated by API (stop_reason=max_tokens or model_context_window_exceeded)",
+    ["model", "phase", "stop_reason"],
+)
+
 # LLM provider fallback metrics
 bo1_llm_provider_fallback_total = Counter(
     "llm_provider_fallback_total",
@@ -504,6 +511,13 @@ bo1_file_quarantine_total = Counter(
     "bo1_file_quarantine_total",
     "Total files quarantined due to malware detection",
     ["threat_type"],  # First part of threat name (e.g., "Win.Test" -> "Win")
+)
+
+# Challenge phase validation metrics (LLM quality)
+bo1_challenge_phase_validation_total = Counter(
+    "bo1_challenge_phase_validation_total",
+    "Challenge phase (round 3-4) contribution validation results",
+    ["result", "round_number", "expert_type"],  # result: pass/fail
 )
 
 
@@ -819,6 +833,20 @@ def record_model_fallback(provider: str, from_model: str, to_model: str) -> None
     ).inc()
 
 
+def record_truncation_event(model: str, phase: str, stop_reason: str) -> None:
+    """Record an LLM truncation/overflow event.
+
+    Called when API returns stop_reason="max_tokens" or "model_context_window_exceeded",
+    indicating the response was truncated before completion.
+
+    Args:
+        model: Model name (e.g., "claude-sonnet-4-20250514")
+        phase: Deliberation phase (e.g., "synthesis", "deliberation")
+        stop_reason: API stop reason ("max_tokens" or "model_context_window_exceeded")
+    """
+    bo1_llm_truncation_events_total.labels(model=model, phase=phase, stop_reason=stop_reason).inc()
+
+
 def record_llm_rate_limit_exceeded(limit_type: str, session_id: str) -> None:
     """Record an LLM rate limit exceeded event.
 
@@ -1061,3 +1089,19 @@ def record_llm_retries_exhausted(provider: str, error_type: str) -> None:
         error_type: Type of error that caused exhaustion (e.g., "overloaded", "rate_limit")
     """
     bo1_llm_retries_exhausted_total.labels(provider=provider, error_type=error_type).inc()
+
+
+def record_challenge_validation(passed: bool, round_number: int, expert_type: str) -> None:
+    """Record challenge phase validation result.
+
+    Called for contributions in rounds 3-4 to track critical engagement compliance.
+
+    Args:
+        passed: Whether the contribution passed validation
+        round_number: Round number (3 or 4)
+        expert_type: Type of expert (e.g., "persona", "researcher")
+    """
+    result = "pass" if passed else "fail"
+    bo1_challenge_phase_validation_total.labels(
+        result=result, round_number=str(round_number), expert_type=expert_type
+    ).inc()

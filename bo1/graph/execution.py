@@ -590,65 +590,382 @@ class SessionManager:
         logger.warning("SessionManager shutdown complete")
 
 
+def is_safe_resume_boundary(state: dict[str, Any]) -> bool:
+    """Check if state is at a safe checkpoint boundary for resume.
+
+    Safe boundaries (resume-safe):
+    - At start (no contributions yet)
+    - Between sub-problems (synthesis complete, moving to next SP)
+    - At synthesis (all rounds complete)
+
+    Unsafe boundaries (mid-execution):
+    - Mid-round execution: has in-flight contributions without round completion
+    - Partial contributions for current round
+    - Pending clarification awaiting user response
+
+    Args:
+        state: Checkpoint state dict
+
+    Returns:
+        True if safe to resume from this state
+    """
+    contributions = state.get("contributions", [])
+    round_number = state.get("round_number", 0)
+    current_node = state.get("current_node", "")
+    pending_clarification = state.get("pending_clarification")
+    sub_problem_results = state.get("sub_problem_results", [])
+    sub_problem_index = state.get("sub_problem_index", 0)
+
+    # Pending clarification - unsafe (waiting for user input)
+    # Check this first as it can occur at any point
+    if pending_clarification:
+        logger.debug(f"Unsafe boundary: pending_clarification={pending_clarification}")
+        return False
+
+    # At start (no contributions yet) - safe
+    if not contributions and round_number == 0:
+        return True
+
+    # Between sub-problems (synthesis complete, moving to next SP) - safe
+    # sub_problem_results has completed SPs, sub_problem_index is next SP
+    if len(sub_problem_results) > 0 and sub_problem_index == len(sub_problem_results):
+        return True
+
+    # At synthesis node - safe
+    if current_node in ("synthesis", "final_synthesis"):
+        return True
+
+    # Check for partial round contributions
+    # Get contribution count for current round
+    current_round_contributions = [c for c in contributions if _get_round(c) == round_number]
+    personas = state.get("personas", [])
+
+    # If we have some contributions for current round but not all, unsafe
+    if current_round_contributions and len(current_round_contributions) < len(personas):
+        logger.debug(
+            f"Unsafe boundary: partial round ({len(current_round_contributions)}/{len(personas)} contributions)"
+        )
+        return False
+
+    # At round boundary (all contributions for round received) - safe
+    return True
+
+
+def _get_round(contribution: Any) -> int:
+    """Extract round_number from contribution (dict or Pydantic)."""
+    if isinstance(contribution, dict):
+        return int(contribution.get("round_number", 0))
+    return int(getattr(contribution, "round_number", 0))
+
+
+def _validate_checkpoint_state(state: dict[str, Any], session_id: str) -> list[str]:
+    """Validate restored state fields for corruption detection.
+
+    Checks critical fields required for deliberation to continue:
+    - problem: must exist with sub_problems list
+    - personas: must be a non-empty list
+    - contributions: must be a list (can be empty)
+    - phase: must be a valid phase value
+
+    Args:
+        state: Restored checkpoint state
+        session_id: For logging context
+
+    Returns:
+        List of validation error messages (empty if valid)
+    """
+    errors = []
+
+    # Validate problem
+    problem = state.get("problem")
+    if not problem:
+        errors.append("Missing problem field")
+    else:
+        if isinstance(problem, dict):
+            sub_problems = problem.get("sub_problems", [])
+        else:
+            sub_problems = getattr(problem, "sub_problems", []) or []
+        if not sub_problems:
+            errors.append("Problem has no sub_problems")
+
+    # Validate personas
+    personas = state.get("personas")
+    if personas is None:
+        errors.append("Missing personas field")
+    elif not isinstance(personas, list):
+        errors.append(f"Invalid personas type: {type(personas)}")
+    elif len(personas) == 0 and state.get("round_number", 0) > 0:
+        # Personas can be empty only before selection (round 0)
+        errors.append("Empty personas list after round 0")
+
+    # Validate contributions
+    contributions = state.get("contributions")
+    if contributions is not None and not isinstance(contributions, list):
+        errors.append(f"Invalid contributions type: {type(contributions)}")
+
+    # Validate phase
+    phase = state.get("phase")
+    if phase is None:
+        errors.append("Missing phase field")
+
+    if errors:
+        logger.warning(
+            f"Checkpoint validation failed for {session_id}: {errors}",
+            extra={"session_id": session_id, "errors": errors},
+        )
+
+    return errors
+
+
 async def resume_session_from_checkpoint(
     session_id: str,
     graph: Any,
     config: dict[str, Any],
-) -> dict[str, Any] | None:
+    db_fallback: bool = True,
+) -> tuple[dict[str, Any] | None, bool]:
     """Load and prepare state from checkpoint for resuming a failed session.
 
     This function loads the last checkpoint for a session and prepares
     the state for resumption by:
-    1. Loading state via graph.aget_state()
-    2. Resetting should_stop and stop_reason flags
-    3. Clearing any error state
+    1. Loading state via graph.aget_state() (Redis checkpoint)
+    2. On Redis failure: fallback to PostgreSQL event reconstruction
+    3. Validating restored state fields
+    4. Checking for safe resume boundary
+    5. Resetting should_stop and stop_reason flags
+    6. Clearing any error state
 
     Args:
         session_id: Session identifier
         graph: LangGraph graph instance with checkpointer
         config: Graph config with thread_id
+        db_fallback: Whether to attempt PostgreSQL fallback on Redis failure
 
     Returns:
-        Prepared state dict ready for graph resumption, or None if checkpoint not found
+        Tuple of (state dict or None, is_fallback_resume bool)
+        - state: Prepared state dict ready for graph resumption, or None if unrecoverable
+        - is_fallback_resume: True if state was reconstructed from PostgreSQL
     """
+    from bo1.logging.errors import ErrorCode, log_error
+
+    is_fallback = False
+
     try:
         # Load state from checkpoint
         checkpoint_state = await graph.aget_state(config)
 
         if not checkpoint_state or not checkpoint_state.values:
             logger.warning(f"No checkpoint found for session {session_id}")
-            return None
-
-        state = dict(checkpoint_state.values)
-
-        # Validate sub_problems exist (critical for deliberation)
-        problem = state.get("problem")
-        if problem:
-            if isinstance(problem, dict):
-                sub_problems = problem.get("sub_problems", [])
+            # Attempt PostgreSQL fallback
+            if db_fallback:
+                state = await _reconstruct_state_from_postgres(session_id)
+                if state:
+                    is_fallback = True
+                else:
+                    return None, False
             else:
-                sub_problems = getattr(problem, "sub_problems", []) or []
-            sub_problems_count = len(sub_problems) if sub_problems else 0
+                return None, False
         else:
-            sub_problems_count = 0
+            state = dict(checkpoint_state.values)
 
-        logger.info(
-            f"Loaded checkpoint for {session_id}: "
-            f"problem={bool(problem)}, sub_problems={sub_problems_count}"
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.GRAPH_CHECKPOINT_ERROR,
+            f"Failed to load checkpoint from Redis for {session_id}: {e}",
+            session_id=session_id,
         )
 
-        # Reset stop flags so graph continues execution
-        state["should_stop"] = False
-        state["stop_reason"] = None
+        # Attempt PostgreSQL fallback
+        if db_fallback:
+            state = await _reconstruct_state_from_postgres(session_id)
+            if state:
+                is_fallback = True
+            else:
+                return None, False
+        else:
+            return None, False
 
-        # Clear any pending clarification state (we're retrying, not answering)
-        state["pending_clarification"] = None
+    # Validate state fields
+    validation_errors = _validate_checkpoint_state(state, session_id)
+    if validation_errors:
+        log_error(
+            logger,
+            ErrorCode.GRAPH_STATE_ERROR,
+            f"Corrupted checkpoint for {session_id}: {validation_errors}",
+            session_id=session_id,
+            validation_errors=validation_errors,
+        )
+        return None, is_fallback
 
-        logger.debug(f"Prepared state for resume from checkpoint for session {session_id}")
+    # Check for safe resume boundary
+    if not is_safe_resume_boundary(state):
+        logger.warning(
+            f"Checkpoint for {session_id} not at safe resume boundary",
+            extra={"session_id": session_id, "current_node": state.get("current_node")},
+        )
+        # Note: we still allow resume but log warning - caller can decide policy
+
+    # Extract sub_problems count for logging
+    problem = state.get("problem")
+    if problem:
+        if isinstance(problem, dict):
+            sub_problems = problem.get("sub_problems", [])
+        else:
+            sub_problems = getattr(problem, "sub_problems", []) or []
+        sub_problems_count = len(sub_problems) if sub_problems else 0
+    else:
+        sub_problems_count = 0
+
+    logger.info(
+        f"Loaded checkpoint for {session_id}: "
+        f"problem={bool(problem)}, sub_problems={sub_problems_count}, fallback={is_fallback}"
+    )
+
+    # Reset stop flags so graph continues execution
+    state["should_stop"] = False
+    state["stop_reason"] = None
+
+    # Clear any pending clarification state (we're retrying, not answering)
+    state["pending_clarification"] = None
+
+    # Mark if this was a fallback resume
+    state["is_fallback_resume"] = is_fallback
+
+    logger.debug(f"Prepared state for resume from checkpoint for session {session_id}")
+    return state, is_fallback
+
+
+async def publish_resume_failed_event(
+    session_id: str,
+    error_code: str,
+    message: str,
+) -> None:
+    """Publish resume_failed event for frontend notification.
+
+    Called when checkpoint resume fails and recovery is not possible.
+    Allows frontend to display user-friendly error and suggest next steps.
+
+    Args:
+        session_id: Session identifier
+        error_code: Machine-readable error code (e.g., GRAPH_RESUME_FAILED)
+        message: User-friendly error message
+    """
+    try:
+        from bo1.state.redis_manager import RedisManager
+
+        redis_mgr = RedisManager()
+        if redis_mgr.client is None:
+            logger.warning(f"No Redis client available to publish resume_failed for {session_id}")
+            return
+
+        from backend.api.event_publisher import EventPublisher
+
+        publisher = EventPublisher(redis_client=redis_mgr.client)
+        publisher.publish_event(
+            session_id,
+            "resume_failed",
+            {
+                "session_id": session_id,
+                "error_code": error_code,
+                "message": message,
+                "recoverable": False,
+            },
+        )
+        logger.info(f"Published resume_failed event for session {session_id}")
+    except Exception as e:
+        logger.warning(f"Failed to publish resume_failed event for {session_id}: {e}")
+
+
+async def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
+    """Reconstruct state from PostgreSQL when Redis checkpoint unavailable.
+
+    Loads session metadata and replays events to rebuild state.
+    Only reconstructs fields that are persisted in PostgreSQL:
+    - Basic metadata (phase, round_number)
+    - Contributions (from session_events)
+    - Synthesis (if complete)
+
+    Limited reconstruction - some state may be lost:
+    - Detailed persona state
+    - Research results
+    - Semantic scores
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Reconstructed state dict or None if insufficient data
+    """
+    from bo1.logging.errors import ErrorCode, log_error
+    from bo1.state.repositories.session_repository import SessionRepository
+
+    try:
+        repo = SessionRepository()
+
+        # Get session metadata
+        session = repo.get(session_id)
+        if not session:
+            logger.warning(f"No session found in PostgreSQL for {session_id}")
+            return None
+
+        # Get events for reconstruction
+        events = repo.get_events(session_id)
+        if not events:
+            logger.warning(f"No events found in PostgreSQL for {session_id}")
+            return None
+
+        # Initialize state from session metadata
+        state: dict[str, Any] = {
+            "session_id": session_id,
+            "phase": session.get("phase", "intake"),
+            "round_number": session.get("round_number", 0),
+            "max_rounds": 6,  # Default parallel architecture
+            "should_stop": False,
+            "stop_reason": None,
+            "contributions": [],
+            "personas": [],
+            "sub_problem_results": [],
+            "sub_problem_index": session.get("problem_context", {}).get("sub_problem_index", 0),
+        }
+
+        # Replay events to rebuild contributions
+        contributions = []
+        for event in events:
+            event_type = event.get("event_type")
+            data = event.get("data", {})
+
+            if event_type == "contribution":
+                contributions.append(data)
+            elif event_type == "synthesis_complete":
+                state["synthesis"] = data.get("synthesis")
+            elif event_type == "persona_selected":
+                # Reconstruct basic persona info
+                if data.get("personas"):
+                    state["personas"] = data["personas"]
+
+        state["contributions"] = contributions
+
+        # Check if we have minimum required data
+        if not state.get("personas") and state.get("round_number", 0) > 0:
+            logger.warning(
+                f"Insufficient data for reconstruction: no personas after round 0 for {session_id}"
+            )
+            return None
+
+        logger.info(
+            f"Reconstructed state from PostgreSQL for {session_id}: "
+            f"contributions={len(contributions)}, phase={state.get('phase')}"
+        )
         return state
 
     except Exception as e:
-        logger.error(f"Failed to load/prepare checkpoint for {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to reconstruct state from PostgreSQL for {session_id}: {e}",
+            session_id=session_id,
+            exc_info=True,
+        )
         return None
 
 

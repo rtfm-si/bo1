@@ -4,6 +4,9 @@ This module contains templates for synthesizing expert deliberations into
 actionable recommendations and comprehensive reports.
 """
 
+import re
+from typing import NamedTuple
+
 from bo1.config import TokenBudgets
 from bo1.prompts.protocols import PLAIN_LANGUAGE_STYLE
 from bo1.prompts.sanitizer import sanitize_user_input
@@ -12,6 +15,38 @@ from bo1.prompts.sanitizer import sanitize_user_input
 SYNTHESIS_MAX_TOKENS = TokenBudgets.SYNTHESIS
 META_SYNTHESIS_MAX_TOKENS = TokenBudgets.META_SYNTHESIS
 SYNTHESIS_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
+
+# =============================================================================
+# Overflow-Safe Instructions (per overflow.md patterns)
+# =============================================================================
+# These instructions ensure graceful handling when output approaches token limits
+
+OVERFLOW_SAFE_INSTRUCTIONS = """
+<overflow_handling>
+CRITICAL: If you are at risk of running out of tokens:
+- Do NOT rush or truncate sections
+- Stop cleanly at a section boundary
+- End your message with EXACTLY: <<<CONTINUE_FROM:{{section_name}}>>>
+- Also include: NEXT: <what you will write next, in 10 words or fewer>
+
+Never output partial JSON, tables, or mid-sentence content.
+If you cannot complete a section, stop BEFORE starting it.
+</overflow_handling>
+"""
+
+# Continuation prompt for truncated synthesis
+SYNTHESIS_CONTINUATION_PROMPT = """Continue the synthesis from where you left off.
+
+RULES:
+- Do NOT repeat any completed sections
+- Start with the next unfinished section
+- If the previous output ended with <<<CONTINUE_FROM:{{cursor}}>>>, resume from that section
+- Preserve the exact same formatting and structure
+
+Previous output (ends with marker or truncation):
+{previous_output}
+
+Continue now. Start directly with the next section content."""
 
 # =============================================================================
 # Synthesis Prompt Template
@@ -119,6 +154,10 @@ You are the Facilitator synthesizing the deliberation's conclusion.
 </system_role>
 
 {limited_context_section}
+
+"""
+    + OVERFLOW_SAFE_INSTRUCTIONS
+    + """
 
 <instructions>
 Generate a comprehensive synthesis report for the user.
@@ -327,10 +366,15 @@ PROBLEMS WITH LOW-QUALITY EXAMPLE:
 # This template produces complete, premium output within 1500 token budget.
 # Uses Pyramid Principle (answer first), Rule of Three, and "So What?" framework.
 
-SYNTHESIS_LEAN_TEMPLATE = """<system_role>
+SYNTHESIS_LEAN_TEMPLATE = (
+    """<system_role>
 You are a senior consultant synthesizing expert deliberation into an executive brief.
 Your output should feel premium, considered, and trustworthy - like a McKinsey deliverable.
 </system_role>
+
+"""
+    + OVERFLOW_SAFE_INSTRUCTIONS
+    + """
 
 <principles>
 PYRAMID PRINCIPLE: Lead with the answer. The reader should know your recommendation in the first sentence.
@@ -406,6 +450,7 @@ Before outputting, verify:
 - [ ] No business jargon ("leverage", "synergize", "optimize")
 - [ ] Total output is ~400-600 words (every sentence must earn its place)
 </quality_checklist>"""
+)
 
 
 # =============================================================================
@@ -469,3 +514,100 @@ def compose_synthesis_prompt(problem_statement: str, all_contributions_and_votes
         problem_statement=safe_problem_statement,
         all_contributions_and_votes=all_contributions_and_votes,
     )
+
+
+# =============================================================================
+# Overflow Detection and Continuation Utilities
+# =============================================================================
+
+
+class OverflowStatus(NamedTuple):
+    """Result of checking for overflow markers or truncation."""
+
+    needs_continuation: bool
+    cursor: str | None  # Section to continue from (if marker found)
+    next_hint: str | None  # "NEXT:" hint if provided
+
+
+# Regex pattern to detect continuation markers
+CONTINUE_MARKER_PATTERN = re.compile(
+    r"<<<CONTINUE_FROM:([^>]+)>>>\s*(?:NEXT:\s*(.+?))?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def detect_overflow(content: str, is_truncated: bool = False) -> OverflowStatus:
+    """Detect if content indicates overflow and needs continuation.
+
+    Checks for:
+    1. Explicit <<<CONTINUE_FROM:section>>> markers from the model
+    2. API-level truncation (stop_reason=max_tokens)
+
+    Args:
+        content: The LLM response content
+        is_truncated: True if API returned stop_reason=max_tokens
+
+    Returns:
+        OverflowStatus with continuation info
+    """
+    # Check for explicit continuation marker
+    match = CONTINUE_MARKER_PATTERN.search(content)
+    if match:
+        cursor = match.group(1).strip()
+        next_hint = match.group(2).strip() if match.group(2) else None
+        return OverflowStatus(
+            needs_continuation=True,
+            cursor=cursor,
+            next_hint=next_hint,
+        )
+
+    # Check for API-level truncation
+    if is_truncated:
+        return OverflowStatus(
+            needs_continuation=True,
+            cursor=None,  # Unknown section, will need to infer
+            next_hint=None,
+        )
+
+    return OverflowStatus(needs_continuation=False, cursor=None, next_hint=None)
+
+
+def compose_continuation_prompt(previous_output: str, cursor: str | None = None) -> str:
+    """Compose a continuation prompt for truncated synthesis.
+
+    Args:
+        previous_output: The truncated/partial output from previous call
+        cursor: Optional section name to continue from
+
+    Returns:
+        Formatted continuation prompt
+    """
+    # Trim to last ~2000 chars to avoid context bloat (per overflow.md recommendation)
+    trimmed_output = previous_output[-2000:] if len(previous_output) > 2000 else previous_output
+
+    # Add cursor hint if available
+    if cursor:
+        cursor_instruction = f"\nResume from section: {cursor}"
+    else:
+        cursor_instruction = ""
+
+    return (
+        SYNTHESIS_CONTINUATION_PROMPT.format(
+            previous_output=trimmed_output,
+        )
+        + cursor_instruction
+    )
+
+
+def strip_continuation_marker(content: str) -> str:
+    """Remove continuation markers from content for final output.
+
+    Args:
+        content: Content potentially containing markers
+
+    Returns:
+        Clean content without markers
+    """
+    # Remove the <<<CONTINUE_FROM:...>>> marker and NEXT: line
+    cleaned = CONTINUE_MARKER_PATTERN.sub("", content)
+    return cleaned.rstrip()

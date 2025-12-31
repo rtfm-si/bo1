@@ -1,97 +1,53 @@
-# Plan: Enable Resume from Last Successful Sub-Problem Checkpoint
+# Plan: [ARCH][P3] Migrate Nodes to Nested State Accessors
 
 ## Summary
 
-- Add checkpoint recovery that skips already-completed sub-problems
-- Persist expert memory (summaries) between sub-problems for sequential flow
-- Add `/sessions/{id}/resume` endpoint with sub-problem state visibility
-- Frontend recovery UI showing resumable sub-problem index
+- Update `_TASK.md` to mark 4 already-completed P3 tasks as done
+- Migrate graph nodes to use `get_problem_state()`, `get_phase_state()` helpers
+- Start with highest-impact node: `rounds.py` (already partially migrated)
+- Add test coverage for accessor usage patterns
 
 ## Implementation Steps
 
-### Step 1: Extend Session Model for Checkpoint Metadata
+1. **Mark completed tasks in `_TASK.md`** (lines 120-122, 134)
+   - `[LLM][P3]` sanitization tests - exists in `tests/test_sanitizer.py` (734 lines)
+   - `[OBS][P3]` event type metric - exists as `bo1_event_type_published_total`
+   - `[API][P3]` has_more pagination - exists in `backend/api/utils/pagination.py`
+   - `[REL][P3]` statement_timeout - exists in `bo1/state/database.py`
 
-**File:** `backend/api/models.py`
+2. **Audit current accessor usage**
+   - `rounds.py` - already uses `get_problem_state()`, `get_phase_state()`
+   - Identify nodes still using raw `state["field"]` access
 
-- Add `last_completed_sp_index: int | None` to Session model
-- Add `sp_checkpoint_at: datetime | None` timestamp
-- Update `sessions.py` to persist these on SP completion
+3. **Migrate `synthesis.py`** (~5 raw accesses)
+   - Replace `state.get("problem")` → `get_problem_state(state).get("problem")`
+   - Replace `state.get("phase")` → `get_phase_state(state).get("phase")`
 
-### Step 2: Save SP Boundary Checkpoints
+4. **Migrate `decomposition.py`** (~3 raw accesses)
+   - Same pattern as synthesis
 
-**File:** `bo1/graph/nodes/synthesis.py` (`next_subproblem_node`)
+5. **Migrate `context.py`** (~4 raw accesses)
+   - Use new `get_context_state()` accessor if needed
 
-- After saving result to `sub_problem_results`, emit checkpoint marker event
-- Call session update with `last_completed_sp_index = sub_problem_index`
-- Persist `expert_summaries` from current SP to state for next SP
-
-### Step 3: Add Expert Memory Propagation (Sequential Mode)
-
-**File:** `bo1/graph/nodes/subproblems.py`
-
-- In `analyze_dependencies_node`, check for `expert_summaries` from prior SP
-- Pass summaries to `select_personas` node via state
-- Ensure `SummarizerAgent` outputs are stored in checkpoint
-
-### Step 4: Add Resume Router Logic
-
-**File:** `bo1/graph/routers.py`
-
-- Add `route_on_resume()` function
-- If `sub_problem_results` length > 0 AND `current_sub_problem` is None:
-  - Restore `current_sub_problem` from `problem.sub_problems[sub_problem_index]`
-  - Route to `select_personas` (skip decomposition/dependency analysis)
-
-### Step 5: Add Resume Endpoint
-
-**File:** `backend/api/sessions.py`
-
-- Add `GET /sessions/{session_id}/checkpoint-state` returning:
-  - `completed_sub_problems: int`
-  - `total_sub_problems: int`
-  - `last_checkpoint_at: datetime`
-  - `can_resume: bool`
-- Add `POST /sessions/{session_id}/resume` that:
-  - Loads checkpoint from Redis
-  - Verifies SP boundary checkpoint exists
-  - Triggers graph with resume entry point
-
-### Step 6: Frontend Recovery UI
-
-**File:** `frontend/src/lib/components/meeting/`
-
-- Add `SessionRecoveryBanner.svelte` component
-- Show when session has incomplete SPs with valid checkpoint
-- Display: "Resume from sub-problem N of M?" with Resume/Start Over buttons
-- Integrate into meeting view on reconnect
+6. **Update test file** `tests/graph/test_state_refactor.py`
+   - Add tests verifying accessor return types
+   - Test default values when fields missing
 
 ## Tests
 
-### Unit Tests
-- `tests/graph/test_sp_checkpoint_resume.py`:
-  - Test checkpoint save at SP boundary
-  - Test resume skips completed SPs
-  - Test expert memory propagation
-  - Test duplicate SP result guard
-
-### Integration Tests
-- `tests/api/test_session_resume.py`:
-  - Test `/checkpoint-state` returns correct counts
-  - Test `/resume` loads correct checkpoint
-  - Test resume triggers graph at correct entry point
-
-### Manual Validation
-- Start multi-SP session → complete SP 1 → kill process → resume → verify SP 2 starts
-- Verify expert memory from SP 1 available in SP 2 (sequential mode)
+- Unit tests:
+  - `tests/graph/test_state_refactor.py` - accessor coverage
+- Integration tests:
+  - Existing node tests should pass unchanged
+- Manual validation:
+  - `make test` passes
+  - No regressions in deliberation flow
 
 ## Dependencies & Risks
 
-### Dependencies
-- Existing checkpoint infrastructure (Redis + LangGraph)
-- `serialize_state_for_checkpoint()` already handles sub_problem_results
-- `next_subproblem_node` already tracks completion
+- Dependencies:
+  - Existing accessors in `bo1/graph/state.py:755-790`
 
-### Risks/Edge Cases
-- Corrupted checkpoint → fallback to fresh start (existing repair logic helps)
-- Parallel mode may have different resume semantics (batch boundaries)
-- Expert summary size growth with many SPs (consider pruning old summaries)
+- Risks:
+  - Low: accessor pattern already proven in `rounds.py`
+  - Type annotations may need adjustment for TypedDict access

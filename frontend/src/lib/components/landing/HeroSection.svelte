@@ -51,8 +51,8 @@
 				class:opacity-0={!mounted}
 				class:translate-y-8={!mounted}
 			>
-				<p class="text-lg md:text-xl text-neutral-700 dark:text-neutral-300 max-w-2xl mx-auto">
-					Turns complex decisions into clear, actionable recommendations — in minutes.
+				<p class="text-lg md:text-xl text-neutral-700 dark:text-neutral-300 max-w-2xl mx-auto font-medium">
+					Management-grade thinking. No management required.
 				</p>
 
 				<!-- Trust Band -->
@@ -63,7 +63,7 @@
 						class="trust-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-neutral-800/50 backdrop-blur border border-brand-200 dark:border-brand-800"
 					>
 						<span class="text-brand-600 dark:text-brand-400">✓</span>
-						<span>Built for founders & operators</span>
+						<span>For founders scaling without a management layer</span>
 					</span>
 					<span
 						class="trust-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-neutral-800/50 backdrop-blur border border-brand-200 dark:border-brand-800"

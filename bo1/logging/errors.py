@@ -62,6 +62,7 @@ class ErrorCode(str, Enum):
     GRAPH_EXECUTION_ERROR = "GRAPH_EXECUTION_ERROR"
     GRAPH_NODE_ERROR = "GRAPH_NODE_ERROR"
     GRAPH_CHECKPOINT_ERROR = "GRAPH_CHECKPOINT_ERROR"
+    GRAPH_RESUME_FAILED = "GRAPH_RESUME_FAILED"  # Checkpoint unrecoverable
 
     # Authentication/authorization errors
     AUTH_TOKEN_ERROR = "AUTH_TOKEN_ERROR"  # noqa: S105 (not a password, it's an error code)

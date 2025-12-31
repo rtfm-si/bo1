@@ -264,6 +264,26 @@ class ErrorEvent(BaseEvent):
     )
 
 
+class TruncationWarningEvent(BaseEvent):
+    """Emitted when an LLM response is truncated due to token limits (overflow).
+
+    This event is informational - the system will attempt to continue the response
+    automatically using the continuation pattern.
+    """
+
+    event_type: Literal["truncation_warning"] = "truncation_warning"
+    stop_reason: str = Field(
+        ..., description="API stop reason: 'max_tokens' or 'model_context_window_exceeded'"
+    )
+    phase: str = Field(..., description="Deliberation phase where truncation occurred")
+    model: str = Field(..., description="Model that produced truncated response")
+    output_tokens: int = Field(..., ge=0, description="Number of output tokens before truncation")
+    max_tokens: int = Field(..., ge=0, description="Max tokens limit that was hit")
+    will_continue: bool = Field(
+        default=True, description="Whether system will attempt automatic continuation"
+    )
+
+
 # ============================================================================
 # Type Union
 # ============================================================================
@@ -283,6 +303,7 @@ DeliberationEvent = (
     | SynthesisCompleteEvent
     | MetaSynthesisCompleteEvent
     | ErrorEvent
+    | TruncationWarningEvent
 )
 
 # ============================================================================
@@ -305,6 +326,7 @@ EVENT_SCHEMA_REGISTRY: dict[str, type[BaseEvent]] = {
     "synthesis_complete": SynthesisCompleteEvent,
     "meta_synthesis_complete": MetaSynthesisCompleteEvent,
     "error": ErrorEvent,
+    "truncation_warning": TruncationWarningEvent,
 }
 
 

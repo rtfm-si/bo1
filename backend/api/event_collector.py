@@ -82,13 +82,18 @@ class EventCollector:
         "decompose": "_handle_decomposition",
         "identify_gaps": "_handle_identify_gaps",
         "select_personas": "_handle_persona_selection",
+        "select_personas_sp_node": "_handle_persona_selection",  # Sub-problem persona selection
         "initial_round": "_handle_initial_round",
         "facilitator_decide": "_handle_facilitator_decision",
         "parallel_round": "_handle_parallel_round",
+        "parallel_round_sp_node": "_handle_parallel_round",  # Sub-problem parallel round
         "moderator_intervene": "_handle_moderator",
         "check_convergence": "_handle_convergence",
+        "check_convergence_sp_node": "_handle_convergence",  # Sub-problem convergence
         "vote": "_handle_voting",
+        "vote_sp_node": "_handle_voting",  # Sub-problem voting
         "synthesize": "_handle_synthesis",
+        "synthesize_sp_node": "_handle_synthesis",  # Sub-problem synthesis
         "next_subproblem": "_handle_subproblem_complete",
         "meta_synthesis": "_handle_meta_synthesis",
         "meta_synthesize": "_handle_meta_synthesis",  # Support both node names
@@ -520,6 +525,9 @@ class EventCollector:
             and returns False gracefully (not all nodes need handlers).
         """
         handler_name = self.NODE_HANDLERS.get(node_name)
+
+        # DEBUG: Log dispatch attempts
+        logger.info(f"[DISPATCH DEBUG] node_name={node_name} | handler_name={handler_name}")
 
         if handler_name:
             # Get the handler method from this instance
@@ -1077,6 +1085,15 @@ class EventCollector:
         experts_per_round = output.get("experts_per_round", [])
         sub_problem_index = output.get("sub_problem_index", 0)
 
+        # DEBUG: Log handler invocation
+        logger.info(
+            f"[PARALLEL_ROUND DEBUG] Handler called | "
+            f"session={session_id} | "
+            f"round_number={round_number} | "
+            f"contributions_count={len(contributions)} | "
+            f"sub_problem_index={sub_problem_index}"
+        )
+
         # Update phase in database for dashboard display
         self.session_repo.update_phase(session_id, current_phase)
         personas = output.get("personas", [])
@@ -1589,21 +1606,13 @@ class EventCollector:
             )
             return
 
-        # Additional safety: check current phase in PostgreSQL to prevent race conditions
-        # This guards against: graph completes with different stop_reason but phase was set
-        # to clarification_needed by _handle_identify_gaps earlier
-        try:
-            current_session = self.session_repo.get(session_id)
-            if current_session:
-                current_phase = current_session.get("phase")
-                if current_phase in ("clarification_needed", "context_insufficient"):
-                    logger.warning(
-                        f"Session {session_id} has phase='{current_phase}' in DB - "
-                        f"not overwriting with completed status (stop_reason={stop_reason})"
-                    )
-                    return
-        except Exception as e:
-            logger.warning(f"Failed to check current session phase for {session_id}: {e}")
+        # Note: We previously had a check here that blocked updating status to 'completed'
+        # if the DB phase was 'clarification_needed'. This was incorrect because sessions
+        # that went through clarification Q&A and then completed should be marked as completed.
+        # The stop_reason check above (lines 1583-1590) already handles the case where the
+        # graph stops FOR clarification (stop_reason='clarification_needed'). When the graph
+        # resumes and completes normally, stop_reason will be None or 'completed', so we
+        # should proceed with the status update.
 
         # Extract data for status update
         synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
@@ -1693,12 +1702,14 @@ class EventCollector:
             except Exception as notify_error:
                 logger.warning(f"Failed to send meeting completion notification: {notify_error}")
 
+            # Fetch session for cost tracking and promo credit consumption
+            current_session = self.session_repo.get(session_id)
+
             # Record cost to user's period aggregate (admin monitoring)
             try:
                 from backend.services import user_cost_tracking as uct
                 from backend.services.alerts import alert_user_cost_threshold
 
-                # Get user_id from session (already fetched above)
                 user_id = current_session.get("user_id") if current_session else None
                 if user_id and total_cost > 0:
                     # Convert USD to cents

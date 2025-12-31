@@ -2782,10 +2782,10 @@ async def get_checkpoint_state(
 
 
 @router.post(
-    "/{session_id}/resume",
+    "/{session_id}/resume-from-checkpoint",
     response_model=dict,
-    summary="Resume session from checkpoint",
-    description="Resume a session from its last successful sub-problem checkpoint",
+    summary="Resume session from sub-problem checkpoint",
+    description="Resume a session from its last successful sub-problem checkpoint (for failure recovery)",
     responses={
         200: {"description": "Session resumed successfully"},
         400: {"description": "Session cannot be resumed", "model": ErrorResponse},

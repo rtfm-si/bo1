@@ -1594,7 +1594,7 @@ class CostTracker:
                         SUM(CASE WHEN provider = 'brave' THEN total_cost ELSE 0 END) as brave_cost,
                         SUM(CASE WHEN provider = 'tavily' THEN total_cost ELSE 0 END) as tavily_cost,
                         SUM(total_tokens) as total_tokens,
-                        SUM(cost_saved) as total_saved,
+                        SUM(COALESCE(cost_without_optimization, total_cost) - total_cost) as total_saved,
                         AVG(CASE WHEN cache_hit THEN 1 ELSE 0 END) as cache_hit_rate,
                         SUM(CASE WHEN provider = 'anthropic' THEN cache_read_tokens ELSE 0 END) as prompt_cache_read_tokens,
                         SUM(CASE WHEN provider = 'anthropic' THEN cache_read_tokens + cache_creation_tokens + input_tokens ELSE 0 END) as prompt_cache_total_tokens

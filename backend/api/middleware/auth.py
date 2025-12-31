@@ -38,8 +38,14 @@ logger = logging.getLogger(__name__)
 # Debug mode check - MVP mode only allowed if DEBUG is true
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"
 
+# E2E mode - bypasses auth with real test user (for Playwright testing)
+E2E_MODE = os.getenv("PUBLIC_E2E_MODE", "false").lower() == "true"
+
 # MVP: Hardcoded user ID for development (only when DEBUG=true)
 DEFAULT_USER_ID = "test_user_1"
+
+# E2E: Real test user ID from database (for E2E testing)
+E2E_USER_ID = "00d3cc72-cf20-4263-86de-388ddd951d2d"
 
 # Security check on import: warn if MVP mode enabled in non-debug
 if not ENABLE_SUPERTOKENS_AUTH:
@@ -168,9 +174,25 @@ async def _get_current_user_mvp() -> dict[str, Any]:
     }
 
 
+async def _get_current_user_e2e() -> dict[str, Any]:
+    """E2E mode: Return real test user without session verification (for Playwright)."""
+    logger.info("E2E mode: using real test user for Playwright testing")
+    return {
+        "user_id": E2E_USER_ID,
+        "email": "e2e.test@boardof.one",
+        "role": "authenticated",
+        "subscription_tier": "pro",
+        "is_admin": True,
+    }
+
+
 # Choose the correct dependency based on feature flag
 # This must be at module level so FastAPI picks the right one
-if ENABLE_SUPERTOKENS_AUTH:
+# Priority: E2E_MODE > MVP mode > SuperTokens auth
+if E2E_MODE:
+    get_current_user = _get_current_user_e2e
+    logger.warning("E2E mode: auth bypassed with real test user (PUBLIC_E2E_MODE=true)")
+elif ENABLE_SUPERTOKENS_AUTH:
     get_current_user = _get_current_user_with_session
 else:
     get_current_user = _get_current_user_mvp
@@ -239,8 +261,26 @@ async def _require_admin_mvp() -> dict[str, Any]:
     return user
 
 
+async def _require_admin_e2e() -> dict[str, Any]:
+    """E2E mode admin function."""
+    user = await _get_current_user_e2e()
+
+    if not user or not user.get("user_id"):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+        )
+
+    # E2E test user has is_admin=True
+    logger.info(f"Admin access granted to {user.get('user_id')} (E2E mode)")
+    return user
+
+
 # Choose the correct dependency based on feature flag
-if ENABLE_SUPERTOKENS_AUTH:
+# Priority: E2E_MODE > MVP mode > SuperTokens auth
+if E2E_MODE:
+    require_admin = _require_admin_e2e
+elif ENABLE_SUPERTOKENS_AUTH:
     require_admin = _require_admin_with_session
 else:
     require_admin = _require_admin_mvp

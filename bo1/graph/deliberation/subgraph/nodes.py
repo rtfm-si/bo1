@@ -184,11 +184,12 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
     )
 
     # Emit round_started event immediately
+    # NOTE: Uses "round" field to match frontend conventions
     writer(
         {
             "event_type": "round_started",
             "sub_problem_index": sub_problem_index,
-            "round_number": round_number,
+            "round": round_number,  # Frontend expects "round" field
             "phase": current_phase,
             "experts": [e.code for e in selected_experts],
         }
@@ -206,7 +207,7 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
             {
                 "event_type": "contribution_started",
                 "sub_problem_index": sub_problem_index,
-                "round_number": round_number,
+                "round": round_number,  # Consistent with other events
                 "persona_code": expert.code,
                 "persona_name": expert.display_name,
             }
@@ -344,11 +345,12 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
                 # Don't fail the whole contribution if save fails - continue with event emission
 
             # Emit contribution event with content
+            # NOTE: Uses "round" (not "round_number") to match frontend expectations
             writer(
                 {
                     "event_type": "contribution",
                     "sub_problem_index": sub_problem_index,
-                    "round_number": round_number,
+                    "round": round_number,  # Frontend expects "round" field
                     "persona_code": expert.code,
                     "persona_name": expert.display_name,
                     "archetype": expert.archetype,
@@ -453,11 +455,13 @@ async def check_convergence_sp_node(state: SubProblemGraphState) -> dict[str, An
         )
 
     # Emit convergence event
+    # NOTE: Uses "convergence" event_type (not "convergence_checked") and "round" field
+    # to match frontend DecisionMetrics.svelte expectations
     writer(
         {
-            "event_type": "convergence_checked",
+            "event_type": "convergence",  # Frontend filters for "convergence" events
             "sub_problem_index": sub_problem_index,
-            "round_number": state["round_number"],
+            "round": state["round_number"],  # Frontend expects "round" field
             "should_stop": should_stop,
             "stop_reason": stop_reason,
             "missing_aspects": missing_aspects,  # P2 FIX: Include for UI

@@ -32,7 +32,7 @@ const E2E_MODE = env.PUBLIC_E2E_MODE === 'true';
 export interface User {
 	id: string;
 	email: string;
-	auth_provider: 'google' | 'linkedin' | 'github';
+	auth_provider: 'google' | 'linkedin' | 'github' | 'email';
 	subscription_tier: 'free' | 'pro' | 'enterprise';
 	is_admin?: boolean;
 }
@@ -74,12 +74,13 @@ export async function initAuth(): Promise<void> {
 	log.log('Initializing auth...');
 
 	// E2E mode: bypass auth for testing
+	// Uses real user ID from database for proper API authorization
 	if (E2E_MODE) {
 		log.log('E2E mode: using test user');
 		authStore.set({
 			user: {
-				id: 'test_user_1',
-				email: 'test@example.com',
+				id: '00d3cc72-cf20-4263-86de-388ddd951d2d',
+				email: 'e2e.test@boardof.one',
 				auth_provider: 'google',
 				subscription_tier: 'pro',
 				is_admin: true, // Enable admin access for E2E tests

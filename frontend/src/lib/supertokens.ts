@@ -4,11 +4,13 @@
  * Configures SuperTokens Web SDK for:
  * - Session management (httpOnly cookies)
  * - ThirdParty OAuth (Google, LinkedIn, GitHub)
+ * - EmailPassword authentication
  */
 
 import SuperTokens from "supertokens-web-js";
 import Session from "supertokens-web-js/recipe/session";
 import ThirdParty from "supertokens-web-js/recipe/thirdparty";
+import EmailPassword from "supertokens-web-js/recipe/emailpassword";
 import { env } from '$env/dynamic/public';
 
 let isInitialized = false;
@@ -31,6 +33,7 @@ export function initSuperTokens() {
         recipeList: [
             Session.init(),
             ThirdParty.init(),
+            EmailPassword.init(),
         ],
     });
 

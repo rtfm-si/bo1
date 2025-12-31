@@ -296,12 +296,32 @@ async def _run_single_subproblem(
     )
 
     # Execute subgraph with unique thread_id
+    # CRITICAL: Use astream() instead of ainvoke() to capture custom events
+    # from get_stream_writer() calls in subgraph nodes (contribution, convergence, etc.)
     config: RunnableConfig = {
         "configurable": {"thread_id": f"{session_id}:subproblem:{sp_index}"},
         "recursion_limit": 50,
     }
 
-    final_state = await subproblem_graph.ainvoke(sp_state, config=config)
+    # Stream with custom events to forward contribution/convergence events to parent
+    final_state = None
+    async for chunk in subproblem_graph.astream(
+        sp_state, config=config, stream_mode=["updates", "custom"]
+    ):
+        mode, data = chunk
+        if mode == "custom" and isinstance(data, dict) and "event_type" in data:
+            # Forward custom events from subgraph to parent's stream writer
+            # This enables real-time contribution/convergence events to reach the frontend
+            writer(data)
+        elif mode == "updates" and isinstance(data, dict):
+            # Capture the last state update (final state)
+            for _node_name, node_output in data.items():
+                final_state = node_output
+
+    # Ensure we have a final state
+    if final_state is None:
+        raise RuntimeError(f"Subgraph {sp_index} completed without producing final state")
+
     result = result_from_subgraph_state(cast(SubProblemGraphState, final_state))
     duration = time.time() - start_time
     emit_node_duration(f"subproblem_{sp_index}", duration * 1000)
@@ -591,35 +611,40 @@ async def _run_subproblem_speculative(
         "recursion_limit": 50,
     }
 
-    # Execute the subgraph using astream_events to intercept round completions
-    # This allows us to update the context provider when rounds complete
+    # Execute the subgraph using astream() with stream_mode=["updates", "custom"]
+    # This allows us to capture custom events from get_stream_writer() calls in subgraph nodes
+    # Note: astream_events() was NOT capturing custom events reliably
     final_state = None
     current_round = 0
+    event_count = 0
+    custom_event_count = 0
 
-    async for event in subproblem_graph.astream_events(sp_state, config=config, version="v2"):
-        event_kind = event.get("event")
-        event_data = event.get("data", {})
+    async for chunk in subproblem_graph.astream(
+        sp_state, config=config, stream_mode=["updates", "custom"]
+    ):
+        event_count += 1
+        mode, data = chunk
 
-        # Capture the final state from checkpoint updates
-        if event_kind == "on_chain_end" and event.get("name") == "LangGraph":
-            final_state = event_data.get("output")
+        # DEBUG: Log every 10th event
+        if event_count <= 5 or event_count % 10 == 1:
+            logger.info(f"[SP{sp_index}] Event #{event_count}: mode={mode}")
 
-        # Intercept custom events from the stream writer
-        if event_kind == "on_custom_event":
-            custom_data = event_data
-            custom_type = custom_data.get("event_type")
+        if mode == "custom" and isinstance(data, dict) and "event_type" in data:
+            custom_event_count += 1
+            custom_type = data.get("event_type")
+
+            # Forward custom events to parent's stream writer
+            writer(data)
+            logger.debug(f"[SP{sp_index}] Forwarded custom event: {custom_type}")
 
             # Update context provider when a round completes
             if custom_type == "round_started":
-                current_round = custom_data.get("round_number", current_round)
+                round_num = data.get("round_number") or data.get("round")
+                if round_num is not None:
+                    current_round = int(round_num)
 
-            elif custom_type == "contribution":
-                # Round implicitly progresses with contributions
-                pass
-
-            elif custom_type in ("convergence_checked", "voting_started"):
+            elif custom_type in ("convergence", "convergence_checked", "voting_started"):
                 # Round is complete, update context provider
-                # This signals dependent sub-problems they can start
                 await context_provider.update_round_context(
                     sp_index=sp_index,
                     round_num=current_round,
@@ -627,6 +652,15 @@ async def _run_subproblem_speculative(
                     early_insights=None,
                 )
                 current_round += 1
+
+        elif mode == "updates" and isinstance(data, dict):
+            # Capture the last state update (final state)
+            for _node_name, node_output in data.items():
+                final_state = node_output
+
+    logger.info(
+        f"[SP{sp_index}] Streaming complete: {event_count} total events, {custom_event_count} custom events"
+    )
 
     if final_state is None:
         raise RuntimeError(f"Sub-problem {sp_index} execution did not produce final state")

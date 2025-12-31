@@ -19,7 +19,23 @@ from typing import Any
 from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
-from supertokens_python.recipe import session, thirdparty
+from supertokens_python.recipe import emailpassword, session, thirdparty
+from supertokens_python.recipe.emailpassword.interfaces import (
+    APIInterface as EmailPasswordAPIInterface,
+)
+from supertokens_python.recipe.emailpassword.interfaces import (
+    APIOptions as EmailPasswordAPIOptions,
+)
+from supertokens_python.recipe.emailpassword.interfaces import (
+    RecipeInterface as EmailPasswordRecipeInterface,
+)
+from supertokens_python.recipe.emailpassword.interfaces import (
+    SignInOkResult as EmailPasswordSignInOkResult,
+)
+from supertokens_python.recipe.emailpassword.interfaces import (
+    SignUpOkResult as EmailPasswordSignUpOkResult,
+)
+from supertokens_python.recipe.emailpassword.types import FormField
 from supertokens_python.recipe.session.interfaces import SessionContainer, SignOutOkayResponse
 from supertokens_python.recipe.thirdparty.interfaces import (
     APIInterface,
@@ -624,6 +640,244 @@ def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterf
     return original_implementation
 
 
+def override_emailpassword_functions(
+    original_implementation: EmailPasswordRecipeInterface,
+) -> EmailPasswordRecipeInterface:
+    """Override EmailPassword functions for whitelist validation and user sync."""
+    original_sign_up = original_implementation.sign_up
+    original_sign_in = original_implementation.sign_in
+
+    async def sign_up(
+        email: str,
+        password: str,
+        tenant_id: str,
+        session: Any | None,
+        should_try_linking_with_session_user: bool | None,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override sign_up to add whitelist validation and user sync."""
+        # Check closed beta whitelist
+        if os.getenv("CLOSED_BETA_MODE", "false").lower() == "true":
+            if not is_whitelisted(email):
+                logger.warning(
+                    f"Email sign-up rejected: {_mask_email(email.lower())} not whitelisted"
+                )
+                raise Exception(sanitize_supertokens_message("whitelist rejection"))
+
+        result = await original_sign_up(
+            email,
+            password,
+            tenant_id,
+            session,
+            should_try_linking_with_session_user,
+            user_context,
+        )
+
+        # Check if sign-up was successful
+        if not isinstance(result, EmailPasswordSignUpOkResult):
+            return result
+
+        # Sync user to PostgreSQL
+        try:
+            user_id = result.user.id
+            user_repository.ensure_exists(
+                user_id=user_id,
+                email=email,
+                auth_provider="email",
+                subscription_tier="free",
+            )
+            logger.info(
+                f"Email user synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id})"
+            )
+
+            # Create workspace and send welcome email for new users
+            if result.user.login_methods and len(result.user.login_methods) == 1:
+                # New user - send welcome email
+                try:
+                    html, text = render_welcome_email(user_name=None, user_id=user_id)
+                    send_email_async(
+                        to=email,
+                        subject="Welcome to Board of One",
+                        html=html,
+                        text=text,
+                    )
+                    logger.info(f"Welcome email queued for new email user: {_mask_email(email)}")
+                except Exception as welcome_err:
+                    logger.warning(f"Failed to send welcome email: {welcome_err}")
+
+                # Create default workspace
+                try:
+                    workspace = workspace_repository.create_workspace(
+                        name="Personal Workspace",
+                        owner_id=user_id,
+                    )
+                    user_repository.set_default_workspace(user_id, workspace.id)
+                    logger.info(
+                        f"Created personal workspace for new email user: {_mask_email(email)}"
+                    )
+                except Exception as workspace_err:
+                    logger.warning(f"Failed to create workspace: {workspace_err}")
+
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to sync email user to PostgreSQL: {e}",
+                email=_mask_email(email),
+            )
+
+        return result
+
+    async def sign_in(
+        email: str,
+        password: str,
+        tenant_id: str,
+        session: Any | None,
+        should_try_linking_with_session_user: bool | None,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override sign_in to check account lock status."""
+        result = await original_sign_in(
+            email,
+            password,
+            tenant_id,
+            session,
+            should_try_linking_with_session_user,
+            user_context,
+        )
+
+        # Check if sign-in was successful
+        if not isinstance(result, EmailPasswordSignInOkResult):
+            return result
+
+        # Check if user is locked or deleted
+        user_id = result.user.id
+        if is_user_locked_or_deleted(user_id):
+            logger.warning(
+                f"Email sign-in rejected: user {user_id} ({_mask_email(email)}) is locked/deleted"
+            )
+            raise Exception(sanitize_supertokens_message("account locked"))
+
+        logger.info(f"Email user signed in: {_mask_email(email)} (user_id: {user_id})")
+        return result
+
+    original_implementation.sign_up = sign_up  # type: ignore[method-assign]
+    original_implementation.sign_in = sign_in  # type: ignore[method-assign]
+    return original_implementation
+
+
+def override_emailpassword_apis(
+    original_implementation: EmailPasswordAPIInterface,
+) -> EmailPasswordAPIInterface:
+    """Override EmailPassword APIs for IP lockout."""
+    original_sign_up_post = original_implementation.sign_up_post
+    original_sign_in_post = original_implementation.sign_in_post
+
+    async def sign_up_post(
+        form_fields: list[FormField],
+        tenant_id: str,
+        session: SessionContainer | None,
+        should_try_linking_with_session_user: bool | None,
+        api_options: EmailPasswordAPIOptions,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override sign_up_post to check IP lockout."""
+        client_ip = _get_client_ip(api_options.request)
+
+        # Check if IP is locked out
+        lockout_remaining = auth_lockout_service.get_lockout_remaining(client_ip)
+        if lockout_remaining and lockout_remaining > 0:
+            logger.warning(f"Email sign-up blocked: IP {client_ip} locked out")
+            raise Exception(sanitize_supertokens_message("too many attempts"))
+
+        try:
+            result = await original_sign_up_post(
+                form_fields,
+                tenant_id,
+                session,
+                should_try_linking_with_session_user,
+                api_options,
+                user_context,
+            )
+
+            # Rotate CSRF token on successful sign-up
+            if api_options.response:
+                cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+                cookie_domain = os.getenv("COOKIE_DOMAIN", None)
+                if cookie_domain == "localhost":
+                    cookie_domain = None
+                new_csrf_token = generate_csrf_token()
+                set_csrf_cookie_on_response(
+                    api_options.response,
+                    new_csrf_token,
+                    secure=cookie_secure,
+                    domain=cookie_domain,
+                )
+
+            return result
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "whitelist" in error_msg:
+                auth_lockout_service.record_failed_attempt(client_ip, "whitelist_rejection")
+            else:
+                auth_lockout_service.record_failed_attempt(client_ip, "signup_error")
+            raise
+
+    async def sign_in_post(
+        form_fields: list[FormField],
+        tenant_id: str,
+        session: SessionContainer | None,
+        should_try_linking_with_session_user: bool | None,
+        api_options: EmailPasswordAPIOptions,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override sign_in_post to check IP lockout."""
+        client_ip = _get_client_ip(api_options.request)
+
+        # Check if IP is locked out
+        lockout_remaining = auth_lockout_service.get_lockout_remaining(client_ip)
+        if lockout_remaining and lockout_remaining > 0:
+            logger.warning(f"Email sign-in blocked: IP {client_ip} locked out")
+            raise Exception(sanitize_supertokens_message("too many attempts"))
+
+        try:
+            result = await original_sign_in_post(
+                form_fields,
+                tenant_id,
+                session,
+                should_try_linking_with_session_user,
+                api_options,
+                user_context,
+            )
+
+            # Rotate CSRF token on successful sign-in
+            if api_options.response:
+                cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+                cookie_domain = os.getenv("COOKIE_DOMAIN", None)
+                if cookie_domain == "localhost":
+                    cookie_domain = None
+                new_csrf_token = generate_csrf_token()
+                set_csrf_cookie_on_response(
+                    api_options.response,
+                    new_csrf_token,
+                    secure=cookie_secure,
+                    domain=cookie_domain,
+                )
+
+            return result
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "locked" in error_msg:
+                auth_lockout_service.record_failed_attempt(client_ip, "account_locked")
+            else:
+                auth_lockout_service.record_failed_attempt(client_ip, "signin_error")
+            raise
+
+    original_implementation.sign_up_post = sign_up_post  # type: ignore[method-assign]
+    original_implementation.sign_in_post = sign_in_post  # type: ignore[method-assign]
+    return original_implementation
+
+
 def override_session_apis(
     original_implementation: session.interfaces.APIInterface,
 ) -> session.interfaces.APIInterface:
@@ -705,6 +959,19 @@ def init_supertokens() -> None:
                 override=thirdparty.InputOverrideConfig(
                     functions=override_thirdparty_functions,
                     apis=override_thirdparty_apis,
+                ),
+            ),
+            # EmailPassword recipe for email/password authentication
+            emailpassword.init(
+                sign_up_feature=emailpassword.InputSignUpFeature(
+                    form_fields=[
+                        emailpassword.InputFormField(id="email"),
+                        emailpassword.InputFormField(id="password"),
+                    ]
+                ),
+                override=emailpassword.InputOverrideConfig(
+                    functions=override_emailpassword_functions,
+                    apis=override_emailpassword_apis,
                 ),
             ),
             # Session recipe for session management (httpOnly cookies)

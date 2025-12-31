@@ -4,6 +4,7 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { initSuperTokens } from '$lib/supertokens';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
+	import EmailPassword from "supertokens-web-js/recipe/emailpassword";
 	import { browser } from '$app/environment';
 	import { env } from '$env/dynamic/public';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
@@ -11,6 +12,13 @@
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let gdprConsent = $state(false);
+
+	// Email/password form state
+	let email = $state('');
+	let password = $state('');
+	let isSignUp = $state(false);
+	let emailError = $state<string | null>(null);
+	let passwordError = $state<string | null>(null);
 
 	// Redirect if already authenticated
 	onMount(() => {
@@ -111,6 +119,124 @@
 	function handleBlueskySignIn() {
 		handleOAuthSignIn("bluesky");
 	}
+
+	/**
+	 * Validate email format
+	 */
+	function validateEmail(value: string): boolean {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!value) {
+			emailError = 'Email is required';
+			return false;
+		}
+		if (!emailRegex.test(value)) {
+			emailError = 'Please enter a valid email address';
+			return false;
+		}
+		emailError = null;
+		return true;
+	}
+
+	/**
+	 * Validate password strength
+	 */
+	function validatePassword(value: string): boolean {
+		if (!value) {
+			passwordError = 'Password is required';
+			return false;
+		}
+		if (value.length < 8) {
+			passwordError = 'Password must be at least 8 characters';
+			return false;
+		}
+		passwordError = null;
+		return true;
+	}
+
+	/**
+	 * Handle email/password sign-in or sign-up
+	 */
+	async function handleEmailPasswordSubmit(e: Event) {
+		e.preventDefault();
+
+		// Require GDPR consent
+		if (!gdprConsent) {
+			error = "Please accept the Privacy Policy to continue.";
+			return;
+		}
+
+		// Validate inputs
+		const isEmailValid = validateEmail(email);
+		const isPasswordValid = validatePassword(password);
+
+		if (!isEmailValid || !isPasswordValid) {
+			return;
+		}
+
+		isLoading = true;
+		loadingProvider = 'email';
+		error = null;
+
+		try {
+			if (isSignUp) {
+				// Sign up
+				const response = await EmailPassword.signUp({
+					formFields: [
+						{ id: "email", value: email },
+						{ id: "password", value: password },
+					],
+				});
+
+				if (response.status === "OK") {
+					// Successful sign-up, redirect to dashboard
+					goto('/dashboard');
+				} else if (response.status === "FIELD_ERROR") {
+					// Handle field validation errors from backend
+					for (const field of response.formFields) {
+						if (field.id === "email") {
+							emailError = field.error;
+						} else if (field.id === "password") {
+							passwordError = field.error;
+						}
+					}
+				} else if (response.status === "SIGN_UP_NOT_ALLOWED") {
+					error = "Sign up is not allowed. You may not be on the beta whitelist.";
+				}
+			} else {
+				// Sign in
+				const response = await EmailPassword.signIn({
+					formFields: [
+						{ id: "email", value: email },
+						{ id: "password", value: password },
+					],
+				});
+
+				if (response.status === "OK") {
+					// Successful sign-in, redirect to dashboard
+					goto('/dashboard');
+				} else if (response.status === "FIELD_ERROR") {
+					// Handle field validation errors
+					for (const field of response.formFields) {
+						if (field.id === "email") {
+							emailError = field.error;
+						} else if (field.id === "password") {
+							passwordError = field.error;
+						}
+					}
+				} else if (response.status === "WRONG_CREDENTIALS_ERROR") {
+					error = "Invalid email or password.";
+				} else if (response.status === "SIGN_IN_NOT_ALLOWED") {
+					error = "Sign in is not allowed. Your account may be locked.";
+				}
+			}
+		} catch (err: any) {
+			console.error('Email/password auth error:', err);
+			error = err.message || "Authentication failed. Please try again.";
+		} finally {
+			isLoading = false;
+			loadingProvider = null;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -173,6 +299,89 @@
 					and consent to the processing of my personal data as described therein.
 				</span>
 			</label>
+
+			<!-- Email/Password Form -->
+			<form onsubmit={handleEmailPasswordSubmit} class="space-y-4 mb-6">
+				<!-- Sign-in/Sign-up Toggle -->
+				<div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
+					<button
+						type="button"
+						onclick={() => isSignUp = false}
+						class="flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors {!isSignUp ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+					>
+						Sign In
+					</button>
+					<button
+						type="button"
+						onclick={() => isSignUp = true}
+						class="flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors {isSignUp ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+					>
+						Sign Up
+					</button>
+				</div>
+
+				<!-- Email Input -->
+				<div>
+					<label for="email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+						Email
+					</label>
+					<input
+						type="email"
+						id="email"
+						bind:value={email}
+						oninput={() => emailError = null}
+						disabled={isLoading}
+						class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50 {emailError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}"
+						placeholder="you@example.com"
+					/>
+					{#if emailError}
+						<p class="mt-1 text-sm text-red-600 dark:text-red-400">{emailError}</p>
+					{/if}
+				</div>
+
+				<!-- Password Input -->
+				<div>
+					<label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+						Password
+					</label>
+					<input
+						type="password"
+						id="password"
+						bind:value={password}
+						oninput={() => passwordError = null}
+						disabled={isLoading}
+						class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50 {passwordError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}"
+						placeholder={isSignUp ? 'At least 8 characters' : 'Your password'}
+					/>
+					{#if passwordError}
+						<p class="mt-1 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+					{/if}
+				</div>
+
+				<!-- Submit Button -->
+				<button
+					type="submit"
+					disabled={isLoading || !gdprConsent}
+					class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{#if loadingProvider === 'email'}
+						<Spinner size="sm" variant="neutral" ariaLabel="Authenticating" />
+						<span>{isSignUp ? 'Creating account...' : 'Signing in...'}</span>
+					{:else}
+						<span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
+					{/if}
+				</button>
+			</form>
+
+			<!-- Divider -->
+			<div class="relative mb-6">
+				<div class="absolute inset-0 flex items-center">
+					<div class="w-full border-t border-slate-300 dark:border-slate-600"></div>
+				</div>
+				<div class="relative flex justify-center text-sm">
+					<span class="px-2 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400">or continue with</span>
+				</div>
+			</div>
 
 			<!-- Google Sign-in Button -->
 			<button

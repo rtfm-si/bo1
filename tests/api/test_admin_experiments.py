@@ -15,6 +15,7 @@ from slowapi.util import get_remote_address
 
 from backend.api.admin.experiments import router
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import limiter as global_limiter
 from backend.services.experiments import Experiment, Variant
 
 
@@ -26,6 +27,10 @@ def mock_admin_override():
 @pytest.fixture
 def app():
     """Create test app with experiments routes and mocked auth."""
+    # Disable global rate limiter for tests (to avoid Redis connection)
+    original_enabled = global_limiter.enabled
+    global_limiter.enabled = False
+
     app = FastAPI()
 
     # Set up rate limiter with memory storage for tests
@@ -38,7 +43,10 @@ def app():
     # Include the experiments router
     app.include_router(router, prefix="/api/admin")
 
-    return app
+    yield app
+
+    # Restore original limiter state
+    global_limiter.enabled = original_enabled
 
 
 @pytest.fixture

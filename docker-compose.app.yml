@@ -52,6 +52,13 @@ services:
       - BRAVE_API_KEY=${BRAVE_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
 
+      # DigitalOcean Spaces Configuration
+      - DO_SPACES_KEY=${DO_SPACES_KEY}
+      - DO_SPACES_SECRET=${DO_SPACES_SECRET}
+      - DO_SPACES_BUCKET=${DO_SPACES_BUCKET}
+      - DO_SPACES_REGION=${DO_SPACES_REGION:-nyc3}
+      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
+
       # API Configuration
       - API_HOST=0.0.0.0
       - API_PORT=8000

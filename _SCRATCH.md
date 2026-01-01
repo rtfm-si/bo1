@@ -24,3 +24,5 @@ in data analytics stuff, theres an 'ask si' option
 ask a question only shows latest answer, but not history
 its ok, but doesnt lead users to right answer
 add chart analysis rendering - needs to be 'detail' and 'simple' (always 2 views of same data)
+
+make password requirements more secure 12+ chars letters and nums / offer magic link?

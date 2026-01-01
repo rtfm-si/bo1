@@ -56,8 +56,9 @@ services:
       - DO_SPACES_KEY=${DO_SPACES_KEY}
       - DO_SPACES_SECRET=${DO_SPACES_SECRET}
       - DO_SPACES_BUCKET=${DO_SPACES_BUCKET}
-      - DO_SPACES_REGION=${DO_SPACES_REGION:-nyc3}
-      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
+      - DO_SPACES_REGION=${DO_SPACES_REGION:-lon1}
+      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT:-https://lon1.digitaloceanspaces.com}
+      - DO_SPACES_CDN_ENDPOINT=${DO_SPACES_CDN_ENDPOINT:-}
 
       # API Configuration
       - API_HOST=0.0.0.0

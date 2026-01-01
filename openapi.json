@@ -56474,6 +56474,82 @@
         ]
       }
     },
+    "/api/v1/sessions/{session_id}/resume-from-checkpoint": {
+      "post": {
+        "description": "Resume a session from its last successful sub-problem checkpoint (for failure recovery)",
+        "operationId": "resume_session_api_v1_sessions__session_id__resume_from_checkpoint_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resume Session Api V1 Sessions  Session Id  Resume From Checkpoint Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session resumed successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session cannot be resumed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "User does not own this session"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume session from sub-problem checkpoint",
+        "tags": [
+          "sessions",
+          "sessions"
+        ]
+      }
+    },
     "/api/v1/sessions/{session_id}/retry": {
       "post": {
         "description": "Retry a failed deliberation session from its last successful checkpoint.",

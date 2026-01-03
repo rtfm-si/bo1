@@ -86,10 +86,14 @@
 		try {
 			const response = await apiClient.getDatasetInsights(datasetId, regenerate);
 			insights = response.insights;
-		} catch (err) {
+		} catch (err: unknown) {
+			// Check for 422 status (not profiled yet) - silently skip, not an error
+			const status = (err as { status?: number }).status;
 			const errMsg = err instanceof Error ? err.message : String(err);
-			// 422 means not profiled yet - not an error state, just silently skip
-			if (errMsg.includes('profiled') || errMsg.includes('422')) {
+			const isNotProfiled = status === 422 || errMsg.includes('profiled') || errMsg.includes('422');
+
+			if (isNotProfiled) {
+				// Dataset not profiled yet - expected state, don't log as error
 				insights = null;
 				insightsError = null;
 			} else {

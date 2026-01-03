@@ -31,14 +31,20 @@ _Last updated: 2026-01-03_
 
 - [x] [API][P0] Fix `/api/v1/user/preferences` 500 error - missing `preferred_currency` column; migrations applied to prod (2026-01-03)
 - [x] [ROUTE][P0] Deploy `/settings/security` route - 2FA code verified, migration applied, tests pass (22/22)
+- [x] [API][P0] Fix session sharing 500 errors - added `created_by` to INSERT query in session_repository.py (2026-01-03)
+- [x] [API][P0] Fix 2FA setup 500 error - added UnknownUserIdError handling in two_factor.py (2026-01-03)
 
 ### P1 - High
 
 - [x] [API][P1] Investigate `/context/strategic` 503 - transient pool exhaustion during audit; 503+Retry-After handling already present (2026-01-03)
+- [x] [UI][P1] Fix metric save .trim() error - ensured editValue is string before calling trim() (2026-01-03)
 
 ### P2 - Medium
 
 - [x] [API][P2] Fix `/context/peer-benchmarks` 404 errors - added API_CONTEXT_MISSING and API_INDUSTRY_NOT_SET error codes with context-specific frontend guidance (2026-01-03)
+- [x] [ROUTE][P2] Add /context/competitors redirect - 301 redirect to /reports/competitors (2026-01-03)
+- [x] [UI][P2] Fix Mentor clear button - added onConversationChange callback to clear conversation (2026-01-03)
+- [x] [UI][P2] Fix dataset insights 422 logging - check for status code before logging as error (2026-01-03)
 
 ---
 

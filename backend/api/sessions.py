@@ -2160,6 +2160,7 @@ async def create_share(
                     session_id=session_id,
                     token=token,
                     expires_at=expires_at,
+                    created_by=user_id,
                 )
 
                 logger.info(f"Created share for session {session_id}: {token}")

@@ -316,6 +316,15 @@ async def setup_two_factor(
                 device_name="Authenticator App",
             )
 
+        # Check for UnknownUserIdError (user not in SuperTokens)
+        if isinstance(result, totp_asyncio.UnknownUserIdError):
+            logger.warning(f"User {user_id} not found in SuperTokens for TOTP setup")
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Your account needs to be re-authenticated. Please sign out and sign in again.",
+                status=400,
+            )
+
         if not isinstance(result, totp_asyncio.CreateDeviceOkResult):
             logger.error(f"Failed to create TOTP device for {user_id}: {type(result)}")
             raise http_error(

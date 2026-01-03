@@ -287,6 +287,8 @@
 		error = null;
 		contextSources = [];
 		activePersona = null;
+		// Notify parent to update sidebar selection
+		onConversationChange?.(null);
 	}
 
 	function handlePersonaChange(persona: string | null) {

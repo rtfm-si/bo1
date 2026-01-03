@@ -133,9 +133,11 @@
 		savingMetric = key;
 
 		try {
-			const numValue = editValue.trim() === '' ? null : parseFloat(editValue);
+			// Ensure editValue is string (input type="number" may return number in Svelte 5)
+			const valueStr = String(editValue ?? '').trim();
+			const numValue = valueStr === '' ? null : parseFloat(valueStr);
 
-			if (editValue.trim() !== '' && (numValue === null || isNaN(numValue))) {
+			if (valueStr !== '' && (numValue === null || isNaN(numValue))) {
 				throw new Error('Please enter a valid number');
 			}
 

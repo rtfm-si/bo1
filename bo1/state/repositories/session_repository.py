@@ -1028,13 +1028,16 @@ class SessionRepository(BaseRepository):
     # =========================================================================
 
     @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
-    def create_share(self, session_id: str, token: str, expires_at: Any) -> dict[str, Any]:
+    def create_share(
+        self, session_id: str, token: str, expires_at: Any, created_by: str
+    ) -> dict[str, Any]:
         """Create a new session share.
 
         Args:
             session_id: Session identifier
             token: Unique share token
             expires_at: Expiry datetime
+            created_by: User ID who created the share
 
         Returns:
             Share record
@@ -1046,15 +1049,15 @@ class SessionRepository(BaseRepository):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO session_shares (id, session_id, token, expires_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO session_shares (id, session_id, created_by, token, expires_at)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (token) DO UPDATE
                     SET session_id = EXCLUDED.session_id,
                         expires_at = EXCLUDED.expires_at,
                         deleted_at = NULL
-                    RETURNING id, session_id, token, expires_at, created_at, updated_at, deleted_at
+                    RETURNING id, session_id, created_by, token, expires_at, created_at, updated_at, deleted_at
                     """,
-                    (share_id, session_id, token, expires_at),
+                    (share_id, session_id, created_by, token, expires_at),
                 )
                 result = cur.fetchone()
                 return dict(result) if result else {}

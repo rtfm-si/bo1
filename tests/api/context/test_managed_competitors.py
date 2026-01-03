@@ -415,3 +415,174 @@ class TestManagedCompetitorsErrorHandling:
 
         assert exc_info.value.status_code == 500
         assert "internal_error" in exc_info.value.detail["error_code"]
+
+
+class TestManagedCompetitorAPI:
+    """Integration tests for managed competitor API endpoints."""
+
+    @pytest.fixture
+    def mock_user(self):
+        """Create a mock user dict as returned by get_current_user."""
+        return {
+            "user_id": "test-user-123",
+            "email": "test@example.com",
+            "auth_provider": "email",
+            "subscription_tier": "free",
+        }
+
+    @pytest.mark.asyncio
+    async def test_add_competitor_returns_success(self, mock_user):
+        """Test POST /api/v1/context/managed-competitors returns 200 with valid request."""
+        from backend.api.context.models import ManagedCompetitorCreate
+        from backend.api.context.routes import add_managed_competitor
+
+        request = ManagedCompetitorCreate(
+            name="TestCompetitor",
+            url="https://testcompetitor.com",
+            notes="Test competitor for integration testing",
+        )
+
+        with (
+            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
+            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+        ):
+            mock_add.return_value = {
+                "name": "TestCompetitor",
+                "url": "https://testcompetitor.com",
+                "notes": "Test competitor for integration testing",
+                "added_at": "2025-01-01T00:00:00Z",
+            }
+            mock_context.return_value = None  # Skip skeptic check
+
+            response = await add_managed_competitor(request=request, user=mock_user)
+
+            assert response.success is True
+            assert response.competitor is not None
+            assert response.competitor.name == "TestCompetitor"
+            assert response.competitor.url == "https://testcompetitor.com"
+            assert response.competitor.notes == "Test competitor for integration testing"
+            mock_add.assert_called_once_with(
+                user_id="test-user-123",
+                name="TestCompetitor",
+                url="https://testcompetitor.com",
+                notes="Test competitor for integration testing",
+            )
+
+    @pytest.mark.asyncio
+    async def test_add_competitor_with_url_and_notes(self, mock_user):
+        """Test all fields are persisted correctly."""
+        from backend.api.context.models import ManagedCompetitorCreate
+        from backend.api.context.routes import add_managed_competitor
+
+        request = ManagedCompetitorCreate(
+            name="FullDataCompetitor",
+            url="https://full.example.com/path",
+            notes="Detailed notes about this competitor including strategy insights",
+        )
+
+        with (
+            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
+            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+        ):
+            mock_add.return_value = {
+                "name": "FullDataCompetitor",
+                "url": "https://full.example.com/path",
+                "notes": "Detailed notes about this competitor including strategy insights",
+                "added_at": "2025-01-02T12:30:00Z",
+            }
+            mock_context.return_value = None
+
+            response = await add_managed_competitor(request=request, user=mock_user)
+
+            assert response.success is True
+            assert response.competitor.url == "https://full.example.com/path"
+            assert "strategy insights" in response.competitor.notes
+
+    @pytest.mark.asyncio
+    async def test_add_duplicate_competitor_returns_409(self, mock_user):
+        """Test that adding a duplicate competitor (case-insensitive) returns 409."""
+        from fastapi import HTTPException
+
+        from backend.api.context.models import ManagedCompetitorCreate
+        from backend.api.context.routes import add_managed_competitor
+
+        request = ManagedCompetitorCreate(name="ExistingCompetitor")
+
+        with patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add:
+            mock_add.return_value = None  # Indicates duplicate
+
+            with pytest.raises(HTTPException) as exc_info:
+                await add_managed_competitor(request=request, user=mock_user)
+
+            assert exc_info.value.status_code == 409
+            assert "already exists" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_add_competitor_skeptic_failure_still_succeeds(self, mock_user):
+        """Test that skeptic check failure doesn't block competitor addition."""
+        from backend.api.context.models import ManagedCompetitorCreate
+        from backend.api.context.routes import add_managed_competitor
+
+        request = ManagedCompetitorCreate(name="SkepticTestCompetitor")
+
+        with (
+            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
+            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+            patch("backend.api.context.routes.evaluate_competitor_relevance") as mock_skeptic,
+        ):
+            mock_add.return_value = {
+                "name": "SkepticTestCompetitor",
+                "url": None,
+                "notes": None,
+                "added_at": "2025-01-03T00:00:00Z",
+            }
+            mock_context.return_value = {"business_name": "Test Business"}
+            # Skeptic check fails with exception
+            mock_skeptic.side_effect = Exception("LLM API timeout")
+
+            response = await add_managed_competitor(request=request, user=mock_user)
+
+            # Competitor should still be added successfully
+            assert response.success is True
+            assert response.competitor is not None
+            assert response.competitor.name == "SkepticTestCompetitor"
+            # Relevance fields should be None since check failed
+            assert response.relevance_score is None
+            assert response.relevance_warning is None
+
+    @pytest.mark.asyncio
+    async def test_add_competitor_with_skeptic_warning(self, mock_user):
+        """Test that relevance warning is returned when skeptic flags low relevance."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from backend.api.context.models import ManagedCompetitorCreate
+        from backend.api.context.routes import add_managed_competitor
+
+        request = ManagedCompetitorCreate(name="WeakCompetitor")
+
+        with (
+            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
+            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+            patch(
+                "backend.api.context.routes.evaluate_competitor_relevance",
+                new_callable=AsyncMock,
+            ) as mock_skeptic,
+        ):
+            mock_add.return_value = {
+                "name": "WeakCompetitor",
+                "url": None,
+                "notes": None,
+                "added_at": "2025-01-03T00:00:00Z",
+            }
+            mock_context.return_value = {"business_name": "Test Business"}
+            # Skeptic returns low relevance
+            mock_result = MagicMock()
+            mock_result.relevance_score = 0.25
+            mock_result.relevance_warning = "Low relevance: different industry"
+            mock_skeptic.return_value = mock_result
+
+            response = await add_managed_competitor(request=request, user=mock_user)
+
+            assert response.success is True
+            assert response.relevance_score == 0.25
+            assert response.relevance_warning == "Low relevance: different industry"

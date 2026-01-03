@@ -8,9 +8,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from backend.api.context.competitors import (
+    _deduplicate_competitors,
     _extract_competitors_with_llm,
     _fallback_competitor_search,
+    _guess_domain_from_name,
     _is_valid_competitor_name,
+    _normalize_competitor_name,
+    _normalize_competitor_url,
 )
 
 
@@ -322,3 +326,180 @@ class TestIntegrationScenarios:
             # Should not have generic terms
             assert "Best Project Management Software 2025" not in names
             assert "10 Notion Alternatives" not in names
+
+
+class TestNormalizeCompetitorUrl:
+    """Tests for URL normalization and domain extraction."""
+
+    def test_extracts_domain_from_g2_url(self):
+        """Test extracting domain from G2 link."""
+        url = "https://g2.com/products/asana/reviews"
+        result = _normalize_competitor_url(url, "Asana")
+        # Should guess domain from company name since it's a G2 link
+        assert result == "https://asana.com"
+
+    def test_extracts_domain_from_capterra_url(self):
+        """Test extracting domain from Capterra link."""
+        url = "https://capterra.com/p/12345/monday-com/"
+        result = _normalize_competitor_url(url, "Monday.com")
+        assert result == "https://mondaycom.com"
+
+    def test_keeps_actual_company_domain(self):
+        """Test preserving actual company domain."""
+        url = "https://notion.so/product"
+        result = _normalize_competitor_url(url, "Notion")
+        assert result == "https://notion.so"
+
+    def test_guesses_domain_for_missing_url(self):
+        """Test domain guessing when URL is None."""
+        result = _normalize_competitor_url(None, "HubSpot")
+        assert result == "https://hubspot.com"
+
+    def test_handles_empty_company_name(self):
+        """Test handling empty company name."""
+        result = _normalize_competitor_url(None, "")
+        assert result is None
+
+
+class TestGuessDomainFromName:
+    """Tests for domain guessing from company name."""
+
+    def test_simple_name(self):
+        """Test simple company name."""
+        assert _guess_domain_from_name("Notion") == "https://notion.com"
+
+    def test_name_with_spaces(self):
+        """Test name with spaces."""
+        assert _guess_domain_from_name("Hub Spot") == "https://hubspot.com"
+
+    def test_name_with_special_chars(self):
+        """Test name with special characters."""
+        assert _guess_domain_from_name("Monday.com") == "https://mondaycom.com"
+
+    def test_empty_name(self):
+        """Test empty name returns None."""
+        assert _guess_domain_from_name("") is None
+
+    def test_single_char_name(self):
+        """Test single character name returns None."""
+        assert _guess_domain_from_name("A") is None
+
+
+class TestNormalizeCompetitorName:
+    """Tests for competitor name normalization."""
+
+    def test_lowercase(self):
+        """Test lowercase conversion."""
+        assert _normalize_competitor_name("HubSpot") == "hubspot"
+
+    def test_removes_inc_suffix(self):
+        """Test removing Inc suffix."""
+        assert _normalize_competitor_name("Acme, Inc.") == "acme"
+        assert _normalize_competitor_name("Acme Inc") == "acme"
+
+    def test_removes_llc_suffix(self):
+        """Test removing LLC suffix."""
+        assert _normalize_competitor_name("Acme, LLC") == "acme"
+
+    def test_removes_domain_suffix(self):
+        """Test removing domain suffixes."""
+        assert _normalize_competitor_name("monday.com") == "monday"
+        assert _normalize_competitor_name("notion.io") == "notion"
+        assert _normalize_competitor_name("linear.ai") == "linear"
+
+    def test_removes_software_suffix(self):
+        """Test removing software/platform suffixes."""
+        assert _normalize_competitor_name("Acme Software") == "acme"
+        assert _normalize_competitor_name("Acme Platform") == "acme"
+
+    def test_strips_whitespace(self):
+        """Test stripping whitespace."""
+        assert _normalize_competitor_name("  HubSpot  ") == "hubspot"
+
+    def test_empty_name(self):
+        """Test empty name."""
+        assert _normalize_competitor_name("") == ""
+
+
+class TestDeduplicateCompetitors:
+    """Tests for competitor deduplication."""
+
+    def test_removes_exact_duplicates(self):
+        """Test removing exact duplicates."""
+        competitors = [
+            {"name": "HubSpot", "url": "https://hubspot.com"},
+            {"name": "HubSpot", "url": "https://hubspot.com"},
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 1
+        assert result[0]["name"] == "HubSpot"
+
+    def test_merges_different_cases(self):
+        """Test merging names with different cases."""
+        competitors = [
+            {"name": "HubSpot", "url": "https://hubspot.com"},
+            {"name": "hubspot", "url": None},
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 1
+        # Should keep the first one (with URL)
+        assert result[0]["url"] == "https://hubspot.com"
+
+    def test_merges_with_suffix_variations(self):
+        """Test merging names with suffix variations."""
+        competitors = [
+            {"name": "monday.com", "url": "https://monday.com", "description": "Work OS"},
+            {"name": "Monday", "url": None, "description": None},
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 1
+        assert result[0]["description"] == "Work OS"
+
+    def test_keeps_best_data(self):
+        """Test keeping the best data from merged entries."""
+        competitors = [
+            {"name": "Asana", "url": None, "description": None, "confidence": "low"},
+            {
+                "name": "Asana Inc",
+                "url": "https://asana.com",
+                "description": "Work management",
+                "confidence": "high",
+            },
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 1
+        # Should have URL and description from second entry
+        assert result[0]["url"] == "https://asana.com"
+        assert result[0]["description"] == "Work management"
+        # Should have higher confidence
+        assert result[0]["confidence"] == "high"
+
+    def test_preserves_unique_competitors(self):
+        """Test that unique competitors are preserved."""
+        competitors = [
+            {"name": "HubSpot", "url": "https://hubspot.com"},
+            {"name": "Salesforce", "url": "https://salesforce.com"},
+            {"name": "Pipedrive", "url": "https://pipedrive.com"},
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 3
+        names = [c["name"] for c in result]
+        assert "HubSpot" in names
+        assert "Salesforce" in names
+        assert "Pipedrive" in names
+
+    def test_handles_empty_list(self):
+        """Test handling empty list."""
+        result = _deduplicate_competitors([])
+        assert result == []
+
+    def test_skips_empty_names(self):
+        """Test skipping entries with empty names."""
+        competitors = [
+            {"name": "HubSpot", "url": "https://hubspot.com"},
+            {"name": "", "url": "https://example.com"},
+            {"name": None, "url": "https://test.com"},
+        ]
+        result = _deduplicate_competitors(competitors)
+        assert len(result) == 1
+        assert result[0]["name"] == "HubSpot"

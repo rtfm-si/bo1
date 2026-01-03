@@ -5,6 +5,7 @@
 	import { initSuperTokens } from '$lib/supertokens';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 	import EmailPassword from "supertokens-web-js/recipe/emailpassword";
+	import Passwordless from "supertokens-web-js/recipe/passwordless";
 	import { browser } from '$app/environment';
 	import { env } from '$env/dynamic/public';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
@@ -19,6 +20,12 @@
 	let isSignUp = $state(false);
 	let emailError = $state<string | null>(null);
 	let passwordError = $state<string | null>(null);
+
+	// Magic link state
+	let magicLinkEmail = $state('');
+	let magicLinkEmailError = $state<string | null>(null);
+	let magicLinkSent = $state(false);
+	let showMagicLinkForm = $state(false);
 
 	// Redirect if already authenticated
 	onMount(() => {
@@ -151,6 +158,57 @@
 		}
 		passwordError = null;
 		return true;
+	}
+
+	/**
+	 * Handle magic link sign-in request
+	 */
+	async function handleMagicLinkSubmit(e: Event) {
+		e.preventDefault();
+
+		// Require GDPR consent
+		if (!gdprConsent) {
+			error = "Please accept the Privacy Policy to continue.";
+			return;
+		}
+
+		// Validate email
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!magicLinkEmail) {
+			magicLinkEmailError = 'Email is required';
+			return;
+		}
+		if (!emailRegex.test(magicLinkEmail)) {
+			magicLinkEmailError = 'Please enter a valid email address';
+			return;
+		}
+		magicLinkEmailError = null;
+
+		isLoading = true;
+		loadingProvider = 'magic-link';
+		error = null;
+
+		try {
+			const response = await Passwordless.createCode({
+				email: magicLinkEmail,
+			});
+
+			if (response.status === "OK") {
+				magicLinkSent = true;
+			} else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
+				error = "Sign in is not allowed. You may not be on the beta whitelist.";
+			}
+		} catch (err: any) {
+			console.error('Magic link request error:', err);
+			if (err.message?.includes("rate limit")) {
+				error = "Too many requests. Please wait a few minutes and try again.";
+			} else {
+				error = err.message || "Failed to send magic link. Please try again.";
+			}
+		} finally {
+			isLoading = false;
+			loadingProvider = null;
+		}
 	}
 
 	/**
@@ -371,10 +429,86 @@
 						<span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
 					{/if}
 				</button>
+
+				<!-- Magic Link Toggle -->
+				<div class="text-center">
+					<button
+						type="button"
+						onclick={() => { showMagicLinkForm = !showMagicLinkForm; magicLinkSent = false; }}
+						class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline"
+					>
+						{showMagicLinkForm ? 'Use password instead' : 'Sign in with email link (no password)'}
+					</button>
+				</div>
 			</form>
 
+			<!-- Magic Link Form -->
+			{#if showMagicLinkForm}
+				<div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+					{#if magicLinkSent}
+						<div class="text-center">
+							<svg class="w-12 h-12 mx-auto mb-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+							</svg>
+							<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Check your email</h3>
+							<p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+								We've sent a sign-in link to <strong>{magicLinkEmail}</strong>
+							</p>
+							<p class="text-xs text-slate-500 dark:text-slate-500">
+								The link expires in 15 minutes. Check your spam folder if you don't see it.
+							</p>
+							<button
+								type="button"
+								onclick={() => { magicLinkSent = false; magicLinkEmail = ''; }}
+								class="mt-4 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 underline"
+							>
+								Use a different email
+							</button>
+						</div>
+					{:else}
+						<form onsubmit={handleMagicLinkSubmit} class="space-y-4">
+							<div>
+								<label for="magic-link-email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+									Email address
+								</label>
+								<input
+									type="email"
+									id="magic-link-email"
+									bind:value={magicLinkEmail}
+									oninput={() => magicLinkEmailError = null}
+									disabled={isLoading}
+									class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50 {magicLinkEmailError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}"
+									placeholder="you@example.com"
+								/>
+								{#if magicLinkEmailError}
+									<p class="mt-1 text-sm text-red-600 dark:text-red-400">{magicLinkEmailError}</p>
+								{/if}
+							</div>
+							<button
+								type="submit"
+								disabled={isLoading || !gdprConsent}
+								class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{#if loadingProvider === 'magic-link'}
+									<Spinner size="sm" variant="neutral" ariaLabel="Sending magic link" />
+									<span>Sending link...</span>
+								{:else}
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+									</svg>
+									<span>Send sign-in link</span>
+								{/if}
+							</button>
+							<p class="text-xs text-center text-slate-500 dark:text-slate-400">
+								We'll email you a link to sign in instantly - no password needed.
+							</p>
+						</form>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Divider -->
-			<div class="relative mb-6">
+			<div class="relative mb-6 mt-6">
 				<div class="absolute inset-0 flex items-center">
 					<div class="w-full border-t border-slate-300 dark:border-slate-600"></div>
 				</div>

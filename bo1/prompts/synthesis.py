@@ -5,11 +5,12 @@ actionable recommendations and comprehensive reports.
 """
 
 import re
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from bo1.config import TokenBudgets
 from bo1.prompts.protocols import PLAIN_LANGUAGE_STYLE
 from bo1.prompts.sanitizer import sanitize_user_input
+from bo1.prompts.style_adapter import get_style_instruction
 
 # Token budget constants for synthesis LLM calls (centralized in TokenBudgets)
 SYNTHESIS_MAX_TOKENS = TokenBudgets.SYNTHESIS
@@ -507,13 +508,56 @@ def get_limited_context_sections(limited_context_mode: bool) -> tuple[str, str]:
     return "", ""
 
 
-def compose_synthesis_prompt(problem_statement: str, all_contributions_and_votes: str) -> str:
-    """Compose final synthesis prompt."""
+def compose_synthesis_prompt(
+    problem_statement: str,
+    all_contributions_and_votes: str,
+    business_context: dict[str, Any] | None = None,
+) -> str:
+    """Compose final synthesis prompt.
+
+    Args:
+        problem_statement: The problem being synthesized
+        all_contributions_and_votes: Deliberation content
+        business_context: Optional business context for style adaptation
+
+    Returns:
+        Formatted synthesis prompt
+    """
     safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
+
+    # Get style instruction if available
+    style_block = get_style_instruction(business_context) if business_context else ""
+    if style_block:
+        # Prepend style instruction to problem statement
+        safe_problem_statement = f"{style_block}\n\n{safe_problem_statement}"
+
     return SYNTHESIS_PROMPT_TEMPLATE.format(
         problem_statement=safe_problem_statement,
         all_contributions_and_votes=all_contributions_and_votes,
     )
+
+
+def get_synthesis_style_instruction(business_context: dict[str, Any] | None) -> str:
+    """Get style instruction block for synthesis prompts.
+
+    Wraps the standard style instruction with synthesis-specific guidance.
+
+    Args:
+        business_context: Business context dict with brand fields
+
+    Returns:
+        Style instruction string or empty string
+    """
+    style_block = get_style_instruction(business_context) if business_context else ""
+    if not style_block:
+        return ""
+
+    return f"""{style_block}
+
+<synthesis_style_note>
+The final recommendations should be written in a style that matches the user's brand voice.
+Maintain the actionable, specific nature of recommendations while adapting vocabulary and tone.
+</synthesis_style_note>"""
 
 
 # =============================================================================

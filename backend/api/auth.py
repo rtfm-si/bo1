@@ -28,6 +28,7 @@ from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.oauth_session_manager import SessionManager
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.oauth_errors import sanitize_oauth_error
+from backend.services.admin_impersonation import get_active_impersonation
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
@@ -65,39 +66,85 @@ async def get_user_info(
     Fetches user data from PostgreSQL (source of truth for persistent data).
     If user not found in DB, returns minimal data from session.
 
+    When admin is impersonating another user:
+    - Returns target user's data (id, email, subscription_tier)
+    - Adds impersonation metadata (is_impersonation, real_admin_id, impersonation_write_mode)
+
     Returns:
-        User ID, email, auth provider, subscription tier, and session info
+        User ID, email, auth provider, subscription tier, session info,
+        and impersonation metadata if applicable
     """
     user_id = session.get_user_id()
     session_handle = session.get_handle()
 
-    logger.info(f"User info requested: user_id={user_id}, session={session_handle}")
+    # Check if admin is impersonating another user
+    is_impersonation = getattr(request.state, "is_impersonation", False)
+    impersonation_target_id = getattr(request.state, "impersonation_target_id", None)
+    impersonation_write_mode = getattr(request.state, "impersonation_write_mode", False)
+    impersonation_admin_id = getattr(request.state, "impersonation_admin_id", None)
+
+    # If impersonating, fetch target user's data instead
+    effective_user_id = impersonation_target_id if is_impersonation else user_id
+
+    logger.info(
+        f"User info requested: user_id={user_id}, session={session_handle}"
+        + (f", impersonating={impersonation_target_id}" if is_impersonation else "")
+    )
 
     # Fetch complete user data from PostgreSQL
-    user_data = user_repository.get(user_id)
+    user_data = user_repository.get(effective_user_id)
 
     if user_data:
-        return {
+        response = {
             "id": user_data["id"],
             "user_id": user_data["id"],
             "email": user_data["email"],
             "auth_provider": user_data["auth_provider"],
             "subscription_tier": user_data["subscription_tier"],
             "is_admin": user_data.get("is_admin", False),
+            "password_upgrade_needed": user_data.get("password_upgrade_needed", False),
             "session_handle": session_handle,
         }
 
+        # Add impersonation metadata if active
+        if is_impersonation and impersonation_admin_id:
+            # Get session details for expiry info
+            session = get_active_impersonation(impersonation_admin_id)
+            response["is_impersonation"] = True
+            response["real_admin_id"] = impersonation_admin_id
+            response["impersonation_write_mode"] = impersonation_write_mode
+            if session:
+                remaining = int((session.expires_at - datetime.now(UTC)).total_seconds())
+                response["impersonation_expires_at"] = session.expires_at.isoformat()
+                response["impersonation_remaining_seconds"] = max(0, remaining)
+
+        return response
+
     # Fallback if user not in database (shouldn't happen with proper sync)
-    logger.warning(f"User {user_id} not found in PostgreSQL, returning minimal data")
-    return {
-        "id": user_id,
-        "user_id": user_id,
+    logger.warning(f"User {effective_user_id} not found in PostgreSQL, returning minimal data")
+    response = {
+        "id": effective_user_id,
+        "user_id": effective_user_id,
         "email": None,
         "auth_provider": None,
         "subscription_tier": "free",
         "is_admin": False,
+        "password_upgrade_needed": False,
         "session_handle": session_handle,
     }
+
+    # Add impersonation metadata if active
+    if is_impersonation and impersonation_admin_id:
+        session = get_active_impersonation(impersonation_admin_id)
+        response["is_impersonation"] = True
+        response["real_admin_id"] = impersonation_admin_id
+        response["impersonation_write_mode"] = impersonation_write_mode
+        if session:
+            remaining = int((session.expires_at - datetime.now(UTC)).total_seconds())
+            response["impersonation_expires_at"] = session.expires_at.isoformat()
+            response["impersonation_remaining_seconds"] = max(0, remaining)
+
+    return response
 
 
 @router.get("/google/sheets/status")

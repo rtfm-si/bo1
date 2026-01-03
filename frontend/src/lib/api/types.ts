@@ -160,6 +160,7 @@ export type ChartSpec = components['schemas']['ChartSpec'];
 export type DatasetAnalysisResponse = components['schemas']['DatasetAnalysisResponse'];
 export type DatasetAnalysisListResponse = components['schemas']['DatasetAnalysisListResponse'];
 export type ConversationResponse = components['schemas']['ConversationResponse'];
+export type ConversationDetailResponse = components['schemas']['ConversationDetailResponse'];
 export type ConversationListResponse = components['schemas']['ConversationListResponse'];
 export type ConversationMessage = components['schemas']['ConversationMessage'];
 
@@ -1045,6 +1046,12 @@ export interface SuggestedQuestion {
 	why_relevant: string;
 }
 
+export interface SuggestedChart {
+	chart_spec: ChartSpec;
+	title: string;
+	rationale: string;
+}
+
 export interface DatasetInsights {
 	identity: DataIdentity;
 	headline_metrics: HeadlineMetric[];
@@ -1053,6 +1060,7 @@ export interface DatasetInsights {
 	suggested_questions: SuggestedQuestion[];
 	column_semantics: ColumnSemantic[];
 	narrative_summary: string;
+	suggested_charts?: SuggestedChart[];
 }
 
 export interface DatasetInsightsResponse {
@@ -1150,6 +1158,15 @@ export interface TrendInsightsListResponse {
 // =============================================================================
 
 /**
+ * Relevance flags for a competitor
+ */
+export interface RelevanceFlags {
+	similar_product: boolean;
+	same_icp: boolean;
+	same_market: boolean;
+}
+
+/**
  * A user-managed competitor entry
  */
 export interface ManagedCompetitor {
@@ -1157,6 +1174,12 @@ export interface ManagedCompetitor {
 	url: string | null;
 	notes: string | null;
 	added_at: string;
+	/** Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0 */
+	relevance_score?: number | null;
+	/** Individual relevance check results */
+	relevance_flags?: RelevanceFlags | null;
+	/** Warning message if <2 checks pass */
+	relevance_warning?: string | null;
 }
 
 /**
@@ -1183,6 +1206,8 @@ export interface ManagedCompetitorResponse {
 	success: boolean;
 	competitor: ManagedCompetitor | null;
 	error?: string | null;
+	relevance_warning?: string | null;
+	relevance_score?: number | null;
 }
 
 /**
@@ -1638,6 +1663,14 @@ export interface KeyMetricConfig {
 }
 
 /**
+ * Single point in metric history for sparkline visualization.
+ */
+export interface MetricHistoryPoint {
+	value: number | null;
+	recorded_at: string;
+}
+
+/**
  * Display model for a key metric with current value and trends.
  */
 export interface KeyMetricDisplay {
@@ -1653,6 +1686,7 @@ export interface KeyMetricDisplay {
 	percentile?: number | null;
 	notes?: string | null;
 	last_updated?: string | null;
+	history?: MetricHistoryPoint[];
 }
 
 /**
@@ -1671,6 +1705,60 @@ export interface KeyMetricsResponse {
 	now_count: number;
 	later_count: number;
 	monitor_count: number;
+	error?: string | null;
+}
+
+// =============================================================================
+// Insight-to-Metric Auto-Population
+// =============================================================================
+
+/**
+ * A suggestion to auto-populate a context metric from insights.
+ */
+export interface MetricSuggestion {
+	/** Context field name (e.g., 'revenue', 'customers') */
+	field: string;
+	/** Current value in context (if any) */
+	current_value?: string | null;
+	/** Value extracted from insight */
+	suggested_value: string;
+	/** The clarification question that provided this */
+	source_question: string;
+	/** Extraction confidence (0-1) */
+	confidence: number;
+	/** When the insight was recorded (ISO) */
+	answered_at?: string | null;
+}
+
+/**
+ * Response containing metric suggestions from insights.
+ */
+export interface MetricSuggestionsResponse {
+	success: boolean;
+	suggestions: MetricSuggestion[];
+	count: number;
+	error?: string | null;
+}
+
+/**
+ * Request to apply a single metric suggestion.
+ */
+export interface ApplyMetricSuggestionRequest {
+	/** Context field to update (e.g., 'revenue') */
+	field: string;
+	/** Value to set */
+	value: string;
+	/** Original question (for audit trail) */
+	source_question?: string | null;
+}
+
+/**
+ * Response after applying a metric suggestion.
+ */
+export interface ApplyMetricSuggestionResponse {
+	success: boolean;
+	field: string;
+	new_value: string;
 	error?: string | null;
 }
 

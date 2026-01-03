@@ -31,11 +31,24 @@
 	let isSavingDepth = $state(false);
 	let depthError = $state<string | null>(null);
 
+	// State for preferred currency
+	let preferredCurrency = $state<'GBP' | 'USD' | 'EUR'>('GBP');
+	let isLoadingCurrency = $state(true);
+	let isSavingCurrency = $state(false);
+	let currencyError = $state<string | null>(null);
+
 	// Depth options
 	const depthOptions: { value: 1 | 3 | 6; label: string }[] = [
 		{ value: 1, label: '1 month' },
 		{ value: 3, label: '3 months' },
 		{ value: 6, label: '6 months' }
+	];
+
+	// Currency options
+	const currencyOptions: { value: 'GBP' | 'USD' | 'EUR'; label: string; symbol: string }[] = [
+		{ value: 'GBP', label: 'British Pound', symbol: '£' },
+		{ value: 'USD', label: 'US Dollar', symbol: '$' },
+		{ value: 'EUR', label: 'Euro', symbol: '€' }
 	];
 
 	// Day labels (ISO weekday: 1=Mon, 7=Sun)
@@ -60,6 +73,26 @@
 			console.error('Failed to restart tour:', err);
 		} finally {
 			isRestartingTour = false;
+		}
+	}
+
+	// Update preferred currency and auto-save
+	async function selectCurrency(currency: 'GBP' | 'USD' | 'EUR') {
+		if (isSavingCurrency || currency === preferredCurrency) return;
+
+		const previousCurrency = preferredCurrency;
+		preferredCurrency = currency; // Optimistic update
+		isSavingCurrency = true;
+		currencyError = null;
+
+		try {
+			const result = await apiClient.updateUserPreferences({ preferred_currency: currency });
+			preferredCurrency = result.preferred_currency as 'GBP' | 'USD' | 'EUR';
+		} catch (e) {
+			preferredCurrency = previousCurrency; // Revert on error
+			currencyError = e instanceof Error ? e.message : 'Failed to save currency preference';
+		} finally {
+			isSavingCurrency = false;
 		}
 	}
 
@@ -116,16 +149,18 @@
 		}
 	}
 
-	// Load preferences, working pattern, and heatmap depth on mount
+	// Load preferences, working pattern, heatmap depth, and currency on mount
 	onMount(async () => {
-		// Load meeting preferences
+		// Load meeting preferences (includes currency)
 		try {
 			const prefs = await apiClient.getUserPreferences();
 			skipClarification = prefs.skip_clarification;
+			preferredCurrency = (prefs.preferred_currency || 'GBP') as 'GBP' | 'USD' | 'EUR';
 		} catch (e) {
 			prefsError = e instanceof Error ? e.message : 'Failed to load preferences';
 		} finally {
 			isLoadingPrefs = false;
+			isLoadingCurrency = false;
 		}
 
 		// Load working pattern
@@ -278,6 +313,46 @@
 					Skipping them may result in more generic recommendations unless you've provided detailed business context.
 				</p>
 			</div>
+		{/if}
+	</div>
+
+	<!-- Currency Preference Section -->
+	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+			Currency Display
+		</h2>
+		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			Choose your preferred currency for displaying financial metrics and values.
+		</p>
+
+		{#if currencyError}
+			<Alert variant="error" class="mb-4" dismissable ondismiss={() => (currencyError = null)}>{currencyError}</Alert>
+		{/if}
+
+		{#if isLoadingCurrency}
+			<div class="flex items-center justify-center py-4">
+				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+			</div>
+		{:else}
+			<div class="flex flex-wrap gap-2">
+				{#each currencyOptions as { value, label, symbol }}
+					<button
+						type="button"
+						disabled={isSavingCurrency}
+						onclick={() => selectCurrency(value)}
+						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
+							{preferredCurrency === value
+								? 'bg-brand-600 text-white hover:bg-brand-700'
+								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+							{isSavingCurrency ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
+					>
+						{symbol} {label}
+					</button>
+				{/each}
+			</div>
+			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+				Changes save automatically. This affects how values are shown in the dashboard and key metrics.
+			</p>
 		{/if}
 	</div>
 

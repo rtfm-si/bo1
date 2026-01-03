@@ -298,3 +298,59 @@ class TestProjectStatusTransitionValidation:
 
         allowed = VALID_PROJECT_TRANSITIONS.get("paused", [])
         assert "active" in allowed
+
+
+class TestProjectRouteOrdering:
+    """Tests to verify static routes are matched before dynamic /{project_id} routes.
+
+    These tests verify that `/autogenerate-suggestions` and `/context-suggestions`
+    are correctly routed to their handlers rather than being interpreted as project IDs.
+    """
+
+    def test_static_routes_defined_before_dynamic(self):
+        """Verify static routes come before /{project_id} in router."""
+        from backend.api.projects import router
+
+        routes = [r.path for r in router.routes]
+
+        # Find indices of static and dynamic routes (with prefix)
+        autogen_idx = next(
+            i for i, p in enumerate(routes) if p == "/v1/projects/autogenerate-suggestions"
+        )
+        context_idx = next(
+            i for i, p in enumerate(routes) if p == "/v1/projects/context-suggestions"
+        )
+        dynamic_idx = next(i for i, p in enumerate(routes) if p == "/v1/projects/{project_id}")
+
+        assert autogen_idx < dynamic_idx, (
+            f"autogenerate-suggestions (idx={autogen_idx}) must come before "
+            f"{{project_id}} (idx={dynamic_idx})"
+        )
+        assert context_idx < dynamic_idx, (
+            f"context-suggestions (idx={context_idx}) must come before "
+            f"{{project_id}} (idx={dynamic_idx})"
+        )
+
+    def test_unassigned_count_before_dynamic(self):
+        """Verify /unassigned-count comes before /{project_id}."""
+        from backend.api.projects import router
+
+        routes = [r.path for r in router.routes]
+
+        unassigned_idx = next(
+            i for i, p in enumerate(routes) if p == "/v1/projects/unassigned-count"
+        )
+        dynamic_idx = next(i for i, p in enumerate(routes) if p == "/v1/projects/{project_id}")
+
+        assert unassigned_idx < dynamic_idx
+
+    def test_autogenerate_route_before_dynamic(self):
+        """Verify POST /autogenerate comes before /{project_id}."""
+        from backend.api.projects import router
+
+        routes = [r.path for r in router.routes]
+
+        autogen_idx = next(i for i, p in enumerate(routes) if p == "/v1/projects/autogenerate")
+        dynamic_idx = next(i for i, p in enumerate(routes) if p == "/v1/projects/{project_id}")
+
+        assert autogen_idx < dynamic_idx

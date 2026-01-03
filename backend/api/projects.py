@@ -208,6 +208,254 @@ async def get_unassigned_count(
 
 
 @router.get(
+    "/autogenerate-suggestions",
+    response_model=AutogenSuggestionsResponse,
+    summary="Get autogenerate suggestions",
+    description="Analyze unassigned actions and suggest project groupings",
+    responses={403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("get autogen suggestions")
+async def get_autogen_suggestions(
+    user: SessionAuthDep,
+) -> AutogenSuggestionsResponse:
+    """Get project suggestions from unassigned actions.
+
+    Analyzes unassigned actions using LLM to identify coherent groupings
+    and returns suggestions for user review.
+    """
+    from backend.services.project_autogen import (
+        MIN_ACTIONS_FOR_AUTOGEN,
+        get_unassigned_action_count,
+    )
+    from backend.services.project_autogen import (
+        get_autogen_suggestions as get_suggestions,
+    )
+
+    user_id = user["user_id"]
+
+    # Get unassigned count first
+    unassigned_count = get_unassigned_action_count(user_id)
+
+    # If not enough actions, return early
+    if unassigned_count < MIN_ACTIONS_FOR_AUTOGEN:
+        return {
+            "suggestions": [],
+            "unassigned_count": unassigned_count,
+            "min_required": MIN_ACTIONS_FOR_AUTOGEN,
+        }
+
+    # Get suggestions from LLM
+    suggestions = await get_suggestions(user_id)
+
+    # Convert to response model format
+    response_suggestions = [
+        AutogenSuggestion(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            action_ids=s.action_ids,
+            confidence=s.confidence,
+            rationale=s.rationale,
+        )
+        for s in suggestions
+    ]
+
+    return {
+        "suggestions": response_suggestions,
+        "unassigned_count": unassigned_count,
+        "min_required": MIN_ACTIONS_FOR_AUTOGEN,
+    }
+
+
+@router.post(
+    "/autogenerate",
+    response_model=AutogenCreateResponse,
+    status_code=201,
+    summary="Create projects from suggestions",
+    description="Create projects from selected autogenerate suggestions",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("create from autogen")
+async def create_from_autogen(
+    request: AutogenCreateRequest,
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
+) -> AutogenCreateResponse:
+    """Create projects from selected suggestions.
+
+    Creates projects from the provided suggestions and assigns
+    the corresponding actions to each project.
+    """
+    from backend.services.project_autogen import (
+        AutogenProjectSuggestion,
+        create_projects_from_suggestions,
+    )
+
+    user_id = user["user_id"]
+
+    if not request.suggestions:
+        return {"created_projects": [], "count": 0}
+
+    # Convert request suggestions to service dataclass
+    service_suggestions = [
+        AutogenProjectSuggestion(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            action_ids=s.action_ids,
+            confidence=s.confidence,
+            rationale=s.rationale,
+        )
+        for s in request.suggestions
+    ]
+
+    # Create projects
+    created = await create_projects_from_suggestions(
+        suggestions=service_suggestions,
+        user_id=user_id,
+        workspace_id=request.workspace_id,
+    )
+
+    # Format responses
+    formatted_projects = [_format_project_response(p) for p in created]
+
+    return {
+        "created_projects": formatted_projects,
+        "count": len(formatted_projects),
+    }
+
+
+@router.get(
+    "/context-suggestions",
+    response_model=ContextSuggestionsResponse,
+    summary="Get context-based project suggestions",
+    description="Generate project suggestions from user's business context",
+    responses={403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("get context suggestions")
+async def get_context_suggestions(
+    user: SessionAuthDep,
+) -> ContextSuggestionsResponse:
+    """Get project suggestions based on business context.
+
+    Analyzes the user's business context (primary_objective, industry, etc.)
+    and suggests strategic projects aligned with their priorities.
+    """
+    from backend.services.context_project_suggester import (
+        get_context_completeness,
+        suggest_from_context,
+    )
+
+    user_id = user["user_id"]
+
+    # Check context completeness first
+    completeness = get_context_completeness(user_id)
+
+    if not completeness["has_minimum"]:
+        return {
+            "suggestions": [],
+            "context_completeness": completeness["completeness"],
+            "has_minimum_context": False,
+            "missing_fields": completeness["missing_required"]
+            + completeness["missing_recommended"],
+        }
+
+    # Get suggestions from LLM
+    suggestions = await suggest_from_context(user_id)
+
+    # Convert to response model format
+    response_suggestions = [
+        ContextProjectSuggestion(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            rationale=s.rationale,
+            category=s.category,
+            priority=s.priority,
+        )
+        for s in suggestions
+    ]
+
+    return {
+        "suggestions": response_suggestions,
+        "context_completeness": completeness["completeness"],
+        "has_minimum_context": True,
+        "missing_fields": completeness["missing_recommended"],
+    }
+
+
+@router.post(
+    "/context-suggestions",
+    response_model=AutogenCreateResponse,
+    status_code=201,
+    summary="Create projects from context suggestions",
+    description="Create projects from selected context-based suggestions",
+    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("create from context suggestions")
+async def create_from_context_suggestions(
+    request: ContextCreateRequest,
+    user: SessionAuthDep,
+    _csrf: CSRFTokenDep,
+) -> AutogenCreateResponse:
+    """Create projects from selected context suggestions.
+
+    Creates projects from the provided suggestions.
+    """
+    user_id = user["user_id"]
+
+    if not request.suggestions:
+        return {"created_projects": [], "count": 0}
+
+    created_projects = []
+
+    for suggestion in request.suggestions:
+        # Create project
+        project = project_repository.create(
+            user_id=user_id,
+            name=suggestion.name,
+            description=suggestion.description,
+        )
+
+        if not project:
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to create project: {suggestion.name}",
+                user_id=user_id,
+            )
+            continue
+
+        project_id = str(project["id"])
+
+        # Update workspace_id if provided
+        if request.workspace_id:
+            from bo1.state.database import db_session
+
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE projects SET workspace_id = %s WHERE id = %s",
+                        (request.workspace_id, project_id),
+                    )
+
+        # Get updated project
+        updated_project = project_repository.get(project_id)
+        if updated_project:
+            created_projects.append(_format_project_response(updated_project))
+
+    return {
+        "created_projects": created_projects,
+        "count": len(created_projects),
+    }
+
+
+# =========================================================================
+# Dynamic project routes (must come after static routes)
+# =========================================================================
+
+
+@router.get(
     "/{project_id}",
     response_model=ProjectDetailResponse,
     summary="Get project details",
@@ -745,257 +993,4 @@ async def create_project_meeting(
         "created_at": session["created_at"].isoformat() if session.get("created_at") else None,
         "updated_at": session["updated_at"].isoformat() if session.get("updated_at") else None,
         "last_activity_at": None,
-    }
-
-
-# =========================================================================
-# Project Autogeneration
-# =========================================================================
-
-
-@router.get(
-    "/autogenerate-suggestions",
-    response_model=AutogenSuggestionsResponse,
-    summary="Get autogenerate suggestions",
-    description="Analyze unassigned actions and suggest project groupings",
-    responses={403: ERROR_403_RESPONSE},
-)
-@handle_api_errors("get autogen suggestions")
-async def get_autogen_suggestions(
-    user: SessionAuthDep,
-) -> AutogenSuggestionsResponse:
-    """Get project suggestions from unassigned actions.
-
-    Analyzes unassigned actions using LLM to identify coherent groupings
-    and returns suggestions for user review.
-    """
-    from backend.services.project_autogen import (
-        MIN_ACTIONS_FOR_AUTOGEN,
-        get_unassigned_action_count,
-    )
-    from backend.services.project_autogen import (
-        get_autogen_suggestions as get_suggestions,
-    )
-
-    user_id = user["user_id"]
-
-    # Get unassigned count first
-    unassigned_count = get_unassigned_action_count(user_id)
-
-    # If not enough actions, return early
-    if unassigned_count < MIN_ACTIONS_FOR_AUTOGEN:
-        return {
-            "suggestions": [],
-            "unassigned_count": unassigned_count,
-            "min_required": MIN_ACTIONS_FOR_AUTOGEN,
-        }
-
-    # Get suggestions from LLM
-    suggestions = await get_suggestions(user_id)
-
-    # Convert to response model format
-    response_suggestions = [
-        AutogenSuggestion(
-            id=s.id,
-            name=s.name,
-            description=s.description,
-            action_ids=s.action_ids,
-            confidence=s.confidence,
-            rationale=s.rationale,
-        )
-        for s in suggestions
-    ]
-
-    return {
-        "suggestions": response_suggestions,
-        "unassigned_count": unassigned_count,
-        "min_required": MIN_ACTIONS_FOR_AUTOGEN,
-    }
-
-
-@router.post(
-    "/autogenerate",
-    response_model=AutogenCreateResponse,
-    status_code=201,
-    summary="Create projects from suggestions",
-    description="Create projects from selected autogenerate suggestions",
-    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
-)
-@handle_api_errors("create from autogen")
-async def create_from_autogen(
-    request: AutogenCreateRequest,
-    user: SessionAuthDep,
-    _csrf: CSRFTokenDep,
-) -> AutogenCreateResponse:
-    """Create projects from selected suggestions.
-
-    Creates projects from the provided suggestions and assigns
-    the corresponding actions to each project.
-    """
-    from backend.services.project_autogen import (
-        AutogenProjectSuggestion,
-        create_projects_from_suggestions,
-    )
-
-    user_id = user["user_id"]
-
-    if not request.suggestions:
-        return {"created_projects": [], "count": 0}
-
-    # Convert request suggestions to service dataclass
-    service_suggestions = [
-        AutogenProjectSuggestion(
-            id=s.id,
-            name=s.name,
-            description=s.description,
-            action_ids=s.action_ids,
-            confidence=s.confidence,
-            rationale=s.rationale,
-        )
-        for s in request.suggestions
-    ]
-
-    # Create projects
-    created = await create_projects_from_suggestions(
-        suggestions=service_suggestions,
-        user_id=user_id,
-        workspace_id=request.workspace_id,
-    )
-
-    # Format responses
-    formatted_projects = [_format_project_response(p) for p in created]
-
-    return {
-        "created_projects": formatted_projects,
-        "count": len(formatted_projects),
-    }
-
-
-# =========================================================================
-# Context-Based Project Suggestions
-# =========================================================================
-
-
-@router.get(
-    "/context-suggestions",
-    response_model=ContextSuggestionsResponse,
-    summary="Get context-based project suggestions",
-    description="Generate project suggestions from user's business context",
-    responses={403: ERROR_403_RESPONSE},
-)
-@handle_api_errors("get context suggestions")
-async def get_context_suggestions(
-    user: SessionAuthDep,
-) -> ContextSuggestionsResponse:
-    """Get project suggestions based on business context.
-
-    Analyzes the user's business context (primary_objective, industry, etc.)
-    and suggests strategic projects aligned with their priorities.
-    """
-    from backend.services.context_project_suggester import (
-        get_context_completeness,
-        suggest_from_context,
-    )
-
-    user_id = user["user_id"]
-
-    # Check context completeness first
-    completeness = get_context_completeness(user_id)
-
-    if not completeness["has_minimum"]:
-        return {
-            "suggestions": [],
-            "context_completeness": completeness["completeness"],
-            "has_minimum_context": False,
-            "missing_fields": completeness["missing_required"]
-            + completeness["missing_recommended"],
-        }
-
-    # Get suggestions from LLM
-    suggestions = await suggest_from_context(user_id)
-
-    # Convert to response model format
-    response_suggestions = [
-        ContextProjectSuggestion(
-            id=s.id,
-            name=s.name,
-            description=s.description,
-            rationale=s.rationale,
-            category=s.category,
-            priority=s.priority,
-        )
-        for s in suggestions
-    ]
-
-    return {
-        "suggestions": response_suggestions,
-        "context_completeness": completeness["completeness"],
-        "has_minimum_context": True,
-        "missing_fields": completeness["missing_recommended"],
-    }
-
-
-@router.post(
-    "/context-suggestions",
-    response_model=AutogenCreateResponse,
-    status_code=201,
-    summary="Create projects from context suggestions",
-    description="Create projects from selected context-based suggestions",
-    responses={400: ERROR_400_RESPONSE, 403: ERROR_403_RESPONSE},
-)
-@handle_api_errors("create from context suggestions")
-async def create_from_context_suggestions(
-    request: ContextCreateRequest,
-    user: SessionAuthDep,
-    _csrf: CSRFTokenDep,
-) -> AutogenCreateResponse:
-    """Create projects from selected context suggestions.
-
-    Creates projects from the provided suggestions.
-    """
-    user_id = user["user_id"]
-
-    if not request.suggestions:
-        return {"created_projects": [], "count": 0}
-
-    created_projects = []
-
-    for suggestion in request.suggestions:
-        # Create project
-        project = project_repository.create(
-            user_id=user_id,
-            name=suggestion.name,
-            description=suggestion.description,
-        )
-
-        if not project:
-            log_error(
-                logger,
-                ErrorCode.SERVICE_EXECUTION_ERROR,
-                f"Failed to create project: {suggestion.name}",
-                user_id=user_id,
-            )
-            continue
-
-        project_id = str(project["id"])
-
-        # Update workspace_id if provided
-        if request.workspace_id:
-            from bo1.state.database import db_session
-
-            with db_session() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE projects SET workspace_id = %s WHERE id = %s",
-                        (request.workspace_id, project_id),
-                    )
-
-        # Get updated project
-        updated_project = project_repository.get(project_id)
-        if updated_project:
-            created_projects.append(_format_project_response(updated_project))
-
-    return {
-        "created_projects": created_projects,
-        "count": len(created_projects),
     }

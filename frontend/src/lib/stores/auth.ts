@@ -35,6 +35,13 @@ export interface User {
 	auth_provider: 'google' | 'linkedin' | 'github' | 'email';
 	subscription_tier: 'free' | 'pro' | 'enterprise';
 	is_admin?: boolean;
+	password_upgrade_needed?: boolean;
+	// Impersonation metadata (present when admin is impersonating)
+	is_impersonation?: boolean;
+	real_admin_id?: string;
+	impersonation_write_mode?: boolean;
+	impersonation_expires_at?: string;
+	impersonation_remaining_seconds?: number;
 }
 
 export interface AuthState {
@@ -60,6 +67,10 @@ export const user = derived(authStore, ($auth) => $auth.user);
 export const isAuthenticated = derived(authStore, ($auth) => $auth.isAuthenticated);
 export const isLoading = derived(authStore, ($auth) => $auth.isLoading);
 export const authError = derived(authStore, ($auth) => $auth.error);
+export const passwordUpgradeNeeded = derived(
+	authStore,
+	($auth) => $auth.user?.password_upgrade_needed ?? false
+);
 
 /**
  * Initialize auth store - check if user has valid SuperTokens session.
@@ -182,6 +193,17 @@ export async function signOut(): Promise<void> {
  */
 export async function checkSession(): Promise<void> {
 	await initAuth();
+}
+
+/**
+ * Clear the password upgrade needed flag after successful upgrade.
+ * Called by PasswordUpgradePrompt after successful password change.
+ */
+export function clearPasswordUpgradeFlag(): void {
+	authStore.update((state) => ({
+		...state,
+		user: state.user ? { ...state.user, password_upgrade_needed: false } : null,
+	}));
 }
 
 // Export store

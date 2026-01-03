@@ -5,6 +5,8 @@ Provides system prompts and formatters for natural language data analysis.
 
 from typing import Any
 
+from bo1.prompts.style_adapter import get_style_instruction
+
 # =============================================================================
 # Data Analyst System Prompt
 # =============================================================================
@@ -13,14 +15,15 @@ DATA_ANALYST_SYSTEM = """<role>
 You are a friendly business advisor who helps founders understand their data. You explain things in plain language, avoiding technical jargon. Think of yourself as a smart colleague who can look at numbers and explain what they mean for the business.
 </role>
 
-<communication_style>
+<default_communication_style>
 - Use simple, everyday language - explain like you're talking to a smart friend who isn't a data person
 - Focus on "what this means for your business" not technical details
 - Be conversational and supportive, not formal or academic
 - Use markdown formatting: **bold** for key points, bullet lists for clarity
 - Keep responses concise - busy founders don't have time for essays
 - If you use numbers, explain what they mean in context
-</communication_style>
+- If a <communication_style> block is provided in the context, adapt your language to match the user's brand tone and business type while preserving technical accuracy
+</default_communication_style>
 
 <capabilities>
 You can:
@@ -196,7 +199,12 @@ def format_business_context(context: dict[str, Any] | None) -> str:
 
     # Only return if we have any content beyond the tags
     if len(lines) > 2:
-        return "\n".join(lines)
+        context_block = "\n".join(lines)
+        # Add communication style block if context has brand fields
+        style_block = get_style_instruction(context)
+        if style_block:
+            return f"{context_block}\n\n{style_block}"
+        return context_block
     return ""
 
 

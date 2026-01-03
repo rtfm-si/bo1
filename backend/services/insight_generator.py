@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from backend.api.models import (
     BusinessDomain,
+    ChartSpec,
     ColumnSemantic,
     DataIdentity,
     DataQualityScore,
@@ -22,6 +23,7 @@ from backend.api.models import (
     InsightSeverity,
     InsightType,
     SemanticColumnType,
+    SuggestedChart,
     SuggestedQuestion,
 )
 from bo1.llm.client import ClaudeClient
@@ -215,6 +217,196 @@ def _parse_llm_response(response: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+def _generate_chart_suggestions(profile_dict: dict[str, Any]) -> list[SuggestedChart]:
+    """Generate chart suggestions based on column types and statistics.
+
+    Heuristics:
+    - Numeric columns → histogram for distribution
+    - Categorical + numeric → bar chart by category
+    - Date + numeric → time series line chart
+    - Two numeric columns → scatter plot
+
+    Limits scan to first 20 columns to avoid overwhelming wide datasets.
+    """
+    columns = profile_dict.get("columns", [])[:20]  # Limit to first 20 columns
+    if not columns:
+        return []
+
+    suggestions: list[SuggestedChart] = []
+
+    # Classify columns by type
+    numeric_cols: list[dict] = []
+    categorical_cols: list[dict] = []
+    date_cols: list[dict] = []
+
+    for col in columns:
+        col_type = col.get("inferred_type", "").lower()
+        col.get("name", "")
+        stats = col.get("stats", {})
+        unique_count = stats.get("unique_count", 0) or 0
+        row_count = profile_dict.get("row_count", 1) or 1
+
+        # Classify by type and cardinality
+        if col_type in ("integer", "float", "number", "numeric"):
+            numeric_cols.append(col)
+        elif col_type in ("date", "datetime", "timestamp"):
+            date_cols.append(col)
+        elif col_type in ("string", "text", "category", "object"):
+            # Only treat as categorical if cardinality is reasonable (< 50 unique or < 20% of rows)
+            if unique_count > 0 and (unique_count < 50 or unique_count / row_count < 0.2):
+                categorical_cols.append(col)
+
+    # Priority 1: Time series (date + numeric)
+    if date_cols and numeric_cols:
+        date_col = date_cols[0]
+        # Pick numeric column with highest variance if available
+        numeric_col = _pick_best_numeric(numeric_cols)
+        suggestions.append(
+            SuggestedChart(
+                chart_spec=ChartSpec(
+                    chart_type="line",
+                    x_field=date_col["name"],
+                    y_field=numeric_col["name"],
+                    title=f"{numeric_col['name']} over time",
+                ),
+                title=f"{numeric_col['name']} Trend",
+                rationale=f"Shows how {numeric_col['name']} changes over time using {date_col['name']}",
+            )
+        )
+
+    # Priority 2: Category breakdown (categorical + numeric)
+    if categorical_cols and numeric_cols:
+        cat_col = _pick_best_categorical(categorical_cols)
+        numeric_col = _pick_best_numeric(numeric_cols)
+        suggestions.append(
+            SuggestedChart(
+                chart_spec=ChartSpec(
+                    chart_type="bar",
+                    x_field=cat_col["name"],
+                    y_field=numeric_col["name"],
+                    title=f"{numeric_col['name']} by {cat_col['name']}",
+                ),
+                title=f"{numeric_col['name']} by {cat_col['name']}",
+                rationale=f"Compare {numeric_col['name']} across different {cat_col['name']} values",
+            )
+        )
+
+    # Priority 3: Numeric distribution (histogram)
+    if numeric_cols:
+        numeric_col = _pick_best_numeric(numeric_cols)
+        suggestions.append(
+            SuggestedChart(
+                chart_spec=ChartSpec(
+                    chart_type="bar",  # Histogram rendered as bar chart
+                    x_field=numeric_col["name"],
+                    y_field=numeric_col["name"],  # Will be aggregated as count
+                    title=f"Distribution of {numeric_col['name']}",
+                ),
+                title=f"{numeric_col['name']} Distribution",
+                rationale=f"See how {numeric_col['name']} values are distributed",
+            )
+        )
+
+    # Priority 4: Scatter plot (two numeric columns)
+    if len(numeric_cols) >= 2:
+        col1 = numeric_cols[0]
+        col2 = numeric_cols[1]
+        suggestions.append(
+            SuggestedChart(
+                chart_spec=ChartSpec(
+                    chart_type="scatter",
+                    x_field=col1["name"],
+                    y_field=col2["name"],
+                    title=f"{col1['name']} vs {col2['name']}",
+                ),
+                title=f"{col1['name']} vs {col2['name']}",
+                rationale=f"Explore relationship between {col1['name']} and {col2['name']}",
+            )
+        )
+
+    # Priority 5: Pie chart for categorical distribution
+    if categorical_cols:
+        cat_col = _pick_best_categorical(categorical_cols)
+        suggestions.append(
+            SuggestedChart(
+                chart_spec=ChartSpec(
+                    chart_type="pie",
+                    x_field=cat_col["name"],
+                    y_field=cat_col["name"],  # Count aggregation
+                    title=f"Distribution of {cat_col['name']}",
+                ),
+                title=f"{cat_col['name']} Breakdown",
+                rationale=f"See the proportional breakdown of {cat_col['name']} categories",
+            )
+        )
+
+    # Limit to 3 suggestions
+    return suggestions[:3]
+
+
+def _pick_best_numeric(cols: list[dict]) -> dict:
+    """Pick the numeric column with highest variance (most interesting)."""
+    if not cols:
+        return {}
+
+    # Score by variance/range if available, else by name heuristics
+    best = cols[0]
+    best_score = 0.0
+
+    for col in cols:
+        stats = col.get("stats", {})
+        col_name = col.get("name", "").lower()
+
+        # Prefer revenue/value/amount columns
+        score = 0.0
+        if any(kw in col_name for kw in ("revenue", "amount", "value", "price", "cost", "total")):
+            score += 100
+
+        # Add variance-based scoring if available
+        std_dev = stats.get("std_dev")
+        if std_dev is not None:
+            score += float(std_dev)
+
+        if score > best_score:
+            best_score = score
+            best = col
+
+    return best
+
+
+def _pick_best_categorical(cols: list[dict]) -> dict:
+    """Pick categorical column with reasonable cardinality (3-20 values ideal)."""
+    if not cols:
+        return {}
+
+    best = cols[0]
+    best_score = 0.0
+
+    for col in cols:
+        stats = col.get("stats", {})
+        col_name = col.get("name", "").lower()
+        unique_count = stats.get("unique_count", 0) or 0
+
+        # Prefer columns with 3-20 unique values (good for charts)
+        score = 0.0
+        if 3 <= unique_count <= 20:
+            score += 50
+        elif unique_count < 3:
+            score += 10
+        else:
+            score += max(0, 30 - (unique_count - 20))
+
+        # Prefer meaningful categorical names
+        if any(kw in col_name for kw in ("category", "type", "status", "region", "segment")):
+            score += 30
+
+        if score > best_score:
+            best_score = score
+            best = col
+
+    return best
+
+
 def _build_fallback_insights(
     profile_dict: dict[str, Any],
     dataset_name: str,
@@ -290,6 +482,7 @@ def _build_fallback_insights(
         column_semantics=column_semantics,
         narrative_summary=f"This dataset named '{dataset_name}' contains {row_count:,} records "
         f"with {col_count} columns. Generate a full profile to receive detailed business insights.",
+        suggested_charts=_generate_chart_suggestions(profile_dict),
     )
 
 
@@ -365,6 +558,10 @@ async def generate_dataset_insights(
 
         # Parse response
         parsed = _parse_llm_response(response)
+        # Add chart suggestions (not generated by LLM - done heuristically)
+        parsed["suggested_charts"] = [
+            chart.model_dump() for chart in _generate_chart_suggestions(profile_dict)
+        ]
         insights = DatasetInsights(**parsed)
 
         logger.info(

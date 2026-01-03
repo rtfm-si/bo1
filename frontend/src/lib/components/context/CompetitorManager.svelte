@@ -14,8 +14,11 @@
 		Loader2,
 		X,
 		ExternalLink,
-		Clock
+		Clock,
+		AlertTriangle
 	} from 'lucide-svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoFormField from '$lib/components/ui/BoFormField.svelte';
@@ -167,6 +170,19 @@
 	function formatDate(dateStr: string): string {
 		const date = new Date(dateStr);
 		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	}
+
+	function getRelevanceBadge(score: number | null | undefined): { label: string; variant: 'success' | 'warning' | 'error'; tooltip: string } {
+		if (score === null || score === undefined) {
+			return { label: '', variant: 'success', tooltip: '' };
+		}
+		if (score > 0.66) {
+			return { label: 'High', variant: 'success', tooltip: 'Strong match: similar product, target customer, and market' };
+		}
+		if (score > 0.33) {
+			return { label: 'Medium', variant: 'warning', tooltip: 'Partial match: some overlap in product or market' };
+		}
+		return { label: 'Low', variant: 'error', tooltip: 'Weak match: may not be a direct competitor' };
 	}
 
 	// Load on mount if no initial data provided
@@ -339,6 +355,19 @@
 										>
 											<ExternalLink class="h-4 w-4" />
 										</a>
+									{/if}
+									<!-- Relevance badge -->
+									{#if competitor.relevance_score !== null && competitor.relevance_score !== undefined}
+										{@const badge = getRelevanceBadge(competitor.relevance_score)}
+										<Tooltip text={badge.tooltip}>
+											<Badge variant={badge.variant} size="sm">{badge.label}</Badge>
+										</Tooltip>
+									{/if}
+									<!-- Warning indicator -->
+									{#if competitor.relevance_warning}
+										<Tooltip text={competitor.relevance_warning}>
+											<AlertTriangle class="h-4 w-4 text-amber-500" />
+										</Tooltip>
 									{/if}
 								</div>
 

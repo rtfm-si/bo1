@@ -97,6 +97,7 @@ import type {
 	DatasetAnalysisListResponse,
 	// Conversation types (Dataset Q&A)
 	ConversationResponse,
+	ConversationDetailResponse,
 	ConversationListResponse,
 	// Mentor Chat types
 	MentorConversationResponse,
@@ -208,6 +209,10 @@ import type {
 	// Key Metrics types
 	KeyMetricsResponse,
 	KeyMetricConfigUpdate,
+	// Metric Suggestions types
+	MetricSuggestionsResponse,
+	ApplyMetricSuggestionRequest,
+	ApplyMetricSuggestionResponse,
 	// Working Pattern types
 	WorkingPatternResponse,
 	WorkingPatternUpdate,
@@ -621,10 +626,14 @@ export interface RetentionReminderSettingsResponse {
 
 export interface UserPreferences {
 	skip_clarification: boolean;
+	default_reminder_frequency_days: number;
+	preferred_currency: 'GBP' | 'USD' | 'EUR';
 }
 
 export interface UserPreferencesResponse {
 	skip_clarification: boolean;
+	default_reminder_frequency_days: number;
+	preferred_currency: string;
 }
 
 // ============================================================================
@@ -2177,6 +2186,13 @@ export class ApiClient {
 	}
 
 	/**
+	 * Preview a chart without saving (lighter weight than generateChart)
+	 */
+	async previewChart(datasetId: string, spec: ChartSpec): Promise<ChartResultResponse> {
+		return this.post<ChartResultResponse>(`/api/v1/datasets/${datasetId}/preview-chart`, spec);
+	}
+
+	/**
 	 * Get analysis history for a dataset (charts/queries)
 	 */
 	async getDatasetAnalyses(datasetId: string, limit?: number): Promise<DatasetAnalysisListResponse> {
@@ -2272,10 +2288,10 @@ export class ApiClient {
 	}
 
 	/**
-	 * Get a specific conversation
+	 * Get a specific conversation with full message history
 	 */
-	async getConversation(datasetId: string, conversationId: string): Promise<ConversationResponse> {
-		return this.fetch<ConversationResponse>(
+	async getConversation(datasetId: string, conversationId: string): Promise<ConversationDetailResponse> {
+		return this.fetch<ConversationDetailResponse>(
 			`/api/v1/datasets/${datasetId}/conversations/${conversationId}`
 		);
 	}
@@ -3578,6 +3594,29 @@ export class ApiClient {
 	 */
 	async updateKeyMetricsConfig(config: KeyMetricConfigUpdate): Promise<KeyMetricsResponse> {
 		return this.put<KeyMetricsResponse>('/api/v1/context/key-metrics/config', config);
+	}
+
+	// ============================================================================
+	// Metric Suggestions from Insights
+	// ============================================================================
+
+	/**
+	 * Get metric suggestions from clarification insights
+	 */
+	async getMetricSuggestions(): Promise<MetricSuggestionsResponse> {
+		return this.fetch<MetricSuggestionsResponse>('/api/v1/context/metric-suggestions');
+	}
+
+	/**
+	 * Apply a metric suggestion to update context
+	 */
+	async applyMetricSuggestion(
+		request: ApplyMetricSuggestionRequest
+	): Promise<ApplyMetricSuggestionResponse> {
+		return this.post<ApplyMetricSuggestionResponse>(
+			'/api/v1/context/apply-metric-suggestion',
+			request
+		);
 	}
 
 	// ============================================================================

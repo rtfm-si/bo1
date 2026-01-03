@@ -8,6 +8,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -98,6 +99,155 @@ def _is_valid_competitor_name(name: str) -> bool:
     return name[0].isupper() and len(words) <= 4
 
 
+def _normalize_competitor_url(url: str | None, company_name: str) -> str | None:
+    """Normalize and validate a competitor URL.
+
+    Extracts actual company domain from G2/Capterra links or guesses from name.
+
+    Args:
+        url: Raw URL from search results (may be G2/Capterra link)
+        company_name: Company name for domain guessing
+
+    Returns:
+        Normalized company URL or None
+    """
+    if not url:
+        # Try to guess domain from company name
+        return _guess_domain_from_name(company_name)
+
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+
+        # If it's a review site, try to extract the company domain
+        review_sites = [
+            "g2.com",
+            "capterra.com",
+            "trustradius.com",
+            "getapp.com",
+            "alternativeto.net",
+        ]
+        if any(site in domain for site in review_sites):
+            # G2 pattern: g2.com/products/companyname/...
+            # Capterra pattern: capterra.com/p/123456/companyname/
+            # Try to extract company name from path and guess domain
+            return _guess_domain_from_name(company_name)
+
+        # Already a company domain
+        return f"https://{domain}"
+
+    except Exception:
+        return _guess_domain_from_name(company_name)
+
+
+def _guess_domain_from_name(company_name: str) -> str | None:
+    """Guess company domain from name.
+
+    Args:
+        company_name: Company name
+
+    Returns:
+        Guessed domain URL or None
+    """
+    if not company_name:
+        return None
+
+    # Normalize: lowercase, remove spaces and special chars
+    clean_name = re.sub(r"[^a-z0-9]", "", company_name.lower())
+
+    if len(clean_name) < 2:
+        return None
+
+    # Common patterns
+    return f"https://{clean_name}.com"
+
+
+def _normalize_competitor_name(name: str) -> str:
+    """Normalize a competitor name for deduplication.
+
+    Args:
+        name: Raw company name
+
+    Returns:
+        Normalized name for comparison
+    """
+    if not name:
+        return ""
+
+    # Lowercase
+    normalized = name.lower().strip()
+
+    # Remove common suffixes
+    suffixes = [
+        ", inc.",
+        ", inc",
+        " inc.",
+        " inc",
+        ", llc",
+        " llc",
+        ", ltd",
+        " ltd",
+        ".com",
+        ".io",
+        ".ai",
+        ".co",
+        " software",
+        " platform",
+        " app",
+    ]
+    for suffix in suffixes:
+        if normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+
+    # Remove special characters for comparison
+    normalized = re.sub(r"[^a-z0-9]", "", normalized)
+
+    return normalized
+
+
+def _deduplicate_competitors(
+    competitors: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Deduplicate competitors by normalized name.
+
+    Merges data from duplicates, keeping the one with most info.
+
+    Args:
+        competitors: List of competitor dicts
+
+    Returns:
+        Deduplicated list
+    """
+    seen: dict[str, dict[str, Any]] = {}
+
+    for comp in competitors:
+        name = comp.get("name", "")
+        normalized = _normalize_competitor_name(name)
+
+        if not normalized:
+            continue
+
+        if normalized in seen:
+            # Merge: prefer entries with more data
+            existing = seen[normalized]
+            # Keep better URL
+            if not existing.get("url") and comp.get("url"):
+                existing["url"] = comp["url"]
+            # Keep better description
+            if not existing.get("description") and comp.get("description"):
+                existing["description"] = comp["description"]
+            # Keep higher confidence
+            confidence_rank = {"high": 3, "medium": 2, "low": 1}
+            if confidence_rank.get(comp.get("confidence"), 0) > confidence_rank.get(
+                existing.get("confidence"), 0
+            ):
+                existing["confidence"] = comp["confidence"]
+        else:
+            seen[normalized] = comp
+
+    return list(seen.values())
+
+
 async def _extract_competitors_with_llm(
     results: list[dict[str, Any]],
     company_name: str | None,
@@ -135,11 +285,13 @@ RULES:
 2. DO NOT include generic terms like "Top Productivity Tools", "Best CRM Software", "2024 Guide"
 3. DO NOT include the user's own company{f': "{company_name}"' if company_name else ""}
 4. Each name should be a real company you're confident exists
-5. Include URL if available from the results
+5. Include URL if available from the results (extract the company's actual domain, not the G2/Capterra page)
+6. Write a brief 1-2 sentence description of what the company does based on the search content
+7. Classify the competitor type: "direct" (same product), "indirect" (different approach to same problem), or "adjacent" (related market)
 
 Return a JSON array of objects with this format:
 [
-  {{"name": "CompanyName", "url": "https://...", "confidence": "high/medium/low"}},
+  {{"name": "CompanyName", "url": "https://company.com", "description": "Brief description of what they do", "category": "direct/indirect/adjacent", "confidence": "high/medium/low"}},
   ...
 ]
 
@@ -173,9 +325,12 @@ Return ONLY the JSON array, no other text. If no valid companies found, return [
         for item in extracted:
             name = item.get("name", "")
             if _is_valid_competitor_name(name):
+                # Normalize URL
+                item["url"] = _normalize_competitor_url(item.get("url"), name)
                 validated.append(item)
 
-        return validated
+        # Deduplicate by normalized name
+        return _deduplicate_competitors(validated)
 
     except Exception as e:
         log_error(

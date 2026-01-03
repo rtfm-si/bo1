@@ -279,3 +279,144 @@ class TestRelevanceScoreCalculation:
         checks_passed = 0
         score = round(checks_passed / 3, 2)
         assert score == 0.0
+
+
+class TestConfidenceWeightedScoring:
+    """Tests for confidence-weighted relevance scoring."""
+
+    def test_high_confidence_full_score(self):
+        """Test high confidence with all checks passing."""
+        from backend.api.context.skeptic import CONFIDENCE_WEIGHTS
+
+        checks_passed = 3
+        base_score = checks_passed / 3  # 1.0
+        weight = CONFIDENCE_WEIGHTS["high"]  # 1.0
+        score = round(base_score * weight, 2)
+        assert score == 1.0
+
+    def test_medium_confidence_reduces_score(self):
+        """Test medium confidence reduces the score."""
+        from backend.api.context.skeptic import CONFIDENCE_WEIGHTS
+
+        checks_passed = 3
+        base_score = checks_passed / 3  # 1.0
+        weight = CONFIDENCE_WEIGHTS["medium"]  # 0.7
+        score = round(base_score * weight, 2)
+        assert score == 0.7
+
+    def test_low_confidence_reduces_score_more(self):
+        """Test low confidence reduces the score significantly."""
+        from backend.api.context.skeptic import CONFIDENCE_WEIGHTS
+
+        checks_passed = 3
+        base_score = checks_passed / 3  # 1.0
+        weight = CONFIDENCE_WEIGHTS["low"]  # 0.4
+        score = round(base_score * weight, 2)
+        assert score == 0.4
+
+    def test_partial_checks_with_confidence(self):
+        """Test partial checks with confidence weighting."""
+        from backend.api.context.skeptic import CONFIDENCE_WEIGHTS
+
+        checks_passed = 2  # 2/3 = 0.666...
+        base_score = checks_passed / 3
+        weight = CONFIDENCE_WEIGHTS["medium"]  # 0.7
+        score = round(base_score * weight, 2)
+        # 0.666... * 0.7 = 0.466... rounds to 0.47
+        assert score == 0.47
+
+
+class TestCacheKeyGeneration:
+    """Tests for cache key generation."""
+
+    def test_cache_key_normalization(self):
+        """Test cache key normalizes competitor name."""
+        from backend.api.context.skeptic import _get_cache_key
+
+        key1 = _get_cache_key("HubSpot", "abc123")
+        key2 = _get_cache_key("hubspot", "abc123")
+        key3 = _get_cache_key("Hub Spot", "abc123")
+
+        assert key1 == key2
+        assert key1 == key3
+
+    def test_cache_key_different_context(self):
+        """Test cache key differs for different context."""
+        from backend.api.context.skeptic import _get_cache_key
+
+        key1 = _get_cache_key("HubSpot", "context1")
+        key2 = _get_cache_key("HubSpot", "context2")
+
+        assert key1 != key2
+
+
+class TestContextHashing:
+    """Tests for context hashing."""
+
+    def test_same_context_same_hash(self):
+        """Test same context produces same hash."""
+        from backend.api.context.skeptic import _hash_context
+
+        ctx1 = {"company_name": "Acme", "industry": "Software"}
+        ctx2 = {"company_name": "Acme", "industry": "Software"}
+
+        assert _hash_context(ctx1) == _hash_context(ctx2)
+
+    def test_different_context_different_hash(self):
+        """Test different context produces different hash."""
+        from backend.api.context.skeptic import _hash_context
+
+        ctx1 = {"company_name": "Acme", "industry": "Software"}
+        ctx2 = {"company_name": "Acme", "industry": "Hardware"}
+
+        assert _hash_context(ctx1) != _hash_context(ctx2)
+
+    def test_hash_only_relevant_fields(self):
+        """Test hash only uses relevant fields."""
+        from backend.api.context.skeptic import _hash_context
+
+        ctx1 = {"company_name": "Acme", "industry": "Software", "extra_field": "value"}
+        ctx2 = {"company_name": "Acme", "industry": "Software", "extra_field": "other"}
+
+        # extra_field is not in the relevant fields list, so hash should be same
+        assert _hash_context(ctx1) == _hash_context(ctx2)
+
+
+class TestParseResponseWithConfidence:
+    """Tests for parsing responses with confidence field."""
+
+    def test_parse_with_confidence(self):
+        """Test parsing response with confidence field."""
+        response = '{"similar_product": true, "same_icp": true, "same_market": true, "confidence": "high", "warning": null}'
+        result = _parse_skeptic_response(response)
+        assert result is not None
+        assert result["confidence"] == "high"
+
+    def test_parse_with_reasoning(self):
+        """Test parsing response with reasoning fields."""
+        response = """{
+            "similar_product": true,
+            "similar_product_reasoning": "Both are CRM tools",
+            "same_icp": true,
+            "same_icp_reasoning": "Target small businesses",
+            "same_market": false,
+            "same_market_reasoning": "Different regions",
+            "confidence": "medium",
+            "warning": null
+        }"""
+        result = _parse_skeptic_response(response)
+        assert result is not None
+        assert result["similar_product_reasoning"] == "Both are CRM tools"
+        assert result["confidence"] == "medium"
+
+    def test_parse_batch_with_confidence(self):
+        """Test parsing batch response with confidence."""
+        response = """[
+            {"similar_product": true, "same_icp": true, "same_market": true, "confidence": "high", "warning": null},
+            {"similar_product": false, "same_icp": false, "same_market": false, "confidence": "low", "warning": "Not relevant"}
+        ]"""
+        result = _parse_batch_response(response)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["confidence"] == "high"
+        assert result[1]["confidence"] == "low"

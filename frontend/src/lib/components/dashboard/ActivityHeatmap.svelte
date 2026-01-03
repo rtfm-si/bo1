@@ -26,6 +26,9 @@
 	// Reference to heatmap container for image export
 	let heatmapContainer: HTMLElement | null = $state(null);
 
+	// Container width for responsive sizing
+	let containerWidth = $state(0);
+
 	// Activity types for filtering
 	type ActivityType = 'sessions_run' | 'completed_count' | 'in_progress_count' | 'mentor_sessions' | 'estimated_starts' | 'estimated_completions';
 
@@ -120,6 +123,21 @@
 	// Calculate number of weeks to display
 	const weekCount = $derived.by(() => {
 		return Math.ceil(dateRange.days / 7) + 1;
+	});
+
+	// Dynamic cell size based on container width and week count
+	const cellSize = $derived.by(() => {
+		if (containerWidth === 0) return { cell: 14, gap: 4 }; // default fallback
+
+		const dayLabelWidth = 32; // ~w-8
+		const availableWidth = containerWidth - dayLabelWidth - 16; // padding
+
+		// Calculate max cell size to fill available space
+		const maxCellWithGap = availableWidth / weekCount;
+		const gap = Math.min(4, Math.max(2, maxCellWithGap * 0.15)); // 15% gap, clamped
+		const cell = Math.min(24, Math.max(12, maxCellWithGap - gap)); // clamp 12-24px
+
+		return { cell: Math.floor(cell), gap: Math.floor(gap) };
 	});
 
 	// Build complete grid with all dates in range
@@ -388,6 +406,17 @@
 	// Show help tooltip
 	let showHelp = $state(false);
 
+	// Resize observer for responsive sizing
+	let gridContainer: HTMLElement | null = $state(null);
+	$effect(() => {
+		if (!gridContainer) return;
+		const observer = new ResizeObserver((entries) => {
+			containerWidth = entries[0].contentRect.width;
+		});
+		observer.observe(gridContainer);
+		return () => observer.disconnect();
+	});
+
 	// Calculate activity stats for sharing (only past data within range)
 	const activityStats = $derived.by((): ActivityStats => {
 		const { start, today } = dateRange;
@@ -543,21 +572,21 @@
 		</div>
 	</div>
 
-	<!-- Heatmap grid with scroll indicator -->
-	<div class="relative">
-		<div class="overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600" bind:this={heatmapContainer}>
+	<!-- Heatmap grid - responsive sizing -->
+	<div class="relative" bind:this={gridContainer}>
+		<div bind:this={heatmapContainer}>
 			{#if data.length === 0}
 				<div class="flex items-center justify-center h-32 text-neutral-500 dark:text-neutral-400 text-sm">
 					No activity data available
 				</div>
 			{:else}
-				<div class="inline-block min-w-full">
-					<!-- Month labels - adjust spacing for mobile -->
-					<div class="flex mb-1.5 pl-5 sm:pl-8 relative h-4">
+				<div class="w-full">
+					<!-- Month labels - dynamic positioning -->
+					<div class="relative mb-1.5 h-4" style="margin-left: {32 + cellSize.gap}px">
 						{#each monthLabelsWithPositions as label (label.weekIdx)}
 							<div
-								style="position: absolute; left: {label.weekIdx * 15}px"
-								class="text-[10px] sm:text-xs font-medium text-neutral-600 dark:text-neutral-400"
+								style="position: absolute; left: {label.weekIdx * (cellSize.cell + cellSize.gap)}px"
+								class="text-xs font-medium text-neutral-600 dark:text-neutral-400"
 							>
 								{label.month}
 							</div>
@@ -565,28 +594,31 @@
 					</div>
 
 					<!-- Day labels and heatmap -->
-					<div class="flex gap-0.5 sm:gap-1">
-						<!-- Day labels - single letter on mobile -->
-						<div class="flex flex-col gap-0.5 sm:gap-1">
+					<div class="flex" style="gap: {cellSize.gap}px">
+						<!-- Day labels -->
+						<div class="flex flex-col" style="gap: {cellSize.gap}px">
 							{#each dayLabels as day, i (day)}
-								<div class="w-5 sm:w-8 h-3 sm:h-3.5 text-[10px] sm:text-xs font-medium text-neutral-600 dark:text-neutral-400 flex items-center">
-									<span class="sm:hidden">{dayLabelsShort[i]}</span>
-									<span class="hidden sm:inline">{day}</span>
+								<div
+									class="w-8 text-xs font-medium text-neutral-600 dark:text-neutral-400 flex items-center"
+									style="height: {cellSize.cell}px"
+								>
+									{day}
 								</div>
 							{/each}
 						</div>
 
-						<!-- Heatmap cells - smaller on mobile -->
-						<div class="flex gap-0.5 sm:gap-1">
+						<!-- Heatmap cells - dynamic sizing -->
+						<div class="flex flex-1" style="gap: {cellSize.gap}px">
 							{#each gridData as week, weekIdx (weekIdx)}
-								<div class="flex flex-col gap-0.5 sm:gap-1">
+								<div class="flex flex-col" style="gap: {cellSize.gap}px">
 									{#each week as cell, dayIdx (dayIdx)}
 										{@const inRange = isInRange(cell)}
 										{@const isFuture = isFutureDate(cell.date)}
 										{@const isNonWorking = !isWorkingDay(cell.date.getDay())}
 										<div
 											class:opacity-20={!inRange}
-											class="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-sm cursor-pointer transition-opacity hover:opacity-80 {getColor(cell.stat, isFuture, isNonWorking)}"
+											class="rounded-sm cursor-pointer transition-opacity hover:opacity-80 {getColor(cell.stat, isFuture, isNonWorking)}"
+											style="width: {cellSize.cell}px; height: {cellSize.cell}px"
 											title={inRange ? formatTooltip(cell, isFuture, isNonWorking) : ''}
 										></div>
 									{/each}
@@ -597,7 +629,5 @@
 				</div>
 			{/if}
 		</div>
-		<!-- Scroll indicator for mobile -->
-		<div class="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-full bg-gradient-to-l from-white dark:from-neutral-800 to-transparent pointer-events-none sm:hidden opacity-50"></div>
 	</div>
 </div>

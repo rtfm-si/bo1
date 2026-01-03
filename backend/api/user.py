@@ -436,6 +436,10 @@ async def update_retention_setting(
         raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to update setting", status=500) from e
 
 
+# Valid currency codes
+VALID_CURRENCIES = {"GBP", "USD", "EUR"}
+
+
 # Meeting preferences models
 class PreferencesResponse(BaseModel):
     """Response for user preferences endpoint."""
@@ -445,6 +449,9 @@ class PreferencesResponse(BaseModel):
     )
     default_reminder_frequency_days: int = Field(
         default=3, description="Default reminder frequency for new actions (1-14 days)"
+    )
+    preferred_currency: str = Field(
+        default="GBP", description="Preferred currency for metric display (GBP, USD, EUR)"
     )
 
 
@@ -459,6 +466,11 @@ class PreferencesUpdate(BaseModel):
         ge=1,
         le=14,
         description="Default reminder frequency for new actions (1-14 days)",
+    )
+    preferred_currency: str | None = Field(
+        default=None,
+        pattern="^(GBP|USD|EUR)$",
+        description="Preferred currency for metric display (GBP, USD, EUR)",
     )
 
 
@@ -482,7 +494,7 @@ async def get_preferences(
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT skip_clarification, default_reminder_frequency_days FROM users WHERE id = %s",
+                    "SELECT skip_clarification, default_reminder_frequency_days, preferred_currency FROM users WHERE id = %s",
                     (user_id,),
                 )
                 row = cur.fetchone()
@@ -492,6 +504,7 @@ async def get_preferences(
                 return PreferencesResponse(
                     skip_clarification=row.get("skip_clarification", False) or False,
                     default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
+                    preferred_currency=row.get("preferred_currency") or "GBP",
                 )
 
     except HTTPException:
@@ -516,6 +529,8 @@ async def get_preferences(
     - skip_clarification: Skip pre-meeting clarifying questions by default.
       When enabled, meetings start directly without asking context questions.
       You can still provide context via your business profile.
+    - preferred_currency: Currency for metric display (GBP, USD, EUR).
+      Affects how monetary values are formatted across the dashboard.
     """,
     response_model=PreferencesResponse,
     responses={
@@ -544,6 +559,17 @@ async def update_preferences(
         updates.append("default_reminder_frequency_days = %s")
         params.append(freq)
 
+    if body.preferred_currency is not None:
+        # Validate currency (Pydantic pattern should catch, but double-check)
+        if body.preferred_currency not in VALID_CURRENCIES:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Invalid currency: {body.preferred_currency}. Must be GBP, USD, or EUR.",
+                status=400,
+            )
+        updates.append("preferred_currency = %s")
+        params.append(body.preferred_currency)
+
     if not updates:
         # No changes requested, return current values
         return await get_preferences(user)
@@ -558,7 +584,7 @@ async def update_preferences(
                     UPDATE users
                     SET {", ".join(updates)}, updated_at = NOW()
                     WHERE id = %s
-                    RETURNING skip_clarification, default_reminder_frequency_days
+                    RETURNING skip_clarification, default_reminder_frequency_days, preferred_currency
                     """,
                     params,
                 )
@@ -568,11 +594,13 @@ async def update_preferences(
 
                 logger.info(
                     f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}, "
-                    f"default_reminder_frequency_days={row.get('default_reminder_frequency_days')}"
+                    f"default_reminder_frequency_days={row.get('default_reminder_frequency_days')}, "
+                    f"preferred_currency={row.get('preferred_currency')}"
                 )
                 return PreferencesResponse(
                     skip_clarification=row.get("skip_clarification", False) or False,
                     default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
+                    preferred_currency=row.get("preferred_currency") or "GBP",
                 )
 
     except HTTPException:
@@ -1604,3 +1632,158 @@ async def acknowledge_retention_reminder(
             user_id=user_id,
         )
         raise http_error(ErrorCode.DB_WRITE_ERROR, "Failed to acknowledge", status=500) from e
+
+
+# =============================================================================
+# Password Upgrade
+# =============================================================================
+
+
+class PasswordUpgradeRequest(BaseModel):
+    """Request body for password upgrade endpoint."""
+
+    old_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=12, description="New password (12+ chars)")
+
+
+class PasswordUpgradeResponse(BaseModel):
+    """Response for password upgrade endpoint."""
+
+    success: bool = Field(..., description="Whether upgrade succeeded")
+    message: str = Field(..., description="Status message")
+
+
+@router.post(
+    "/upgrade-password",
+    summary="Upgrade weak password",
+    description="""
+    Upgrade a weak password to meet current strength requirements.
+
+    Requirements for new password:
+    - At least 12 characters
+    - Contains at least one letter (a-z or A-Z)
+    - Contains at least one digit (0-9)
+
+    This endpoint:
+    1. Verifies the old password is correct
+    2. Validates the new password meets requirements
+    3. Updates the password
+    4. Clears the password_upgrade_needed flag
+    """,
+    response_model=PasswordUpgradeResponse,
+    responses={
+        200: {"description": "Password upgraded successfully"},
+        400: {"description": "Invalid old password or weak new password", "model": ErrorResponse},
+        401: {"description": "Authentication required", "model": ErrorResponse},
+        500: {"description": "Failed to upgrade password", "model": ErrorResponse},
+    },
+)
+async def upgrade_password(
+    body: PasswordUpgradeRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PasswordUpgradeResponse:
+    """Upgrade user's password to meet current strength requirements."""
+    from supertokens_python.recipe.emailpassword.asyncio import sign_in, update_email_or_password
+    from supertokens_python.recipe.emailpassword.interfaces import (
+        SignInOkResult,
+        UpdateEmailOrPasswordOkResult,
+    )
+    from supertokens_python.types import RecipeUserId
+
+    from backend.api.supertokens_config import validate_password_strength
+
+    user_id = user["user_id"]
+    email = user.get("email")
+
+    if not email:
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Email not found for user",
+            status=400,
+        )
+
+    # Check if user uses email/password auth (not OAuth)
+    auth_provider = user.get("auth_provider")
+    if auth_provider and auth_provider != "email":
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Password upgrade is only available for email/password accounts",
+            status=400,
+        )
+
+    try:
+        # Step 1: Verify old password is correct
+        sign_in_result = await sign_in(
+            tenant_id="public",
+            email=email,
+            password=body.old_password,
+        )
+
+        if not isinstance(sign_in_result, SignInOkResult):
+            logger.warning(f"Password upgrade failed: wrong old password for user {user_id}")
+            raise http_error(
+                ErrorCode.SECURITY_AUTH_FAILURE,
+                "Current password is incorrect",
+                status=400,
+            )
+
+        # Step 2: Validate new password meets requirements
+        password_error = await validate_password_strength(body.new_password, "public")
+        if password_error:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                password_error,
+                status=400,
+            )
+
+        # Step 3: Update password
+        # Get recipe_user_id from the sign-in result
+        recipe_user_id = RecipeUserId(sign_in_result.user.id)
+
+        update_result = await update_email_or_password(
+            recipe_user_id=recipe_user_id,
+            password=body.new_password,
+            apply_password_policy=True,
+            tenant_id_for_password_policy="public",  # noqa: S106
+        )
+
+        if not isinstance(update_result, UpdateEmailOrPasswordOkResult):
+            logger.error(f"Password update failed for user {user_id}: {type(update_result)}")
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                "Failed to update password",
+                status=500,
+            )
+
+        # Step 4: Clear password_upgrade_needed flag
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET password_upgrade_needed = false, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+
+        logger.info(f"Password upgraded successfully for user {user_id}")
+        return PasswordUpgradeResponse(
+            success=True,
+            message="Password upgraded successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to upgrade password for {user_id}: {e}",
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to upgrade password",
+            status=500,
+        ) from e

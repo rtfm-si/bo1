@@ -10,25 +10,46 @@
 		Insight,
 		InsightSeverity,
 		DataQualityScore,
-		SuggestedQuestion
+		SuggestedQuestion,
+		SuggestedChart,
+		ChartSpec,
+		ChartResultResponse
 	} from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
+	import ChartRenderer from './ChartRenderer.svelte';
+	import ChartModal from './ChartModal.svelte';
+	import { apiClient } from '$lib/api/client';
 
 	interface Props {
 		insights: DatasetInsights | null;
+		datasetId: string;
 		loading?: boolean;
 		error?: string | null;
 		onQuestionClick?: (question: string) => void;
+		onChartClick?: (chart: SuggestedChart) => void;
 		onRefresh?: () => void;
 	}
 
 	let {
 		insights,
+		datasetId,
 		loading = false,
 		error = null,
 		onQuestionClick,
+		onChartClick,
 		onRefresh
 	}: Props = $props();
+
+	// Track which chart is being previewed
+	let previewingChartIndex = $state<number | null>(null);
+	let chartPreviewLoading = $state(false);
+	let chartPreviewError = $state<string | null>(null);
+	let chartPreviewData = $state<ChartResultResponse | null>(null);
+
+	// Modal state
+	let modalOpen = $state(false);
+	let modalChartData = $state<ChartResultResponse | null>(null);
+	let modalTitle = $state('');
 
 	// Severity styling
 	function getSeverityClasses(severity: InsightSeverity): string {
@@ -94,6 +115,50 @@
 		if (score >= 80) return 'bg-success-500';
 		if (score >= 60) return 'bg-warning-500';
 		return 'bg-error-500';
+	}
+
+	function getChartTypeIcon(chartType: string): string {
+		switch (chartType) {
+			case 'line':
+				return 'M4 20h16M4 4v16M7 14l3-4 3 4 4-8';
+			case 'bar':
+				return 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z';
+			case 'pie':
+				return 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z';
+			case 'scatter':
+				return 'M4 4v16h16M8 16a1 1 0 100-2 1 1 0 000 2zM12 12a1 1 0 100-2 1 1 0 000 2zM16 8a1 1 0 100-2 1 1 0 000 2zM10 10a1 1 0 100-2 1 1 0 000 2zM14 14a1 1 0 100-2 1 1 0 000 2z';
+			default:
+				return 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2z';
+		}
+	}
+
+	async function handleChartClick(chart: SuggestedChart, index: number) {
+		previewingChartIndex = index;
+		chartPreviewLoading = true;
+		chartPreviewError = null;
+		onChartClick?.(chart);
+
+		try {
+			const result = await apiClient.previewChart(datasetId, chart.chart_spec);
+			chartPreviewData = result;
+		} catch (err) {
+			chartPreviewError = err instanceof Error ? err.message : 'Failed to load chart';
+			chartPreviewData = null;
+		} finally {
+			chartPreviewLoading = false;
+		}
+	}
+
+	function handleExpandChart() {
+		if (chartPreviewData && insights?.suggested_charts && previewingChartIndex !== null) {
+			modalChartData = chartPreviewData;
+			modalTitle = insights.suggested_charts[previewingChartIndex]?.title || 'Chart';
+			modalOpen = true;
+		}
+	}
+
+	function handleModalClose() {
+		modalOpen = false;
 	}
 </script>
 
@@ -216,6 +281,75 @@
 						</div>
 					{/each}
 				</div>
+			</div>
+		{/if}
+
+		<!-- Suggested Charts -->
+		{#if insights.suggested_charts && insights.suggested_charts.length > 0}
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+					<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+					</svg>
+					Suggested Charts
+				</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					{#each insights.suggested_charts as chart, index (chart.title)}
+						<button
+							onclick={() => handleChartClick(chart, index)}
+							class="text-left p-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors group {previewingChartIndex === index ? 'ring-2 ring-brand-500' : ''}"
+						>
+							<div class="flex items-start gap-3">
+								<div class="p-2 rounded-lg bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 group-hover:bg-brand-200 dark:group-hover:bg-brand-800/40">
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getChartTypeIcon(chart.chart_spec.chart_type)} />
+									</svg>
+								</div>
+								<div class="flex-1 min-w-0">
+									<h4 class="font-medium text-neutral-900 dark:text-white group-hover:text-brand-700 dark:group-hover:text-brand-300 truncate">
+										{chart.title}
+									</h4>
+									<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
+										{chart.rationale}
+									</p>
+									<div class="flex items-center gap-2 mt-2">
+										<span class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 capitalize">
+											{chart.chart_spec.chart_type}
+										</span>
+									</div>
+								</div>
+							</div>
+						</button>
+					{/each}
+				</div>
+
+				<!-- Chart Preview Area -->
+				{#if previewingChartIndex !== null}
+					<div class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+						{#if chartPreviewLoading}
+							<div class="flex items-center justify-center h-32">
+								<div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+									<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									<span class="text-sm">Loading chart...</span>
+								</div>
+							</div>
+						{:else if chartPreviewError}
+							<div class="p-4 bg-error-50 dark:bg-error-900/20 rounded-lg text-sm text-error-700 dark:text-error-300">
+								{chartPreviewError}
+							</div>
+						{:else if chartPreviewData}
+							<ChartRenderer
+								figureJson={chartPreviewData.figure_json}
+								title={insights?.suggested_charts?.[previewingChartIndex]?.title || ''}
+								viewMode="simple"
+								onExpand={handleExpandChart}
+							/>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -348,3 +482,11 @@
 		</p>
 	</div>
 {/if}
+
+<!-- Chart Modal -->
+<ChartModal
+	bind:open={modalOpen}
+	figureJson={modalChartData?.figure_json ?? null}
+	title={modalTitle}
+	onclose={handleModalClose}
+/>

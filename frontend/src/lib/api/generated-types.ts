@@ -4467,8 +4467,13 @@ export interface paths {
          *     Fetches user data from PostgreSQL (source of truth for persistent data).
          *     If user not found in DB, returns minimal data from session.
          *
+         *     When admin is impersonating another user:
+         *     - Returns target user's data (id, email, subscription_tier)
+         *     - Adds impersonation metadata (is_impersonation, real_admin_id, impersonation_write_mode)
+         *
          *     Returns:
-         *         User ID, email, auth provider, subscription tier, and session info
+         *         User ID, email, auth provider, subscription tier, session info,
+         *         and impersonation metadata if applicable
          */
         get: operations["get_user_info_api_v1_auth_me_get"];
         put?: never;
@@ -4968,6 +4973,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/apply-metric-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a metric suggestion to context
+         * @description Apply a single metric suggestion to update the user's context.
+         *
+         *         Updates the specified context field with the provided value. The source_question
+         *         is recorded in benchmark_history metadata for audit trail.
+         *
+         *         **Allowed Fields:**
+         *         - revenue
+         *         - customers
+         *         - growth_rate
+         *         - team_size
+         *
+         *         **Use Cases:**
+         *         - User clicks "Apply" on a suggestion in the key-metrics page
+         *         - Bulk "Apply All" iterates through this endpoint
+         */
+        post: operations["apply_metric_suggestion_api_v1_context_apply_metric_suggestion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/competitors/detect": {
         parameters: {
             query?: never;
@@ -5433,6 +5471,40 @@ export interface paths {
          *         Only provided fields are updated - omitted fields remain unchanged.
          */
         patch: operations["update_managed_competitor_api_v1_context_managed_competitors__name__patch"];
+        trace?: never;
+    };
+    "/api/v1/context/metric-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get metric suggestions from insights
+         * @description Get suggestions for auto-populating context metrics from clarification insights.
+         *
+         *         Analyzes user's clarification answers (from meetings) and extracts metric data
+         *         that could be used to populate context fields like revenue, customers, growth_rate,
+         *         and team_size.
+         *
+         *         **Filtering:**
+         *         - Only insights with confidence >= 0.6 are suggested
+         *         - Only insights from the last 90 days are considered
+         *         - Suggestions are deduplicated per field (highest confidence wins)
+         *         - Suggestions matching current values are excluded
+         *
+         *         **Use Cases:**
+         *         - Show "Suggested from insights" panel on key-metrics page
+         *         - Help users keep context metrics in sync with their meeting data
+         */
+        get: operations["get_metric_suggestions_api_v1_context_metric_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/context/objectives/progress": {
@@ -6162,6 +6234,26 @@ export interface paths {
         get: operations["get_dataset_insights_api_v1_datasets__dataset_id__insights_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/preview-chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview chart
+         * @description Generate a chart preview without persistence (lighter weight than /chart)
+         */
+        post: operations["preview_dataset_chart_api_v1_datasets__dataset_id__preview_chart_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8887,6 +8979,8 @@ export interface paths {
          *         - skip_clarification: Skip pre-meeting clarifying questions by default.
          *           When enabled, meetings start directly without asking context questions.
          *           You can still provide context via your business profile.
+         *         - preferred_currency: Currency for metric display (GBP, USD, EUR).
+         *           Affects how monetary values are formatted across the dashboard.
          */
         patch: operations["update_preferences_api_v1_user_preferences_patch"];
         trace?: never;
@@ -9156,6 +9250,37 @@ export interface paths {
         get: operations["get_tier_info_api_v1_user_tier_info_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/upgrade-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upgrade weak password
+         * @description Upgrade a weak password to meet current strength requirements.
+         *
+         *         Requirements for new password:
+         *         - At least 12 characters
+         *         - Contains at least one letter (a-z or A-Z)
+         *         - Contains at least one digit (0-9)
+         *
+         *         This endpoint:
+         *         1. Verifies the old password is correct
+         *         2. Validates the new password meets requirements
+         *         3. Updates the password
+         *         4. Clears the password_upgrade_needed flag
+         */
+        post: operations["upgrade_password_api_v1_user_upgrade_password_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11637,6 +11762,53 @@ export interface components {
             total: number;
         };
         /**
+         * ApplyMetricSuggestionRequest
+         * @description Request to apply a single metric suggestion.
+         */
+        ApplyMetricSuggestionRequest: {
+            /**
+             * Field
+             * @description Context field to update (e.g., 'revenue')
+             */
+            field: string;
+            /**
+             * Source Question
+             * @description Original question (for audit trail)
+             */
+            source_question?: string | null;
+            /**
+             * Value
+             * @description Value to set
+             */
+            value: string;
+        };
+        /**
+         * ApplyMetricSuggestionResponse
+         * @description Response after applying a metric suggestion.
+         */
+        ApplyMetricSuggestionResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Field
+             * @description Field that was updated
+             */
+            field: string;
+            /**
+             * New Value
+             * @description Value that was applied
+             */
+            new_value: string;
+            /**
+             * Success
+             * @description Whether update succeeded
+             */
+            success: boolean;
+        };
+        /**
          * ApplyPromoCodeRequest
          * @description User request to apply a promo code.
          *
@@ -13052,6 +13224,12 @@ export interface components {
             website?: string | null;
         };
         /**
+         * BusinessDomain
+         * @description Detected business domain of the dataset.
+         * @enum {string}
+         */
+        BusinessDomain: "ecommerce" | "saas" | "services" | "marketing" | "finance" | "operations" | "hr" | "product" | "unknown";
+        /**
          * BusinessStage
          * @description Business development stage.
          * @enum {string}
@@ -14067,6 +14245,32 @@ export interface components {
             period_days: number;
             /** Signups */
             signups: number;
+        };
+        /**
+         * ColumnSemantic
+         * @description Semantic understanding of a column.
+         */
+        ColumnSemantic: {
+            /**
+             * Business Meaning
+             * @description Plain English explanation
+             */
+            business_meaning: string;
+            /** Column Name */
+            column_name: string;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Sample Insight
+             * @description Quick insight about this column
+             */
+            sample_insight?: string | null;
+            semantic_type: components["schemas"]["SemanticColumnType"];
+            /**
+             * Technical Type
+             * @description Technical type (integer, float, etc.)
+             */
+            technical_type: string;
         };
         /**
          * CompareSpec
@@ -15914,6 +16118,75 @@ export interface components {
             total_analyses: number;
         };
         /**
+         * DataIdentity
+         * @description What this dataset represents in business terms.
+         */
+        DataIdentity: {
+            /**
+             * Confidence
+             * @description Confidence in domain detection
+             */
+            confidence: number;
+            /**
+             * Description
+             * @description Plain English description of the data
+             */
+            description: string;
+            /** @description Business domain (e-commerce, SaaS, etc.) */
+            domain: components["schemas"]["BusinessDomain"];
+            /**
+             * Entity Type
+             * @description What the rows represent (orders, customers, etc.)
+             */
+            entity_type: string;
+            /**
+             * Time Range
+             * @description Detected time span if date columns exist
+             */
+            time_range?: string | null;
+        };
+        /**
+         * DataQualityScore
+         * @description Assessment of data quality and completeness.
+         */
+        DataQualityScore: {
+            /**
+             * Completeness
+             * @description Percentage of non-null values
+             */
+            completeness: number;
+            /**
+             * Consistency
+             * @description Data consistency score
+             */
+            consistency: number;
+            /**
+             * Freshness
+             * @description How recent the data is
+             */
+            freshness?: number | null;
+            /**
+             * Issues
+             * @description Specific quality issues found
+             */
+            issues?: string[];
+            /**
+             * Missing Data
+             * @description Important data that's missing
+             */
+            missing_data?: string[];
+            /**
+             * Overall Score
+             * @description Overall quality score 0-100
+             */
+            overall_score: number;
+            /**
+             * Suggestions
+             * @description How to improve the data
+             */
+            suggestions?: string[];
+        };
+        /**
          * DatasetAnalysisListResponse
          * @description Response model for listing dataset analyses.
          */
@@ -16072,6 +16345,50 @@ export interface components {
              * @description CSV validation warnings
              */
             warnings?: string[] | null;
+        };
+        /**
+         * DatasetInsights
+         * @description Complete structured intelligence for a dataset.
+         */
+        DatasetInsights: {
+            /** Column Semantics */
+            column_semantics: components["schemas"]["ColumnSemantic"][];
+            /** Headline Metrics */
+            headline_metrics: components["schemas"]["HeadlineMetric"][];
+            identity: components["schemas"]["DataIdentity"];
+            /** Insights */
+            insights: components["schemas"]["Insight"][];
+            /**
+             * Narrative Summary
+             * @description Prose summary for fallback display
+             */
+            narrative_summary: string;
+            quality: components["schemas"]["DataQualityScore"];
+            /**
+             * Suggested Charts
+             * @description Auto-generated chart suggestions
+             */
+            suggested_charts?: components["schemas"]["SuggestedChart"][];
+            /** Suggested Questions */
+            suggested_questions: components["schemas"]["SuggestedQuestion"][];
+        };
+        /**
+         * DatasetInsightsResponse
+         * @description API response wrapper for insights.
+         */
+        DatasetInsightsResponse: {
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
+            /** Generated At */
+            generated_at: string;
+            insights: components["schemas"]["DatasetInsights"];
+            /** Model Used */
+            model_used: string;
+            /** Tokens Used */
+            tokens_used: number;
         };
         /**
          * DatasetListResponse
@@ -18530,6 +18847,37 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HeadlineMetric
+         * @description Key metric displayed prominently.
+         */
+        HeadlineMetric: {
+            /**
+             * Context
+             * @description Additional context
+             */
+            context?: string | null;
+            /**
+             * Is Good
+             * @description Whether this is positive/negative
+             */
+            is_good?: boolean | null;
+            /**
+             * Label
+             * @description Metric name (e.g., 'Total Revenue')
+             */
+            label: string;
+            /**
+             * Trend
+             * @description Trend indicator
+             */
+            trend?: string | null;
+            /**
+             * Value
+             * @description Formatted value (e.g., '$127,450')
+             */
+            value: string;
+        };
+        /**
          * HealthCheckRecordResponse
          * @description Single health check record in history.
          *
@@ -19240,6 +19588,34 @@ export interface components {
             user_tier: string;
         };
         /**
+         * Insight
+         * @description A single business insight.
+         */
+        Insight: {
+            /**
+             * Action
+             * @description Suggested action
+             */
+            action?: string | null;
+            /**
+             * Detail
+             * @description Full explanation
+             */
+            detail: string;
+            /**
+             * Headline
+             * @description Short headline
+             */
+            headline: string;
+            /**
+             * Metric
+             * @description Related metric if applicable
+             */
+            metric?: string | null;
+            severity: components["schemas"]["InsightSeverity"];
+            type: components["schemas"]["InsightType"];
+        };
+        /**
          * InsightCategory
          * @description Business insight categories.
          * @enum {string}
@@ -19276,6 +19652,18 @@ export interface components {
              */
             value?: number | null;
         };
+        /**
+         * InsightSeverity
+         * @description Severity/importance of an insight.
+         * @enum {string}
+         */
+        InsightSeverity: "positive" | "neutral" | "warning" | "critical";
+        /**
+         * InsightType
+         * @description Category of insight.
+         * @enum {string}
+         */
+        InsightType: "trend" | "pattern" | "anomaly" | "risk" | "opportunity" | "benchmark";
         /**
          * InsightsResponse
          * @description Response containing user's accumulated insights from meetings.
@@ -19720,6 +20108,11 @@ export interface components {
             benchmark_value?: string | number | null;
             /** @description Source category */
             category: components["schemas"]["MetricSourceCategory"];
+            /**
+             * History
+             * @description Recent history for sparkline (oldest first, max 10 points)
+             */
+            history?: components["schemas"]["MetricHistoryPoint"][];
             /** @description User's priority level */
             importance: components["schemas"]["MetricImportance"];
             /**
@@ -19987,6 +20380,18 @@ export interface components {
              * @description User notes about the competitor
              */
             notes?: string | null;
+            /** @description Individual relevance check results */
+            relevance_flags?: components["schemas"]["RelevanceFlags"] | null;
+            /**
+             * Relevance Score
+             * @description Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0
+             */
+            relevance_score?: number | null;
+            /**
+             * Relevance Warning
+             * @description Warning message if <2 checks pass
+             */
+            relevance_warning?: string | null;
             /**
              * Url
              * @description Competitor website URL
@@ -20729,6 +21134,23 @@ export interface components {
          */
         MetricCategory: "financial" | "growth" | "retention" | "efficiency" | "custom";
         /**
+         * MetricHistoryPoint
+         * @description Single point in metric history for sparkline visualization.
+         */
+        MetricHistoryPoint: {
+            /**
+             * Recorded At
+             * Format: date-time
+             * @description When the value was recorded
+             */
+            recorded_at: string;
+            /**
+             * Value
+             * @description Numeric value (None if non-numeric)
+             */
+            value?: number | null;
+        };
+        /**
          * MetricImportance
          * @description Importance classification for key metrics.
          * @enum {string}
@@ -20769,6 +21191,69 @@ export interface components {
             p99: number;
             /** Window Minutes */
             window_minutes: number;
+        };
+        /**
+         * MetricSuggestion
+         * @description A suggestion to auto-populate a context metric from insights.
+         */
+        MetricSuggestion: {
+            /**
+             * Answered At
+             * @description When the insight was recorded (ISO)
+             */
+            answered_at?: string | null;
+            /**
+             * Confidence
+             * @description Extraction confidence (0-1)
+             */
+            confidence: number;
+            /**
+             * Current Value
+             * @description Current value in context (if any)
+             */
+            current_value?: string | null;
+            /**
+             * Field
+             * @description Context field name (e.g., 'revenue', 'customers')
+             */
+            field: string;
+            /**
+             * Source Question
+             * @description The clarification question that provided this
+             */
+            source_question: string;
+            /**
+             * Suggested Value
+             * @description Value extracted from insight
+             */
+            suggested_value: string;
+        };
+        /**
+         * MetricSuggestionsResponse
+         * @description Response containing metric suggestions from insights.
+         */
+        MetricSuggestionsResponse: {
+            /**
+             * Count
+             * @description Number of suggestions
+             * @default 0
+             */
+            count: number;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Suggestions
+             * @description List of metric suggestions from insights
+             */
+            suggestions?: components["schemas"]["MetricSuggestion"][];
         };
         /**
          * MetricTemplate
@@ -21436,6 +21921,38 @@ export interface components {
             total_size: string;
         };
         /**
+         * PasswordUpgradeRequest
+         * @description Request body for password upgrade endpoint.
+         */
+        PasswordUpgradeRequest: {
+            /**
+             * New Password
+             * @description New password (12+ chars)
+             */
+            new_password: string;
+            /**
+             * Old Password
+             * @description Current password
+             */
+            old_password: string;
+        };
+        /**
+         * PasswordUpgradeResponse
+         * @description Response for password upgrade endpoint.
+         */
+        PasswordUpgradeResponse: {
+            /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Whether upgrade succeeded
+             */
+            success: boolean;
+        };
+        /**
          * PatternCreateResponse
          * @description Response after creating a pattern.
          */
@@ -21952,6 +22469,12 @@ export interface components {
              */
             default_reminder_frequency_days: number;
             /**
+             * Preferred Currency
+             * @description Preferred currency for metric display (GBP, USD, EUR)
+             * @default GBP
+             */
+            preferred_currency: string;
+            /**
              * Skip Clarification
              * @description Skip pre-meeting clarifying questions by default
              * @default false
@@ -21968,6 +22491,11 @@ export interface components {
              * @description Default reminder frequency for new actions (1-14 days)
              */
             default_reminder_frequency_days?: number | null;
+            /**
+             * Preferred Currency
+             * @description Preferred currency for metric display (GBP, USD, EUR)
+             */
+            preferred_currency?: string | null;
             /**
              * Skip Clarification
              * @description Skip pre-meeting clarifying questions by default
@@ -24790,6 +25318,12 @@ export interface components {
             [key: string]: unknown;
         };
         /**
+         * SemanticColumnType
+         * @description Business-semantic column types (beyond technical types).
+         * @enum {string}
+         */
+        SemanticColumnType: "revenue" | "price" | "cost" | "margin" | "discount" | "customer_id" | "order_id" | "product_id" | "transaction_id" | "email" | "phone" | "name" | "company" | "order_date" | "created_at" | "updated_at" | "event_date" | "quantity" | "count" | "units" | "conversion_rate" | "percentage" | "rate" | "status" | "category" | "type" | "channel" | "source" | "country" | "region" | "city" | "address" | "product_name" | "sku" | "description" | "metric" | "dimension" | "unknown";
+        /**
          * SendEmailRequest
          * @description Request model for sending admin email.
          *
@@ -26058,6 +26592,41 @@ export interface components {
              * @description Total tokens used
              */
             total_tokens: number;
+        };
+        /**
+         * SuggestedChart
+         * @description A chart suggestion auto-generated from dataset profiling.
+         */
+        SuggestedChart: {
+            chart_spec: components["schemas"]["ChartSpec"];
+            /**
+             * Rationale
+             * @description Why this chart is useful (e.g., 'Shows revenue distribution by category')
+             */
+            rationale: string;
+            /**
+             * Title
+             * @description Human-readable chart title
+             */
+            title: string;
+        };
+        /**
+         * SuggestedQuestion
+         * @description A question the user might want to explore.
+         */
+        SuggestedQuestion: {
+            /**
+             * Category
+             * @description Category (performance, trend, segment, etc.)
+             */
+            category: string;
+            /** Question */
+            question: string;
+            /**
+             * Why Relevant
+             * @description Why this question matters for the data
+             */
+            why_relevant: string;
         };
         /**
          * SyncResult
@@ -40617,6 +41186,64 @@ export interface operations {
             };
         };
     };
+    apply_metric_suggestion_api_v1_context_apply_metric_suggestion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyMetricSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Suggestion applied successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "field": "revenue",
+                     *       "new_value": "$50,000",
+                     *       "success": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApplyMetricSuggestionResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     detect_competitors_api_v1_context_competitors_detect_post: {
         parameters: {
             query?: never;
@@ -41650,6 +42277,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_metric_suggestions_api_v1_context_metric_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suggestions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "count": 1,
+                     *       "success": true,
+                     *       "suggestions": [
+                     *         {
+                     *           "answered_at": "2025-12-28T10:30:00Z",
+                     *           "confidence": 0.85,
+                     *           "current_value": "$45,000",
+                     *           "field": "revenue",
+                     *           "source_question": "What's your current MRR?",
+                     *           "suggested_value": "$50,000"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MetricSuggestionsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
         };
@@ -42986,9 +43658,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DatasetInsightsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_dataset_chart_api_v1_datasets__dataset_id__preview_chart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartSpec"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartResultResponse"];
                 };
             };
             /** @description Validation Error */
@@ -49713,6 +50418,66 @@ export interface operations {
             };
             /** @description Authentication required */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upgrade_password_api_v1_user_upgrade_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordUpgradeRequest"];
+            };
+        };
+        responses: {
+            /** @description Password upgraded successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordUpgradeResponse"];
+                };
+            };
+            /** @description Invalid old password or weak new password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Failed to upgrade password */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

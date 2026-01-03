@@ -1,53 +1,63 @@
-# Plan: [ARCH][P3] Migrate Nodes to Nested State Accessors
+# Plan: [AUTH][P0] Fix Google Social Login for Existing Email Users
 
 ## Summary
 
-- Update `_TASK.md` to mark 4 already-completed P3 tasks as done
-- Migrate graph nodes to use `get_problem_state()`, `get_phase_state()` helpers
-- Start with highest-impact node: `rounds.py` (already partially migrated)
-- Add test coverage for accessor usage patterns
+- Enable SuperTokens AccountLinking recipe to automatically link OAuth providers with existing email accounts
+- Configure automatic linking for verified emails from trusted providers (Google, LinkedIn, GitHub)
+- Add logging to diagnose linking failures
+- Test with existing email user signing in via Google
+
+## Root Cause
+
+User `info@seilich.co.uk` first registered with email/password. When attempting Google OAuth:
+- SuperTokens creates a **separate** user for the Google identity
+- Without AccountLinking, same-email accounts from different providers are NOT linked
+- This causes auth failures or duplicate accounts
 
 ## Implementation Steps
 
-1. **Mark completed tasks in `_TASK.md`** (lines 120-122, 134)
-   - `[LLM][P3]` sanitization tests - exists in `tests/test_sanitizer.py` (734 lines)
-   - `[OBS][P3]` event type metric - exists as `bo1_event_type_published_total`
-   - `[API][P3]` has_more pagination - exists in `backend/api/utils/pagination.py`
-   - `[REL][P3]` statement_timeout - exists in `bo1/state/database.py`
+1. **Add AccountLinking recipe to backend** - `backend/api/supertokens_config.py`
+   - Import `accountlinking` recipe from `supertokens_python.recipe`
+   - Add to recipe list in `init_supertokens()`
+   - Configure `should_do_automatic_account_linking` callback to auto-link verified emails
 
-2. **Audit current accessor usage**
-   - `rounds.py` - already uses `get_problem_state()`, `get_phase_state()`
-   - Identify nodes still using raw `state["field"]` access
+2. **Configure linking policy** - Same file
+   - Auto-link when: email verified AND provider is Google/LinkedIn/GitHub
+   - Do NOT link: unverified emails (security)
+   - Log linking attempts for audit trail
 
-3. **Migrate `synthesis.py`** (~5 raw accesses)
-   - Replace `state.get("problem")` → `get_problem_state(state).get("problem")`
-   - Replace `state.get("phase")` → `get_phase_state(state).get("phase")`
+3. **Add EmailVerification recipe** - Required dependency for AccountLinking
+   - SuperTokens AccountLinking requires EmailVerification recipe
+   - Configure to mark OAuth provider emails as pre-verified (Google verifies emails)
 
-4. **Migrate `decomposition.py`** (~3 raw accesses)
-   - Same pattern as synthesis
+4. **Update user sync logic** - `override_thirdparty_functions`
+   - Handle `AccountLinkingUserNotAllowed` result type
+   - Log when linking fails due to policy
 
-5. **Migrate `context.py`** (~4 raw accesses)
-   - Use new `get_context_state()` accessor if needed
-
-6. **Update test file** `tests/graph/test_state_refactor.py`
-   - Add tests verifying accessor return types
-   - Test default values when fields missing
+5. **Add unit tests** - `tests/api/test_account_linking.py`
+   - Test: email user + Google OAuth → same user_id
+   - Test: unverified email → no linking
+   - Test: different email → separate user
 
 ## Tests
 
 - Unit tests:
-  - `tests/graph/test_state_refactor.py` - accessor coverage
-- Integration tests:
-  - Existing node tests should pass unchanged
+  - `test_google_links_to_existing_email_user` - existing email user signs in with Google, gets same user_id
+  - `test_new_google_user_creates_account` - new email creates fresh account
+  - `test_unverified_provider_not_linked` - unverified emails don't auto-link
+
 - Manual validation:
-  - `make test` passes
-  - No regressions in deliberation flow
+  - Sign up with email@example.com via email/password
+  - Try Google OAuth with same email → should link, same user_id
+  - Verify user data (subscriptions, workspaces) preserved
 
 ## Dependencies & Risks
 
 - Dependencies:
-  - Existing accessors in `bo1/graph/state.py:755-790`
+  - SuperTokens Core 10.x+ (already on 10.1.4)
+  - `supertokens-python` package supports AccountLinking
 
 - Risks:
-  - Low: accessor pattern already proven in `rounds.py`
-  - Type annotations may need adjustment for TypedDict access
+  - Existing duplicate accounts: may need admin script to merge
+  - Session invalidation: existing sessions should continue working
+  - Email verification state: OAuth emails considered verified by provider

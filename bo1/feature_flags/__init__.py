@@ -14,6 +14,7 @@ from .features import (
     GITHUB_OAUTH_ENABLED,
     GOOGLE_OAUTH_ENABLED,
     LINKEDIN_OAUTH_ENABLED,
+    MAGIC_LINK_ENABLED,
     TWITTER_OAUTH_ENABLED,
     USE_SUBGRAPH_DELIBERATION,
 )
@@ -21,6 +22,7 @@ from .features import (
 __all__ = [
     # Authentication & Authorization
     "ENABLE_SUPERTOKENS_AUTH",
+    "MAGIC_LINK_ENABLED",
     # OAuth Providers
     "BLUESKY_OAUTH_ENABLED",
     "GITHUB_OAUTH_ENABLED",

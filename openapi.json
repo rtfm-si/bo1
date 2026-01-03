@@ -2511,6 +2511,83 @@
         "title": "ApiErrorListResponse",
         "type": "object"
       },
+      "ApplyMetricSuggestionRequest": {
+        "description": "Request to apply a single metric suggestion.",
+        "properties": {
+          "field": {
+            "description": "Context field to update (e.g., 'revenue')",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "source_question": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Original question (for audit trail)",
+            "title": "Source Question"
+          },
+          "value": {
+            "description": "Value to set",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "value"
+        ],
+        "title": "ApplyMetricSuggestionRequest",
+        "type": "object"
+      },
+      "ApplyMetricSuggestionResponse": {
+        "description": "Response after applying a metric suggestion.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "field": {
+            "description": "Field that was updated",
+            "title": "Field",
+            "type": "string"
+          },
+          "new_value": {
+            "description": "Value that was applied",
+            "title": "New Value",
+            "type": "string"
+          },
+          "success": {
+            "description": "Whether update succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "field",
+          "new_value"
+        ],
+        "title": "ApplyMetricSuggestionResponse",
+        "type": "object"
+      },
       "ApplyPromoCodeRequest": {
         "description": "User request to apply a promo code.\n\nAttributes:\n    code: The promo code to apply",
         "examples": [
@@ -4886,6 +4963,22 @@
         "title": "BusinessContext",
         "type": "object"
       },
+      "BusinessDomain": {
+        "description": "Detected business domain of the dataset.",
+        "enum": [
+          "ecommerce",
+          "saas",
+          "services",
+          "marketing",
+          "finance",
+          "operations",
+          "hr",
+          "product",
+          "unknown"
+        ],
+        "title": "BusinessDomain",
+        "type": "string"
+      },
       "BusinessStage": {
         "description": "Business development stage.",
         "enum": [
@@ -6347,6 +6440,55 @@
           "meeting_completed"
         ],
         "title": "CohortResponse",
+        "type": "object"
+      },
+      "ColumnSemantic": {
+        "description": "Semantic understanding of a column.",
+        "properties": {
+          "business_meaning": {
+            "description": "Plain English explanation",
+            "title": "Business Meaning",
+            "type": "string"
+          },
+          "column_name": {
+            "title": "Column Name",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "sample_insight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quick insight about this column",
+            "title": "Sample Insight"
+          },
+          "semantic_type": {
+            "$ref": "#/components/schemas/SemanticColumnType"
+          },
+          "technical_type": {
+            "description": "Technical type (integer, float, etc.)",
+            "title": "Technical Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column_name",
+          "technical_type",
+          "semantic_type",
+          "confidence",
+          "business_meaning"
+        ],
+        "title": "ColumnSemantic",
         "type": "object"
       },
       "CompareSpec": {
@@ -9136,6 +9278,123 @@
         "title": "DataAnalysisStats",
         "type": "object"
       },
+      "DataIdentity": {
+        "description": "What this dataset represents in business terms.",
+        "properties": {
+          "confidence": {
+            "description": "Confidence in domain detection",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "description": {
+            "description": "Plain English description of the data",
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/BusinessDomain",
+            "description": "Business domain (e-commerce, SaaS, etc.)"
+          },
+          "entity_type": {
+            "description": "What the rows represent (orders, customers, etc.)",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "time_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Detected time span if date columns exist",
+            "title": "Time Range"
+          }
+        },
+        "required": [
+          "domain",
+          "confidence",
+          "entity_type",
+          "description"
+        ],
+        "title": "DataIdentity",
+        "type": "object"
+      },
+      "DataQualityScore": {
+        "description": "Assessment of data quality and completeness.",
+        "properties": {
+          "completeness": {
+            "description": "Percentage of non-null values",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Completeness",
+            "type": "integer"
+          },
+          "consistency": {
+            "description": "Data consistency score",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Consistency",
+            "type": "integer"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How recent the data is",
+            "title": "Freshness"
+          },
+          "issues": {
+            "description": "Specific quality issues found",
+            "items": {
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "missing_data": {
+            "description": "Important data that's missing",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Data",
+            "type": "array"
+          },
+          "overall_score": {
+            "description": "Overall quality score 0-100",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Overall Score",
+            "type": "integer"
+          },
+          "suggestions": {
+            "description": "How to improve the data",
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "overall_score",
+          "completeness",
+          "consistency"
+        ],
+        "title": "DataQualityScore",
+        "type": "object"
+      },
       "DatasetAnalysisListResponse": {
         "description": "Response model for listing dataset analyses.",
         "properties": {
@@ -9399,6 +9658,106 @@
           "updated_at"
         ],
         "title": "DatasetDetailResponse",
+        "type": "object"
+      },
+      "DatasetInsights": {
+        "description": "Complete structured intelligence for a dataset.",
+        "properties": {
+          "column_semantics": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnSemantic"
+            },
+            "title": "Column Semantics",
+            "type": "array"
+          },
+          "headline_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/HeadlineMetric"
+            },
+            "maxItems": 5,
+            "title": "Headline Metrics",
+            "type": "array"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/DataIdentity"
+          },
+          "insights": {
+            "items": {
+              "$ref": "#/components/schemas/Insight"
+            },
+            "maxItems": 8,
+            "title": "Insights",
+            "type": "array"
+          },
+          "narrative_summary": {
+            "description": "Prose summary for fallback display",
+            "title": "Narrative Summary",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/DataQualityScore"
+          },
+          "suggested_charts": {
+            "description": "Auto-generated chart suggestions",
+            "items": {
+              "$ref": "#/components/schemas/SuggestedChart"
+            },
+            "maxItems": 5,
+            "title": "Suggested Charts",
+            "type": "array"
+          },
+          "suggested_questions": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedQuestion"
+            },
+            "maxItems": 5,
+            "title": "Suggested Questions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "identity",
+          "headline_metrics",
+          "insights",
+          "quality",
+          "suggested_questions",
+          "column_semantics",
+          "narrative_summary"
+        ],
+        "title": "DatasetInsights",
+        "type": "object"
+      },
+      "DatasetInsightsResponse": {
+        "description": "API response wrapper for insights.",
+        "properties": {
+          "cached": {
+            "default": false,
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "insights": {
+            "$ref": "#/components/schemas/DatasetInsights"
+          },
+          "model_used": {
+            "title": "Model Used",
+            "type": "string"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "insights",
+          "generated_at",
+          "model_used",
+          "tokens_used"
+        ],
+        "title": "DatasetInsightsResponse",
         "type": "object"
       },
       "DatasetListResponse": {
@@ -12948,6 +13307,63 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HeadlineMetric": {
+        "description": "Key metric displayed prominently.",
+        "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Additional context",
+            "title": "Context"
+          },
+          "is_good": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether this is positive/negative",
+            "title": "Is Good"
+          },
+          "label": {
+            "description": "Metric name (e.g., 'Total Revenue')",
+            "title": "Label",
+            "type": "string"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trend indicator",
+            "title": "Trend"
+          },
+          "value": {
+            "description": "Formatted value (e.g., '$127,450')",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "HeadlineMetric",
+        "type": "object"
+      },
       "HealthCheckRecordResponse": {
         "description": "Single health check record in history.\n\nAttributes:\n    timestamp: ISO 8601 timestamp when check was performed\n    status: Health status (healthy/degraded/unhealthy)\n    components: Per-component health status\n    latency_ms: Health check latency in milliseconds",
         "properties": {
@@ -13885,6 +14301,59 @@
         "title": "IndustryInsightsResponse",
         "type": "object"
       },
+      "Insight": {
+        "description": "A single business insight.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Suggested action",
+            "title": "Action"
+          },
+          "detail": {
+            "description": "Full explanation",
+            "title": "Detail",
+            "type": "string"
+          },
+          "headline": {
+            "description": "Short headline",
+            "title": "Headline",
+            "type": "string"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Related metric if applicable",
+            "title": "Metric"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/InsightSeverity"
+          },
+          "type": {
+            "$ref": "#/components/schemas/InsightType"
+          }
+        },
+        "required": [
+          "type",
+          "severity",
+          "headline",
+          "detail"
+        ],
+        "title": "Insight",
+        "type": "object"
+      },
       "InsightCategory": {
         "description": "Business insight categories.",
         "enum": [
@@ -13969,6 +14438,30 @@
         },
         "title": "InsightMetricResponse",
         "type": "object"
+      },
+      "InsightSeverity": {
+        "description": "Severity/importance of an insight.",
+        "enum": [
+          "positive",
+          "neutral",
+          "warning",
+          "critical"
+        ],
+        "title": "InsightSeverity",
+        "type": "string"
+      },
+      "InsightType": {
+        "description": "Category of insight.",
+        "enum": [
+          "trend",
+          "pattern",
+          "anomaly",
+          "risk",
+          "opportunity",
+          "benchmark"
+        ],
+        "title": "InsightType",
+        "type": "string"
       },
       "InsightsResponse": {
         "description": "Response containing user's accumulated insights from meetings.\n\nInsights are derived from:\n- Clarification questions answered during meetings\n- Future: Key decisions, preferences learned over time",
@@ -14672,6 +15165,14 @@
             "$ref": "#/components/schemas/MetricSourceCategory",
             "description": "Source category"
           },
+          "history": {
+            "description": "Recent history for sparkline (oldest first, max 10 points)",
+            "items": {
+              "$ref": "#/components/schemas/MetricHistoryPoint"
+            },
+            "title": "History",
+            "type": "array"
+          },
           "importance": {
             "$ref": "#/components/schemas/MetricImportance",
             "description": "User's priority level"
@@ -15067,6 +15568,44 @@
             ],
             "description": "User notes about the competitor",
             "title": "Notes"
+          },
+          "relevance_flags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelevanceFlags"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Individual relevance check results"
+          },
+          "relevance_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0",
+            "title": "Relevance Score"
+          },
+          "relevance_warning": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Warning message if <2 checks pass",
+            "title": "Relevance Warning"
           },
           "url": {
             "anyOf": [
@@ -16336,6 +16875,34 @@
         "title": "MetricCategory",
         "type": "string"
       },
+      "MetricHistoryPoint": {
+        "description": "Single point in metric history for sparkline visualization.",
+        "properties": {
+          "recorded_at": {
+            "description": "When the value was recorded",
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Numeric value (None if non-numeric)",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "recorded_at"
+        ],
+        "title": "MetricHistoryPoint",
+        "type": "object"
+      },
       "MetricImportance": {
         "description": "Importance classification for key metrics.",
         "enum": [
@@ -16418,6 +16985,106 @@
           "window_minutes"
         ],
         "title": "MetricStatResponse",
+        "type": "object"
+      },
+      "MetricSuggestion": {
+        "description": "A suggestion to auto-populate a context metric from insights.",
+        "properties": {
+          "answered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the insight was recorded (ISO)",
+            "title": "Answered At"
+          },
+          "confidence": {
+            "description": "Extraction confidence (0-1)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current value in context (if any)",
+            "title": "Current Value"
+          },
+          "field": {
+            "description": "Context field name (e.g., 'revenue', 'customers')",
+            "title": "Field",
+            "type": "string"
+          },
+          "source_question": {
+            "description": "The clarification question that provided this",
+            "title": "Source Question",
+            "type": "string"
+          },
+          "suggested_value": {
+            "description": "Value extracted from insight",
+            "title": "Suggested Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "suggested_value",
+          "source_question",
+          "confidence"
+        ],
+        "title": "MetricSuggestion",
+        "type": "object"
+      },
+      "MetricSuggestionsResponse": {
+        "description": "Response containing metric suggestions from insights.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of suggestions",
+            "title": "Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "suggestions": {
+            "description": "List of metric suggestions from insights",
+            "items": {
+              "$ref": "#/components/schemas/MetricSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "MetricSuggestionsResponse",
         "type": "object"
       },
       "MetricTemplate": {
@@ -17436,6 +18103,50 @@
         "title": "PartitionInfoResponse",
         "type": "object"
       },
+      "PasswordUpgradeRequest": {
+        "description": "Request body for password upgrade endpoint.",
+        "properties": {
+          "new_password": {
+            "description": "New password (12+ chars)",
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          },
+          "old_password": {
+            "description": "Current password",
+            "minLength": 1,
+            "title": "Old Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_password",
+          "new_password"
+        ],
+        "title": "PasswordUpgradeRequest",
+        "type": "object"
+      },
+      "PasswordUpgradeResponse": {
+        "description": "Response for password upgrade endpoint.",
+        "properties": {
+          "message": {
+            "description": "Status message",
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "description": "Whether upgrade succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "PasswordUpgradeResponse",
+        "type": "object"
+      },
       "PatternCreateResponse": {
         "description": "Response after creating a pattern.",
         "properties": {
@@ -18218,6 +18929,12 @@
             "title": "Default Reminder Frequency Days",
             "type": "integer"
           },
+          "preferred_currency": {
+            "default": "GBP",
+            "description": "Preferred currency for metric display (GBP, USD, EUR)",
+            "title": "Preferred Currency",
+            "type": "string"
+          },
           "skip_clarification": {
             "default": false,
             "description": "Skip pre-meeting clarifying questions by default",
@@ -18244,6 +18961,19 @@
             ],
             "description": "Default reminder frequency for new actions (1-14 days)",
             "title": "Default Reminder Frequency Days"
+          },
+          "preferred_currency": {
+            "anyOf": [
+              {
+                "pattern": "^(GBP|USD|EUR)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preferred currency for metric display (GBP, USD, EUR)",
+            "title": "Preferred Currency"
           },
           "skip_clarification": {
             "anyOf": [
@@ -22282,6 +23012,51 @@
         "title": "VotingStartedEvent",
         "type": "object"
       },
+      "SemanticColumnType": {
+        "description": "Business-semantic column types (beyond technical types).",
+        "enum": [
+          "revenue",
+          "price",
+          "cost",
+          "margin",
+          "discount",
+          "customer_id",
+          "order_id",
+          "product_id",
+          "transaction_id",
+          "email",
+          "phone",
+          "name",
+          "company",
+          "order_date",
+          "created_at",
+          "updated_at",
+          "event_date",
+          "quantity",
+          "count",
+          "units",
+          "conversion_rate",
+          "percentage",
+          "rate",
+          "status",
+          "category",
+          "type",
+          "channel",
+          "source",
+          "country",
+          "region",
+          "city",
+          "address",
+          "product_name",
+          "sku",
+          "description",
+          "metric",
+          "dimension",
+          "unknown"
+        ],
+        "title": "SemanticColumnType",
+        "type": "string"
+      },
       "SendEmailRequest": {
         "description": "Request model for sending admin email.\n\nAttributes:\n    template_type: Type of email template to use\n    subject: Custom subject (required for custom template)\n    body: Custom body (required for custom template)",
         "properties": {
@@ -24090,6 +24865,57 @@
           "by_phase"
         ],
         "title": "SubProblemCost",
+        "type": "object"
+      },
+      "SuggestedChart": {
+        "description": "A chart suggestion auto-generated from dataset profiling.",
+        "properties": {
+          "chart_spec": {
+            "$ref": "#/components/schemas/ChartSpec"
+          },
+          "rationale": {
+            "description": "Why this chart is useful (e.g., 'Shows revenue distribution by category')",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "title": {
+            "description": "Human-readable chart title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_spec",
+          "title",
+          "rationale"
+        ],
+        "title": "SuggestedChart",
+        "type": "object"
+      },
+      "SuggestedQuestion": {
+        "description": "A question the user might want to explore.",
+        "properties": {
+          "category": {
+            "description": "Category (performance, trend, segment, etc.)",
+            "title": "Category",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "why_relevant": {
+            "description": "Why this question matters for the data",
+            "title": "Why Relevant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "category",
+          "why_relevant"
+        ],
+        "title": "SuggestedQuestion",
         "type": "object"
       },
       "SyncResult": {
@@ -45182,7 +46008,7 @@
     },
     "/api/v1/auth/me": {
       "get": {
-        "description": "Get current authenticated user information.\n\nFetches user data from PostgreSQL (source of truth for persistent data).\nIf user not found in DB, returns minimal data from session.\n\nReturns:\n    User ID, email, auth provider, subscription tier, and session info",
+        "description": "Get current authenticated user information.\n\nFetches user data from PostgreSQL (source of truth for persistent data).\nIf user not found in DB, returns minimal data from session.\n\nWhen admin is impersonating another user:\n- Returns target user's data (id, email, subscription_tier)\n- Adds impersonation metadata (is_impersonation, real_admin_id, impersonation_write_mode)\n\nReturns:\n    User ID, email, auth provider, subscription tier, session info,\n    and impersonation metadata if applicable",
         "operationId": "get_user_info_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -46310,6 +47136,74 @@
           }
         },
         "summary": "Update user's business context",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/apply-metric-suggestion": {
+      "post": {
+        "description": "Apply a single metric suggestion to update the user's context.\n\n    Updates the specified context field with the provided value. The source_question\n    is recorded in benchmark_history metadata for audit trail.\n\n    **Allowed Fields:**\n    - revenue\n    - customers\n    - growth_rate\n    - team_size\n\n    **Use Cases:**\n    - User clicks \"Apply\" on a suggestion in the key-metrics page\n    - Bulk \"Apply All\" iterates through this endpoint",
+        "operationId": "apply_metric_suggestion_api_v1_context_apply_metric_suggestion_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyMetricSuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "field": "revenue",
+                  "new_value": "$50,000",
+                  "success": true
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyMetricSuggestionResponse"
+                }
+              }
+            },
+            "description": "Suggestion applied successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply a metric suggestion to context",
         "tags": [
           "context",
           "context"
@@ -47655,6 +48549,53 @@
           }
         },
         "summary": "Update a managed competitor",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metric-suggestions": {
+      "get": {
+        "description": "Get suggestions for auto-populating context metrics from clarification insights.\n\n    Analyzes user's clarification answers (from meetings) and extracts metric data\n    that could be used to populate context fields like revenue, customers, growth_rate,\n    and team_size.\n\n    **Filtering:**\n    - Only insights with confidence >= 0.6 are suggested\n    - Only insights from the last 90 days are considered\n    - Suggestions are deduplicated per field (highest confidence wins)\n    - Suggestions matching current values are excluded\n\n    **Use Cases:**\n    - Show \"Suggested from insights\" panel on key-metrics page\n    - Help users keep context metrics in sync with their meeting data",
+        "operationId": "get_metric_suggestions_api_v1_context_metric_suggestions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "success": true,
+                  "suggestions": [
+                    {
+                      "answered_at": "2025-12-28T10:30:00Z",
+                      "confidence": 0.85,
+                      "current_value": "$45,000",
+                      "field": "revenue",
+                      "source_question": "What's your current MRR?",
+                      "suggested_value": "$50,000"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MetricSuggestionsResponse"
+                }
+              }
+            },
+            "description": "Suggestions retrieved successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          }
+        },
+        "summary": "Get metric suggestions from insights",
         "tags": [
           "context",
           "context"
@@ -49483,9 +50424,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Dataset Insights Api V1 Datasets  Dataset Id  Insights Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DatasetInsightsResponse"
                 }
               }
             },
@@ -49503,6 +50442,60 @@
           }
         },
         "summary": "Get dataset insights",
+        "tags": [
+          "datasets",
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/preview-chart": {
+      "post": {
+        "description": "Generate a chart preview without persistence (lighter weight than /chart)",
+        "operationId": "preview_dataset_chart_api_v1_datasets__dataset_id__preview_chart_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChartSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview chart",
         "tags": [
           "datasets",
           "datasets"
@@ -58120,7 +59113,7 @@
         ]
       },
       "patch": {
-        "description": "Update user's meeting and workflow preferences.\n\n    Available preferences:\n    - skip_clarification: Skip pre-meeting clarifying questions by default.\n      When enabled, meetings start directly without asking context questions.\n      You can still provide context via your business profile.",
+        "description": "Update user's meeting and workflow preferences.\n\n    Available preferences:\n    - skip_clarification: Skip pre-meeting clarifying questions by default.\n      When enabled, meetings start directly without asking context questions.\n      You can still provide context via your business profile.\n    - preferred_currency: Currency for metric display (GBP, USD, EUR).\n      Affects how monetary values are formatted across the dashboard.",
         "operationId": "update_preferences_api_v1_user_preferences_patch",
         "requestBody": {
           "content": {
@@ -58775,6 +59768,79 @@
           }
         },
         "summary": "Get tier information",
+        "tags": [
+          "user",
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/upgrade-password": {
+      "post": {
+        "description": "Upgrade a weak password to meet current strength requirements.\n\n    Requirements for new password:\n    - At least 12 characters\n    - Contains at least one letter (a-z or A-Z)\n    - Contains at least one digit (0-9)\n\n    This endpoint:\n    1. Verifies the old password is correct\n    2. Validates the new password meets requirements\n    3. Updates the password\n    4. Clears the password_upgrade_needed flag",
+        "operationId": "upgrade_password_api_v1_user_upgrade_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordUpgradeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordUpgradeResponse"
+                }
+              }
+            },
+            "description": "Password upgraded successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid old password or weak new password"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Failed to upgrade password"
+          }
+        },
+        "summary": "Upgrade weak password",
         "tags": [
           "user",
           "user"

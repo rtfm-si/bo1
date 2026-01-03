@@ -2,16 +2,48 @@
 	/**
 	 * ChatMessage - Renders a single chat message (user or assistant)
 	 */
-	import type { ConversationMessage, ChartSpec } from '$lib/api/types';
+	import type { ConversationMessage, ChartSpec, ChartResultResponse } from '$lib/api/types';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import ChartRenderer from './ChartRenderer.svelte';
+	import ChartModal from './ChartModal.svelte';
+	import { apiClient } from '$lib/api/client';
 
 	interface Props {
 		message: ConversationMessage;
+		datasetId?: string;
 		isStreaming?: boolean;
 		onNextStepClick?: (question: string) => void;
 	}
 
-	let { message, isStreaming = false, onNextStepClick }: Props = $props();
+	let { message, datasetId, isStreaming = false, onNextStepClick }: Props = $props();
+
+	// Chart preview state
+	let chartLoading = $state(false);
+	let chartError = $state<string | null>(null);
+	let chartData = $state<ChartResultResponse | null>(null);
+	let chartExpanded = $state(false);
+	let modalOpen = $state(false);
+
+	async function loadChartPreview() {
+		if (!datasetId || !message.chart_spec || chartData) return;
+
+		chartLoading = true;
+		chartError = null;
+		try {
+			const spec = message.chart_spec as ChartSpec;
+			const result = await apiClient.previewChart(datasetId, spec);
+			chartData = result;
+			chartExpanded = true;
+		} catch (err) {
+			chartError = err instanceof Error ? err.message : 'Failed to load chart';
+		} finally {
+			chartLoading = false;
+		}
+	}
+
+	function handleExpand() {
+		modalOpen = true;
+	}
 
 	const isUser = $derived(message.role === 'user');
 
@@ -80,18 +112,56 @@
 		<!-- Chart preview if present -->
 		{#if message.chart_spec}
 			<div class="mt-3 p-3 bg-white dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-600">
-				<div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mb-2">
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-					</svg>
-					<span>Chart: {message.chart_spec.chart_type} - {message.chart_spec.title || 'Untitled'}</span>
-				</div>
-				<div class="text-xs text-neutral-500 dark:text-neutral-400">
-					X: {message.chart_spec.x_field} | Y: {message.chart_spec.y_field}
-					{#if message.chart_spec.group_field}
-						| Group: {message.chart_spec.group_field}
-					{/if}
-				</div>
+				{#if chartData && chartExpanded}
+					<!-- Rendered chart -->
+					<ChartRenderer
+						figureJson={chartData.figure_json}
+						title={(message.chart_spec as ChartSpec).title || ''}
+						viewMode="simple"
+						onExpand={handleExpand}
+					/>
+				{:else if chartLoading}
+					<!-- Loading state -->
+					<div class="flex items-center justify-center py-4">
+						<div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+							<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<span class="text-xs">Loading chart...</span>
+						</div>
+					</div>
+				{:else if chartError}
+					<!-- Error state -->
+					<div class="text-xs text-error-600 dark:text-error-400 py-2">{chartError}</div>
+				{:else}
+					<!-- Chart metadata with preview button -->
+					<div class="flex items-center justify-between">
+						<div>
+							<div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mb-1">
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+								</svg>
+								<span>Chart: {(message.chart_spec as ChartSpec).chart_type} - {(message.chart_spec as ChartSpec).title || 'Untitled'}</span>
+							</div>
+							<div class="text-xs text-neutral-500 dark:text-neutral-400">
+								X: {(message.chart_spec as ChartSpec).x_field} | Y: {(message.chart_spec as ChartSpec).y_field}
+								{#if (message.chart_spec as ChartSpec).group_field}
+									| Group: {(message.chart_spec as ChartSpec).group_field}
+								{/if}
+							</div>
+						</div>
+						{#if datasetId}
+							<button
+								type="button"
+								onclick={loadChartPreview}
+								class="px-3 py-1.5 text-xs rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-800/40 transition-colors"
+							>
+								Preview
+							</button>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -126,3 +196,11 @@
 	</div>
 </div>
 
+<!-- Chart Modal -->
+{#if chartData}
+	<ChartModal
+		bind:open={modalOpen}
+		figureJson={chartData.figure_json}
+		title={(message.chart_spec as ChartSpec)?.title || 'Chart'}
+	/>
+{/if}

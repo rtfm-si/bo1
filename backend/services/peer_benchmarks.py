@@ -550,25 +550,35 @@ def get_preview_metric(user_id: str) -> dict | None:
     Returns:
         Dict with metric, display_name, industry, p50, sample_count or None
     """
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Get user's industry
-            cur.execute(
-                "SELECT industry FROM user_context WHERE user_id = %s",
-                (user_id,),
-            )
-            result = cur.fetchone()
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get user's industry
+                cur.execute(
+                    "SELECT industry FROM user_context WHERE user_id = %s",
+                    (user_id,),
+                )
+                result = cur.fetchone()
 
-            if not result or not result["industry"]:
-                return None
+                if not result or not result["industry"]:
+                    return None
 
-            industry = result["industry"]
+                industry = result["industry"]
+    except Exception as e:
+        logger.warning("get_preview_metric_db_error", extra={"user_id": user_id, "error": str(e)})
+        return None
 
     # Get cached aggregates for this industry
-    aggregates = get_cached_aggregates(industry)
-    if not aggregates:
-        # Compute fresh if no cache exists
-        aggregates = aggregate_industry_metrics(industry)
+    try:
+        aggregates = get_cached_aggregates(industry)
+        if not aggregates:
+            # Compute fresh if no cache exists
+            aggregates = aggregate_industry_metrics(industry)
+    except Exception as e:
+        logger.warning(
+            "get_preview_metric_aggregate_error", extra={"industry": industry, "error": str(e)}
+        )
+        return None
 
     if not aggregates:
         return None
@@ -596,61 +606,74 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
     Returns:
         PeerBenchmarkResult with industry percentiles and user rankings, or None
     """
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Get user's industry
-            cur.execute(
-                "SELECT industry FROM user_context WHERE user_id = %s",
-                (user_id,),
-            )
-            result = cur.fetchone()
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get user's industry
+                cur.execute(
+                    "SELECT industry FROM user_context WHERE user_id = %s",
+                    (user_id,),
+                )
+                result = cur.fetchone()
 
-            if not result or not result["industry"]:
-                return None
+                if not result or not result["industry"]:
+                    return None
 
-            industry = result["industry"]
+                industry = result["industry"]
 
-            # Get user's benchmark values
-            cur.execute(
-                """
-                SELECT
-                    revenue, customers, growth_rate, team_size,
-                    mau_bucket, traffic_range, revenue_stage,
-                    dau, mau,
-                    CASE WHEN mau > 0 THEN dau::float / mau ELSE NULL END as dau_mau_ratio,
-                    arpu, arr_growth_rate, grr,
-                    active_churn, revenue_churn, nps, quick_ratio
-                FROM user_context
-                WHERE user_id = %s
-                """,
-                (user_id,),
-            )
-            user_result = cur.fetchone()
+                # Get user's benchmark values
+                cur.execute(
+                    """
+                    SELECT
+                        revenue, customers, growth_rate, team_size,
+                        mau_bucket, traffic_range, revenue_stage,
+                        dau, mau,
+                        CASE WHEN mau > 0 THEN dau::float / mau ELSE NULL END as dau_mau_ratio,
+                        arpu, arr_growth_rate, grr,
+                        active_churn, revenue_churn, nps, quick_ratio
+                    FROM user_context
+                    WHERE user_id = %s
+                    """,
+                    (user_id,),
+                )
+                user_result = cur.fetchone()
 
-            user_values = {}
-            if user_result:
-                user_values = {
-                    "revenue": _parse_numeric_value(user_result["revenue"]),
-                    "customers": _parse_numeric_value(user_result["customers"]),
-                    "growth_rate": _parse_numeric_value(user_result["growth_rate"]),
-                    "team_size": _parse_numeric_value(user_result["team_size"]),
-                    "mau_bucket": _parse_numeric_value(user_result["mau_bucket"]),
-                    "traffic_range": _parse_numeric_value(user_result["traffic_range"]),
-                    "revenue_stage": _parse_numeric_value(user_result["revenue_stage"]),
-                    "dau_mau_ratio": user_result["dau_mau_ratio"],
-                    "arpu": _parse_numeric_value(user_result["arpu"]),
-                    "arr_growth_rate": _parse_numeric_value(user_result["arr_growth_rate"]),
-                    "grr": _parse_numeric_value(user_result["grr"]),
-                    "active_churn": _parse_numeric_value(user_result["active_churn"]),
-                    "revenue_churn": _parse_numeric_value(user_result["revenue_churn"]),
-                    "nps": _parse_numeric_value(user_result["nps"]),
-                    "quick_ratio": _parse_numeric_value(user_result["quick_ratio"]),
-                }
+                user_values = {}
+                if user_result:
+                    user_values = {
+                        "revenue": _parse_numeric_value(user_result["revenue"]),
+                        "customers": _parse_numeric_value(user_result["customers"]),
+                        "growth_rate": _parse_numeric_value(user_result["growth_rate"]),
+                        "team_size": _parse_numeric_value(user_result["team_size"]),
+                        "mau_bucket": _parse_numeric_value(user_result["mau_bucket"]),
+                        "traffic_range": _parse_numeric_value(user_result["traffic_range"]),
+                        "revenue_stage": _parse_numeric_value(user_result["revenue_stage"]),
+                        "dau_mau_ratio": user_result["dau_mau_ratio"],
+                        "arpu": _parse_numeric_value(user_result["arpu"]),
+                        "arr_growth_rate": _parse_numeric_value(user_result["arr_growth_rate"]),
+                        "grr": _parse_numeric_value(user_result["grr"]),
+                        "active_churn": _parse_numeric_value(user_result["active_churn"]),
+                        "revenue_churn": _parse_numeric_value(user_result["revenue_churn"]),
+                        "nps": _parse_numeric_value(user_result["nps"]),
+                        "quick_ratio": _parse_numeric_value(user_result["quick_ratio"]),
+                    }
+    except Exception as e:
+        logger.warning("get_peer_comparison_db_error", extra={"user_id": user_id, "error": str(e)})
+        return None
 
     # Get or compute aggregates
-    aggregates = get_cached_aggregates(industry)
+    try:
+        aggregates = get_cached_aggregates(industry)
+        if not aggregates:
+            aggregates = aggregate_industry_metrics(industry)
+    except Exception as e:
+        logger.warning(
+            "get_peer_comparison_aggregate_error", extra={"industry": industry, "error": str(e)}
+        )
+        return None
+
     if not aggregates:
-        aggregates = aggregate_industry_metrics(industry)
+        return PeerBenchmarkResult(industry=industry, metrics=[], updated_at=None)
 
     # Add user values and percentile ranks
     metrics: list[PeerPercentile] = []
@@ -659,7 +682,12 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
         user_pct = None
 
         if user_val is not None and data.sample_count >= K_ANONYMITY_THRESHOLD:
-            user_pct = get_user_percentile_rank(user_id, industry, metric, user_val)
+            try:
+                user_pct = get_user_percentile_rank(user_id, industry, metric, user_val)
+            except Exception as e:
+                logger.warning(
+                    "get_user_percentile_error", extra={"metric": metric, "error": str(e)}
+                )
 
         metrics.append(
             PeerPercentile(
@@ -678,19 +706,24 @@ def get_peer_comparison(user_id: str) -> PeerBenchmarkResult | None:
 
     # Get cache timestamp
     updated_at = None
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT MAX(updated_at)
-                FROM peer_benchmark_aggregates
-                WHERE industry = %s
-                """,
-                (industry,),
-            )
-            result = cur.fetchone()
-            if result:
-                updated_at = result["max"]
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT MAX(updated_at)
+                    FROM peer_benchmark_aggregates
+                    WHERE industry = %s
+                    """,
+                    (industry,),
+                )
+                result = cur.fetchone()
+                if result:
+                    updated_at = result["max"]
+    except Exception as e:
+        logger.warning(
+            "get_peer_comparison_timestamp_error", extra={"industry": industry, "error": str(e)}
+        )
 
     return PeerBenchmarkResult(
         industry=industry,

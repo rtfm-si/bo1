@@ -4449,6 +4449,16 @@ class SuggestedQuestion(BaseModel):
     why_relevant: str = Field(description="Why this question matters for the data")
 
 
+class SuggestedChart(BaseModel):
+    """A chart suggestion auto-generated from dataset profiling."""
+
+    chart_spec: "ChartSpec"
+    title: str = Field(description="Human-readable chart title")
+    rationale: str = Field(
+        description="Why this chart is useful (e.g., 'Shows revenue distribution by category')"
+    )
+
+
 class DatasetInsights(BaseModel):
     """Complete structured intelligence for a dataset."""
 
@@ -4459,6 +4469,9 @@ class DatasetInsights(BaseModel):
     suggested_questions: list[SuggestedQuestion] = Field(max_length=5)
     column_semantics: list[ColumnSemantic]
     narrative_summary: str = Field(description="Prose summary for fallback display")
+    suggested_charts: list[SuggestedChart] = Field(
+        default_factory=list, max_length=5, description="Auto-generated chart suggestions"
+    )
 
 
 class DatasetInsightsResponse(BaseModel):
@@ -4468,3 +4481,4 @@ class DatasetInsightsResponse(BaseModel):
     generated_at: str
     model_used: str
     tokens_used: int
+    cached: bool = False

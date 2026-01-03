@@ -4,7 +4,7 @@
 	 * Deep strategic intelligence for better expert recommendations.
 	 */
 	import { onMount } from 'svelte';
-	import { apiClient, type MarketTrend, type DetectedCompetitor } from '$lib/api/client';
+	import { apiClient, getCsrfToken, type MarketTrend, type DetectedCompetitor } from '$lib/api/client';
 	import type { UserContext, CompetitorInsight, TrendInsight } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -274,9 +274,15 @@
 			const endpoint = selectedTimeframe === 'now'
 				? '/api/v1/context/trends/summary/refresh'
 				: `/api/v1/context/trends/forecast/refresh?timeframe=${selectedTimeframe}`;
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = {};
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
 			const response = await fetch(endpoint, {
 				method: 'POST',
-				credentials: 'include'
+				credentials: 'include',
+				headers
 			});
 			const data = await response.json();
 			if (data.success && data.summary) {

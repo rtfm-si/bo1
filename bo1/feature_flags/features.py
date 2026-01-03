@@ -66,6 +66,9 @@ TWITTER_OAUTH_ENABLED = _parse_bool(os.getenv("TWITTER_OAUTH_ENABLED"), default=
 # Enable Bluesky OAuth provider (AT Protocol) in SuperTokens
 BLUESKY_OAUTH_ENABLED = _parse_bool(os.getenv("BLUESKY_OAUTH_ENABLED"), default=False)
 
+# Enable Passwordless (Magic Link) authentication in SuperTokens
+MAGIC_LINK_ENABLED = _parse_bool(os.getenv("MAGIC_LINK_ENABLED"), default=True)
+
 
 # ============================================================================
 # Parallel Processing

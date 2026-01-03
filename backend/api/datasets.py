@@ -35,6 +35,7 @@ from backend.api.models import (
     DatasetAnalysisListResponse,
     DatasetAnalysisResponse,
     DatasetDetailResponse,
+    DatasetInsightsResponse,
     DatasetListResponse,
     DatasetProfileResponse,
     DatasetResponse,
@@ -610,6 +611,7 @@ async def trigger_profile(
 
 @router.get(
     "/{dataset_id}/insights",
+    response_model=DatasetInsightsResponse,
     summary="Get dataset insights",
     description="Get structured business intelligence for a dataset",
 )
@@ -618,7 +620,7 @@ async def get_dataset_insights(
     dataset_id: str,
     regenerate: bool = Query(False, description="Force regeneration (bypass cache)"),
     user: dict = Depends(get_current_user),
-) -> dict:
+) -> DatasetInsightsResponse:
     """Get structured business intelligence for a dataset.
 
     Returns actionable insights including:
@@ -696,13 +698,13 @@ async def get_dataset_insights(
             status=500,
         ) from None
 
-    return {
-        "insights": insights.model_dump(mode="json"),
-        "generated_at": datetime.now(UTC).isoformat(),
-        "model_used": metadata.get("model_used", "sonnet"),
-        "tokens_used": metadata.get("tokens_used", 0),
-        "cached": metadata.get("cached", False),
-    }
+    return DatasetInsightsResponse(
+        insights=insights,
+        generated_at=datetime.now(UTC).isoformat(),
+        model_used=metadata.get("model_used", "sonnet"),
+        tokens_used=metadata.get("tokens_used", 0),
+        cached=metadata.get("cached", False),
+    )
 
 
 @router.post(
@@ -850,6 +852,68 @@ async def generate_dataset_chart(
         height=result["height"],
         row_count=result["row_count"],
         analysis_id=analysis_id,
+    )
+
+
+@router.post(
+    "/{dataset_id}/preview-chart",
+    response_model=ChartResultResponse,
+    summary="Preview chart",
+    description="Generate a chart preview without persistence (lighter weight than /chart)",
+)
+@handle_api_errors("preview chart")
+async def preview_dataset_chart(
+    dataset_id: str,
+    chart: ChartSpec,
+    user: dict = Depends(get_current_user),
+) -> ChartResultResponse:
+    """Generate a chart preview without saving to storage.
+
+    Lighter weight than /chart endpoint - no PNG generation, no Spaces upload,
+    no analysis record created. Use for quick chart previews from suggestions.
+    """
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Get file key
+    file_key = dataset.get("file_key")
+    if not file_key:
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Dataset has no associated file", status=422)
+
+    # Load DataFrame
+    try:
+        df = load_dataframe(file_key, max_rows=None)
+    except DataFrameLoadError as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to load dataset {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+            file_key=file_key,
+        )
+        raise http_error(ErrorCode.EXT_SPACES_ERROR, "Failed to load dataset", status=502) from None
+
+    # Generate chart JSON only (no PNG, no persistence)
+    try:
+        result = generate_chart_json(df, chart)
+    except ChartError as e:
+        logger.warning(f"Chart preview error for dataset {dataset_id}: {e}")
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
+
+    return ChartResultResponse(
+        figure_json=result["figure_json"],
+        chart_type=result["chart_type"],
+        width=result["width"],
+        height=result["height"],
+        row_count=result["row_count"],
+        analysis_id=None,  # Not persisted
     )
 
 
@@ -1143,9 +1207,32 @@ async def _stream_ask_response(
                 logger.warning(f"Query execution failed: {e}")
                 yield f"event: query_result\ndata: {json.dumps({'error': str(e)})}\n\n"
 
-        # Return chart spec if provided
+        # Return chart spec if provided and save to analysis gallery
+        analysis_id = None
         if chart_spec:
             yield f"event: chart\ndata: {json.dumps({'spec': chart_spec})}\n\n"
+
+            # Save chart to analysis gallery for persistence
+            try:
+                # Generate title from chart spec
+                chart_type = chart_spec.get("chart_type", "chart")
+                columns = chart_spec.get("columns", [])
+                if columns:
+                    col_names = ", ".join(columns[:2])
+                    title = f"{chart_type.replace('_', ' ').title()} - {col_names}"
+                else:
+                    title = f"{chart_type.replace('_', ' ').title()}"
+
+                analysis = dataset_repository.create_analysis(
+                    dataset_id=dataset_id,
+                    user_id=user_id,
+                    chart_spec=chart_spec,
+                    title=title,
+                )
+                analysis_id = analysis.get("id")
+                logger.info(f"Saved Q&A chart to analysis gallery: {analysis_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save chart to analysis gallery: {e}")
 
         # Save assistant response to conversation
         conversation_repository.append_message(
@@ -1157,8 +1244,11 @@ async def _stream_ask_response(
             query_result=query_result,
         )
 
-        # Done event with conversation ID
-        yield f"event: done\ndata: {json.dumps({'conversation_id': conversation_id, 'tokens': usage.total_tokens})}\n\n"
+        # Done event with conversation ID and optional analysis_id
+        done_payload = {"conversation_id": conversation_id, "tokens": usage.total_tokens}
+        if analysis_id:
+            done_payload["analysis_id"] = str(analysis_id)
+        yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
 
     except Exception as e:
         log_error(

@@ -1551,15 +1551,16 @@ async def get_autopilot_config(
             status=403,
         )
 
-    with db_session() as cursor:
-        cursor.execute(
-            """
-            SELECT seo_autopilot_config FROM user_context
-            WHERE user_id = %s
-            """,
-            (user_id,),
-        )
-        row = cursor.fetchone()
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT seo_autopilot_config FROM user_context
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
 
     # Parse config or return defaults
     if row and row[0]:

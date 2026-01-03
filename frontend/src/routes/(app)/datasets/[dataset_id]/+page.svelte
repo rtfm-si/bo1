@@ -2,14 +2,17 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiClient } from '$lib/api/client';
-	import type { DatasetDetailResponse, DatasetAnalysis, DatasetInsights } from '$lib/api/types';
+	import type { DatasetDetailResponse, DatasetAnalysis, DatasetInsights, ColumnSemantic } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import DatasetChat from '$lib/components/dataset/DatasetChat.svelte';
+	import DatasetChatHistory from '$lib/components/dataset/DatasetChatHistory.svelte';
 	import AnalysisGallery from '$lib/components/dataset/AnalysisGallery.svelte';
 	import DataInsightsPanel from '$lib/components/dataset/DataInsightsPanel.svelte';
+	import ColumnReferenceSidebar from '$lib/components/dataset/ColumnReferenceSidebar.svelte';
+	import QueryTemplates from '$lib/components/dataset/QueryTemplates.svelte';
 
 	const datasetId = $derived(page.params.dataset_id || '');
 
@@ -37,6 +40,45 @@
 
 	// Reference to chat component for asking questions
 	let chatComponent = $state<{ askQuestion: (q: string) => void } | null>(null);
+
+	// Conversation history state
+	let selectedConversationId = $state<string | null>(null);
+	let historyComponent = $state<{ refresh: () => void } | null>(null);
+
+	// Column sidebar state
+	let showColumnSidebar = $state(true);
+
+	// Derive column semantics from insights
+	const columnSemantics = $derived<ColumnSemantic[]>(
+		insights?.column_semantics ?? []
+	);
+
+	function handleConversationSelect(id: string) {
+		selectedConversationId = id;
+	}
+
+	function handleNewConversation() {
+		selectedConversationId = null;
+	}
+
+	function handleConversationChange(newId: string | null) {
+		if (newId) {
+			selectedConversationId = newId;
+			// Refresh history to show new conversation
+			historyComponent?.refresh();
+		}
+	}
+
+	function handleTemplateSelect(query: string) {
+		// Use the chat component's method to set the question
+		if (chatComponent?.askQuestion) {
+			chatComponent.askQuestion(query);
+		}
+	}
+
+	function toggleColumnSidebar() {
+		showColumnSidebar = !showColumnSidebar;
+	}
 
 	async function fetchInsights(regenerate = false) {
 		insightsLoading = true;
@@ -254,6 +296,7 @@
 				<div class="mb-6">
 					<DataInsightsPanel
 						{insights}
+						{datasetId}
 						loading={insightsLoading}
 						error={insightsError}
 						onQuestionClick={handleQuestionClick}
@@ -351,9 +394,54 @@
 				{/if}
 			</div>
 
-			<!-- Chat Section -->
+			<!-- Chat Section with History Sidebar and Column Reference -->
 			<div id="dataset-chat" class="mt-6">
-				<DatasetChat {datasetId} bind:this={chatComponent} />
+				<!-- Query Templates -->
+				{#if columnSemantics.length > 0}
+					<div class="mb-4">
+						<QueryTemplates
+							{columnSemantics}
+							onSelectTemplate={handleTemplateSelect}
+						/>
+					</div>
+				{/if}
+
+				<div class="flex gap-4">
+					<!-- Chat History Sidebar -->
+					<div class="w-56 flex-shrink-0 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 h-[500px]">
+						<DatasetChatHistory
+							{datasetId}
+							selectedId={selectedConversationId}
+							onSelect={handleConversationSelect}
+							onNew={handleNewConversation}
+							bind:this={historyComponent}
+						/>
+					</div>
+
+					<!-- Chat Interface -->
+					<div class="flex-1">
+						<DatasetChat
+							{datasetId}
+							{selectedConversationId}
+							{columnSemantics}
+							onConversationChange={handleConversationChange}
+							onShowColumns={toggleColumnSidebar}
+							onAnalysisCreated={fetchAnalyses}
+							bind:this={chatComponent}
+						/>
+					</div>
+
+					<!-- Column Reference Sidebar -->
+					{#if columnSemantics.length > 0}
+						<div class="w-52 flex-shrink-0 h-[500px]">
+							<ColumnReferenceSidebar
+								columns={columnSemantics}
+								isOpen={showColumnSidebar}
+								onToggle={toggleColumnSidebar}
+							/>
+						</div>
+					{/if}
+				</div>
 			</div>
 
 			<!-- Analysis History Section -->
@@ -364,7 +452,7 @@
 					</svg>
 					Analysis History
 				</h2>
-				<AnalysisGallery {analyses} loading={analysesLoading} error={analysesError} />
+				<AnalysisGallery {analyses} {datasetId} loading={analysesLoading} error={analysesError} />
 			</div>
 		{/if}
 	</main>

@@ -6,6 +6,7 @@
 	 * - Current values and trends (pendulum indicators)
 	 * - 3 sections: Focus Now, Track Later, Monitor
 	 * - Benchmark comparison when available
+	 * - Suggestions from insights panel
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
@@ -14,15 +15,26 @@
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
+	import MetricSuggestions from '$lib/components/context/MetricSuggestions.svelte';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency, isMonetaryMetric, type CurrencyCode } from '$lib/utils/currency';
 
 	// State
 	let metricsResponse = $state<KeyMetricsResponse | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let suggestionsKey = $state(0);
 
 	onMount(async () => {
 		await loadMetrics();
 	});
+
+	function handleSuggestionApplied() {
+		// Reload metrics after a suggestion is applied
+		loadMetrics();
+		// Force re-mount of suggestions component to refresh
+		suggestionsKey++;
+	}
 
 	async function loadMetrics() {
 		isLoading = true;
@@ -38,9 +50,19 @@
 		}
 	}
 
-	function formatValue(value: string | number | null): string {
+	function formatValue(value: string | number | null, metricName?: string): string {
 		if (value === null) return '-';
+
+		// Check if this is a monetary metric
+		const isMoney = metricName && isMonetaryMetric(metricName);
+
 		if (typeof value === 'number') {
+			if (isMoney) {
+				return formatCurrency(value, $preferredCurrency as CurrencyCode, {
+					abbreviated: Math.abs(value) >= 1_000,
+					decimals: Math.abs(value) >= 1_000 ? 1 : 0
+				});
+			}
 			if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
 			if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
 			return value.toLocaleString();
@@ -130,6 +152,11 @@
 		</div>
 	</div>
 
+	<!-- Metric Suggestions Panel (above metrics) -->
+	{#key suggestionsKey}
+		<MetricSuggestions onapplied={handleSuggestionApplied} />
+	{/key}
+
 	{#if isLoading}
 		<div class="flex items-center justify-center py-12">
 			<Spinner size="lg" />
@@ -181,7 +208,7 @@
 									</span>
 								</div>
 								<div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">
-									{formatValue(metric.value)}
+									{formatValue(metric.value, metric.name)}
 									{#if metric.unit}
 										<span class="text-sm font-normal text-neutral-500">{metric.unit}</span>
 									{/if}
@@ -191,7 +218,7 @@
 								{/if}
 								{#if metric.benchmark_value}
 									<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-										Industry: {formatValue(metric.benchmark_value)}
+										Industry: {formatValue(metric.benchmark_value, metric.name)}
 									</p>
 								{/if}
 							</div>
@@ -219,7 +246,7 @@
 									</span>
 								</div>
 								<div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">
-									{formatValue(metric.value)}
+									{formatValue(metric.value, metric.name)}
 									{#if metric.unit}
 										<span class="text-sm font-normal text-neutral-500">{metric.unit}</span>
 									{/if}
@@ -254,7 +281,7 @@
 									</span>
 								</div>
 								<div class="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-									{formatValue(metric.value)}
+									{formatValue(metric.value, metric.name)}
 									{#if metric.unit}
 										<span class="text-xs font-normal text-neutral-500">{metric.unit}</span>
 									{/if}

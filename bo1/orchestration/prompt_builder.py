@@ -109,6 +109,9 @@ class PromptBuilder:
         # Check if we have round summaries for hierarchical context
         round_summaries = state.get("round_summaries", [])
 
+        # Extract business context for style adaptation
+        business_context = state.get("business_context")
+
         if round_summaries and round_number > 1:
             # Use hierarchical prompts (summaries + recent contributions)
             system_prompt, user_message = PromptBuilder._build_hierarchical_prompt(
@@ -131,6 +134,7 @@ class PromptBuilder:
                 expert_memory=expert_memory,
                 round_number=round_number,
                 round_config=round_config,
+                business_context=business_context,
             )
 
         # Inject best effort prompt if context is limited and user chose to continue
@@ -218,6 +222,7 @@ class PromptBuilder:
         expert_memory: str | None,
         round_number: int,
         round_config: dict[str, Any],
+        business_context: dict[str, Any] | None = None,
     ) -> tuple[str, str]:
         """Build regular prompt for early rounds or when no summaries available.
 
@@ -228,6 +233,7 @@ class PromptBuilder:
             expert_memory: Cross-sub-problem memory
             round_number: Current round (0-indexed)
             round_config: Round configuration (phase, temperature, etc.)
+            business_context: Optional business context for style adaptation
 
         Returns:
             Tuple of (system_prompt, user_message)
@@ -252,6 +258,7 @@ class PromptBuilder:
             previous_contributions=prev_contribs,
             speaker_prompt=expert_memory or round_config["directive"],
             round_number=round_number + 1,  # +1 for 1-indexed rounds
+            business_context=business_context,
         )
 
         return system_prompt, user_message

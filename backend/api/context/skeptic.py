@@ -4,8 +4,11 @@ Validates detected competitors against user's business context to assess:
 - Similar product: Do they solve the same core problem?
 - Same ICP: Do they target similar customer profile?
 - Same market: Are they in the same geographic/market segment?
+
+Includes confidence-weighted scoring and Redis caching for efficiency.
 """
 
+import hashlib
 import json
 import logging
 import re
@@ -13,8 +16,107 @@ import re
 from backend.api.context.models import DetectedCompetitor, RelevanceFlags
 from bo1.llm.client import ClaudeClient
 from bo1.logging.errors import ErrorCode, log_error
+from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
+
+# Lazy-initialized Redis manager for caching
+_redis_manager: RedisManager | None = None
+
+
+def _get_redis_manager() -> RedisManager:
+    """Get or create Redis manager instance."""
+    global _redis_manager
+    if _redis_manager is None:
+        _redis_manager = RedisManager()
+    return _redis_manager
+
+
+# Confidence multipliers for weighted scoring
+CONFIDENCE_WEIGHTS = {
+    "high": 1.0,
+    "medium": 0.7,
+    "low": 0.4,
+}
+
+# Cache TTL: 24 hours
+SKEPTIC_CACHE_TTL = 86400
+
+
+def _get_cache_key(competitor_name: str, context_hash: str) -> str:
+    """Build cache key for skeptic evaluation.
+
+    Args:
+        competitor_name: Normalized competitor name
+        context_hash: Hash of user context
+
+    Returns:
+        Cache key string
+    """
+    # Normalize name for caching
+    normalized = competitor_name.lower().strip()
+    normalized = re.sub(r"[^a-z0-9]", "", normalized)
+    return f"skeptic:eval:{normalized}:{context_hash}"
+
+
+def _hash_context(company_context: dict) -> str:
+    """Create a hash of relevant context fields.
+
+    Args:
+        company_context: User's business context
+
+    Returns:
+        SHA256 hash of context
+    """
+    # Only include fields that affect evaluation
+    relevant_fields = [
+        company_context.get("company_name", ""),
+        company_context.get("product_description", ""),
+        company_context.get("industry", ""),
+        company_context.get("target_market", ""),
+        company_context.get("ideal_customer_profile", ""),
+        company_context.get("target_geography", ""),
+        company_context.get("business_model", ""),
+    ]
+    content = "|".join(str(f) for f in relevant_fields)
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
+async def _get_cached_evaluation(cache_key: str) -> dict | None:
+    """Get cached skeptic evaluation.
+
+    Args:
+        cache_key: Cache key
+
+    Returns:
+        Cached evaluation dict or None
+    """
+    try:
+        redis_manager = _get_redis_manager()
+        client = redis_manager.client
+        if client:
+            cached = client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+    except Exception as e:
+        logger.debug(f"Cache get failed: {e}")
+    return None
+
+
+async def _set_cached_evaluation(cache_key: str, evaluation: dict) -> None:
+    """Cache skeptic evaluation.
+
+    Args:
+        cache_key: Cache key
+        evaluation: Evaluation dict to cache
+    """
+    try:
+        redis_manager = _get_redis_manager()
+        client = redis_manager.client
+        if client:
+            client.set(cache_key, json.dumps(evaluation), ex=SKEPTIC_CACHE_TTL)
+    except Exception as e:
+        logger.debug(f"Cache set failed: {e}")
 
 
 async def evaluate_competitor_relevance(
@@ -58,9 +160,14 @@ async def evaluate_competitor_relevance(
                 same_market=result.get("same_market", False),
             )
 
-            # Calculate score: 1.0 for 3 checks, 0.66 for 2, 0.33 for 1, 0.0 for 0
+            # Calculate base score: 1.0 for 3 checks, 0.66 for 2, 0.33 for 1, 0.0 for 0
             checks_passed = sum([flags.similar_product, flags.same_icp, flags.same_market])
-            score = round(checks_passed / 3, 2)
+            base_score = checks_passed / 3
+
+            # Apply confidence weighting
+            confidence = result.get("confidence", "medium")
+            weight = CONFIDENCE_WEIGHTS.get(confidence, 0.7)
+            score = round(base_score * weight, 2)
 
             # Generate warning if <2 checks pass
             warning = None
@@ -109,7 +216,30 @@ async def evaluate_competitors_batch(
     if not context_summary:
         return competitors
 
-    prompt = _build_batch_skeptic_prompt(competitors, context_summary)
+    # Generate context hash for caching
+    context_hash = _hash_context(company_context)
+
+    # Check cache for each competitor, separate cached from uncached
+    cached_results: dict[str, dict] = {}
+    uncached_competitors: list[tuple[int, DetectedCompetitor]] = []
+
+    for i, competitor in enumerate(competitors):
+        cache_key = _get_cache_key(competitor.name, context_hash)
+        cached = await _get_cached_evaluation(cache_key)
+        if cached:
+            cached_results[competitor.name] = cached
+            logger.debug(f"Cache hit for {competitor.name}")
+        else:
+            uncached_competitors.append((i, competitor))
+
+    # If all cached, build results from cache
+    if not uncached_competitors:
+        logger.info(f"All {len(competitors)} competitors found in cache")
+        return _build_evaluated_from_cache(competitors, cached_results)
+
+    # Build prompt for uncached competitors only
+    uncached_list = [c for _, c in uncached_competitors]
+    prompt = _build_batch_skeptic_prompt(uncached_list, context_summary)
 
     try:
         client = ClaudeClient()
@@ -124,36 +254,15 @@ async def evaluate_competitors_batch(
         results = _parse_batch_response(response)
 
         if results:
-            evaluated = []
-            for i, competitor in enumerate(competitors):
-                if i < len(results):
-                    result = results[i]
-                    flags = RelevanceFlags(
-                        similar_product=result.get("similar_product", False),
-                        same_icp=result.get("same_icp", False),
-                        same_market=result.get("same_market", False),
-                    )
+            # Cache new results
+            for j, (_orig_idx, competitor) in enumerate(uncached_competitors):
+                if j < len(results):
+                    cache_key = _get_cache_key(competitor.name, context_hash)
+                    await _set_cached_evaluation(cache_key, results[j])
+                    cached_results[competitor.name] = results[j]
 
-                    checks_passed = sum([flags.similar_product, flags.same_icp, flags.same_market])
-                    score = round(checks_passed / 3, 2)
-
-                    warning = None
-                    if checks_passed < 2:
-                        warning = result.get("warning") or _generate_warning(flags, competitor.name)
-
-                    evaluated.append(
-                        DetectedCompetitor(
-                            name=competitor.name,
-                            url=competitor.url,
-                            description=competitor.description,
-                            relevance_score=score,
-                            relevance_flags=flags,
-                            relevance_warning=warning,
-                        )
-                    )
-                else:
-                    evaluated.append(competitor)
-            return evaluated
+            # Build final evaluated list in original order
+            return _build_evaluated_from_cache(competitors, cached_results)
 
     except Exception as e:
         log_error(
@@ -163,6 +272,57 @@ async def evaluate_competitors_batch(
         )
 
     return competitors
+
+
+def _build_evaluated_from_cache(
+    competitors: list[DetectedCompetitor],
+    cached_results: dict[str, dict],
+) -> list[DetectedCompetitor]:
+    """Build evaluated competitor list from cached results.
+
+    Args:
+        competitors: Original competitor list
+        cached_results: Dict of competitor name -> evaluation result
+
+    Returns:
+        List of DetectedCompetitor with relevance fields populated
+    """
+    evaluated = []
+    for competitor in competitors:
+        result = cached_results.get(competitor.name)
+        if result:
+            flags = RelevanceFlags(
+                similar_product=result.get("similar_product", False),
+                same_icp=result.get("same_icp", False),
+                same_market=result.get("same_market", False),
+            )
+
+            # Calculate base score
+            checks_passed = sum([flags.similar_product, flags.same_icp, flags.same_market])
+            base_score = checks_passed / 3
+
+            # Apply confidence weighting
+            confidence = result.get("confidence", "medium")
+            weight = CONFIDENCE_WEIGHTS.get(confidence, 0.7)
+            score = round(base_score * weight, 2)
+
+            warning = None
+            if checks_passed < 2:
+                warning = result.get("warning") or _generate_warning(flags, competitor.name)
+
+            evaluated.append(
+                DetectedCompetitor(
+                    name=competitor.name,
+                    url=competitor.url,
+                    description=competitor.description,
+                    relevance_score=score,
+                    relevance_flags=flags,
+                    relevance_warning=warning,
+                )
+            )
+        else:
+            evaluated.append(competitor)
+    return evaluated
 
 
 def _build_context_summary(company_context: dict) -> str | None:
@@ -227,7 +387,7 @@ MY COMPANY:
 POTENTIAL COMPETITOR:
 {competitor_info}
 
-Answer these three questions:
+Answer these three questions with reasoning:
 1. similar_product: Do they solve the SAME core problem as my company? (not just similar industry)
 2. same_icp: Do they target SIMILAR customers? (size, role, industry)
 3. same_market: Are they in the SAME geographic/market segment?
@@ -235,10 +395,19 @@ Answer these three questions:
 Return JSON:
 {{
   "similar_product": true/false,
+  "similar_product_reasoning": "1 sentence why",
   "same_icp": true/false,
+  "same_icp_reasoning": "1 sentence why",
   "same_market": true/false,
+  "same_market_reasoning": "1 sentence why",
+  "confidence": "high/medium/low",
   "warning": "brief explanation if <2 checks pass, else null"
 }}
+
+Confidence levels:
+- high: Clear evidence from description/URL that this is a real competitor
+- medium: Likely a competitor but limited information to confirm
+- low: Uncertain - could be tangentially related or different space
 
 Be skeptical - only return true if there's clear overlap. Return ONLY JSON."""
 
@@ -279,9 +448,23 @@ For EACH competitor, answer:
 
 Return a JSON array with one object per competitor in order:
 [
-  {{"similar_product": true/false, "same_icp": true/false, "same_market": true/false, "warning": "explanation if <2 pass, else null"}},
+  {{
+    "similar_product": true/false,
+    "similar_product_reasoning": "1 sentence why",
+    "same_icp": true/false,
+    "same_icp_reasoning": "1 sentence why",
+    "same_market": true/false,
+    "same_market_reasoning": "1 sentence why",
+    "confidence": "high/medium/low",
+    "warning": "explanation if <2 pass, else null"
+  }},
   ...
 ]
+
+Confidence levels:
+- high: Clear evidence this is a real competitor
+- medium: Likely a competitor but limited information
+- low: Uncertain - could be tangentially related
 
 Be skeptical - only return true for clear overlap. Return ONLY the JSON array."""
 

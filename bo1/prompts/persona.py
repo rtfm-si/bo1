@@ -4,6 +4,8 @@ This module contains functions and templates for composing prompts for individua
 expert personas contributing to board deliberations.
 """
 
+from typing import Any
+
 from bo1.prompts.protocols import (
     DELIBERATION_CONTEXT_TEMPLATE,
     PERSONA_ROLE_PROTOCOL,
@@ -11,6 +13,7 @@ from bo1.prompts.protocols import (
     _get_security_task,
 )
 from bo1.prompts.sanitizer import sanitize_user_input
+from bo1.prompts.style_adapter import get_style_instruction
 
 # =============================================================================
 # Best Effort Mode Prompt (Context Sufficiency - Option D+E Hybrid)
@@ -68,6 +71,7 @@ def compose_persona_contribution_prompt(
     previous_contributions: list[dict[str, str]],
     speaker_prompt: str,
     round_number: int,
+    business_context: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     """Compose prompt for persona contribution with critical thinking emphasis.
 
@@ -80,6 +84,7 @@ def compose_persona_contribution_prompt(
         previous_contributions: List of dicts with 'persona_code' and 'content' keys
         speaker_prompt: Specific focus for this contribution
         round_number: Current round number (1-indexed)
+        business_context: Optional business context for style adaptation
 
     Returns:
         Tuple of (system_prompt, user_message) for the LLM
@@ -133,6 +138,10 @@ def compose_persona_contribution_prompt(
     # Sanitize user-provided problem_statement to prevent prompt injection
     safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
 
+    # Get style instruction if business context available
+    style_block = get_style_instruction(business_context) if business_context else ""
+    style_section = f"\n{style_block}\n" if style_block else ""
+
     system_prompt = f"""You are {persona_name}, {persona_description}.
 
 <expertise>
@@ -142,13 +151,14 @@ def compose_persona_contribution_prompt(
 <communication_style>
 {persona_communication_style}
 </communication_style>
-
+{style_section}
 {phase_instruction}
 
 <response_format>
 Structure: "Based on [speaker]'s point..." → agree/disagree with reason → specific recommendation.
 End every response with an actionable recommendation.
 Stay in character - no meta-discussion about roles or format.
+If the user's business context includes brand tone or positioning, adapt your communication accordingly while maintaining your expert perspective.
 </response_format>
 
 <critical_instruction>

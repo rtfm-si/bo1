@@ -27,6 +27,8 @@ from backend.api.context.competitors import (
     refresh_market_trends,
 )
 from backend.api.context.models import (
+    ApplyMetricSuggestionRequest,
+    ApplyMetricSuggestionResponse,
     ApproveUpdateResponse,
     BusinessContext,
     ClarificationInsight,
@@ -60,12 +62,15 @@ from backend.api.context.models import (
     ManagedCompetitorListResponse,
     ManagedCompetitorResponse,
     ManagedCompetitorUpdate,
+    MetricSuggestion,
+    MetricSuggestionsResponse,
     ObjectiveProgress,
     ObjectiveProgressListResponse,
     ObjectiveProgressResponse,
     ObjectiveProgressUpdate,
     PendingUpdatesResponse,
     RefreshCheckResponse,
+    RelevanceFlags,
     ResearchCategory,
     ResearchEmbeddingsResponse,
     ResearchPoint,
@@ -90,12 +95,14 @@ from backend.api.context.models import (
     VolatilityLevel as ModelVolatilityLevel,
 )
 from backend.api.context.services import (
+    CATEGORY_TO_FIELD_MAPPING,
     append_benchmark_history,
     context_data_to_model,
     context_model_to_dict,
     enriched_data_to_dict,
     enriched_to_context_model,
     get_key_metrics_for_user,
+    get_metrics_from_insights,
     merge_context,
     sanitize_context_values,
     update_benchmark_timestamps,
@@ -1688,12 +1695,20 @@ async def list_managed_competitors(
             added_at = c.get("added_at")
             if isinstance(added_at, str):
                 added_at = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
+            # Parse relevance_flags if present
+            flags_data = c.get("relevance_flags")
+            relevance_flags = None
+            if flags_data and isinstance(flags_data, dict):
+                relevance_flags = RelevanceFlags(**flags_data)
             competitors.append(
                 ManagedCompetitor(
                     name=c.get("name", ""),
                     url=c.get("url"),
                     notes=c.get("notes"),
                     added_at=added_at or datetime.now(UTC),
+                    relevance_score=c.get("relevance_score"),
+                    relevance_flags=relevance_flags,
+                    relevance_warning=c.get("relevance_warning"),
                 )
             )
         except Exception as e:
@@ -3317,4 +3332,186 @@ async def get_research_embeddings(
         points=points,
         categories=categories,
         total_count=total_count,
+    )
+
+
+# =============================================================================
+# Insight-to-Metric Auto-Population Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/metric-suggestions",
+    response_model=MetricSuggestionsResponse,
+    summary="Get metric suggestions from insights",
+    description="""
+    Get suggestions for auto-populating context metrics from clarification insights.
+
+    Analyzes user's clarification answers (from meetings) and extracts metric data
+    that could be used to populate context fields like revenue, customers, growth_rate,
+    and team_size.
+
+    **Filtering:**
+    - Only insights with confidence >= 0.6 are suggested
+    - Only insights from the last 90 days are considered
+    - Suggestions are deduplicated per field (highest confidence wins)
+    - Suggestions matching current values are excluded
+
+    **Use Cases:**
+    - Show "Suggested from insights" panel on key-metrics page
+    - Help users keep context metrics in sync with their meeting data
+    """,
+    responses={
+        200: {
+            "description": "Suggestions retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "suggestions": [
+                            {
+                                "field": "revenue",
+                                "current_value": "$45,000",
+                                "suggested_value": "$50,000",
+                                "source_question": "What's your current MRR?",
+                                "confidence": 0.85,
+                                "answered_at": "2025-12-28T10:30:00Z",
+                            }
+                        ],
+                        "count": 1,
+                    }
+                }
+            },
+        },
+        403: ERROR_403_RESPONSE,
+    },
+)
+@handle_api_errors("get metric suggestions")
+async def get_metric_suggestions(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MetricSuggestionsResponse:
+    """Get metric suggestions from clarification insights."""
+    user_id = extract_user_id(user)
+
+    # Load context from database
+    context_data = user_repository.get_context(user_id)
+
+    if not context_data:
+        return MetricSuggestionsResponse(success=True, suggestions=[], count=0)
+
+    # Get clarifications from context
+    clarifications = context_data.get("clarifications", {})
+    if not clarifications:
+        return MetricSuggestionsResponse(success=True, suggestions=[], count=0)
+
+    # Extract suggestions
+    raw_suggestions = get_metrics_from_insights(clarifications, context_data)
+
+    # Convert to response models
+    suggestions = [
+        MetricSuggestion(
+            field=s["field"],
+            current_value=s.get("current_value"),
+            suggested_value=s["suggested_value"],
+            source_question=s["source_question"],
+            confidence=s["confidence"],
+            answered_at=s.get("answered_at"),
+        )
+        for s in raw_suggestions
+    ]
+
+    logger.info(f"Found {len(suggestions)} metric suggestions for user {user_id}")
+
+    return MetricSuggestionsResponse(
+        success=True,
+        suggestions=suggestions,
+        count=len(suggestions),
+    )
+
+
+@router.post(
+    "/v1/context/apply-metric-suggestion",
+    response_model=ApplyMetricSuggestionResponse,
+    summary="Apply a metric suggestion to context",
+    description="""
+    Apply a single metric suggestion to update the user's context.
+
+    Updates the specified context field with the provided value. The source_question
+    is recorded in benchmark_history metadata for audit trail.
+
+    **Allowed Fields:**
+    - revenue
+    - customers
+    - growth_rate
+    - team_size
+
+    **Use Cases:**
+    - User clicks "Apply" on a suggestion in the key-metrics page
+    - Bulk "Apply All" iterates through this endpoint
+    """,
+    responses={
+        200: {
+            "description": "Suggestion applied successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "field": "revenue",
+                        "new_value": "$50,000",
+                    }
+                }
+            },
+        },
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+    },
+)
+@handle_api_errors("apply metric suggestion")
+async def apply_metric_suggestion(
+    request: ApplyMetricSuggestionRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ApplyMetricSuggestionResponse:
+    """Apply a metric suggestion to update context."""
+    user_id = extract_user_id(user)
+
+    # Validate field is allowed
+    allowed_fields = set(CATEGORY_TO_FIELD_MAPPING.values())
+    if request.field not in allowed_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Field '{request.field}' not allowed. Must be one of: {', '.join(sorted(allowed_fields))}",
+        )
+
+    # Load existing context - save a copy BEFORE modifying for change detection
+    context_data = user_repository.get_context(user_id) or {}
+    existing_context = dict(context_data.items())  # shallow copy
+
+    # Update the field
+    context_data[request.field] = request.value
+
+    # Update benchmark timestamps (compare new vs existing)
+    context_data["benchmark_timestamps"] = update_benchmark_timestamps(
+        context_data, existing_context
+    )
+
+    # Append to benchmark history with source tracking
+    history = append_benchmark_history(context_data, existing_context)
+    if history:
+        context_data["benchmark_history"] = history
+        # Add source metadata to latest entry
+        if request.field in history and history[request.field]:
+            latest = history[request.field][0]
+            latest["source"] = "insight_suggestion"
+            if request.source_question:
+                latest["source_question"] = request.source_question[:200]
+
+    # Save context
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Applied metric suggestion for user {user_id}: {request.field}={request.value}")
+
+    return ApplyMetricSuggestionResponse(
+        success=True,
+        field=request.field,
+        new_value=request.value,
     )

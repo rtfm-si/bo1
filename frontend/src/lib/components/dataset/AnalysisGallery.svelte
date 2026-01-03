@@ -1,22 +1,53 @@
 <script lang="ts">
 	/**
 	 * AnalysisGallery - Grid of chart thumbnails with modal expand
+	 * Supports both PNG charts (chart_url) and Plotly specs (chart_spec)
 	 */
-	import type { DatasetAnalysis } from '$lib/api/types';
-	import BoCard from '$lib/components/ui/BoCard.svelte';
-	import BoButton from '$lib/components/ui/BoButton.svelte';
+	import type { DatasetAnalysis, ChartSpec, ChartResultResponse } from '$lib/api/types';
+	import { apiClient } from '$lib/api/client';
+	import ChartRenderer from './ChartRenderer.svelte';
 
 	let {
 		analyses,
+		datasetId,
 		loading = false,
 		error = null
 	}: {
 		analyses: DatasetAnalysis[];
+		datasetId: string;
 		loading?: boolean;
 		error?: string | null;
 	} = $props();
 
 	let selectedAnalysis: DatasetAnalysis | null = $state(null);
+	let chartPreviewData: ChartResultResponse | null = $state(null);
+	let chartPreviewLoading = $state(false);
+	let chartPreviewError: string | null = $state(null);
+
+	async function handleAnalysisClick(analysis: DatasetAnalysis) {
+		selectedAnalysis = analysis;
+		chartPreviewData = null;
+		chartPreviewError = null;
+
+		// If no chart_url but has chart_spec, fetch the preview
+		if (!analysis.chart_url && analysis.chart_spec) {
+			chartPreviewLoading = true;
+			try {
+				const result = await apiClient.previewChart(datasetId, analysis.chart_spec as ChartSpec);
+				chartPreviewData = result;
+			} catch (err) {
+				chartPreviewError = err instanceof Error ? err.message : 'Failed to load chart';
+			} finally {
+				chartPreviewLoading = false;
+			}
+		}
+	}
+
+	function closeModal() {
+		selectedAnalysis = null;
+		chartPreviewData = null;
+		chartPreviewError = null;
+	}
 
 	function formatDate(timestamp: string): string {
 		const date = new Date(timestamp);
@@ -74,7 +105,7 @@
 		{#each analyses as analysis}
 			<button
 				type="button"
-				onclick={() => selectedAnalysis = analysis}
+				onclick={() => handleAnalysisClick(analysis)}
 				class="group aspect-[4/3] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
 			>
 				{#if analysis.chart_url}
@@ -113,8 +144,8 @@
 		aria-modal="true"
 		aria-label="Analysis detail"
 		tabindex="-1"
-		onclick={() => selectedAnalysis = null}
-		onkeydown={(e) => e.key === 'Escape' && (selectedAnalysis = null)}
+		onclick={closeModal}
+		onkeydown={(e) => e.key === 'Escape' && closeModal()}
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 		<div
@@ -137,7 +168,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => selectedAnalysis = null}
+					onclick={closeModal}
 					class="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
 					aria-label="Close"
 				>
@@ -147,17 +178,45 @@
 				</button>
 			</div>
 
-			<!-- Chart image -->
+			<!-- Chart content -->
 			<div class="p-4 bg-neutral-50 dark:bg-neutral-900">
 				{#if selectedAnalysis.chart_url}
+					<!-- PNG chart from /chart endpoint -->
 					<img
 						src={selectedAnalysis.chart_url}
 						alt={selectedAnalysis.title || 'Chart'}
 						class="max-w-full max-h-[60vh] mx-auto"
 					/>
+				{:else if chartPreviewLoading}
+					<!-- Loading state for Plotly chart -->
+					<div class="flex items-center justify-center h-64">
+						<div class="text-center">
+							<svg class="w-8 h-8 mx-auto mb-2 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<p class="text-sm text-neutral-500">Loading chart...</p>
+						</div>
+					</div>
+				{:else if chartPreviewError}
+					<!-- Error state -->
+					<div class="flex items-center justify-center h-48 text-error-500">
+						<p class="text-sm">{chartPreviewError}</p>
+					</div>
+				{:else if chartPreviewData}
+					<!-- Plotly chart from Q&A -->
+					<div class="min-h-[300px]">
+						<ChartRenderer
+							figureJson={chartPreviewData.figure_json}
+							chartSpec={selectedAnalysis.chart_spec as ChartSpec}
+							viewMode="detail"
+							width={700}
+							height={400}
+						/>
+					</div>
 				{:else}
 					<div class="flex items-center justify-center h-48 text-neutral-400">
-						Chart image not available
+						Chart not available
 					</div>
 				{/if}
 			</div>

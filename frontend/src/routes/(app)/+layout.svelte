@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, isLoading, user } from '$lib/stores/auth';
 	import { loadWorkspaces } from '$lib/stores/workspace';
+	import { loadPreferences } from '$lib/stores/preferences';
 	import { ActivityStatus, LOADING_MESSAGES } from '$lib/components/ui/loading';
 	import { createLogger } from '$lib/utils/debug';
 	import type { Snippet } from 'svelte';
@@ -12,6 +13,7 @@
 	import ServiceStatusBanner from '$lib/components/ui/ServiceStatusBanner.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ImpersonationBanner from '$lib/components/admin/ImpersonationBanner.svelte';
+	import PasswordUpgradePrompt from '$lib/components/auth/PasswordUpgradePrompt.svelte';
 	import { getBreadcrumbsWithData } from '$lib/utils/breadcrumbs';
 	import { breadcrumbLabels } from '$lib/stores/breadcrumbLabels';
 	import { adminApi, type ImpersonationSessionResponse } from '$lib/api/admin';
@@ -34,20 +36,24 @@
 	const hideBreadcrumbPaths = ['/dashboard', '/actions', '/projects', '/datasets', '/settings'];
 	const showBreadcrumbs = $derived(!hideBreadcrumbPaths.includes($page.url.pathname));
 
-	// Check for active impersonation session (admin only)
-	async function checkImpersonation() {
-		// ISS-005 FIX: Only check for admins to avoid 403 noise for non-admin users
-		if (!$user?.is_admin) {
-			return;
-		}
-		try {
-			const status = await adminApi.getImpersonationStatus();
-			if (status.is_impersonating && status.session) {
-				impersonationSession = status.session;
-				log.log('Active impersonation session detected:', status.session.target_email);
-			}
-		} catch {
-			// No active session or API error - ignore silently
+	// Check for active impersonation session from user store data
+	function checkImpersonation() {
+		// Impersonation metadata is now included in /me response
+		if ($user?.is_impersonation) {
+			// Build session data from user store
+			const remainingSeconds = $user.impersonation_remaining_seconds ?? 1800;
+			const expiresAt = $user.impersonation_expires_at ?? new Date(Date.now() + remainingSeconds * 1000).toISOString();
+			impersonationSession = {
+				admin_user_id: $user.real_admin_id || '',
+				target_user_id: $user.id,
+				target_email: $user.email,
+				reason: '', // Not stored in /me response, not critical for banner
+				is_write_mode: $user.impersonation_write_mode ?? false,
+				started_at: new Date().toISOString(), // Approximate, not critical
+				remaining_seconds: remainingSeconds,
+				expires_at: expiresAt
+			};
+			log.log('Active impersonation session detected:', $user.email);
 		}
 	}
 
@@ -75,6 +81,8 @@
 					authChecked = true;
 					// Load workspaces in background (non-blocking)
 					loadWorkspaces().catch((e) => log.warn('Failed to load workspaces:', e));
+					// Load user preferences (currency, etc.)
+					loadPreferences().catch((e) => log.warn('Failed to load preferences:', e));
 					// Check for active impersonation (admin only)
 					checkImpersonation();
 				}
@@ -122,5 +130,7 @@
 			{@render children()}
 		</main>
 		<ToastContainer />
+		<!-- Password upgrade prompt for users with weak passwords -->
+		<PasswordUpgradePrompt />
 	</div>
 {/if}

@@ -4,10 +4,12 @@ import pytest
 
 from backend.api.models import (
     AggregateSpec,
+    ChartSpec,
     CompareSpec,
     CorrelateSpec,
     DatasetCreate,
     DatasetDetailResponse,
+    DatasetInsights,
     DatasetListResponse,
     DatasetProfileResponse,
     DatasetResponse,
@@ -16,6 +18,7 @@ from backend.api.models import (
     ImportSheetsRequest,
     QueryResultResponse,
     QuerySpec,
+    SuggestedChart,
     TrendSpec,
 )
 
@@ -556,3 +559,227 @@ class TestImportSheetsRequestModel:
             ImportSheetsRequest(
                 url="https://docs.google.com/spreadsheets/d/abc123", description="x" * 5001
             )
+
+
+class TestDatasetInsightsResponseModel:
+    """Test DatasetInsightsResponse model."""
+
+    def test_insights_response_valid(self):
+        """Test DatasetInsightsResponse with valid data."""
+        from backend.api.models import (
+            BusinessDomain,
+            ColumnSemantic,
+            DataIdentity,
+            DataQualityScore,
+            DatasetInsights,
+            DatasetInsightsResponse,
+            HeadlineMetric,
+            Insight,
+            InsightSeverity,
+            InsightType,
+            SemanticColumnType,
+            SuggestedQuestion,
+        )
+
+        identity = DataIdentity(
+            domain=BusinessDomain.ECOMMERCE,
+            confidence=0.9,
+            entity_type="orders",
+            description="Customer orders from e-commerce platform",
+            time_range="Jan 2024 - Dec 2024",
+        )
+
+        insights = DatasetInsights(
+            identity=identity,
+            headline_metrics=[
+                HeadlineMetric(
+                    label="Total Revenue",
+                    value="$127,450",
+                    context="across 12 months",
+                    is_good=True,
+                )
+            ],
+            insights=[
+                Insight(
+                    type=InsightType.TREND,
+                    severity=InsightSeverity.POSITIVE,
+                    headline="Revenue growing steadily",
+                    detail="Revenue increased 15% month-over-month",
+                )
+            ],
+            quality=DataQualityScore(
+                overall_score=85,
+                completeness=90,
+                consistency=80,
+            ),
+            suggested_questions=[
+                SuggestedQuestion(
+                    question="Which products drive most revenue?",
+                    category="performance",
+                    why_relevant="Helps focus marketing efforts",
+                )
+            ],
+            column_semantics=[
+                ColumnSemantic(
+                    column_name="revenue",
+                    technical_type="float",
+                    semantic_type=SemanticColumnType.REVENUE,
+                    confidence=0.95,
+                    business_meaning="Transaction revenue in USD",
+                )
+            ],
+            narrative_summary="This dataset contains order data showing healthy growth.",
+        )
+
+        response = DatasetInsightsResponse(
+            insights=insights,
+            generated_at="2025-12-30T10:00:00+00:00",
+            model_used="sonnet",
+            tokens_used=1500,
+            cached=False,
+        )
+
+        assert response.insights.identity.domain == BusinessDomain.ECOMMERCE
+        assert response.model_used == "sonnet"
+        assert response.tokens_used == 1500
+        assert response.cached is False
+
+    def test_insights_response_cached(self):
+        """Test DatasetInsightsResponse with cached=True."""
+        from backend.api.models import (
+            BusinessDomain,
+            DataIdentity,
+            DataQualityScore,
+            DatasetInsights,
+            DatasetInsightsResponse,
+        )
+
+        insights = DatasetInsights(
+            identity=DataIdentity(
+                domain=BusinessDomain.SAAS,
+                confidence=0.8,
+                entity_type="users",
+                description="User activity data",
+            ),
+            headline_metrics=[],
+            insights=[],
+            quality=DataQualityScore(overall_score=70, completeness=80, consistency=60),
+            suggested_questions=[],
+            column_semantics=[],
+            narrative_summary="SaaS user data.",
+        )
+
+        response = DatasetInsightsResponse(
+            insights=insights,
+            generated_at="2025-12-30T10:00:00+00:00",
+            model_used="haiku",
+            tokens_used=0,
+            cached=True,
+        )
+
+        assert response.cached is True
+        assert response.tokens_used == 0
+
+
+class TestSuggestedChartModel:
+    """Test SuggestedChart model validation."""
+
+    def test_suggested_chart_creation(self):
+        """Test creating a SuggestedChart with required fields."""
+        chart_spec = ChartSpec(
+            chart_type="line",
+            x_field="date",
+            y_field="revenue",
+        )
+        suggestion = SuggestedChart(
+            chart_spec=chart_spec,
+            title="Revenue over Time",
+            rationale="Shows how revenue changes over time",
+        )
+        assert suggestion.title == "Revenue over Time"
+        assert suggestion.chart_spec.chart_type == "line"
+        assert suggestion.chart_spec.x_field == "date"
+        assert suggestion.chart_spec.y_field == "revenue"
+
+    def test_suggested_chart_with_all_chart_spec_fields(self):
+        """Test SuggestedChart with full chart spec."""
+        chart_spec = ChartSpec(
+            chart_type="bar",
+            x_field="category",
+            y_field="sales",
+            group_field="region",
+            title="Sales by Category and Region",
+            width=1000,
+            height=600,
+        )
+        suggestion = SuggestedChart(
+            chart_spec=chart_spec,
+            title="Category Sales Breakdown",
+            rationale="Compare sales across categories grouped by region",
+        )
+        assert suggestion.chart_spec.group_field == "region"
+        assert suggestion.chart_spec.width == 1000
+
+    def test_insights_with_suggested_charts(self):
+        """Test DatasetInsights with suggested_charts field."""
+        from backend.api.models import (
+            BusinessDomain,
+            DataIdentity,
+            DataQualityScore,
+        )
+
+        chart1 = SuggestedChart(
+            chart_spec=ChartSpec(chart_type="line", x_field="date", y_field="amount"),
+            title="Amount Trend",
+            rationale="Shows amount over time",
+        )
+        chart2 = SuggestedChart(
+            chart_spec=ChartSpec(chart_type="bar", x_field="category", y_field="count"),
+            title="Count by Category",
+            rationale="Distribution across categories",
+        )
+
+        insights = DatasetInsights(
+            identity=DataIdentity(
+                domain=BusinessDomain.ECOMMERCE,
+                confidence=0.9,
+                entity_type="orders",
+                description="E-commerce order data",
+            ),
+            headline_metrics=[],
+            insights=[],
+            quality=DataQualityScore(overall_score=85, completeness=90, consistency=80),
+            suggested_questions=[],
+            column_semantics=[],
+            narrative_summary="Order data with suggested visualizations.",
+            suggested_charts=[chart1, chart2],
+        )
+
+        assert len(insights.suggested_charts) == 2
+        assert insights.suggested_charts[0].title == "Amount Trend"
+        assert insights.suggested_charts[1].chart_spec.chart_type == "bar"
+
+    def test_insights_default_empty_suggested_charts(self):
+        """Test DatasetInsights defaults to empty suggested_charts."""
+        from backend.api.models import (
+            BusinessDomain,
+            DataIdentity,
+            DataQualityScore,
+        )
+
+        insights = DatasetInsights(
+            identity=DataIdentity(
+                domain=BusinessDomain.UNKNOWN,
+                confidence=0.5,
+                entity_type="data",
+                description="Unknown data",
+            ),
+            headline_metrics=[],
+            insights=[],
+            quality=DataQualityScore(overall_score=50, completeness=50, consistency=50),
+            suggested_questions=[],
+            column_semantics=[],
+            narrative_summary="Unknown data.",
+        )
+
+        assert insights.suggested_charts == []

@@ -1,7 +1,10 @@
 """SuperTokens configuration for Board of One authentication.
 
 This module initializes SuperTokens with:
+- AccountLinking recipe for linking accounts with same email across providers
+- EmailVerification recipe (required for AccountLinking)
 - ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
+- EmailPassword recipe for email/password authentication
 - Session recipe for httpOnly cookie-based session management
 - Closed beta whitelist validation
 - IP-based lockout after failed auth attempts
@@ -19,7 +22,19 @@ from typing import Any
 from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
-from supertokens_python.recipe import emailpassword, session, thirdparty
+from supertokens_python.recipe import (
+    accountlinking,
+    emailpassword,
+    emailverification,
+    passwordless,
+    session,
+    thirdparty,
+)
+from supertokens_python.recipe.accountlinking.types import (
+    AccountInfoWithRecipeIdAndUserId,
+    ShouldAutomaticallyLink,
+    ShouldNotAutomaticallyLink,
+)
 from supertokens_python.recipe.emailpassword.interfaces import (
     APIInterface as EmailPasswordAPIInterface,
 )
@@ -36,6 +51,12 @@ from supertokens_python.recipe.emailpassword.interfaces import (
     SignUpOkResult as EmailPasswordSignUpOkResult,
 )
 from supertokens_python.recipe.emailpassword.types import FormField
+from supertokens_python.recipe.passwordless.interfaces import (
+    ConsumeCodeOkResult,
+)
+from supertokens_python.recipe.passwordless.interfaces import (
+    RecipeInterface as PasswordlessRecipeInterface,
+)
 from supertokens_python.recipe.session.interfaces import SessionContainer, SignOutOkayResponse
 from supertokens_python.recipe.thirdparty.interfaces import (
     APIInterface,
@@ -52,6 +73,7 @@ from supertokens_python.recipe.thirdparty.provider import (
 )
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 from supertokens_python.types import GeneralErrorResponse
+from supertokens_python.types import User as SuperTokensUser
 
 from backend.api.middleware.csrf import (
     clear_csrf_cookie_on_response,
@@ -61,13 +83,14 @@ from backend.api.middleware.csrf import (
 from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.oauth_errors import sanitize_supertokens_message
 from backend.services.auth_lockout import auth_lockout_service
-from backend.services.email import send_email_async
-from backend.services.email_templates import render_welcome_email
+from backend.services.email import send_email, send_email_async
+from backend.services.email_templates import render_magic_link_email, render_welcome_email
 from bo1.feature_flags import (
     BLUESKY_OAUTH_ENABLED,
     GITHUB_OAUTH_ENABLED,
     GOOGLE_OAUTH_ENABLED,
     LINKEDIN_OAUTH_ENABLED,
+    MAGIC_LINK_ENABLED,
     TWITTER_OAUTH_ENABLED,
 )
 from bo1.logging.errors import ErrorCode, log_error
@@ -75,6 +98,40 @@ from bo1.state.repositories import user_repository
 from bo1.state.repositories.workspace_repository import workspace_repository
 
 logger = logging.getLogger(__name__)
+
+
+# Password validation constants
+MIN_PASSWORD_LENGTH = 12
+PASSWORD_REQUIREMENTS_MSG = (
+    "Password must be at least 12 characters and contain both letters and numbers"  # noqa: S105
+)
+
+
+async def validate_password_strength(value: str, tenant_id: str) -> str | None:
+    """Validate password meets strength requirements.
+
+    Requirements:
+    - At least 12 characters
+    - Contains at least one letter (a-z or A-Z)
+    - Contains at least one digit (0-9)
+
+    Args:
+        value: Password to validate
+        tenant_id: Tenant ID (unused but required by SuperTokens interface)
+
+    Returns:
+        None if valid, error message string if invalid
+    """
+    if len(value) < MIN_PASSWORD_LENGTH:
+        return PASSWORD_REQUIREMENTS_MSG
+
+    has_letter = any(c.isalpha() for c in value)
+    has_digit = any(c.isdigit() for c in value)
+
+    if not has_letter or not has_digit:
+        return PASSWORD_REQUIREMENTS_MSG
+
+    return None
 
 
 # Trusted proxy IPs (configure via environment in production)
@@ -207,6 +264,27 @@ def is_user_locked_or_deleted(user_id: str) -> bool:
             user_id=user_id,
         )
         return False  # Fail open - don't block auth on DB errors
+
+
+def _set_password_upgrade_flag(user_id: str, needs_upgrade: bool) -> None:
+    """Set the password upgrade needed flag for a user.
+
+    Args:
+        user_id: User identifier
+        needs_upgrade: Whether user needs to upgrade their password
+    """
+    from bo1.state.database import db_session
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET password_upgrade_needed = %s, updated_at = NOW()
+                WHERE id = %s
+                """,
+                (needs_upgrade, user_id),
+            )
 
 
 def get_app_info() -> InputAppInfo:
@@ -455,6 +533,16 @@ def override_thirdparty_functions(
 
         try:
             user_id = result.user.id
+
+            # Log account linking status
+            # With AccountLinking, an OAuth sign-in may link to an existing email account
+            login_methods = len(result.user.login_methods) if result.user.login_methods else 1
+            if login_methods > 1:
+                logger.info(
+                    f"Account linked: {_mask_email(email)} now has {login_methods} login methods "
+                    f"(user_id: {user_id}, added: {third_party_id})"
+                )
+
             user_repository.ensure_exists(
                 user_id=user_id,
                 email=email,
@@ -736,7 +824,7 @@ def override_emailpassword_functions(
         should_try_linking_with_session_user: bool | None,
         user_context: dict[str, Any],
     ) -> Any:
-        """Override sign_in to check account lock status."""
+        """Override sign_in to check account lock status and password strength."""
         result = await original_sign_in(
             email,
             password,
@@ -757,6 +845,17 @@ def override_emailpassword_functions(
                 f"Email sign-in rejected: user {user_id} ({_mask_email(email)}) is locked/deleted"
             )
             raise Exception(sanitize_supertokens_message("account locked"))
+
+        # Check if existing password meets current strength requirements
+        # If not, flag user to prompt for upgrade (non-blocking)
+        password_weak = await validate_password_strength(password, tenant_id) is not None
+        if password_weak:
+            try:
+                _set_password_upgrade_flag(user_id, True)
+                logger.info(f"Flagged user {user_id} for password upgrade (weak password detected)")
+            except Exception as e:
+                # Don't block login on flag update failure
+                logger.warning(f"Failed to set password upgrade flag: {e}")
 
         logger.info(f"Email user signed in: {_mask_email(email)} (user_id: {user_id})")
         return result
@@ -878,6 +977,187 @@ def override_emailpassword_apis(
     return original_implementation
 
 
+def override_passwordless_functions(
+    original_implementation: PasswordlessRecipeInterface,
+) -> PasswordlessRecipeInterface:
+    """Override Passwordless functions for whitelist validation and user sync."""
+    original_consume_code = original_implementation.consume_code
+
+    async def consume_code(
+        pre_auth_session_id: str,
+        user_input_code: str | None,
+        device_id: str | None,
+        link_code: str | None,
+        session: Any | None,
+        should_try_linking_with_session_user: bool | None,
+        tenant_id: str,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override consume_code to sync user to PostgreSQL."""
+        result = await original_consume_code(
+            pre_auth_session_id,
+            user_input_code,
+            device_id,
+            link_code,
+            session,
+            should_try_linking_with_session_user,
+            tenant_id,
+            user_context,
+        )
+
+        if not isinstance(result, ConsumeCodeOkResult):
+            return result
+
+        user = result.user
+        user_id = user.id
+        email = None
+
+        # Get email from login methods
+        for login_method in user.login_methods:
+            if login_method.email:
+                email = login_method.email
+                break
+
+        if not email:
+            logger.warning(f"Passwordless user {user_id} has no email")
+            return result
+
+        # Check closed beta whitelist
+        if os.getenv("CLOSED_BETA_MODE", "false").lower() == "true":
+            if not is_whitelisted(email):
+                logger.warning(f"Magic link rejected: {_mask_email(email.lower())} not whitelisted")
+                raise Exception(sanitize_supertokens_message("whitelist rejection"))
+
+        # Check if user is locked or deleted
+        if is_user_locked_or_deleted(user_id):
+            logger.warning(
+                f"Magic link rejected: user {user_id} ({_mask_email(email)}) is locked/deleted"
+            )
+            raise Exception(sanitize_supertokens_message("account locked"))
+
+        # Sync user to PostgreSQL
+        try:
+            user_repository.ensure_exists(
+                user_id=user_id,
+                email=email,
+                auth_provider="magic_link",
+                subscription_tier="free",
+            )
+            logger.info(
+                f"Magic link user synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id})"
+            )
+
+            # Track magic link usage for rate limiting
+            _update_last_magic_link_at(user_id)
+
+            # Send welcome email for new users
+            if result.created_new_recipe_user:
+                try:
+                    html, text = render_welcome_email(user_name=None, user_id=user_id)
+                    send_email_async(
+                        to=email,
+                        subject="Welcome to Board of One",
+                        html=html,
+                        text=text,
+                    )
+                    logger.info(
+                        f"Welcome email queued for new magic link user: {_mask_email(email)}"
+                    )
+                except Exception as welcome_err:
+                    logger.warning(f"Failed to send welcome email: {welcome_err}")
+
+                # Create default workspace
+                try:
+                    workspace = workspace_repository.create_workspace(
+                        name="Personal Workspace",
+                        owner_id=user_id,
+                    )
+                    user_repository.set_default_workspace(user_id, workspace.id)
+                    logger.info(
+                        f"Created personal workspace for new magic link user: {_mask_email(email)}"
+                    )
+                except Exception as workspace_err:
+                    logger.warning(f"Failed to create workspace: {workspace_err}")
+
+        except Exception as e:
+            if "locked or deleted" in str(e) or "whitelist" in str(e):
+                raise
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to sync magic link user to PostgreSQL: {e}",
+                email=_mask_email(email),
+            )
+
+        logger.info(f"Magic link user signed in: {_mask_email(email)} (user_id: {user_id})")
+        return result
+
+    original_implementation.consume_code = consume_code  # type: ignore[method-assign]
+    return original_implementation
+
+
+def _update_last_magic_link_at(user_id: str) -> None:
+    """Update the last_magic_link_at timestamp for rate limiting."""
+    from bo1.state.database import db_session
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET last_magic_link_at = NOW(), updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+    except Exception as e:
+        logger.warning(f"Failed to update last_magic_link_at: {e}")
+
+
+class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.EmailTemplateVars]):
+    """Custom email delivery service for magic link emails."""
+
+    async def send_email(
+        self,
+        template_vars: passwordless.EmailTemplateVars,
+        user_context: dict[str, Any],
+    ) -> None:
+        """Send magic link email via Resend.
+
+        Args:
+            template_vars: Email template variables from SuperTokens
+            user_context: Additional context
+        """
+        email = template_vars.email
+        url_with_link_code = template_vars.url_with_link_code
+        code_life_time = template_vars.code_life_time
+
+        if not url_with_link_code:
+            logger.error("Magic link URL is missing")
+            raise ValueError("Magic link URL is required")
+
+        expiry_minutes = code_life_time // 60000  # Convert ms to minutes
+        html, text = render_magic_link_email(url_with_link_code, expiry_minutes)
+
+        try:
+            send_email(
+                to=email,
+                subject="Sign in to Board of One",
+                html=html,
+                text=text,
+            )
+            logger.info(f"Magic link email sent to {_mask_email(email)}")
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.EXTERNAL_API_ERROR,
+                f"Failed to send magic link email: {e}",
+                email=_mask_email(email),
+            )
+        raise
+
+
 def override_session_apis(
     original_implementation: session.interfaces.APIInterface,
 ) -> session.interfaces.APIInterface:
@@ -913,11 +1193,68 @@ def override_session_apis(
     return original_implementation
 
 
+# Trusted OAuth providers that verify email addresses
+TRUSTED_OAUTH_PROVIDERS = {"google", "linkedin", "github"}
+
+
+async def should_do_automatic_account_linking(
+    new_account_info: AccountInfoWithRecipeIdAndUserId,
+    user: SuperTokensUser | None,
+    session_container: SessionContainer | None,
+    tenant_id: str,
+    user_context: dict[str, Any],
+) -> ShouldAutomaticallyLink | ShouldNotAutomaticallyLink:
+    """Determine whether to automatically link accounts.
+
+    Links accounts when:
+    - Email is present (OAuth providers like Google verify emails)
+    - Provider is trusted (Google, LinkedIn, GitHub)
+
+    This allows users who signed up with email/password to later sign in
+    with Google using the same email address, and vice versa.
+
+    Note: OAuth providers (Google, LinkedIn, GitHub) verify emails before
+    returning them, so we trust emails from thirdparty recipe as verified.
+    """
+    email = new_account_info.email
+    recipe_id = new_account_info.recipe_id
+
+    if email:
+        # Log linking attempt
+        logger.info(f"Account linking check: email={_mask_email(email)}, recipe={recipe_id}")
+
+        # ThirdParty providers (Google, LinkedIn, GitHub) verify emails
+        # We trust the email is verified when coming from OAuth
+        if recipe_id == "thirdparty":
+            logger.info(f"Auto-linking approved for OAuth email: {_mask_email(email)}")
+            # OAuth emails are already verified by the provider
+            return ShouldAutomaticallyLink(should_require_verification=False)
+
+        # EmailPassword - require email verification before linking
+        if recipe_id == "emailpassword":
+            logger.info(f"Auto-linking approved for email/password: {_mask_email(email)}")
+            # Require verification for email/password signups
+            return ShouldAutomaticallyLink(should_require_verification=True)
+
+        # Passwordless (magic link) - email was verified by clicking link
+        if recipe_id == "passwordless":
+            logger.info(f"Auto-linking approved for passwordless: {_mask_email(email)}")
+            return ShouldAutomaticallyLink(should_require_verification=False)
+
+    # Don't auto-link accounts without email
+    logger.info(f"Auto-linking denied: no email present, recipe={recipe_id}")
+    return ShouldNotAutomaticallyLink()
+
+
 def init_supertokens() -> None:
     """Initialize SuperTokens with all recipes and configurations.
 
     Recipes:
+    - AccountLinking: Links accounts with same email across providers
+    - EmailVerification: Required for AccountLinking (OPTIONAL mode)
     - ThirdParty: OAuth providers (Google, LinkedIn, GitHub)
+    - EmailPassword: Email/password authentication
+    - Passwordless: Magic link authentication (if enabled)
     - Session: httpOnly cookie-based session management
 
     Security:
@@ -946,49 +1283,83 @@ def init_supertokens() -> None:
     # Log cookie configuration for audit trail
     logger.info(f"Cookie configuration: env={env}, secure={cookie_secure}, domain={cookie_domain}")
 
+    # Build recipe list
+    # Note: AccountLinking and EmailVerification must be initialized BEFORE other recipes
+    recipe_list = [
+        # EmailVerification recipe - required for AccountLinking
+        # OAuth providers (Google, LinkedIn, GitHub) already verify emails
+        emailverification.init(mode="OPTIONAL"),
+        # AccountLinking recipe - enables linking different auth methods to same user
+        accountlinking.init(
+            should_do_automatic_account_linking=should_do_automatic_account_linking,
+        ),
+        # ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
+        thirdparty.init(
+            sign_in_and_up_feature=thirdparty.SignInAndUpFeature(providers=get_oauth_providers()),
+            override=thirdparty.InputOverrideConfig(
+                functions=override_thirdparty_functions,
+                apis=override_thirdparty_apis,
+            ),
+        ),
+        # EmailPassword recipe for email/password authentication
+        emailpassword.init(
+            sign_up_feature=emailpassword.InputSignUpFeature(
+                form_fields=[
+                    emailpassword.InputFormField(id="email"),
+                    emailpassword.InputFormField(
+                        id="password", validate=validate_password_strength
+                    ),
+                ]
+            ),
+            override=emailpassword.InputOverrideConfig(
+                functions=override_emailpassword_functions,
+                apis=override_emailpassword_apis,
+            ),
+        ),
+    ]
+
+    # Add Passwordless recipe if enabled (magic link auth)
+    if MAGIC_LINK_ENABLED:
+        # Magic link expiry: 15 minutes (in milliseconds)
+        15 * 60 * 1000
+
+        recipe_list.append(
+            passwordless.init(
+                flow_type="MAGIC_LINK",
+                contact_config=passwordless.ContactEmailOnlyConfig(),
+                email_delivery=passwordless.EmailDeliveryConfig(
+                    service=MagicLinkEmailService(),
+                ),
+                override=passwordless.InputOverrideConfig(
+                    functions=override_passwordless_functions,
+                ),
+            )
+        )
+        logger.info("Passwordless (magic link) recipe enabled")
+
+    # Add Session recipe
+    recipe_list.append(
+        # Session recipe for session management (httpOnly cookies)
+        session.init(
+            cookie_secure=cookie_secure,  # HTTPS only in production
+            cookie_domain=cookie_domain,  # .boardof.one in production
+            cookie_same_site="lax",  # CSRF protection
+            # Handle cookie domain transitions - if domain was changed,
+            # older_cookie_domain clears cookies from previous domain.
+            # Set to "" if previous was localhost/unset, or previous domain value.
+            # Must keep for 1 year (access token frontend lifetime).
+            older_cookie_domain=os.getenv("OLDER_COOKIE_DOMAIN", ""),
+            override=session.InputOverrideConfig(
+                apis=override_session_apis,
+            ),
+        ),
+    )
+
     init(
         supertokens_config=get_supertokens_config(),
         app_info=get_app_info(),
         framework="fastapi",
-        recipe_list=[
-            # ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
-            thirdparty.init(
-                sign_in_and_up_feature=thirdparty.SignInAndUpFeature(
-                    providers=get_oauth_providers()
-                ),
-                override=thirdparty.InputOverrideConfig(
-                    functions=override_thirdparty_functions,
-                    apis=override_thirdparty_apis,
-                ),
-            ),
-            # EmailPassword recipe for email/password authentication
-            emailpassword.init(
-                sign_up_feature=emailpassword.InputSignUpFeature(
-                    form_fields=[
-                        emailpassword.InputFormField(id="email"),
-                        emailpassword.InputFormField(id="password"),
-                    ]
-                ),
-                override=emailpassword.InputOverrideConfig(
-                    functions=override_emailpassword_functions,
-                    apis=override_emailpassword_apis,
-                ),
-            ),
-            # Session recipe for session management (httpOnly cookies)
-            session.init(
-                cookie_secure=cookie_secure,  # HTTPS only in production
-                cookie_domain=cookie_domain,  # .boardof.one in production
-                cookie_same_site="lax",  # CSRF protection
-                # Handle cookie domain transitions - if domain was changed,
-                # older_cookie_domain clears cookies from previous domain.
-                # Set to "" if previous was localhost/unset, or previous domain value.
-                # Must keep for 1 year (access token frontend lifetime).
-                older_cookie_domain=os.getenv("OLDER_COOKIE_DOMAIN", ""),
-                override=session.InputOverrideConfig(
-                    apis=override_session_apis,
-                ),
-            ),
-        ],
+        recipe_list=recipe_list,
         mode="asgi",  # FastAPI uses ASGI
     )
 

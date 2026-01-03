@@ -10,10 +10,59 @@
 	 * - Loading skeleton for smooth experience
 	 */
 	import { apiClient } from '$lib/api/client';
-	import type { KeyMetricDisplay } from '$lib/api/types';
+	import type { KeyMetricDisplay, MetricHistoryPoint } from '$lib/api/types';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { onMount } from 'svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency, isMonetaryMetric, type CurrencyCode } from '$lib/utils/currency';
+
+	// Generate sparkline SVG path from history data (Stephen Few style - minimal, data-dense)
+	function generateSparklinePath(history: MetricHistoryPoint[] | undefined, width: number, height: number): { path: string; hasData: boolean; trend: 'up' | 'down' | 'stable' } {
+		if (!history || history.length < 2) {
+			return { path: '', hasData: false, trend: 'stable' };
+		}
+
+		// Filter to only points with numeric values
+		const validPoints = history.filter((p) => p.value !== null) as { value: number; recorded_at: string }[];
+		if (validPoints.length < 2) {
+			return { path: '', hasData: false, trend: 'stable' };
+		}
+
+		const values = validPoints.map((p) => p.value);
+		const minVal = Math.min(...values);
+		const maxVal = Math.max(...values);
+		const range = maxVal - minVal || 1;
+
+		// Scale points to SVG coordinates (with padding)
+		const padding = 2;
+		const points = validPoints.map((p, i) => ({
+			x: padding + (i / (validPoints.length - 1)) * (width - 2 * padding),
+			y: height - padding - ((p.value - minVal) / range) * (height - 2 * padding)
+		}));
+
+		// Build SVG path
+		const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+		// Determine trend from first vs last value
+		const firstVal = values[0];
+		const lastVal = values[values.length - 1];
+		const trend = lastVal > firstVal * 1.05 ? 'up' : lastVal < firstVal * 0.95 ? 'down' : 'stable';
+
+		return { path, hasData: true, trend };
+	}
+
+	// Get sparkline color based on trend
+	function getSparklineColor(trend: 'up' | 'down' | 'stable'): string {
+		switch (trend) {
+			case 'up':
+				return 'text-success-500 dark:text-success-400';
+			case 'down':
+				return 'text-error-500 dark:text-error-400';
+			default:
+				return 'text-neutral-400 dark:text-neutral-500';
+		}
+	}
 
 	// Fetch key metrics from context API
 	const metricsData = useDataFetch(() => apiClient.getKeyMetrics());
@@ -33,10 +82,20 @@
 	const secondaryMetrics = $derived(metrics.filter((m) => m.importance === 'later').slice(0, 2));
 	const hasAnyMetrics = $derived(focusMetrics.length > 0 || secondaryMetrics.length > 0);
 
-	// Format display value with appropriate scaling
-	function formatValue(value: string | number | null): string {
+	// Format display value with appropriate scaling (currency-aware)
+	function formatValue(value: string | number | null, metricName?: string): string {
 		if (value === null || value === undefined) return '—';
+
+		// Check if this is a monetary metric
+		const isMoney = metricName && isMonetaryMetric(metricName);
+
 		if (typeof value === 'number') {
+			if (isMoney) {
+				return formatCurrency(value, $preferredCurrency as CurrencyCode, {
+					abbreviated: Math.abs(value) >= 1_000,
+					decimals: Math.abs(value) >= 1_000 ? 1 : 0
+				});
+			}
 			if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
 			if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
 			return value.toLocaleString();
@@ -180,6 +239,7 @@
 				<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 					{#each focusMetrics as metric (metric.metric_key)}
 						{@const colors = getTrendClasses(metric.trend)}
+						{@const sparkline = generateSparklinePath(metric.history, 48, 20)}
 						<div class="group relative flex flex-col p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
 							<!-- Category icon + name -->
 							<div class="flex items-center gap-1.5 mb-2">
@@ -191,13 +251,28 @@
 								</span>
 							</div>
 
-							<!-- Value -->
-							<div class="flex items-baseline gap-1 mb-1">
-								<span class="text-xl font-bold text-neutral-900 dark:text-white">
-									{formatValue(metric.value)}
-								</span>
-								{#if metric.unit}
-									<span class="text-xs text-neutral-500 dark:text-neutral-400">{metric.unit}</span>
+							<!-- Value + Sparkline row -->
+							<div class="flex items-center gap-2 mb-1">
+								<div class="flex items-baseline gap-1">
+									<span class="text-xl font-bold text-neutral-900 dark:text-white">
+										{formatValue(metric.value, metric.name)}
+									</span>
+									{#if metric.unit}
+										<span class="text-xs text-neutral-500 dark:text-neutral-400">{metric.unit}</span>
+									{/if}
+								</div>
+								<!-- Sparkline (Stephen Few style) -->
+								{#if sparkline.hasData}
+									<svg viewBox="0 0 48 20" class="w-12 h-5 flex-shrink-0 {getSparklineColor(sparkline.trend)}">
+										<path
+											d={sparkline.path}
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
 								{/if}
 							</div>
 
@@ -225,7 +300,7 @@
 								<div class="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700">
 									<div class="flex items-center justify-between text-xs">
 										<span class="text-neutral-500 dark:text-neutral-400">Industry</span>
-										<span class="font-medium text-neutral-600 dark:text-neutral-300">{formatValue(metric.benchmark_value)}</span>
+										<span class="font-medium text-neutral-600 dark:text-neutral-300">{formatValue(metric.benchmark_value, metric.name)}</span>
 									</div>
 									{#if metric.percentile}
 										<div class="mt-1.5 h-1.5 bg-neutral-200 dark:bg-neutral-600 rounded-full overflow-hidden">
@@ -252,10 +327,15 @@
 					<div class="flex flex-wrap gap-3">
 						{#each secondaryMetrics as metric (metric.metric_key)}
 							{@const colors = getTrendClasses(metric.trend)}
+							{@const sparkline = generateSparklinePath(metric.history, 32, 14)}
 							<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-neutral-50 dark:bg-neutral-800/50">
 								<span class="text-xs text-neutral-500 dark:text-neutral-400">{metric.name}:</span>
-								<span class="text-sm font-medium text-neutral-900 dark:text-white">{formatValue(metric.value)}</span>
-								{#if metric.trend !== 'unknown'}
+								<span class="text-sm font-medium text-neutral-900 dark:text-white">{formatValue(metric.value, metric.name)}</span>
+								{#if sparkline.hasData}
+									<svg viewBox="0 0 32 14" class="w-8 h-3.5 {getSparklineColor(sparkline.trend)}">
+										<path d={sparkline.path} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+									</svg>
+								{:else if metric.trend !== 'unknown'}
 									<svg class="w-3 h-3 {colors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getTrendIcon(metric.trend)} />
 									</svg>

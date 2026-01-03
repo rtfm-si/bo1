@@ -337,7 +337,7 @@ async def auto_save_competitors(
             if name_lower in existing_names:
                 continue
 
-            # Add to managed competitors with source tracking
+            # Add to managed competitors with source tracking and enrichment data
             managed.append(
                 {
                     "name": comp.name.strip(),
@@ -345,6 +345,11 @@ async def auto_save_competitors(
                     "notes": comp.description.strip() if comp.description else None,
                     "added_at": now,
                     "source": source,
+                    "relevance_score": comp.relevance_score,
+                    "relevance_flags": comp.relevance_flags.model_dump()
+                    if comp.relevance_flags
+                    else None,
+                    "relevance_warning": comp.relevance_warning,
                 }
             )
             existing_names.add(name_lower)
@@ -677,6 +682,136 @@ def calculate_trend_from_history(
         return MetricTrendIndicator.UNKNOWN.value, None
 
 
+# =============================================================================
+# Insight-to-Metric Mapping for Auto-Population
+# =============================================================================
+
+# Map clarification categories to context fields
+CATEGORY_TO_FIELD_MAPPING = {
+    "revenue": "revenue",
+    "customers": "customers",
+    "growth": "growth_rate",
+    "team": "team_size",
+}
+
+# Default confidence threshold for suggestions
+DEFAULT_CONFIDENCE_THRESHOLD = 0.6
+
+# Max age for insights to consider (days)
+MAX_INSIGHT_AGE_DAYS = 90
+
+
+def get_metrics_from_insights(
+    clarifications: dict[str, Any],
+    existing_context: dict[str, Any] | None = None,
+    confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """Extract metric suggestions from clarification insights.
+
+    Maps clarifications with metric data to context fields that could be
+    auto-populated. Returns suggestions for user review.
+
+    Args:
+        clarifications: Raw clarifications dict from context (question -> entry)
+        existing_context: Current context data to check existing values
+        confidence_threshold: Minimum confidence score to suggest (default 0.6)
+
+    Returns:
+        List of suggestion dicts: {
+            field: context field name,
+            current_value: existing value (if any),
+            suggested_value: extracted metric value,
+            source_question: the clarification question,
+            confidence: extraction confidence score,
+            answered_at: when the insight was recorded
+        }
+    """
+    from datetime import UTC, datetime, timedelta
+
+    if not clarifications:
+        return []
+
+    suggestions: list[dict[str, Any]] = []
+    cutoff_date = datetime.now(UTC) - timedelta(days=MAX_INSIGHT_AGE_DAYS)
+
+    # Track best suggestion per field (highest confidence)
+    field_best: dict[str, dict[str, Any]] = {}
+
+    for question, entry in clarifications.items():
+        if not isinstance(entry, dict):
+            continue
+
+        # Check category is mappable
+        category = entry.get("category")
+        if not category or category not in CATEGORY_TO_FIELD_MAPPING:
+            continue
+
+        # Check confidence threshold
+        confidence = entry.get("confidence_score")
+        if confidence is None or confidence < confidence_threshold:
+            continue
+
+        # Check metric data exists
+        metric = entry.get("metric")
+        if not metric or not isinstance(metric, dict):
+            continue
+
+        # Get raw value (prefer raw_text for display, fall back to value)
+        suggested_value = metric.get("raw_text") or metric.get("value")
+        if suggested_value is None:
+            continue
+
+        # Convert numeric value to string for display
+        if isinstance(suggested_value, (int, float)):
+            unit = metric.get("unit", "")
+            if unit == "USD":
+                suggested_value = f"${suggested_value:,.0f}"
+            elif unit == "%":
+                suggested_value = f"{suggested_value}%"
+            else:
+                suggested_value = str(suggested_value)
+
+        # Check recency
+        answered_at_str = entry.get("answered_at")
+        answered_at = None
+        if answered_at_str:
+            try:
+                if isinstance(answered_at_str, str):
+                    answered_at = datetime.fromisoformat(answered_at_str.replace("Z", "+00:00"))
+                elif isinstance(answered_at_str, datetime):
+                    answered_at = answered_at_str
+                if answered_at and answered_at < cutoff_date:
+                    continue  # Too old
+            except (ValueError, TypeError):
+                pass
+
+        field = CATEGORY_TO_FIELD_MAPPING[category]
+        current_value = existing_context.get(field) if existing_context else None
+
+        # Skip if suggested value matches current
+        if current_value is not None and str(current_value) == str(suggested_value):
+            continue
+
+        suggestion = {
+            "field": field,
+            "current_value": current_value,
+            "suggested_value": suggested_value,
+            "source_question": question,
+            "confidence": confidence,
+            "answered_at": answered_at.isoformat() if answered_at else None,
+        }
+
+        # Keep best (highest confidence) per field
+        if field not in field_best or confidence > field_best[field].get("confidence", 0):
+            field_best[field] = suggestion
+
+    # Return unique suggestions sorted by confidence
+    suggestions = list(field_best.values())
+    suggestions.sort(key=lambda s: s.get("confidence", 0), reverse=True)
+
+    return suggestions
+
+
 def get_key_metrics_for_user(
     context_data: dict[str, Any] | None,
     key_metrics_config: list[dict[str, Any]] | None,
@@ -731,6 +866,32 @@ def get_key_metrics_for_user(
         history = benchmark_history.get(metric_key, [])
         trend, trend_change = calculate_trend_from_history(history)
 
+        # Build sparkline history (convert to numeric, oldest first)
+        sparkline_history = []
+        for h in reversed(history[:10]):  # Max 10 points, oldest first
+            h_value = h.get("value")
+            h_date = h.get("date")
+            if h_date:
+                try:
+                    from datetime import datetime
+
+                    recorded_at = datetime.fromisoformat(h_date)
+                    # Try to parse as numeric
+                    numeric_val = None
+                    if h_value is not None:
+                        if isinstance(h_value, (int, float)):
+                            numeric_val = float(h_value)
+                        elif isinstance(h_value, str):
+                            # Try to extract number from string like "$50K", "100", "50%"
+                            import re
+
+                            match = re.search(r"[\d,.]+", h_value.replace(",", ""))
+                            if match:
+                                numeric_val = float(match.group())
+                    sparkline_history.append({"value": numeric_val, "recorded_at": recorded_at})
+                except (ValueError, TypeError):
+                    continue
+
         # Get last updated timestamp
         last_updated = None
         if metric_key in benchmark_timestamps:
@@ -766,6 +927,7 @@ def get_key_metrics_for_user(
                 "notes": cfg.get("notes"),
                 "last_updated": last_updated.isoformat() if last_updated else None,
                 "display_order": cfg.get("display_order", 999),
+                "history": sparkline_history,
             }
         )
 

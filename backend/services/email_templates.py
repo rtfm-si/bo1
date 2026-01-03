@@ -894,6 +894,64 @@ This message was sent by the Board of One team.
     return html, plain_text
 
 
+# =============================================================================
+# Magic Link Email
+# =============================================================================
+
+
+def render_magic_link_email(
+    magic_link: str,
+    expiry_minutes: int = 15,
+) -> tuple[str, str]:
+    """Render magic link login email.
+
+    Args:
+        magic_link: The magic link URL
+        expiry_minutes: Minutes until the link expires
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    content = f"""
+<h2>Sign in to Board of One</h2>
+
+<p>Click the button below to sign in to your account. This link will expire in {expiry_minutes} minutes.</p>
+
+<p style="text-align: center; margin: 30px 0;">
+<a href="{magic_link}" class="button">Sign In</a>
+</p>
+
+<div class="summary-box">
+<p class="summary-title">Security Note</p>
+<ul>
+<li>This link can only be used once</li>
+<li>It expires in {expiry_minutes} minutes</li>
+<li>If you didn't request this, you can safely ignore this email</li>
+</ul>
+</div>
+
+<p style="font-size: 14px; color: #666;">
+If the button doesn't work, copy and paste this link into your browser:
+<br>
+<span style="word-break: break-all;">{magic_link}</span>
+</p>
+"""
+
+    html = _wrap_email(content)
+
+    plain_text = f"""Sign in to Board of One
+
+Click this link to sign in to your account:
+{magic_link}
+
+This link will expire in {expiry_minutes} minutes and can only be used once.
+
+If you didn't request this, you can safely ignore this email.
+"""
+
+    return html, plain_text
+
+
 def render_action_deadline_reminder_email(
     user_id: str,
     action_title: str,

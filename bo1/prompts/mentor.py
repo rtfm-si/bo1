@@ -6,6 +6,8 @@ Personas: general, action_coach, data_analyst
 
 from typing import TYPE_CHECKING, Any
 
+from bo1.prompts.style_adapter import get_style_instruction
+
 if TYPE_CHECKING:
     from backend.services.mention_resolver import ResolvedMentions
 
@@ -24,6 +26,7 @@ Help the user think through business challenges with practical, actionable guida
 - Provide structured recommendations when appropriate
 - Reference the user's business context when relevant
 - Suggest concrete next steps
+- Adapt your communication style to match the user's brand tone and business type (see <communication_style> in context if provided)
 </style>
 
 <constraints>
@@ -44,6 +47,7 @@ Help the user manage their actions, overcome blockers, and stay focused on high-
 - Break down complex tasks into actionable steps
 - Identify and address blockers
 - Suggest timeboxing and deadlines
+- Adapt your communication style to match the user's brand tone and business type (see <communication_style> in context if provided)
 </style>
 
 <constraints>
@@ -63,6 +67,7 @@ Help the user understand their data, identify patterns, and translate insights i
 - Explain metrics in business terms
 - Suggest what data to track
 - Help interpret trends and anomalies
+- Adapt your communication style to match the user's brand tone and business type (see <communication_style> in context if provided)
 </style>
 
 <constraints>
@@ -159,7 +164,12 @@ def format_business_context(context: dict[str, Any] | None) -> str:
 
     # Only return if we have actual content
     if len(lines) > 2:
-        return "\n".join(lines)
+        context_block = "\n".join(lines)
+        # Add communication style block if context has brand fields
+        style_block = get_style_instruction(context)
+        if style_block:
+            return f"{context_block}\n\n{style_block}"
+        return context_block
     return ""
 
 

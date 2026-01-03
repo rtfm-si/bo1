@@ -5,12 +5,14 @@
  * - Session management (httpOnly cookies)
  * - ThirdParty OAuth (Google, LinkedIn, GitHub)
  * - EmailPassword authentication
+ * - Passwordless (magic link) authentication
  */
 
 import SuperTokens from "supertokens-web-js";
 import Session from "supertokens-web-js/recipe/session";
 import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 import EmailPassword from "supertokens-web-js/recipe/emailpassword";
+import Passwordless from "supertokens-web-js/recipe/passwordless";
 import { env } from '$env/dynamic/public';
 
 let isInitialized = false;
@@ -34,6 +36,7 @@ export function initSuperTokens() {
             Session.init(),
             ThirdParty.init(),
             EmailPassword.init(),
+            Passwordless.init(),
         ],
     });
 

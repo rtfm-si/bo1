@@ -1,10 +1,59 @@
 # Task Backlog
 
-_Last updated: 2025-12-30 (Fresh full audit suite run - all 8 audits completed, 10 new P2/P3 tasks added)_
+_Last updated: 2026-01-03 (Task decomposition from _TODO.md)_
 
 ---
 
 ## Open Tasks
+
+### Active Bugs
+
+- [x] [AUTH][P0] Fix Google social login for existing email users
+  - Root cause: SuperTokens AccountLinking recipe was not enabled
+  - Users who signed up with email/password couldn't sign in with Google OAuth using same email
+  - Added `accountlinking` and `emailverification` recipes to `supertokens_config.py`
+  - Implemented `should_do_automatic_account_linking()` callback to auto-link verified emails
+  - OAuth emails (Google, LinkedIn, GitHub) auto-link without extra verification
+  - Email/password accounts require email verification before linking
+  - Added logging for account linking events
+  - Tests: 10 unit tests in `tests/api/test_account_linking.py`
+- [x] [ADMIN][P0] Fix user impersonation: showing logged-in admin details instead of impersonated user data
+  - Backend: `/api/v1/auth/me` now returns target user data with impersonation metadata
+  - Added `is_impersonation`, `real_admin_id`, `impersonation_write_mode`, `impersonation_expires_at`, `impersonation_remaining_seconds` to response
+  - Frontend: User type extended with impersonation fields; layout uses user store instead of admin API call
+  - Tests: 4 new unit tests in `tests/api/test_admin_impersonation.py::TestAuthMeImpersonation`
+- [x] [DATA][P0] Fix metrics not saving when user adds additional metrics
+  - Root cause: `apply_metric_suggestion()` passed same dict for both `new_context` and `existing_context`
+  - Fix: Shallow copy `existing_context` before modifying `context_data`
+  - Tests: 6 new unit tests in `tests/api/context/test_apply_metric_suggestion.py`
+- [x] [CONTEXT][P0] Fix competitor addition not working
+  - Synced `ManagedCompetitorResponse` frontend type with backend (added `relevance_warning`, `relevance_score`)
+  - Added 5 integration tests in `tests/api/context/test_managed_competitors.py::TestManagedCompetitorAPI`
+  - Verified skeptic check failure doesn't block add (try/except in route handler lines 1778-1789)
+  - Regenerated frontend types from OpenAPI spec
+
+### P0 Features
+
+- [x] [LLM][P0] Adapt language style to user's business context: use website analysis to tailor responses to product-based vs B2B SaaS models
+  - Created `bo1/prompts/style_adapter.py` with StyleProfile enum (B2B_SAAS, B2C_PRODUCT, B2C_SERVICE, AGENCY, ENTERPRISE, NEUTRAL)
+  - `detect_style_profile()` analyzes business_model, brand_tone, product_categories to select profile
+  - `get_style_instruction()` generates `<communication_style>` XML block for prompt injection
+  - Updated `format_business_context()` in mentor.py and data_analyst.py to include style block
+  - Updated mentor system prompts to reference communication_style block
+  - Updated `compose_persona_contribution_prompt()` to accept business_context parameter
+  - Updated `compose_synthesis_prompt()` to accept business_context parameter
+  - Wired business_context through PromptBuilder for persona contributions
+  - Tests: 44 unit tests in `tests/prompts/test_style_adapter.py`
+- [x] [UX][P0] Add default currency setting to user preferences for metric display (£/$/€)
+  - Migration: `zza_add_preferred_currency.py` adds `preferred_currency` column to users table (GBP default)
+  - Backend: Extended `PreferencesResponse`/`PreferencesUpdate` models with `preferred_currency` field (GBP|USD|EUR)
+  - API: GET/PATCH `/api/v1/user/preferences` now includes `preferred_currency`
+  - Frontend store: Created `preferences.ts` store with `loadPreferences()` and `preferredCurrency` derived store
+  - Utility: Created `currency.ts` with `formatCurrency()`, `isMonetaryMetric()`, `parseCurrencyValue()`
+  - Settings UI: Added currency selector to `/settings/account` with auto-save toggle buttons
+  - Dashboard: Updated `ValueMetricsPanel.svelte` to format monetary metrics with user's preferred currency
+  - Key Metrics: Updated `/context/key-metrics` page with currency-aware value formatting
+  - Tests: 7 unit tests in `tests/api/test_currency_preferences.py`
 
 ### Blocked on User Action
 
@@ -156,6 +205,135 @@ _Last updated: 2025-12-30 (Fresh full audit suite run - all 8 audits completed, 
 ### User-Owned
 
 - [ ] [DOCS][P3] Help pages content review (Si's todo)
+
+### Backlog (from _TODO.md, 2026-01-02)
+
+#### Auth & Security
+
+- [x] [AUTH][P2] Enforce stronger password requirements (12+ chars, letters+numbers)
+  - Implemented: `validate_password_strength()` in `backend/api/supertokens_config.py:87-111`
+  - 17 unit tests in `tests/api/test_password_validation.py`
+- [x] [AUTH][P3] Detect insecure passwords and prompt users to update on login
+  - Backend: Password check in `sign_in` override sets `password_upgrade_needed` flag in users table
+  - Migration: `zx_add_password_upgrade_needed.py` adds column
+  - API: `POST /api/v1/user/upgrade-password` endpoint with old/new password validation
+  - Frontend: `PasswordUpgradePrompt.svelte` modal with 7-day snooze, integrated in app layout
+  - Auth store: `passwordUpgradeNeeded` derived store and `clearPasswordUpgradeFlag()` helper
+  - Tests: 7 unit tests in `tests/api/test_password_upgrade.py`
+- [ ] [AUTH][P4] Implement magic link passwordless login option
+- [ ] [AUTH][P4] Add 2FA login support
+
+#### Projects API Fixes
+
+- [x] [API][P2] Fix `/api/v1/projects/autogenerate-suggestions` returning 500 - route ordering fix
+- [x] [API][P2] Fix `/api/v1/projects/context-suggestions` returning 500 - route ordering fix
+
+#### SEO API Fixes
+
+- [x] [API][P2] Fix `/api/v1/seo/history` returning 404 - route exists, tested
+- [x] [API][P2] Fix `/api/v1/seo/autopilot/config` returning 500 - fixed db_session usage
+- [x] [API][P2] Fix `/api/v1/seo/articles` returning 404 - route exists, tested
+- [x] [API][P2] Fix `/api/v1/seo/topics` returning 404 - route exists, tested
+
+#### Analysis Features
+
+- [x] [UX][P2] Show question history in "Ask a question" (not just latest answer)
+  - Added `DatasetChatHistory.svelte` sidebar component
+  - Updated `DatasetChat.svelte` with `selectedConversationId` prop and conversation loading
+  - Updated dataset page layout with history sidebar next to chat
+  - API client methods already exist: `getConversations`, `getConversation`, `deleteConversation`
+- [x] [UX][P3] Improve question UX guidance to help users find right answers
+  - Added `ColumnReferenceSidebar.svelte`: Collapsible sidebar showing available columns with click-to-copy, semantic type badges, and business meaning
+  - Added `QueryTemplates.svelte`: Expandable quick query chips (Ranking, Trends, Comparison, Distribution, Correlation, Segments) with auto-filled column names
+  - Enhanced `DatasetChat.svelte` empty state: Shows available column names and contextual example based on data types
+  - Improved error handling: Parses error types (no_results, invalid_column, timeout, syntax) with specific remediation guidance and "Show columns" link
+  - Wired components in dataset page with column sidebar toggle and query template selection
+- [x] [FEATURE][P2] Add chart analysis rendering with detail/simple dual-view modes
+  - Added `plotly.js-basic-dist` npm package (~1MB minimal bundle)
+  - Created `ChartRenderer.svelte` with detail/simple dual-view modes
+    - Detail mode: Full interactive Plotly chart with hover, zoom, pan
+    - Simple mode: Static SVG sparkline with key stats (min/max/mean/latest/trend)
+    - Mode toggle button, expand button for fullscreen
+  - Created `ChartModal.svelte` for fullscreen chart viewing
+  - Created Plotly TypeScript declarations in `types/plotly.d.ts`
+  - Updated `DataInsightsPanel.svelte`:
+    - Added chart preview on suggested chart click via `previewChart()` API
+    - Renders chart in simple mode with expand option to modal
+  - Updated `ChatMessage.svelte`:
+    - Added "Preview" button for messages with `chart_spec`
+    - Loads chart on demand via `previewChart()` API
+    - Renders chart with expand to fullscreen modal
+
+#### Datasets Features
+
+- [x] [API][P2] Fix `/api/v1/datasets/{id}/insights` returning 422 error
+  - Added `response_model=DatasetInsightsResponse` to endpoint
+  - Added `cached: bool` field to `DatasetInsightsResponse` model
+  - Regenerated OpenAPI spec and frontend types
+  - Note: 422 is intentional when dataset not profiled (handled gracefully by frontend)
+- [x] [DATA][P2] Persist analysis history across sessions
+  - Backend: `_stream_ask_response()` in `datasets.py` saves chart_spec to `dataset_analyses` via `create_analysis()`
+  - Done event includes `analysis_id` when chart saved
+  - Frontend: `DatasetChat.svelte` accepts `onAnalysisCreated` callback, triggers on analysis_id in done event
+  - Dataset page passes `fetchAnalyses` as callback to refresh gallery
+  - `AnalysisGallery.svelte` updated to render Plotly charts via `previewChart` API when `chart_url` is null but `chart_spec` exists
+- [x] [DATA][P2] Persist "Ask a question" history and show conversation thread
+  - Migration: `zy_add_dataset_conversations.py` creates `dataset_conversations` + `dataset_messages` tables
+  - PostgreSQL repository: `backend/services/dataset_conversation_pg_repo.py` with full CRUD
+  - ConversationRepository dual-write: PostgreSQL source of truth, Redis 24h cache
+  - GDPR integration: export/delete via `_collect_dataset_conversations` / `_delete_dataset_conversations`
+  - Tests: 15 unit tests in `tests/services/test_dataset_conversation_pg_repo.py`
+- [x] [FEATURE][P2] Run exploratory analytics on dataset load with auto-generated charts and next-step suggestions
+  - Added `SuggestedChart` model in `backend/api/models.py` with `chart_spec`, `title`, `rationale`
+  - Added `suggested_charts` field to `DatasetInsights` model (defaults to empty list)
+  - Added `_generate_chart_suggestions()` in `backend/services/insight_generator.py` with heuristics:
+    - Date + numeric → line chart (time series)
+    - Categorical + numeric → bar chart
+    - Numeric only → histogram/distribution
+    - Two numeric → scatter plot
+    - Categorical only → pie chart
+  - Limits to 3 suggestions, scans first 20 columns for wide datasets
+  - Added `POST /datasets/{id}/preview-chart` lightweight preview endpoint (no persistence)
+  - Frontend: Extended `DataInsightsPanel.svelte` with Suggested Charts section
+  - API client: Added `previewChart()` method
+  - Tests: 15 unit tests in `tests/services/test_chart_suggestions.py`, 4 model tests in `tests/api/test_datasets.py`
+
+#### Context System Fixes
+
+- [x] [FEATURE][P2] Use context/insights data to auto-populate context/metrics and context/key-metrics
+  - Added `get_metrics_from_insights()` service function in `backend/api/context/services.py`
+  - Maps clarification categories (revenue, customers, growth, team) to context fields
+  - Filters by confidence >= 0.6, recency <= 90 days, deduplicates by field
+  - API: `GET /context/metric-suggestions` - returns suggestions from insights
+  - API: `POST /context/apply-metric-suggestion` - applies suggestion and updates context
+  - Frontend: `MetricSuggestions.svelte` component with apply/dismiss per suggestion
+  - Integrated into `/context/key-metrics` page above metrics grid
+  - Tests: 27 unit tests in `tests/api/test_context_services.py`
+- [x] [API][P2] Fix `/api/v1/context/trends/summary/refresh` returning 403 (auth or permission issue)
+  - Added CSRF token header to frontend fetch call in `frontend/src/routes/(app)/context/strategic/+page.svelte`
+  - Added tests in `tests/api/test_peer_benchmarks.py`
+- [x] [API][P2] Fix `/api/v1/peer-benchmarks` and `/preview` returning 500
+  - Added try/catch error handling in `get_preview_metric()` and `get_peer_comparison()` service functions
+  - Service functions now gracefully return None on database errors instead of raising exceptions
+  - Routes already had `@handle_api_errors` decorator which converts None to 404 response
+  - Added 24 unit tests in `tests/api/test_peer_benchmarks.py`
+
+#### Competitors Features
+
+- [x] [DATA][P2] Persist competitor enrichment data across sessions
+  - Extended `ManagedCompetitor` model with `relevance_score`, `relevance_flags`, `relevance_warning` fields
+  - Updated `auto_save_competitors()` to persist enrichment data including serialized `RelevanceFlags`
+  - Updated list endpoint to return enrichment data with proper deserialization
+  - Added relevance badges to `CompetitorManager.svelte` (green >0.66, amber >0.33, red ≤0.33)
+  - Added warning tooltip when `relevance_warning` is present
+  - Tests: 5 unit tests in `tests/api/test_context_services.py::TestAutoSaveCompetitorsEnrichment`
+- [x] [LLM][P3] Improve competitor enrichment extraction quality
+  - Enhanced LLM prompt to extract descriptions, categories (direct/indirect/adjacent), and confidence
+  - Added URL normalization: extracts company domains from G2/Capterra links, guesses domain from name
+  - Added competitor name normalization and deduplication (removes Inc/LLC/domain suffixes, merges data)
+  - Improved skeptic prompt with confidence-weighted scoring (high=1.0x, medium=0.7x, low=0.4x)
+  - Added Redis caching for skeptic evaluations (24h TTL, context-hash aware)
+  - Tests: 102 passing in test_competitor_skeptic.py and test_competitor_detection.py
 
 ---
 

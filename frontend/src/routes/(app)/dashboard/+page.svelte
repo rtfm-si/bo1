@@ -490,6 +490,9 @@
 			/>
 		</div>
 
+		<!-- Daily Activities / Today's Focus -->
+		<DailyActivities actionsData={actionsData.data} />
+
 		<!-- Value Metrics Panel -->
 		<div class="mb-8">
 			<ValueMetricsPanel />
@@ -499,9 +502,6 @@
 		<div class="mb-8">
 			<ResearchInsightsWidget />
 		</div>
-
-		<!-- Daily Activities / Today's Focus -->
-		<DailyActivities actionsData={actionsData.data} />
 
 		<!-- Recent Meetings Widget -->
 		{#if sessionsData.isLoading}

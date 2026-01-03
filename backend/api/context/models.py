@@ -942,6 +942,22 @@ class ManagedCompetitor(BaseModel):
         description="User notes about the competitor",
     )
     added_at: datetime = Field(..., description="When competitor was added")
+    # Enrichment fields (from DetectedCompetitor skeptic check)
+    relevance_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score: 1.0=3 checks, 0.66=2, 0.33=1, 0.0=0",
+    )
+    relevance_flags: RelevanceFlags | None = Field(
+        None,
+        description="Individual relevance check results",
+    )
+    relevance_warning: str | None = Field(
+        None,
+        max_length=200,
+        description="Warning message if <2 checks pass",
+    )
 
 
 class ManagedCompetitorCreate(BaseModel):
@@ -1314,6 +1330,13 @@ class MetricTrendIndicator(str, Enum):
     UNKNOWN = "unknown"  # Insufficient data
 
 
+class MetricHistoryPoint(BaseModel):
+    """Single point in metric history for sparkline visualization."""
+
+    value: float | None = Field(None, description="Numeric value (None if non-numeric)")
+    recorded_at: datetime = Field(..., description="When the value was recorded")
+
+
 class KeyMetricDisplay(BaseModel):
     """Display model for a single key metric with current value and trends.
 
@@ -1346,6 +1369,10 @@ class KeyMetricDisplay(BaseModel):
     )
     notes: str | None = Field(None, description="User notes")
     last_updated: datetime | None = Field(None, description="When value was last updated")
+    history: list[MetricHistoryPoint] = Field(
+        default_factory=list,
+        description="Recent history for sparkline (oldest first, max 10 points)",
+    )
 
 
 class KeyMetricConfigUpdate(BaseModel):
@@ -1520,4 +1547,63 @@ class ResearchEmbeddingsResponse(BaseModel):
         description="Category counts for legend",
     )
     total_count: int = Field(0, description="Total research items (may exceed points if > limit)")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Insight-to-Metric Auto-Population Models
+# =============================================================================
+
+
+class MetricSuggestion(BaseModel):
+    """A suggestion to auto-populate a context metric from insights."""
+
+    field: str = Field(..., description="Context field name (e.g., 'revenue', 'customers')")
+    current_value: str | None = Field(None, description="Current value in context (if any)")
+    suggested_value: str = Field(..., description="Value extracted from insight")
+    source_question: str = Field(..., description="The clarification question that provided this")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Extraction confidence (0-1)")
+    answered_at: str | None = Field(None, description="When the insight was recorded (ISO)")
+
+
+class MetricSuggestionsResponse(BaseModel):
+    """Response containing metric suggestions from insights."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    suggestions: list[MetricSuggestion] = Field(
+        default_factory=list,
+        description="List of metric suggestions from insights",
+    )
+    count: int = Field(0, description="Number of suggestions")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class ApplyMetricSuggestionRequest(BaseModel):
+    """Request to apply a single metric suggestion."""
+
+    field: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Context field to update (e.g., 'revenue')",
+    )
+    value: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Value to set",
+    )
+    source_question: str | None = Field(
+        None,
+        max_length=500,
+        description="Original question (for audit trail)",
+    )
+
+
+class ApplyMetricSuggestionResponse(BaseModel):
+    """Response after applying a metric suggestion."""
+
+    success: bool = Field(..., description="Whether update succeeded")
+    field: str = Field(..., description="Field that was updated")
+    new_value: str = Field(..., description="Value that was applied")
     error: str | None = Field(None, description="Error message if failed")

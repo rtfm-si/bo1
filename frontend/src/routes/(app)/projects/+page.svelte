@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
 	import type { ProjectDetailResponse, ProjectStatus, UnassignedCountResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
@@ -38,6 +39,15 @@
 	onMount(async () => {
 		await projectsData.fetch();
 		loadUnassignedCount();
+
+		// Check for ?create=true query param (from /projects/new redirect)
+		if ($page.url.searchParams.get('create') === 'true') {
+			showCreateModal = true;
+			// Clean up URL without triggering navigation
+			const url = new URL(window.location.href);
+			url.searchParams.delete('create');
+			window.history.replaceState({}, '', url.toString());
+		}
 
 		// Check if we should continue the tour on this page
 		const tourPage = getPersistedTourPage();

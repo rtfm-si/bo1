@@ -257,14 +257,14 @@ def _get_monthly_usage(user_id: str) -> int:
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT COUNT(*) FROM seo_trend_analyses
+                SELECT COUNT(*) as count FROM seo_trend_analyses
                 WHERE user_id = %s
                 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
                 """,
                 (user_id,),
             )
             row = cursor.fetchone()
-            return row[0] if row else 0
+            return row["count"] if row else 0
 
 
 def _save_analysis(
@@ -295,7 +295,7 @@ def _save_analysis(
             )
             row = cursor.fetchone()
             conn.commit()
-            return row[0]
+            return row["id"]
 
 
 async def _perform_trend_analysis(
@@ -489,10 +489,10 @@ async def get_history(
         with conn.cursor() as cursor:
             # Get total count
             cursor.execute(
-                "SELECT COUNT(*) FROM seo_trend_analyses WHERE user_id = %s",
+                "SELECT COUNT(*) as count FROM seo_trend_analyses WHERE user_id = %s",
                 (user_id,),
             )
-            total = cursor.fetchone()[0]
+            total = cursor.fetchone()["count"]
 
             # Get paginated results
             cursor.execute(
@@ -508,14 +508,14 @@ async def get_history(
 
             analyses = []
             for row in cursor.fetchall():
-                results_json = row[3] or {}
+                results_json = row["results_json"] or {}
                 analyses.append(
                     HistoryEntry(
-                        id=row[0],
-                        keywords=row[1] or [],
-                        industry=row[2],
+                        id=row["id"],
+                        keywords=row["keywords"] or [],
+                        industry=row["industry"],
                         executive_summary=results_json.get("executive_summary", ""),
-                        created_at=row[4],
+                        created_at=row["created_at"],
                     )
                 )
 
@@ -554,10 +554,10 @@ async def list_topics(
         with conn.cursor() as cursor:
             # Get total count
             cursor.execute(
-                "SELECT COUNT(*) FROM seo_topics WHERE user_id = %s",
+                "SELECT COUNT(*) as count FROM seo_topics WHERE user_id = %s",
                 (user_id,),
             )
-            total = cursor.fetchone()[0]
+            total = cursor.fetchone()["count"]
 
             # Get paginated results
             cursor.execute(
@@ -575,13 +575,13 @@ async def list_topics(
             for row in cursor.fetchall():
                 topics.append(
                     SeoTopic(
-                        id=row[0],
-                        keyword=row[1],
-                        status=row[2],
-                        source_analysis_id=row[3],
-                        notes=row[4],
-                        created_at=row[5],
-                        updated_at=row[6],
+                        id=row["id"],
+                        keyword=row["keyword"],
+                        status=row["status"],
+                        source_analysis_id=row["source_analysis_id"],
+                        notes=row["notes"],
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
                     )
                 )
 
@@ -631,13 +631,13 @@ async def create_topic(
             conn.commit()
 
             return SeoTopic(
-                id=row[0],
-                keyword=row[1],
-                status=row[2],
-                source_analysis_id=row[3],
-                notes=row[4],
-                created_at=row[5],
-                updated_at=row[6],
+                id=row["id"],
+                keyword=row["keyword"],
+                status=row["status"],
+                source_analysis_id=row["source_analysis_id"],
+                notes=row["notes"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
             )
 
 
@@ -702,13 +702,13 @@ async def update_topic(
             conn.commit()
 
             return SeoTopic(
-                id=row[0],
-                keyword=row[1],
-                status=row[2],
-                source_analysis_id=row[3],
-                notes=row[4],
-                created_at=row[5],
-                updated_at=row[6],
+                id=row["id"],
+                keyword=row["keyword"],
+                status=row["status"],
+                source_analysis_id=row["source_analysis_id"],
+                notes=row["notes"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
             )
 
 
@@ -793,14 +793,14 @@ def _get_monthly_article_usage(user_id: str) -> int:
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT COUNT(*) FROM seo_blog_articles
+                SELECT COUNT(*) as count FROM seo_blog_articles
                 WHERE user_id = %s
                 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
                 """,
                 (user_id,),
             )
             row = cursor.fetchone()
-            return row[0] if row else 0
+            return row["count"] if row else 0
 
 
 # =============================================================================
@@ -867,7 +867,7 @@ async def generate_article(
             if not topic_row:
                 raise http_error(ErrorCode.API_NOT_FOUND, "Topic not found", status=404)
 
-            keyword = topic_row[1]
+            keyword = topic_row["keyword"]
 
     # Generate blog content
     logger.info(f"Generating SEO article for user {user_id[:8]}... keyword={keyword}")
@@ -923,19 +923,19 @@ async def generate_article(
             )
             conn.commit()
 
-            logger.info(f"Generated article id={article_row[0]} for topic {topic_id}")
+            logger.info(f"Generated article id={article_row['id']} for topic {topic_id}")
 
             return SeoBlogArticle(
-                id=article_row[0],
-                topic_id=article_row[1],
-                title=article_row[2],
-                excerpt=article_row[3],
-                content=article_row[4],
-                meta_title=article_row[5],
-                meta_description=article_row[6],
-                status=article_row[7],
-                created_at=article_row[8],
-                updated_at=article_row[9],
+                id=article_row["id"],
+                topic_id=article_row["topic_id"],
+                title=article_row["title"],
+                excerpt=article_row["excerpt"],
+                content=article_row["content"],
+                meta_title=article_row["meta_title"],
+                meta_description=article_row["meta_description"],
+                status=article_row["status"],
+                created_at=article_row["created_at"],
+                updated_at=article_row["updated_at"],
             )
 
 
@@ -958,10 +958,10 @@ async def list_articles(
         with conn.cursor() as cursor:
             # Get total count
             cursor.execute(
-                "SELECT COUNT(*) FROM seo_blog_articles WHERE user_id = %s",
+                "SELECT COUNT(*) as count FROM seo_blog_articles WHERE user_id = %s",
                 (user_id,),
             )
-            total = cursor.fetchone()[0]
+            total = cursor.fetchone()["count"]
 
             # Get paginated results
             cursor.execute(
@@ -979,16 +979,16 @@ async def list_articles(
             for row in cursor.fetchall():
                 articles.append(
                     SeoBlogArticle(
-                        id=row[0],
-                        topic_id=row[1],
-                        title=row[2],
-                        excerpt=row[3],
-                        content=row[4],
-                        meta_title=row[5],
-                        meta_description=row[6],
-                        status=row[7],
-                        created_at=row[8],
-                        updated_at=row[9],
+                        id=row["id"],
+                        topic_id=row["topic_id"],
+                        title=row["title"],
+                        excerpt=row["excerpt"],
+                        content=row["content"],
+                        meta_title=row["meta_title"],
+                        meta_description=row["meta_description"],
+                        status=row["status"],
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
                     )
                 )
 
@@ -1029,16 +1029,16 @@ async def get_article(
                 raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
             return SeoBlogArticle(
-                id=row[0],
-                topic_id=row[1],
-                title=row[2],
-                excerpt=row[3],
-                content=row[4],
-                meta_title=row[5],
-                meta_description=row[6],
-                status=row[7],
-                created_at=row[8],
-                updated_at=row[9],
+                id=row["id"],
+                topic_id=row["topic_id"],
+                title=row["title"],
+                excerpt=row["excerpt"],
+                content=row["content"],
+                meta_title=row["meta_title"],
+                meta_description=row["meta_description"],
+                status=row["status"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
             )
 
 
@@ -1077,8 +1077,8 @@ async def update_article(
             if not existing:
                 raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-            topic_id = existing[1]
-            old_status = existing[2]
+            topic_id = existing["topic_id"]
+            old_status = existing["status"]
 
             # Build dynamic update query
             updates = ["updated_at = now()"]
@@ -1135,16 +1135,16 @@ async def update_article(
             conn.commit()
 
             return SeoBlogArticle(
-                id=row[0],
-                topic_id=row[1],
-                title=row[2],
-                excerpt=row[3],
-                content=row[4],
-                meta_title=row[5],
-                meta_description=row[6],
-                status=row[7],
-                created_at=row[8],
-                updated_at=row[9],
+                id=row["id"],
+                topic_id=row["topic_id"],
+                title=row["title"],
+                excerpt=row["excerpt"],
+                content=row["content"],
+                meta_title=row["meta_title"],
+                meta_description=row["meta_description"],
+                status=row["status"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
             )
 
 
@@ -1394,7 +1394,7 @@ async def get_article_analytics(
 
             counts = {"view": 0, "click": 0, "signup": 0}
             for row in cursor.fetchall():
-                counts[row[0]] = row[1]
+                counts[row["event_type"]] = row["count"]
 
             views = counts["view"]
             clicks = counts["click"]
@@ -1405,8 +1405,8 @@ async def get_article_analytics(
             signup_rate = signups / views if views > 0 else 0.0
 
             return ArticleAnalytics(
-                article_id=article[0],
-                title=article[1],
+                article_id=article["id"],
+                title=article["title"],
                 views=views,
                 clicks=clicks,
                 signups=signups,
@@ -1453,9 +1453,9 @@ async def get_all_analytics(
             total_signups = 0
 
             for row in cursor.fetchall():
-                views = row[2]
-                clicks = row[3]
-                signups = row[4]
+                views = row["views"]
+                clicks = row["clicks"]
+                signups = row["signups"]
 
                 total_views += views
                 total_clicks += clicks
@@ -1466,8 +1466,8 @@ async def get_all_analytics(
 
                 articles.append(
                     ArticleAnalytics(
-                        article_id=row[0],
-                        title=row[1],
+                        article_id=row["id"],
+                        title=row["title"],
                         views=views,
                         clicks=clicks,
                         signups=signups,
@@ -1508,24 +1508,24 @@ def _get_autopilot_stats(user_id: str) -> tuple[int, int]:
             # Articles generated this week (by autopilot - status pending_review or via autopilot source)
             cursor.execute(
                 """
-                SELECT COUNT(*) FROM seo_blog_articles
+                SELECT COUNT(*) as count FROM seo_blog_articles
                 WHERE user_id = %s
                 AND created_at >= date_trunc('week', CURRENT_TIMESTAMP)
                 """,
                 (user_id,),
             )
-            articles_this_week = cursor.fetchone()[0] or 0
+            articles_this_week = cursor.fetchone()["count"] or 0
 
             # Articles pending review
             cursor.execute(
                 """
-                SELECT COUNT(*) FROM seo_blog_articles
+                SELECT COUNT(*) as count FROM seo_blog_articles
                 WHERE user_id = %s
                 AND status = 'pending_review'
                 """,
                 (user_id,),
             )
-            articles_pending = cursor.fetchone()[0] or 0
+            articles_pending = cursor.fetchone()["count"] or 0
 
             return articles_this_week, articles_pending
 
@@ -1563,8 +1563,8 @@ async def get_autopilot_config(
             row = cursor.fetchone()
 
     # Parse config or return defaults
-    if row and row[0]:
-        config = SEOAutopilotConfig(**row[0])
+    if row and row["seo_autopilot_config"]:
+        config = SEOAutopilotConfig(**row["seo_autopilot_config"])
     else:
         config = SEOAutopilotConfig()
 
@@ -1729,11 +1729,11 @@ async def get_pending_articles(
             for row in cursor.fetchall():
                 articles.append(
                     PendingArticle(
-                        id=row[0],
-                        title=row[1],
-                        excerpt=row[2],
-                        keyword=row[3],
-                        created_at=row[4],
+                        id=row["id"],
+                        title=row["title"],
+                        excerpt=row["excerpt"],
+                        keyword=row["keyword"],
+                        created_at=row["created_at"],
                     )
                 )
 
@@ -1768,14 +1768,14 @@ async def approve_article(
             if not row:
                 raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-            if row[1] != "pending_review":
+            if row["status"] != "pending_review":
                 raise http_error(
                     ErrorCode.VALIDATION_ERROR,
-                    f"Article is not pending review (status: {row[1]})",
+                    f"Article is not pending review (status: {row['status']})",
                     status=400,
                 )
 
-            topic_id = row[2]
+            topic_id = row["topic_id"]
 
             # Update to published
             cursor.execute(
@@ -1804,16 +1804,16 @@ async def approve_article(
             logger.info(f"Approved article {article_id} for user {user_id[:8]}...")
 
             return SeoBlogArticle(
-                id=article_row[0],
-                topic_id=article_row[1],
-                title=article_row[2],
-                excerpt=article_row[3],
-                content=article_row[4],
-                meta_title=article_row[5],
-                meta_description=article_row[6],
-                status=article_row[7],
-                created_at=article_row[8],
-                updated_at=article_row[9],
+                id=article_row["id"],
+                topic_id=article_row["topic_id"],
+                title=article_row["title"],
+                excerpt=article_row["excerpt"],
+                content=article_row["content"],
+                meta_title=article_row["meta_title"],
+                meta_description=article_row["meta_description"],
+                status=article_row["status"],
+                created_at=article_row["created_at"],
+                updated_at=article_row["updated_at"],
             )
 
 
@@ -1845,10 +1845,10 @@ async def reject_article(
             if not row:
                 raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
 
-            if row[1] != "pending_review":
+            if row["status"] != "pending_review":
                 raise http_error(
                     ErrorCode.VALIDATION_ERROR,
-                    f"Article is not pending review (status: {row[1]})",
+                    f"Article is not pending review (status: {row['status']})",
                     status=400,
                 )
 

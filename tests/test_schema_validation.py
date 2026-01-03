@@ -53,9 +53,6 @@ class TestSessionModelSchema:
         "kill_reason",
         # Partition key columns
         "partition_key",
-        # Workspace/foreign keys added by later migrations
-        "workspace_id",
-        "dataset_id",
         # Context tracking columns
         "session_context",
         "skip_clarification",
@@ -69,7 +66,7 @@ class TestSessionModelSchema:
 
     # Pydantic fields that are computed or don't map to DB columns
     # These fields were added to the model before the migration was created
-    COMPUTED_FIELDS: set[str] = {"contribution_count", "workspace_id"}
+    COMPUTED_FIELDS: set[str] = {"contribution_count"}
 
     def test_session_model_matches_schema(self):
         """Session model fields should match sessions table columns."""

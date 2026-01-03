@@ -4,6 +4,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import { adminApi, type FullSessionResponse } from '$lib/api/admin';
+	import { formatCurrency } from '$lib/utils/currency';
 
 	interface Props {
 		sessionId: string;
@@ -60,7 +61,8 @@
 
 	function formatCost(cost: unknown): string {
 		if (typeof cost !== 'number') return '-';
-		return `$${cost.toFixed(4)}`;
+		// Admin costs are in USD (API provider costs)
+		return formatCurrency(cost, 'USD', { decimals: 4 });
 	}
 
 	onMount(() => {

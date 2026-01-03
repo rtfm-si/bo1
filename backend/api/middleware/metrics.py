@@ -520,6 +520,19 @@ bo1_challenge_phase_validation_total = Counter(
     ["result", "round_number", "expert_type"],  # result: pass/fail
 )
 
+# Challenge phase rejection metrics (hard mode)
+bo1_challenge_rejection_total = Counter(
+    "bo1_challenge_rejection_total",
+    "Challenge phase contributions rejected and queued for retry",
+    ["round_number", "expert_type"],
+)
+
+bo1_challenge_retry_total = Counter(
+    "bo1_challenge_retry_total",
+    "Challenge phase retry outcomes",
+    ["result", "round_number", "expert_type"],  # result: success/failure
+)
+
 
 def create_instrumentator() -> PrometheusFastApiInstrumentator:
     """Create and configure the Prometheus instrumentator."""
@@ -1103,5 +1116,35 @@ def record_challenge_validation(passed: bool, round_number: int, expert_type: st
     """
     result = "pass" if passed else "fail"
     bo1_challenge_phase_validation_total.labels(
+        result=result, round_number=str(round_number), expert_type=expert_type
+    ).inc()
+
+
+def record_challenge_rejection(round_number: int, expert_type: str) -> None:
+    """Record a challenge phase rejection (contribution queued for retry).
+
+    Called in hard mode when a contribution lacks sufficient challenge markers.
+
+    Args:
+        round_number: Round number (3 or 4)
+        expert_type: Type of expert (e.g., "persona", "researcher")
+    """
+    bo1_challenge_rejection_total.labels(
+        round_number=str(round_number), expert_type=expert_type
+    ).inc()
+
+
+def record_challenge_retry(success: bool, round_number: int, expert_type: str) -> None:
+    """Record challenge phase retry outcome.
+
+    Called after re-prompting a rejected contribution.
+
+    Args:
+        success: Whether the retry passed validation
+        round_number: Round number (3 or 4)
+        expert_type: Type of expert (e.g., "persona", "researcher")
+    """
+    result = "success" if success else "failure"
+    bo1_challenge_retry_total.labels(
         result=result, round_number=str(round_number), expert_type=expert_type
     ).inc()

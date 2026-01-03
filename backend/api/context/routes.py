@@ -113,14 +113,15 @@ from backend.api.middleware.rate_limit import CONTEXT_RATE_LIMIT, limiter
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
     ERROR_403_RESPONSE,
     ERROR_404_RESPONSE,
     ERROR_409_RESPONSE,
 )
-from bo1.logging.errors import ErrorCode, log_error
+from bo1.logging import ErrorCode
+from bo1.logging.errors import log_error
 from bo1.services.enrichment import EnrichmentService
 from bo1.state.repositories import cache_repository, user_repository
 
@@ -359,9 +360,10 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
     deleted = user_repository.delete_context(user_id)
 
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail="No context found to delete",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "No context found to delete",
+            status=404,
         )
 
     logger.info(f"Deleted context for user {user_id}")
@@ -658,7 +660,7 @@ async def dismiss_refresh_prompt(
         user_id=user_id,
     )
     if not result:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     # Store expiry in context JSON
     context_data = user_repository.get_context(user_id) or {}
@@ -892,24 +894,25 @@ async def update_insight(
         question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
     except Exception as e:
         logger.warning(f"Failed to decode question hash: {e}")
-        raise HTTPException(status_code=400, detail="Invalid question hash") from None
+        raise http_error(ErrorCode.API_BAD_REQUEST, "Invalid question hash", status=400) from None
 
     # Load and update context
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     clarifications = context_data.get("clarifications", {})
     if question not in clarifications:
-        raise HTTPException(status_code=404, detail="Clarification not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Clarification not found", status=404)
 
     # Validate the new value before storing
     from backend.services.insight_parser import is_valid_insight_response
 
     if not is_valid_insight_response(request.value):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid insight response: please provide a meaningful answer",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            "Invalid insight response: please provide a meaningful answer",
+            status=400,
         )
 
     # Get existing clarification data
@@ -1019,16 +1022,16 @@ async def delete_insight(
         question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
     except Exception as e:
         logger.warning(f"Failed to decode question hash: {e}")
-        raise HTTPException(status_code=400, detail="Invalid question hash") from None
+        raise http_error(ErrorCode.API_BAD_REQUEST, "Invalid question hash", status=400) from None
 
     # Load and update context
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     clarifications = context_data.get("clarifications", {})
     if question not in clarifications:
-        raise HTTPException(status_code=404, detail="Clarification not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Clarification not found", status=404)
 
     # Remove the clarification
     del clarifications[question]
@@ -1226,7 +1229,7 @@ async def approve_pending_update(
 
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     pending = context_data.get("pending_updates", [])
 
@@ -1240,7 +1243,7 @@ async def approve_pending_update(
             break
 
     if suggestion is None:
-        raise HTTPException(status_code=404, detail="Pending update not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Pending update not found", status=404)
 
     # Apply the update
     field_name = suggestion.get("field_name", "")
@@ -1300,7 +1303,7 @@ async def dismiss_pending_update(
 
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     pending = context_data.get("pending_updates", [])
 
@@ -1308,7 +1311,7 @@ async def dismiss_pending_update(
     new_pending = [item for item in pending if item.get("id") != suggestion_id]
 
     if len(new_pending) == len(pending):
-        raise HTTPException(status_code=404, detail="Pending update not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Pending update not found", status=404)
 
     context_data["pending_updates"] = new_pending
     user_repository.save_context(user_id, context_data)
@@ -1486,7 +1489,7 @@ async def generate_competitor_insight(
     # Sanitize competitor name
     name = name.strip()[:100]
     if not name:
-        raise HTTPException(status_code=400, detail="Competitor name required")
+        raise http_error(ErrorCode.API_BAD_REQUEST, "Competitor name required", status=400)
 
     # Load user context
     context_data = user_repository.get_context(user_id) or {}
@@ -1635,11 +1638,11 @@ async def delete_competitor_insight(
     # Load context
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     cached_insights = context_data.get("competitor_insights", {})
     if name not in cached_insights:
-        raise HTTPException(status_code=404, detail="Insight not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Insight not found", status=404)
 
     # Remove insight
     del cached_insights[name]
@@ -1761,9 +1764,10 @@ async def add_managed_competitor(
     )
 
     if result is None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Competitor '{request.name}' already exists",
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            f"Competitor '{request.name}' already exists",
+            status=409,
         )
 
     # Convert added_at to datetime
@@ -1834,9 +1838,10 @@ async def update_managed_competitor(
     )
 
     if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Competitor '{name}' not found",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            f"Competitor '{name}' not found",
+            status=404,
         )
 
     # Convert added_at to datetime
@@ -1882,9 +1887,10 @@ async def remove_managed_competitor(
     success = user_repository.remove_managed_competitor(user_id, name)
 
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Competitor '{name}' not found",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            f"Competitor '{name}' not found",
+            status=404,
         )
 
     return {"status": "deleted"}
@@ -2045,7 +2051,7 @@ async def analyze_trend(
     # Validate URL
     url = request.url.strip()
     if not url:
-        raise HTTPException(status_code=400, detail="URL required")
+        raise http_error(ErrorCode.API_BAD_REQUEST, "URL required", status=400)
 
     # Load user context
     context_data = user_repository.get_context(user_id) or {}
@@ -2170,16 +2176,16 @@ async def delete_trend_insight(
         url = base64.urlsafe_b64decode(url_hash.encode()).decode("utf-8")
     except Exception as e:
         logger.warning(f"Failed to decode URL hash: {e}")
-        raise HTTPException(status_code=400, detail="Invalid URL hash") from None
+        raise http_error(ErrorCode.API_BAD_REQUEST, "Invalid URL hash", status=400) from None
 
     # Load context
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     cached_insights = context_data.get("trend_insights", {})
     if url not in cached_insights:
-        raise HTTPException(status_code=404, detail="Insight not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Insight not found", status=404)
 
     # Remove insight
     del cached_insights[url]
@@ -2383,9 +2389,10 @@ async def refresh_trend_summary(
     # Check if user has industry
     industry = context_data.get("industry")
     if not industry:
-        raise HTTPException(
-            status_code=400,
-            detail="Industry is required. Set your industry in Business Context settings first.",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            "Industry is required. Set your industry in Business Context settings first.",
+            status=400,
         )
 
     # Check rate limits
@@ -2405,10 +2412,11 @@ async def refresh_trend_summary(
                     f"Trend summary refresh blocked for free user {user_id} "
                     f"({days_remaining} days remaining until refresh allowed)"
                 )
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}. "
+                raise http_error(
+                    ErrorCode.API_RATE_LIMIT,
+                    f"Refresh available in {days_remaining} day{'s' if days_remaining != 1 else ''}. "
                     f"Upgrade to refresh anytime.",
+                    status=429,
                 )
 
             # All tiers: 1-hour rate limit
@@ -2513,7 +2521,7 @@ async def get_trend_forecast(
 
     # Validate timeframe
     if timeframe not in TIMEFRAME_LABELS:
-        raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+        raise http_error(ErrorCode.API_BAD_REQUEST, f"Invalid timeframe: {timeframe}", status=400)
 
     # Get available timeframes for tier
     available_timeframes = get_available_timeframes(tier)
@@ -2665,7 +2673,7 @@ async def refresh_trend_forecast(
 
     # Validate timeframe
     if timeframe not in TIMEFRAME_LABELS:
-        raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+        raise http_error(ErrorCode.API_BAD_REQUEST, f"Invalid timeframe: {timeframe}", status=400)
 
     # Get available timeframes for tier
     available_timeframes = get_available_timeframes(tier)
@@ -2677,10 +2685,7 @@ async def refresh_trend_forecast(
             "24m": "Upgrade to Pro or Enterprise to access 24-month forecasts.",
         }.get(timeframe, "Upgrade to access this timeframe.")
 
-        raise HTTPException(
-            status_code=403,
-            detail=upgrade_msg,
-        )
+        raise http_error(ErrorCode.API_FORBIDDEN, upgrade_msg, status=403)
 
     # Load user context
     context_data = user_repository.get_context(user_id)
@@ -2690,9 +2695,10 @@ async def refresh_trend_forecast(
     # Check if user has industry
     industry = context_data.get("industry")
     if not industry:
-        raise HTTPException(
-            status_code=400,
-            detail="Industry is required. Set your industry in Business Context settings first.",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            "Industry is required. Set your industry in Business Context settings first.",
+            status=400,
         )
 
     # Check rate limit (1 per hour per timeframe)
@@ -2983,17 +2989,17 @@ async def update_objective_progress(
 
     # Validate index
     if objective_index < 0 or objective_index > 4:
-        raise HTTPException(status_code=400, detail="Objective index must be 0-4")
+        raise http_error(ErrorCode.API_BAD_REQUEST, "Objective index must be 0-4", status=400)
 
     # Get current context
     context_data = user_repository.get_context(user_id)
     if not context_data:
-        raise HTTPException(status_code=404, detail="No context found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     objectives = context_data.get("strategic_objectives") or []
     if objective_index >= len(objectives):
-        raise HTTPException(
-            status_code=404, detail=f"Objective at index {objective_index} not found"
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"Objective at index {objective_index} not found", status=404
         )
 
     # Update progress
@@ -3190,9 +3196,10 @@ async def update_working_pattern(
     # Validate days are in range 1-7
     invalid_days = [d for d in body.working_days if d < 1 or d > 7]
     if invalid_days:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid days: {invalid_days}. Days must be 1 (Mon) through 7 (Sun).",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid days: {invalid_days}. Days must be 1 (Mon) through 7 (Sun).",
+            status=422,
         )
 
     # Build pattern (sorts and deduplicates)
@@ -3477,9 +3484,10 @@ async def apply_metric_suggestion(
     # Validate field is allowed
     allowed_fields = set(CATEGORY_TO_FIELD_MAPPING.values())
     if request.field not in allowed_fields:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Field '{request.field}' not allowed. Must be one of: {', '.join(sorted(allowed_fields))}",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            f"Field '{request.field}' not allowed. Must be one of: {', '.join(sorted(allowed_fields))}",
+            status=400,
         )
 
     # Load existing context - save a copy BEFORE modifying for change detection

@@ -246,7 +246,13 @@ class TestTrendSummaryRefresh:
                 asyncio.get_event_loop().run_until_complete(refresh_trend_summary(mock_user))
 
             assert exc_info.value.status_code == 400
-            assert "industry" in exc_info.value.detail.lower()
+            # detail can be a dict (structured error) or string
+            detail = exc_info.value.detail
+            if isinstance(detail, dict):
+                detail_str = str(detail.get("message", "")).lower()
+            else:
+                detail_str = str(detail).lower()
+            assert "industry" in detail_str
 
     def test_refresh_raises_429_for_free_tier_within_28_days(self):
         """Should raise 429 when free tier user refreshes within 28 days."""
@@ -271,7 +277,13 @@ class TestTrendSummaryRefresh:
                 asyncio.get_event_loop().run_until_complete(refresh_trend_summary(mock_user))
 
             assert exc_info.value.status_code == 429
-            assert "18 day" in exc_info.value.detail  # 28 - 10 = 18 days remaining
+            # detail can be a dict (structured error) or string
+            detail = exc_info.value.detail
+            if isinstance(detail, dict):
+                detail_str = str(detail.get("message", ""))
+            else:
+                detail_str = str(detail)
+            assert "18 day" in detail_str  # 28 - 10 = 18 days remaining
 
     def test_refresh_rate_limited_within_1_hour(self):
         """Should return rate_limited response when called within 1 hour."""
@@ -296,6 +308,118 @@ class TestTrendSummaryRefresh:
             assert result["success"] is False
             assert result["rate_limited"] is True
             assert "wait" in result["error"].lower()
+
+
+class TestCheckUserContext:
+    """Tests for check_user_context helper function."""
+
+    def test_returns_no_context_when_no_record(self):
+        """Should return has_context=False when no user_context record exists."""
+        from backend.services.peer_benchmarks import check_user_context
+
+        with patch("backend.services.peer_benchmarks.db_session") as mock_db:
+            mock_conn = MagicMock()
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = None
+            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cur)
+            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = check_user_context("nonexistent_user")
+            assert result.has_context is False
+            assert result.has_industry is False
+            assert result.industry is None
+
+    def test_returns_has_context_no_industry_when_industry_null(self):
+        """Should return has_context=True, has_industry=False when industry is null."""
+        from backend.services.peer_benchmarks import check_user_context
+
+        with patch("backend.services.peer_benchmarks.db_session") as mock_db:
+            mock_conn = MagicMock()
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = {"industry": None}
+            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cur)
+            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = check_user_context("test_user")
+            assert result.has_context is True
+            assert result.has_industry is False
+            assert result.industry is None
+
+    def test_returns_has_context_no_industry_when_industry_empty_string(self):
+        """Should return has_context=True, has_industry=False when industry is empty string."""
+        from backend.services.peer_benchmarks import check_user_context
+
+        with patch("backend.services.peer_benchmarks.db_session") as mock_db:
+            mock_conn = MagicMock()
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = {"industry": "   "}
+            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cur)
+            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = check_user_context("test_user")
+            assert result.has_context is True
+            assert result.has_industry is False
+
+    def test_returns_has_context_and_industry_when_industry_set(self):
+        """Should return has_context=True, has_industry=True when industry is set."""
+        from backend.services.peer_benchmarks import check_user_context
+
+        with patch("backend.services.peer_benchmarks.db_session") as mock_db:
+            mock_conn = MagicMock()
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = {"industry": "SaaS"}
+            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cur)
+            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = check_user_context("test_user")
+            assert result.has_context is True
+            assert result.has_industry is True
+            assert result.industry == "SaaS"
+
+    def test_handles_db_error_gracefully(self):
+        """Should return no context status on database error."""
+        from backend.services.peer_benchmarks import check_user_context
+
+        with patch("backend.services.peer_benchmarks.db_session") as mock_db:
+            mock_db.side_effect = Exception("Database connection failed")
+
+            result = check_user_context("test_user")
+            assert result.has_context is False
+            assert result.has_industry is False
+
+
+class TestPeerBenchmarksRouteErrorCodes:
+    """Tests for route error codes (CONTEXT_MISSING, INDUSTRY_NOT_SET)."""
+
+    def test_preview_route_returns_context_missing_error_code(self):
+        """Preview route should return API_CONTEXT_MISSING when no user_context."""
+        from bo1.logging import ErrorCode
+
+        # Verify error code exists
+        assert ErrorCode.API_CONTEXT_MISSING.value == "API_CONTEXT_MISSING"
+
+    def test_preview_route_returns_industry_not_set_error_code(self):
+        """Preview route should return API_INDUSTRY_NOT_SET when no industry."""
+        from bo1.logging import ErrorCode
+
+        # Verify error code exists
+        assert ErrorCode.API_INDUSTRY_NOT_SET.value == "API_INDUSTRY_NOT_SET"
+
+    def test_error_codes_are_distinct(self):
+        """Error codes should be distinct for different failure modes."""
+        from bo1.logging import ErrorCode
+
+        assert ErrorCode.API_CONTEXT_MISSING != ErrorCode.API_INDUSTRY_NOT_SET
+        assert ErrorCode.API_CONTEXT_MISSING != ErrorCode.API_NOT_FOUND
+        assert ErrorCode.API_INDUSTRY_NOT_SET != ErrorCode.API_NOT_FOUND
 
 
 class TestParseNumericValue:

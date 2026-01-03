@@ -6,8 +6,10 @@ These functions determine conditional edges in the subgraph based on state.
 from typing import Literal
 
 from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
+from bo1.graph.router_utils import log_routing_decision
 
 
+@log_routing_decision("route_after_round")
 def route_after_round(
     state: SubProblemGraphState,
 ) -> Literal["check_convergence", "vote"]:
@@ -19,13 +21,13 @@ def route_after_round(
     round_number = state.get("round_number", 1)
     max_rounds = state.get("max_rounds", 6)
 
-    # If we've exceeded max rounds, go straight to voting
     if round_number > max_rounds:
         return "vote"
 
     return "check_convergence"
 
 
+@log_routing_decision("route_after_convergence")
 def route_after_convergence(
     state: SubProblemGraphState,
 ) -> Literal["parallel_round", "vote"]:
@@ -38,7 +40,6 @@ def route_after_convergence(
     round_number = state.get("round_number", 1)
     max_rounds = state.get("max_rounds", 6)
 
-    # Stop if convergence reached or max rounds exceeded
     if should_stop or round_number > max_rounds:
         return "vote"
 

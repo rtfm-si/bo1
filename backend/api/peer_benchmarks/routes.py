@@ -11,16 +11,17 @@ Provides:
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import PEER_BENCHMARKS_RATE_LIMIT, limiter
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.peer_benchmarks import (
     K_ANONYMITY_THRESHOLD,
+    check_user_context,
     get_consent_status,
     get_peer_comparison,
     get_preview_metric,
@@ -28,6 +29,7 @@ from backend.services.peer_benchmarks import (
     revoke_consent,
 )
 from bo1.billing import PlanConfig
+from bo1.logging import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -195,12 +197,28 @@ async def get_preview(
     """
     user_id = extract_user_id(current_user)
 
+    # Check user context status for specific error messages
+    context_status = check_user_context(user_id)
+    if not context_status.has_context:
+        raise http_error(
+            ErrorCode.API_CONTEXT_MISSING,
+            "No business context found. Please set up your business context first.",
+            status=404,
+        )
+    if not context_status.has_industry:
+        raise http_error(
+            ErrorCode.API_INDUSTRY_NOT_SET,
+            "No industry selected. Please select an industry in your business context.",
+            status=404,
+        )
+
     result = get_preview_metric(user_id)
 
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="No industry set or insufficient peer data for preview.",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Insufficient peer data for preview in your industry.",
+            status=404,
         )
 
     return PreviewMetricResponse(
@@ -232,6 +250,21 @@ async def get_benchmarks(
     user_id = extract_user_id(current_user)
     tier = get_user_tier(user_id)
 
+    # Check user context status for specific error messages
+    context_status = check_user_context(user_id)
+    if not context_status.has_context:
+        raise http_error(
+            ErrorCode.API_CONTEXT_MISSING,
+            "No business context found. Please set up your business context first.",
+            status=404,
+        )
+    if not context_status.has_industry:
+        raise http_error(
+            ErrorCode.API_INDUSTRY_NOT_SET,
+            "No industry selected. Please select an industry in your business context.",
+            status=404,
+        )
+
     # Get peer benchmark limit for this tier
     tier_config = PlanConfig.get_tier(tier)
     benchmark_limit = tier_config.peer_benchmarks_visible
@@ -239,9 +272,10 @@ async def get_benchmarks(
     result = get_peer_comparison(user_id)
 
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="No industry set. Please update your business context.",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Failed to load peer benchmarks. Please try again.",
+            status=404,
         )
 
     # Apply tier gating
@@ -287,6 +321,21 @@ async def get_comparison(
     user_id = extract_user_id(current_user)
     tier = get_user_tier(user_id)
 
+    # Check user context status for specific error messages
+    context_status = check_user_context(user_id)
+    if not context_status.has_context:
+        raise http_error(
+            ErrorCode.API_CONTEXT_MISSING,
+            "No business context found. Please set up your business context first.",
+            status=404,
+        )
+    if not context_status.has_industry:
+        raise http_error(
+            ErrorCode.API_INDUSTRY_NOT_SET,
+            "No industry selected. Please select an industry in your business context.",
+            status=404,
+        )
+
     # Get peer benchmark limit for this tier
     tier_config = PlanConfig.get_tier(tier)
     benchmark_limit = tier_config.peer_benchmarks_visible
@@ -294,9 +343,10 @@ async def get_comparison(
     result = get_peer_comparison(user_id)
 
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="No industry set. Please update your business context.",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Failed to load peer comparison. Please try again.",
+            status=404,
         )
 
     # Filter to metrics with user values and apply tier gating

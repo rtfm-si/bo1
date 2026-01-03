@@ -9,11 +9,14 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { PeerBenchmarkConsentStatus, PeerBenchmarksResponse, PeerBenchmarkPreviewResponse } from '$lib/api/types';
+	import type { PeerBenchmarkConsentStatus, PeerBenchmarksResponse, PeerBenchmarkPreviewResponse, ApiError } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
+
+	// Error codes from backend for specific handling
+	type ContextErrorCode = 'API_CONTEXT_MISSING' | 'API_INDUSTRY_NOT_SET' | null;
 
 	// State
 	let consent = $state<PeerBenchmarkConsentStatus | null>(null);
@@ -22,14 +25,27 @@
 	let isLoading = $state(true);
 	let isToggling = $state(false);
 	let error = $state<string | null>(null);
+	let errorCode = $state<ContextErrorCode>(null);
 
 	onMount(async () => {
 		await loadData();
 	});
 
+	/** Extract error code from API error if present */
+	function extractErrorCode(e: unknown): ContextErrorCode {
+		if (e && typeof e === 'object' && 'error_code' in e) {
+			const code = (e as ApiError).error_code;
+			if (code === 'API_CONTEXT_MISSING' || code === 'API_INDUSTRY_NOT_SET') {
+				return code;
+			}
+		}
+		return null;
+	}
+
 	async function loadData() {
 		isLoading = true;
 		error = null;
+		errorCode = null;
 
 		try {
 			// Load consent status first
@@ -39,18 +55,24 @@
 			if (!consent.consented) {
 				try {
 					preview = await apiClient.getPeerBenchmarkPreview();
-				} catch {
-					// Preview not available (no industry or insufficient data) - that's fine
+				} catch (e) {
+					// Preview not available - check if it's a context/industry issue
+					const code = extractErrorCode(e);
+					if (code) {
+						errorCode = code;
+					}
 					preview = null;
 				}
 			}
 
-			// Try to load benchmarks (may fail if no industry set)
+			// Try to load benchmarks (may fail if no context/industry set)
 			try {
 				benchmarks = await apiClient.getPeerBenchmarks();
 			} catch (e) {
-				// Industry not set is expected - don't treat as error
-				if (e instanceof Error && e.message.includes('industry')) {
+				const code = extractErrorCode(e);
+				if (code) {
+					// Context or industry not set - show appropriate guidance
+					errorCode = code;
 					benchmarks = null;
 				} else {
 					throw e;
@@ -58,6 +80,7 @@
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load peer benchmarks';
+			errorCode = extractErrorCode(e);
 			console.error('Failed to load peer benchmarks:', e);
 		} finally {
 			isLoading = false;
@@ -253,11 +276,19 @@
 			</div>
 		</BoCard>
 
-		<!-- No Industry Warning -->
-		{#if !benchmarks}
+		<!-- Context/Industry Setup Guidance -->
+		{#if errorCode === 'API_CONTEXT_MISSING'}
+			<Alert variant="info">
+				<p>
+					<strong>Set up your business context first.</strong> To see peer benchmarks, you need to
+					<a href="/context/overview" class="font-medium underline">set up your business context</a>
+					with your company information.
+				</p>
+			</Alert>
+		{:else if errorCode === 'API_INDUSTRY_NOT_SET' || !benchmarks}
 			<Alert variant="warning">
 				<p>
-					<strong>No industry set.</strong> Please update your
+					<strong>Select an industry.</strong> Please update your
 					<a href="/context/overview" class="font-medium underline">business context</a>
 					to select an industry and see peer comparisons.
 				</p>

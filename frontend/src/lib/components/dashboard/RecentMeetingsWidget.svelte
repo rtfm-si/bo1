@@ -4,11 +4,13 @@
 	 *
 	 * Displays meetings with status indicators, phase info, and quick actions.
 	 * Different row styles for completed (green), active (blue pulse), and failed (amber with retry).
+	 * Failed sessions show checkpoint progress (e.g., "Completed 2/5 sub-problems").
 	 */
 
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
-	import type { SessionResponse } from '$lib/api/types';
+	import type { SessionResponse, CheckpointStateResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { RotateCcw, Trash2 } from 'lucide-svelte';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -25,6 +27,26 @@
 	// State
 	let retryingSessionIds = $state<Set<string>>(new Set());
 	let deletingSessionId = $state<string | null>(null);
+	let checkpointStates = $state<Map<string, CheckpointStateResponse>>(new Map());
+
+	// Fetch checkpoint states for failed sessions
+	onMount(async () => {
+		const failedSessions = sessions.filter(s => s.status === 'failed' || s.status === 'killed');
+		if (failedSessions.length === 0) return;
+
+		// Fetch checkpoint states in parallel
+		const results = await Promise.allSettled(
+			failedSessions.map(s => apiClient.getCheckpointState(s.id))
+		);
+
+		const newStates = new Map<string, CheckpointStateResponse>();
+		results.forEach((result, index) => {
+			if (result.status === 'fulfilled') {
+				newStates.set(failedSessions[index].id, result.value);
+			}
+		});
+		checkpointStates = newStates;
+	});
 
 	// Limit to 5 most recent (already sorted by created_at desc from API)
 	const recentSessions = $derived(sessions.slice(0, 5));
@@ -223,6 +245,15 @@
 							{#if session.expert_count && session.expert_count > 0}
 								<span>·</span>
 								<span>{session.expert_count} experts</span>
+							{/if}
+							{#if isFailed}
+								{@const checkpoint = checkpointStates.get(session.id)}
+								{#if checkpoint && checkpoint.total_sub_problems && checkpoint.can_resume}
+									<span>·</span>
+									<span class="text-amber-600 dark:text-amber-400 font-medium">
+										{checkpoint.completed_sub_problems}/{checkpoint.total_sub_problems} complete
+									</span>
+								{/if}
 							{/if}
 						</div>
 					</div>

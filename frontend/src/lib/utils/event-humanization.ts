@@ -5,6 +5,11 @@
  * that explain what's happening in plain language.
  */
 
+import { formatCurrency, type CurrencyCode } from './currency';
+
+// Default currency used when none specified
+const DEFAULT_CURRENCY: CurrencyCode = 'GBP';
+
 export const EVENT_TITLES: Record<string, string> = {
 	// Session lifecycle
 	session_started: "Meeting Started",
@@ -180,9 +185,11 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 	},
 
 	// Cost tracking (admin-only, filtered in UI)
+	// Note: Uses $ as these are API costs in USD; for user-facing costs, pass currency
 	phase_cost_breakdown: (data: any) => {
 		const total = data.total_cost || 0;
-		return `Meeting cost: $${total.toFixed(2)}`;
+		const currency = data.currency || DEFAULT_CURRENCY;
+		return `Meeting cost: ${formatCurrency(total, currency, { decimals: 2 })}`;
 	},
 
 	// Error handling

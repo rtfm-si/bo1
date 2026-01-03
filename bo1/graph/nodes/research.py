@@ -9,7 +9,14 @@ from typing import Any, Literal
 
 from bo1.constants import SimilarityCacheThresholds
 from bo1.graph.nodes.utils import log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_core_state,
+    get_discussion_state,
+    get_phase_state,
+    get_problem_state,
+    get_research_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,20 +44,27 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.researcher import ResearcherAgent
 
-    session_id = state.get("session_id")
-    request_id = state.get("request_id")
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    research_state = get_research_state(state)
+    discussion_state = get_discussion_state(state)
+    phase_state = get_phase_state(state)
+
+    session_id = core_state.get("session_id")
+    request_id = core_state.get("request_id")
     # Extract subscription tier from state (populated via init_state from user data)
-    subscription_tier = state.get("subscription_tier") or "free"
+    subscription_tier = core_state.get("subscription_tier") or "free"
     # Extract user context for research sharing
-    user_id = state.get("user_id")
-    sharing_consented = state.get("research_sharing_consented", False)
+    user_id = core_state.get("user_id")
+    sharing_consented = core_state.get("research_sharing_consented", False)
 
     log_with_session(
         logger, logging.INFO, session_id, "research_node: Starting", request_id=request_id
     )
 
     # PROACTIVE RESEARCH: Check for pending queries first
-    pending_queries = state.get("pending_research_queries", [])
+    pending_queries = research_state.get("pending_research_queries", [])
 
     if pending_queries:
         log_with_session(
@@ -89,7 +103,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         )
 
         # Add to state context
-        research_results_obj = state.get("research_results", [])
+        research_results_obj = research_state.get("research_results", [])
         research_results = (
             list(research_results_obj) if isinstance(research_results_obj, list) else []
         )
@@ -102,7 +116,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
                     "sources": result.get("sources", []),
                     "cached": result.get("cached", False),
                     "cost": result.get("cost", 0.0),
-                    "round": state.get("round_number", 0),
+                    "round": phase_state.get("round_number", 0),
                     "depth": research_depth,
                     "proactive": True,  # Mark as proactively triggered
                     "shared": result.get("shared", False),  # From cross-user sharing
@@ -121,7 +135,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             "pending_research_queries": [],  # Clear after processing
             "facilitator_decision": None,  # Clear decision to prevent loops
             "current_node": "research",
-            "sub_problem_index": state.get("sub_problem_index", 0),
+            "sub_problem_index": problem_state.get("sub_problem_index", 0),
         }
 
     # FALLBACK: Extract research query from facilitator decision
@@ -135,7 +149,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         from bo1.llm.embeddings import generate_embedding
 
         # Use recent contributions to create a generic query marker
-        recent_contributions = state.get("contributions", [])[-3:]
+        recent_contributions = discussion_state.get("contributions", [])[-3:]
         fallback_query = "Research pattern detected but no specific query provided"
         if recent_contributions:
             # Use last contribution content as query marker
@@ -149,7 +163,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             fallback_embedding = []
 
         # Mark as completed to prevent infinite loop
-        completed_queries_obj = state.get("completed_research_queries", [])
+        completed_queries_obj = research_state.get("completed_research_queries", [])
         completed_queries = (
             list(completed_queries_obj) if isinstance(completed_queries_obj, list) else []
         )
@@ -264,7 +278,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     result = results[0]
 
     # Add to state context
-    research_results_obj = state.get("research_results", [])
+    research_results_obj = research_state.get("research_results", [])
     # Ensure it's a list before appending
     if isinstance(research_results_obj, list):
         research_results = research_results_obj
@@ -278,7 +292,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             "sources": result.get("sources", []),
             "cached": result.get("cached", False),
             "cost": result.get("cost", 0.0),
-            "round": state.get("round_number", 0),
+            "round": phase_state.get("round_number", 0),
             "depth": facilitator_research_depth,
             "shared": result.get("shared", False),  # From cross-user sharing
         }
@@ -293,7 +307,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Store query with embedding for semantic similarity matching
     from bo1.llm.embeddings import generate_embedding
 
-    completed_queries_obj = state.get("completed_research_queries", [])
+    completed_queries_obj = research_state.get("completed_research_queries", [])
     completed_queries = (
         list(completed_queries_obj) if isinstance(completed_queries_obj, list) else []
     )
@@ -322,5 +336,5 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         "completed_research_queries": completed_queries,  # Track completed research
         "facilitator_decision": None,  # Clear previous decision to prevent loops
         "current_node": "research",
-        "sub_problem_index": state.get("sub_problem_index", 0),
+        "sub_problem_index": problem_state.get("sub_problem_index", 0),
     }

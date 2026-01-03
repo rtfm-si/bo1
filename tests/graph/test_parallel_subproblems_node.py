@@ -128,24 +128,8 @@ class TestAnalyzeDependenciesNode:
     """Tests for analyze_dependencies_node."""
 
     @pytest.mark.asyncio
-    async def test_sequential_mode_feature_flag_disabled(self, problem_with_independent_sps):
-        """When ENABLE_PARALLEL_SUBPROBLEMS=False, use sequential mode."""
-        state: DeliberationGraphState = {
-            "session_id": "test-session",
-            "problem": problem_with_independent_sps,
-        }
-
-        with patch("bo1.feature_flags.features.ENABLE_PARALLEL_SUBPROBLEMS", False):
-            result = await analyze_dependencies_node(state)
-
-        # Sequential: each sub-problem in its own batch
-        assert result["execution_batches"] == [[0], [1], [2]]
-        assert result["parallel_mode"] is False
-        assert result["current_sub_problem"] is not None
-
-    @pytest.mark.asyncio
     async def test_sequential_mode_single_subproblem(self):
-        """Single sub-problem always uses sequential mode."""
+        """Single sub-problem uses sequential mode."""
         problem = Problem(
             title="Single SP",
             description="One sub-problem",
@@ -157,27 +141,41 @@ class TestAnalyzeDependenciesNode:
             "problem": problem,
         }
 
-        with patch("bo1.feature_flags.features.ENABLE_PARALLEL_SUBPROBLEMS", True):
-            result = await analyze_dependencies_node(state)
+        result = await analyze_dependencies_node(state)
 
         assert result["execution_batches"] == [[0]]
         assert result["parallel_mode"] is False
+        assert result["current_sub_problem"] is not None
 
     @pytest.mark.asyncio
     async def test_creates_parallel_batches(self, problem_with_dependencies):
-        """Creates execution batches when parallel mode enabled."""
+        """Creates execution batches for multi-sub-problem cases."""
         state: DeliberationGraphState = {
             "session_id": "test-session",
             "problem": problem_with_dependencies,
         }
 
-        with patch("bo1.feature_flags.features.ENABLE_PARALLEL_SUBPROBLEMS", True):
-            result = await analyze_dependencies_node(state)
+        result = await analyze_dependencies_node(state)
 
         # Multi-subproblem: use subgraph (parallel_mode=True)
         assert result["parallel_mode"] is True
         assert len(result["execution_batches"]) == 3  # Chain deps
         assert result["current_node"] == "analyze_dependencies"
+
+    @pytest.mark.asyncio
+    async def test_independent_subproblems_single_batch(self, problem_with_independent_sps):
+        """Independent sub-problems go in a single batch for parallel execution."""
+        state: DeliberationGraphState = {
+            "session_id": "test-session",
+            "problem": problem_with_independent_sps,
+        }
+
+        result = await analyze_dependencies_node(state)
+
+        # All 3 independent sub-problems in one batch
+        assert result["parallel_mode"] is True
+        assert len(result["execution_batches"]) == 1
+        assert set(result["execution_batches"][0]) == {0, 1, 2}
 
     @pytest.mark.asyncio
     async def test_circular_dependency_fallback(self, problem_with_circular_deps):
@@ -187,8 +185,7 @@ class TestAnalyzeDependenciesNode:
             "problem": problem_with_circular_deps,
         }
 
-        with patch("bo1.feature_flags.features.ENABLE_PARALLEL_SUBPROBLEMS", True):
-            result = await analyze_dependencies_node(state)
+        result = await analyze_dependencies_node(state)
 
         # Fallback to sequential on circular deps
         assert result["parallel_mode"] is False
@@ -203,8 +200,7 @@ class TestAnalyzeDependenciesNode:
             "problem": problem_with_independent_sps.model_dump(),  # Dict form
         }
 
-        with patch("bo1.feature_flags.features.ENABLE_PARALLEL_SUBPROBLEMS", True):
-            result = await analyze_dependencies_node(state)
+        result = await analyze_dependencies_node(state)
 
         # Should work with dict input
         assert result["parallel_mode"] is True

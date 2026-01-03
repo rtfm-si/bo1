@@ -5,6 +5,8 @@
 	 */
 	import type { PhaseCostBreakdownEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency } from '$lib/utils/currency';
 
 	interface Props {
 		event: PhaseCostBreakdownEvent;
@@ -12,8 +14,8 @@
 
 	let { event }: Props = $props();
 
-	const formatCost = (cost: number): string => {
-		return `$${cost.toFixed(4)}`;
+	const formatCostValue = (cost: number): string => {
+		return formatCurrency(cost, $preferredCurrency, { decimals: 4 });
 	};
 
 	const formatPhase = (phase: string): string => {
@@ -38,7 +40,7 @@
 			Phase Cost Breakdown
 		</h3>
 		<Badge variant="info" size="lg">
-			Total: {formatCost(event.data.total_cost)}
+			Total: {formatCostValue(event.data.total_cost)}
 		</Badge>
 	</div>
 
@@ -64,7 +66,7 @@
 							{formatPhase(phase)}
 						</td>
 						<td class="text-right py-2 px-3 font-mono text-neutral-900 dark:text-neutral-100">
-							{formatCost(cost)}
+							{formatCostValue(cost)}
 						</td>
 						<td class="text-right py-2 px-3 text-neutral-700 dark:text-neutral-300">
 							{percentage}%

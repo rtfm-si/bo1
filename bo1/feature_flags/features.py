@@ -74,12 +74,6 @@ MAGIC_LINK_ENABLED = _parse_bool(os.getenv("MAGIC_LINK_ENABLED"), default=True)
 # Parallel Processing
 # ============================================================================
 
-# Enable parallel sub-problem execution (independent sub-problems run concurrently)
-# When False, falls back to sequential execution
-# Default to False initially for safe rollout
-# Expected 50-70% time reduction for problems with 2+ independent sub-problems
-ENABLE_PARALLEL_SUBPROBLEMS = _parse_bool(os.getenv("ENABLE_PARALLEL_SUBPROBLEMS"), default=False)
-
 # Enable parallel multi-expert rounds (all experts contribute simultaneously)
 # When False, experts contribute sequentially
 # Default to True (stable feature)
@@ -89,8 +83,7 @@ ENABLE_PARALLEL_ROUNDS = _parse_bool(os.getenv("ENABLE_PARALLEL_ROUNDS"), defaul
 # When True, dependent sub-problems can start early (when dependencies reach round 2)
 # instead of waiting for full completion. This can provide 40-60% time savings.
 # When False, falls back to strict sequential batch execution
-# Requires ENABLE_PARALLEL_SUBPROBLEMS=true to have effect
-# Default to True (recommended with parallel sub-problems enabled)
+# Default to True (recommended for multi-sub-problem deliberations)
 ENABLE_SPECULATIVE_PARALLELISM = _parse_bool(
     os.getenv("ENABLE_SPECULATIVE_PARALLELISM"), default=True
 )
@@ -122,7 +115,6 @@ USE_HAIKU_FOR_SIMPLE_PERSONAS = _parse_bool(
 # When True, uses get_stream_writer() for real-time event streaming
 # When False, uses legacy EventBridge approach
 # Default to False initially for safe rollout
-# Requires ENABLE_PARALLEL_SUBPROBLEMS=true to have effect
 USE_SUBGRAPH_DELIBERATION = _parse_bool(os.getenv("USE_SUBGRAPH_DELIBERATION"), default=False)
 
 

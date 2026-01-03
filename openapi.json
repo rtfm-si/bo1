@@ -10572,6 +10572,43 @@
         "title": "DetectedCompetitor",
         "type": "object"
       },
+      "DisableTwoFactorRequest": {
+        "description": "Request to disable 2FA.",
+        "properties": {
+          "password": {
+            "description": "Current password for confirmation",
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "DisableTwoFactorRequest",
+        "type": "object"
+      },
+      "DisableTwoFactorResponse": {
+        "description": "Response after disabling 2FA.",
+        "properties": {
+          "message": {
+            "description": "Status message",
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "description": "Whether 2FA was disabled",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "DisableTwoFactorResponse",
+        "type": "object"
+      },
       "DismissRefreshRequest": {
         "description": "Request to dismiss refresh prompt with volatility context.",
         "properties": {
@@ -24372,6 +24409,36 @@
         "title": "SetUserOverrideRequest",
         "type": "object"
       },
+      "SetupTwoFactorResponse": {
+        "description": "Response for 2FA setup initiation.",
+        "properties": {
+          "backup_codes": {
+            "description": "10 single-use backup codes",
+            "items": {
+              "type": "string"
+            },
+            "title": "Backup Codes",
+            "type": "array"
+          },
+          "qr_uri": {
+            "description": "otpauth:// URI for QR code generation",
+            "title": "Qr Uri",
+            "type": "string"
+          },
+          "secret": {
+            "description": "Base32-encoded TOTP secret",
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "qr_uri",
+          "backup_codes"
+        ],
+        "title": "SetupTwoFactorResponse",
+        "type": "object"
+      },
       "SimilarityBucket": {
         "description": "A bucket in the similarity distribution histogram.\n\nAttributes:\n    bucket: Bucket number (1-5)\n    range_start: Start of similarity range\n    range_end: End of similarity range\n    count: Number of entries in this bucket",
         "properties": {
@@ -26639,6 +26706,40 @@
         "title": "TuningRecommendationsResponse",
         "type": "object"
       },
+      "TwoFactorStatusResponse": {
+        "description": "2FA status for current user.",
+        "properties": {
+          "backup_codes_remaining": {
+            "default": 0,
+            "description": "Number of unused backup codes",
+            "title": "Backup Codes Remaining",
+            "type": "integer"
+          },
+          "enabled": {
+            "description": "Whether 2FA is enabled",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "enabled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When 2FA was enabled",
+            "title": "Enabled At"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "TwoFactorStatusResponse",
+        "type": "object"
+      },
       "UnassignedCountResponse": {
         "description": "Response model for unassigned actions count.\n\nAttributes:\n    unassigned_count: Number of actions not assigned to any project\n    min_required: Minimum actions required for autogeneration\n    can_autogenerate: Whether autogen is available",
         "properties": {
@@ -28627,6 +28728,94 @@
           "name"
         ],
         "title": "VariantModel",
+        "type": "object"
+      },
+      "VerifySetupRequest": {
+        "description": "Request to verify 2FA setup with first code.",
+        "properties": {
+          "code": {
+            "description": "6-digit TOTP code",
+            "maxLength": 6,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "VerifySetupRequest",
+        "type": "object"
+      },
+      "VerifySetupResponse": {
+        "description": "Response after successful 2FA setup verification.",
+        "properties": {
+          "message": {
+            "description": "Status message",
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "description": "Whether setup verification succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "VerifySetupResponse",
+        "type": "object"
+      },
+      "VerifyTwoFactorRequest": {
+        "description": "Request to verify 2FA code during login.",
+        "properties": {
+          "code": {
+            "description": "TOTP code or backup code",
+            "maxLength": 10,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "VerifyTwoFactorRequest",
+        "type": "object"
+      },
+      "VerifyTwoFactorResponse": {
+        "description": "Response after 2FA verification.",
+        "properties": {
+          "backup_codes_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Remaining backup codes (if used backup)",
+            "title": "Backup Codes Remaining"
+          },
+          "success": {
+            "description": "Whether verification succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "used_backup_code": {
+            "default": false,
+            "description": "Whether a backup code was used",
+            "title": "Used Backup Code",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "VerifyTwoFactorResponse",
         "type": "object"
       },
       "VolatilityLevel": {
@@ -58727,6 +58916,334 @@
         "tags": [
           "terms",
           "terms"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/backup-codes/regenerate": {
+      "get": {
+        "description": "Generate new backup codes, invalidating all existing ones.\n\n    Use when:\n    - You've used most/all backup codes\n    - You think backup codes may be compromised\n    - You lost access to your saved codes",
+        "operationId": "regenerate_backup_codes_api_v1_user_2fa_backup_codes_regenerate_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupTwoFactorResponse"
+                }
+              }
+            },
+            "description": "New backup codes"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "2FA not enabled"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          }
+        },
+        "summary": "Regenerate backup codes",
+        "tags": [
+          "2fa",
+          "2fa"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/disable": {
+      "post": {
+        "description": "Disable 2FA. Requires password confirmation for security.",
+        "operationId": "disable_two_factor_api_v1_user_2fa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableTwoFactorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisableTwoFactorResponse"
+                }
+              }
+            },
+            "description": "2FA disabled"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "2FA not enabled or wrong password"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable 2FA",
+        "tags": [
+          "2fa",
+          "2fa"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/setup": {
+      "post": {
+        "description": "Start the 2FA setup process. Returns:\n    - TOTP secret (for manual entry in authenticator)\n    - QR code URI (for scanning)\n    - Backup codes (save these securely)\n\n    After receiving these, call /verify-setup with the first code from your\n    authenticator app to complete setup.",
+        "operationId": "setup_two_factor_api_v1_user_2fa_setup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupTwoFactorResponse"
+                }
+              }
+            },
+            "description": "2FA setup initiated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "2FA already enabled"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          }
+        },
+        "summary": "Initiate 2FA setup",
+        "tags": [
+          "2fa",
+          "2fa"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/status": {
+      "get": {
+        "description": "Check if 2FA is enabled for the current user.",
+        "operationId": "get_two_factor_status_api_v1_user_2fa_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorStatusResponse"
+                }
+              }
+            },
+            "description": "2FA status"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          }
+        },
+        "summary": "Get 2FA status",
+        "tags": [
+          "2fa",
+          "2fa"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/verify": {
+      "post": {
+        "description": "Verify a TOTP code or backup code during login.\n\n    Accepts either:\n    - 6-digit TOTP code from authenticator app\n    - 8-character backup code (single-use)\n\n    Rate limited: 5 failed attempts trigger 15-minute lockout.",
+        "operationId": "verify_two_factor_api_v1_user_2fa_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTwoFactorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTwoFactorResponse"
+                }
+              }
+            },
+            "description": "Verification result"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid code"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many failed attempts"
+          }
+        },
+        "summary": "Verify 2FA code",
+        "tags": [
+          "2fa",
+          "2fa"
+        ]
+      }
+    },
+    "/api/v1/user/2fa/verify-setup": {
+      "post": {
+        "description": "Verify the first TOTP code to complete 2FA setup.\n    This proves the user has correctly configured their authenticator app.",
+        "operationId": "verify_two_factor_setup_api_v1_user_2fa_verify_setup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySetupResponse"
+                }
+              }
+            },
+            "description": "2FA setup complete"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid code or no pending setup"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many failed attempts"
+          }
+        },
+        "summary": "Complete 2FA setup",
+        "tags": [
+          "2fa",
+          "2fa"
         ]
       }
     },

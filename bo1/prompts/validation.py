@@ -107,6 +107,47 @@ def has_sufficient_challenge_engagement(
     )
 
 
+def generate_challenge_reprompt(
+    expert_name: str,
+    detected_markers: list[str],
+    required_markers: int,
+    original_contribution: str,
+) -> str:
+    """Generate a reprompt message for contributions lacking challenge engagement.
+
+    Args:
+        expert_name: Name of the expert for context
+        detected_markers: Markers found in original contribution
+        required_markers: Minimum markers required
+        original_contribution: Original contribution (truncated for context)
+
+    Returns:
+        Reprompt message instructing expert to engage more critically
+    """
+    detected_str = ", ".join(detected_markers) if detected_markers else "none"
+
+    # Truncate original contribution for context (first 200 chars)
+    snippet = original_contribution[:200].replace("\n", " ")
+    if len(original_contribution) > 200:
+        snippet += "..."
+
+    return f"""Your previous response lacked sufficient critical engagement for the challenge phase.
+
+**What we detected**: {len(detected_markers)} marker(s) - {detected_str}
+**Required**: At least {required_markers} distinct challenge markers
+
+Challenge phase (rounds 3-4) requires stress-testing ideas through:
+- Counterarguments: "however", "but", "alternatively", "conversely"
+- Risk identification: "risk", "limitation", "weakness", "drawback", "concern"
+- Disagreement: "challenge", "disagree", "push back", "question whether"
+- Missing considerations: "overlooked", "missing", "what if", "fails to"
+- Critical analysis: "critique", "skeptical", "assumptions", "reconsider"
+
+**Your previous response began**: "{snippet}"
+
+Please provide a revised response that actively challenges, questions assumptions, identifies risks, or offers counterarguments to the ideas discussed. DO NOT simply agree or summarize - engage critically."""
+
+
 def validate_challenge_phase_contribution(
     content: str,
     round_number: int,

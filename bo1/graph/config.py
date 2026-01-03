@@ -66,24 +66,19 @@ def create_deliberation_graph(
         logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
     # Import nodes and routers
-    from bo1.feature_flags import ENABLE_PARALLEL_SUBPROBLEMS
-
     # TARGETED MODERATOR: Restored for premature consensus detection (rounds 1-2 only)
     from bo1.graph.nodes import (
+        analyze_dependencies_node,
         data_analysis_node,
         facilitator_decide_node,
         meta_synthesize_node,
         moderator_intervene_node,  # RESTORED: Premature consensus detection only
         next_subproblem_node,
         parallel_round_node,
+        parallel_subproblems_node,
         synthesize_node,
         vote_node,
     )
-
-    # PARALLEL SUB-PROBLEMS: Conditional import
-    if ENABLE_PARALLEL_SUBPROBLEMS:
-        from bo1.graph.nodes import analyze_dependencies_node, parallel_subproblems_node
-
     from bo1.graph.routers import (
         route_after_identify_gaps,
         route_after_next_subproblem,
@@ -159,49 +154,38 @@ def create_deliberation_graph(
     # decompose -> identify_gaps (analyze what info is missing)
     workflow.add_edge("decompose", "identify_gaps")
 
-    # identify_gaps -> analyze_dependencies (if parallel sub-problems enabled, else select_personas)
-    if ENABLE_PARALLEL_SUBPROBLEMS:
-        workflow.add_node(
-            "analyze_dependencies",
-            wrap_node_with_timing("analyze_dependencies", analyze_dependencies_node),
-        )
-        workflow.add_node(
-            "parallel_subproblems",
-            wrap_node_with_timing("parallel_subproblems", parallel_subproblems_node),
-        )
+    # Add parallel sub-problems nodes
+    workflow.add_node(
+        "analyze_dependencies",
+        wrap_node_with_timing("analyze_dependencies", analyze_dependencies_node),
+    )
+    workflow.add_node(
+        "parallel_subproblems",
+        wrap_node_with_timing("parallel_subproblems", parallel_subproblems_node),
+    )
 
-        # identify_gaps -> (END if clarification needed, else analyze_dependencies)
-        workflow.add_conditional_edges(
-            "identify_gaps",
-            route_after_identify_gaps,
-            {
-                "END": END,
-                "continue": "analyze_dependencies",
-            },
-        )
+    # identify_gaps -> (END if clarification needed, else analyze_dependencies)
+    workflow.add_conditional_edges(
+        "identify_gaps",
+        route_after_identify_gaps,
+        {
+            "END": END,
+            "continue": "analyze_dependencies",
+        },
+    )
 
-        # analyze_dependencies -> (parallel_subproblems | select_personas)
-        workflow.add_conditional_edges(
-            "analyze_dependencies",
-            route_subproblem_execution,
-            {
-                "parallel_subproblems": "parallel_subproblems",
-                "select_personas": "select_personas",  # Sequential mode
-            },
-        )
+    # analyze_dependencies -> (parallel_subproblems | select_personas)
+    workflow.add_conditional_edges(
+        "analyze_dependencies",
+        route_subproblem_execution,
+        {
+            "parallel_subproblems": "parallel_subproblems",
+            "select_personas": "select_personas",  # Sequential mode (single sub-problem)
+        },
+    )
 
-        # parallel_subproblems -> meta_synthesis
-        workflow.add_edge("parallel_subproblems", "meta_synthesis")
-    else:
-        # Legacy: identify_gaps -> (END if clarification needed, else select_personas)
-        workflow.add_conditional_edges(
-            "identify_gaps",
-            route_after_identify_gaps,
-            {
-                "END": END,
-                "continue": "select_personas",
-            },
-        )
+    # parallel_subproblems -> meta_synthesis
+    workflow.add_edge("parallel_subproblems", "meta_synthesis")
 
     # select_personas -> initial_round
     workflow.add_edge("select_personas", "initial_round")

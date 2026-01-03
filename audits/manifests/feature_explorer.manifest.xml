@@ -1,0 +1,300 @@
+# Comprehensive Feature Explorer Manifest
+
+<audit_manifest>
+  <audit_type>feature_explorer</audit_type>
+
+  <purpose>
+    Run a synthetic user session through ALL application features except meetings/deliberations.
+    Test every user-facing feature: context, competitors, mentor, datasets, projects, actions,
+    settings, reports, billing, and workspaces. Capture evidence at every step.
+    No code changes, PRs, or diffs—diagnostics only.
+  </purpose>
+
+  <scope>
+    - Dashboard widgets and data display
+    - Context management (business context, metrics, competitors, trends, goals)
+    - Session sharing (create share links, public view, TTL, revocation)
+    - Mentor sessions (all personas, conversation persistence, streaming)
+    - Mentor @mentions (autocomplete, meeting/action/dataset references, context sources)
+    - Datasets (upload CSV, import sheets, Q&A, charts, profiling)
+    - Projects (CRUD, Gantt, action assignment, session linking)
+    - Actions (CRUD, Kanban, Gantt, dependencies, status transitions)
+    - Settings (account, security/2FA with backup codes, privacy/GDPR, integrations, workspace)
+    - Reports (competitors, meetings history, benchmarks)
+    - Billing (plan display, checkout flow initiation, portal access)
+    - Workspace management (creation, members, roles, invitations)
+    - Calendar integration (Google Calendar OAuth flow)
+    - Onboarding (tour flows, step completion tracking)
+    - Welcome page (demo questions, personalized greeting)
+    - Ratings and feedback submission (thumbs up/down, feature requests, problem reports)
+    - SEO module (keyword research, topic management, autopilot, quotas)
+    - Help center (searchable FAQ, categories, articles)
+    - Research sharing consent (opt-in/opt-out for anonymized data)
+
+    EXPLICITLY EXCLUDED:
+    - Meeting creation and running
+    - Deliberation flow
+    - Any LLM-based meeting orchestration
+  </scope>
+
+  <constraints>
+    - MUST NOT propose code changes, patches, diffs, or PRs
+    - MUST NOT modify application code or database schema
+    - MUST capture at least one evidence item for every reported issue
+    - MUST follow scenario steps in order (dependencies respected)
+    - MUST use Playwright MCP for all browser interactions
+    - MUST NOT start or interact with meetings/deliberations
+    - Read-only observation mode only (except for CRUD test data)
+    - Follow CLAUDE.md, GOVERNANCE, CONTEXT_BOUNDARY, MODEL_GUIDANCE
+  </constraints>
+
+  <required_inputs>
+    - base_url: Application URL (http://localhost:5173 or https://boardof.one)
+    - test_user_id: SuperTokens user ID for E2E test account
+    - test_email: E2E test account email
+    - supertokens_core_url: SuperTokens Core API URL
+    - supertokens_api_key: SuperTokens API key (from E2E_SUPERTOKENS_API_KEY)
+    - cookie_domain: Cookie domain for session (boardof.one or localhost)
+  </required_inputs>
+
+  <auth_method>
+    Session Injection via SuperTokens Core API:
+    - No OAuth flow required (bypasses Google/LinkedIn/GitHub)
+    - Creates session directly via /recipe/session endpoint
+    - Injects sAccessToken + sRefreshToken cookies into Playwright
+    - Requires one-time user setup in SuperTokens + PostgreSQL
+    - Safe: uses existing SuperTokens API (already protected by API key)
+  </auth_method>
+
+  <expected_outputs>
+    - Single file: _FEATURE_EXPLORER_REPORT.md
+    - YAML frontmatter with run metadata
+    - Summary with pass/warn/fail result and issue counts
+    - Feature coverage matrix with status per feature area
+    - Timeline table with step-by-step evidence
+    - Issue blocks with severity, evidence, and suggested fixes
+    - Prioritized recommendations
+    - Appendix with console excerpts and network failures
+  </expected_outputs>
+
+  <severity_rules>
+    - Critical: Feature completely broken, data loss, auth failures, payment broken, GDPR violations
+    - Major: Feature works but with significant errors, broken UI, confusing UX, data inconsistency
+    - Minor: Cosmetic issues, non-blocking warnings, copy improvements, performance suggestions
+  </severity_rules>
+
+  <evidence_rule>
+    NO ISSUE MAY BE REPORTED WITHOUT AT LEAST ONE EVIDENCE ITEM:
+    - Screenshot filename, OR
+    - Console log excerpt, OR
+    - Network endpoint + status code, OR
+    - Precise UI location/component reference
+  </evidence_rule>
+
+  <scenario name="feature_coverage_v1">
+    <!-- Authentication -->
+    <step n="0.1">Create session via SuperTokens Core API</step>
+    <step n="0.2">Open base_url (unauthenticated)</step>
+    <step n="0.3">Inject session cookies via browser_evaluate</step>
+    <step n="0.4">Reload page to apply session</step>
+    <step n="0.5">Verify authenticated state</step>
+
+    <!-- Dashboard -->
+    <step n="1.1">Verify dashboard loads with all widgets</step>
+    <step n="1.2">Check activity heatmap displays</step>
+    <step n="1.3">Check pending reminders widget</step>
+    <step n="1.4">Check value metrics panel</step>
+    <step n="1.5">Check recent meetings widget</step>
+
+    <!-- Context Management + Session Sharing -->
+    <step n="2.1">Navigate to context overview</step>
+    <step n="2.2">View existing business context (or create if empty)</step>
+    <step n="2.3">Edit business context fields</step>
+    <step n="2.4">Navigate to metrics configuration</step>
+    <step n="2.5">Add or view custom metrics</step>
+    <step n="2.6">Navigate to competitor tracking</step>
+    <step n="2.7">Add a test competitor</step>
+    <step n="2.8">Trigger competitor enrichment</step>
+    <step n="2.9">View market trends</step>
+    <step n="2.10">Check key metrics display</step>
+    <step n="2.11">Navigate to session sharing (find completed meeting)</step>
+    <step n="2.12">Create share link with TTL</step>
+    <step n="2.13">Test public share link access</step>
+    <step n="2.14">Revoke share link</step>
+
+    <!-- Mentor Sessions + @mentions -->
+    <step n="3.1">Navigate to mentor chat</step>
+    <step n="3.2">Select data_analyst persona</step>
+    <step n="3.3">Send a test message and verify streaming response</step>
+    <step n="3.4">Switch to sales_coach persona</step>
+    <step n="3.5">Send another message</step>
+    <step n="3.6">View conversation history list</step>
+    <step n="3.7">Return to a previous conversation</step>
+    <step n="3.8">Test @mention autocomplete trigger</step>
+    <step n="3.9">Use @mention in message</step>
+    <step n="3.10">Check context sources badge</step>
+    <step n="3.11">Test repeated topics detection</step>
+
+    <!-- Datasets -->
+    <step n="4.1">Navigate to datasets page</step>
+    <step n="4.2">Upload a test CSV file (small sample)</step>
+    <step n="4.3">View dataset profile and summary</step>
+    <step n="4.4">Ask a question about the data</step>
+    <step n="4.5">Verify streaming response and chart generation</step>
+    <step n="4.6">View dataset conversation history</step>
+    <step n="4.7">Delete test dataset</step>
+
+    <!-- Data Analysis -->
+    <step n="5.1">Navigate to analysis page</step>
+    <step n="5.2">Ask a general data question</step>
+    <step n="5.3">Verify response includes guidance</step>
+
+    <!-- Projects -->
+    <step n="6.1">Navigate to projects page</step>
+    <step n="6.2">Create a new test project</step>
+    <step n="6.3">View project details</step>
+    <step n="6.4">View project Gantt chart</step>
+    <step n="6.5">Check auto-generated project suggestions</step>
+    <step n="6.6">Update project status</step>
+
+    <!-- Actions -->
+    <step n="7.1">Navigate to actions page</step>
+    <step n="7.2">View Kanban board</step>
+    <step n="7.3">View global Gantt chart</step>
+    <step n="7.4">Filter actions by status/project</step>
+    <step n="7.5">View action detail (if any exist)</step>
+    <step n="7.6">Test status transitions (if actions exist)</step>
+    <step n="7.7">Test dependency management UI (if multiple actions)</step>
+
+    <!-- Reports -->
+    <step n="8.1">Navigate to competitor reports</step>
+    <step n="8.2">Navigate to meetings report</step>
+    <step n="8.3">Navigate to benchmarks report</step>
+
+    <!-- Settings - Account -->
+    <step n="9.1">Navigate to account settings</step>
+    <step n="9.2">View account information</step>
+    <step n="9.3">Check profile editing capability</step>
+
+    <!-- Settings - Security + 2FA -->
+    <step n="10.1">Navigate to security settings</step>
+    <step n="10.2">Check 2FA status</step>
+    <step n="10.3">Verify password change UI (do not actually change)</step>
+    <step n="10.4">Initiate 2FA setup (view QR code)</step>
+    <step n="10.5">View backup codes</step>
+    <step n="10.6">Test 2FA verification UI</step>
+    <step n="10.7">Cancel 2FA setup (do not enable)</step>
+
+    <!-- Settings - Privacy + Research Sharing -->
+    <step n="11.1">Navigate to privacy settings</step>
+    <step n="11.2">View GDPR consent status</step>
+    <step n="11.3">Check data export functionality</step>
+    <step n="11.4">Verify data retention controls</step>
+    <step n="11.5">Check account deletion UI (do not execute)</step>
+    <step n="11.6">Check research sharing consent toggle</step>
+
+    <!-- Settings - Billing -->
+    <step n="12.1">Navigate to billing settings</step>
+    <step n="12.2">View current plan</step>
+    <step n="12.3">Check upgrade options</step>
+    <step n="12.4">Verify checkout flow initiates (do not complete)</step>
+
+    <!-- Settings - Workspace -->
+    <step n="13.1">Navigate to workspace settings</step>
+    <step n="13.2">View workspace details</step>
+    <step n="13.3">Check member list</step>
+    <step n="13.4">Verify invitation capability</step>
+    <step n="13.5">Check role management UI</step>
+
+    <!-- Settings - Integrations + Calendar -->
+    <step n="14.1">Navigate to integrations settings</step>
+    <step n="14.2">View available integrations</step>
+    <step n="14.3">Check connection status indicators</step>
+    <step n="14.4">Test Google Calendar connect (OAuth initiation)</step>
+    <step n="14.5">Cancel calendar connection</step>
+
+    <!-- Onboarding + Welcome -->
+    <step n="15.1">Check onboarding progress indicator</step>
+    <step n="15.2">Verify tour availability (if not completed)</step>
+    <step n="15.3">Navigate to welcome page</step>
+    <step n="15.4">Test demo questions</step>
+
+    <!-- Feedback -->
+    <step n="16.1">Locate feedback submission UI</step>
+    <step n="16.2">Verify rating capability</step>
+    <step n="16.3">Test feedback form (do not submit)</step>
+
+    <!-- SEO Module -->
+    <step n="17.1">Navigate to SEO page</step>
+    <step n="17.2">View keyword research</step>
+    <step n="17.3">Check topic management</step>
+    <step n="17.4">View quota/limits</step>
+    <step n="17.5">Check autopilot settings</step>
+
+    <!-- Help Center -->
+    <step n="18.1">Navigate to help page</step>
+    <step n="18.2">Search help articles</step>
+    <step n="18.3">View help category</step>
+    <step n="18.4">View help article</step>
+
+    <!-- Cleanup & End -->
+    <step n="19.1">Delete test project if created</step>
+    <step n="19.2">Delete test competitor if created</step>
+    <step n="19.3">Close browser</step>
+  </scenario>
+
+  <feature_coverage_matrix>
+    Track pass/fail/skip for each feature area (102 steps total):
+    - Dashboard: [widgets, heatmap, reminders, metrics] (5 steps)
+    - Context+Share: [overview, edit, metrics, competitors, trends, goals, share links] (14 steps)
+    - Mentor+Mentions: [chat, personas, history, streaming, @mentions, context sources] (11 steps)
+    - Datasets: [upload, profile, Q&A, charts, delete] (7 steps)
+    - Analysis: [queries, guidance] (3 steps)
+    - Projects: [CRUD, Gantt, suggestions, status] (6 steps)
+    - Actions: [Kanban, Gantt, filters, details, status, dependencies] (7 steps)
+    - Reports: [competitors, meetings, benchmarks] (3 steps)
+    - Account: [settings, profile, edit] (3 steps)
+    - Security+2FA: [settings, 2FA setup, QR code, backup codes, verification] (7 steps)
+    - Privacy+GDPR: [consent, export, retention, deletion, research sharing] (6 steps)
+    - Billing: [plan, upgrade, checkout] (4 steps)
+    - Workspace: [settings, members, roles, invitations] (5 steps)
+    - Integrations: [list, status, calendar OAuth] (5 steps)
+    - Onboarding: [progress, tours, welcome, demo questions] (4 steps)
+    - Feedback: [ratings, form] (3 steps)
+    - SEO: [keywords, topics, quota, autopilot] (5 steps)
+    - Help: [search, categories, articles] (4 steps)
+  </feature_coverage_matrix>
+
+  <tier_awareness>
+    Test behavior differs by subscription tier:
+    - Free: Max 3 competitors, limited mentor, limited datasets
+    - Starter: Max 5 competitors, standard features
+    - Pro: Max 8 competitors, unlimited features
+    - Enterprise: Unlimited all
+
+    Record tier of test account and note any tier-blocked features encountered.
+  </tier_awareness>
+
+  <recovery_policy>
+    If a step fails:
+    1. Capture screenshot and console state immediately
+    2. Attempt ONE recovery action (refresh page OR navigate back)
+    3. If recovery fails, record failure with evidence and SKIP to next feature area
+    4. Continue testing other features (unlike meeting flow which blocks)
+    5. Never skip entire feature areas without attempting all steps
+  </recovery_policy>
+
+  <activation_conditions>
+    - After deploys (feature regression test)
+    - Before releases (acceptance test)
+    - After frontend/UI changes
+    - After API changes
+    - Weekly comprehensive regression
+    - After settings/billing changes
+    - On-demand feature validation
+  </activation_conditions>
+
+  <report_template>
+    See .claude/commands/features.md for full template specification
+  </report_template>
+</audit_manifest>

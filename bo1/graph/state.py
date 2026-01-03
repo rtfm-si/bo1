@@ -146,6 +146,16 @@ class DataState(TypedDict, total=False):
     data_analysis_results: list[dict[str, Any]]
 
 
+class CoreState(TypedDict, total=False):
+    """Core identity fields for session tracking and access control."""
+
+    session_id: str
+    request_id: str | None  # HTTP request ID for log correlation
+    user_id: str | None  # For context persistence and user-specific data
+    subscription_tier: str | None  # For cost limit enforcement
+    research_sharing_consented: bool  # For cross-user research sharing
+
+
 # =============================================================================
 # MAIN STATE CLASS
 # =============================================================================
@@ -875,6 +885,21 @@ def get_data_state(state: DeliberationGraphState) -> DataState:
     return DataState(
         attached_datasets=state.get("attached_datasets", []),
         data_analysis_results=state.get("data_analysis_results", []),
+    )
+
+
+def get_core_state(state: DeliberationGraphState) -> CoreState:
+    """Extract core identity fields as CoreState.
+
+    Use this helper to access session identity and access control fields
+    in a grouped way, preparing for future migration to nested state structure.
+    """
+    return CoreState(
+        session_id=state.get("session_id"),  # type: ignore[typeddict-item]
+        request_id=state.get("request_id"),
+        user_id=state.get("user_id"),
+        subscription_tier=state.get("subscription_tier"),
+        research_sharing_consented=state.get("research_sharing_consented", False),
     )
 
 

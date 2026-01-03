@@ -232,3 +232,85 @@ class TestChallengePhaseIntegration:
 
         assert result.marker_count == 1
         assert passed is False
+
+
+class TestChallengeHardModeValidation:
+    """Tests for challenge phase hard mode validation and retry logic."""
+
+    @patch("bo1.config.get_settings")
+    @patch("backend.api.middleware.metrics.record_challenge_validation")
+    def test_soft_mode_returns_original_contributions(self, mock_record, mock_settings):
+        """Test that soft mode returns original contributions without retry."""
+        from bo1.graph.nodes.rounds import _validate_challenge_contributions
+
+        # Configure soft mode
+        mock_settings.return_value.challenge_validation_mode = "soft"
+        mock_settings.return_value.challenge_min_markers = 2
+
+        # Create weak contribution
+        contribution = MagicMock()
+        contribution.persona_name = "TestExpert"
+        contribution.persona_type = "persona"
+        contribution.content = "I agree with everything."
+
+        # Soft mode validation returns failures but doesn't affect contributions
+        failed = _validate_challenge_contributions([contribution], round_number=3)
+
+        # Should have one failure
+        assert len(failed) == 1
+        assert failed[0][0] == contribution
+
+    @patch("bo1.config.get_settings")
+    @patch("backend.api.middleware.metrics.record_challenge_validation")
+    def test_validation_returns_failures_for_hard_mode(self, mock_record, mock_settings):
+        """Test that validation returns failure list for hard mode processing."""
+        from bo1.graph.nodes.rounds import _validate_challenge_contributions
+
+        mock_settings.return_value.challenge_validation_mode = "hard"
+        mock_settings.return_value.challenge_min_markers = 2
+
+        # Create mixed contributions
+        passing_contrib = MagicMock()
+        passing_contrib.persona_name = "GoodExpert"
+        passing_contrib.persona_type = "persona"
+        passing_contrib.content = "However, the risks are significant and I disagree."
+
+        failing_contrib = MagicMock()
+        failing_contrib.persona_name = "WeakExpert"
+        failing_contrib.persona_type = "persona"
+        failing_contrib.content = "Sounds good to me."
+
+        failed = _validate_challenge_contributions(
+            [passing_contrib, failing_contrib], round_number=3
+        )
+
+        # Should have one failure (the weak contribution)
+        assert len(failed) == 1
+        assert failed[0][0] == failing_contrib
+
+    def test_validate_challenge_contributions_uses_config_min_markers(self):
+        """Test that validation uses config-based min_markers."""
+        from unittest.mock import patch
+
+        from bo1.graph.nodes.rounds import _validate_challenge_contributions
+
+        contribution = MagicMock()
+        contribution.persona_name = "TestExpert"
+        contribution.persona_type = "persona"
+        contribution.content = "However, this is risky."  # 2 markers
+
+        # Test with config requiring 3 markers (should fail)
+        with patch("bo1.config.get_settings") as mock_settings:
+            mock_settings.return_value.challenge_min_markers = 3
+            with patch("backend.api.middleware.metrics.record_challenge_validation"):
+                failed = _validate_challenge_contributions([contribution], round_number=3)
+
+        assert len(failed) == 1
+
+        # Test with config requiring 2 markers (should pass)
+        with patch("bo1.config.get_settings") as mock_settings:
+            mock_settings.return_value.challenge_min_markers = 2
+            with patch("backend.api.middleware.metrics.record_challenge_validation"):
+                failed = _validate_challenge_contributions([contribution], round_number=3)
+
+        assert len(failed) == 0

@@ -1,63 +1,27 @@
-# Plan: [AUTH][P0] Fix Google Social Login for Existing Email Users
+# Plan: No Actionable Tasks
 
 ## Summary
 
-- Enable SuperTokens AccountLinking recipe to automatically link OAuth providers with existing email accounts
-- Configure automatic linking for verified emails from trusted providers (Google, LinkedIn, GitHub)
-- Add logging to diagnose linking failures
-- Test with existing email user signing in via Google
+- All remaining tasks in `_TASK.md` are blocked, need clarification, deferred, or user-owned
+- No development work can proceed without user input
 
-## Root Cause
+## Current Task Status
 
-User `info@seilich.co.uk` first registered with email/password. When attempting Google OAuth:
-- SuperTokens creates a **separate** user for the Google identity
-- Without AccountLinking, same-email accounts from different providers are NOT linked
-- This causes auth failures or duplicate accounts
+| Category | Count | Status |
+|----------|-------|--------|
+| Blocked on User Action | 3 | Awaiting user decisions (Stripe live mode, email triggers, social posting) |
+| Needs Clarification | 3 | K8s deployment, Grafana logs, data retention behavior |
+| Deferred by Design | 2 | DuckDB (wait for >100K rows), upgrade prompts (nice-to-have) |
+| A/B Test Deferred | 1 | Insufficient session data (need ≥100 sessions/variant) |
+| User-Owned | 1 | Help pages content review (Si's todo) |
 
-## Implementation Steps
+## Recommended Next Steps
 
-1. **Add AccountLinking recipe to backend** - `backend/api/supertokens_config.py`
-   - Import `accountlinking` recipe from `supertokens_python.recipe`
-   - Add to recipe list in `init_supertokens()`
-   - Configure `should_do_automatic_account_linking` callback to auto-link verified emails
+1. **Unblock Stripe**: Follow `docs/runbooks/stripe-config.md` to switch to live mode
+2. **Clarify K8s**: Confirm if Kubernetes is planned or staying with SSH to droplet
+3. **Clarify data retention**: Define soft-delete behavior requirements
+4. **Wait for data**: A/B test needs more users/sessions before analysis
 
-2. **Configure linking policy** - Same file
-   - Auto-link when: email verified AND provider is Google/LinkedIn/GitHub
-   - Do NOT link: unverified emails (security)
-   - Log linking attempts for audit trail
+## No Implementation Steps Required
 
-3. **Add EmailVerification recipe** - Required dependency for AccountLinking
-   - SuperTokens AccountLinking requires EmailVerification recipe
-   - Configure to mark OAuth provider emails as pre-verified (Google verifies emails)
-
-4. **Update user sync logic** - `override_thirdparty_functions`
-   - Handle `AccountLinkingUserNotAllowed` result type
-   - Log when linking fails due to policy
-
-5. **Add unit tests** - `tests/api/test_account_linking.py`
-   - Test: email user + Google OAuth → same user_id
-   - Test: unverified email → no linking
-   - Test: different email → separate user
-
-## Tests
-
-- Unit tests:
-  - `test_google_links_to_existing_email_user` - existing email user signs in with Google, gets same user_id
-  - `test_new_google_user_creates_account` - new email creates fresh account
-  - `test_unverified_provider_not_linked` - unverified emails don't auto-link
-
-- Manual validation:
-  - Sign up with email@example.com via email/password
-  - Try Google OAuth with same email → should link, same user_id
-  - Verify user data (subscriptions, workspaces) preserved
-
-## Dependencies & Risks
-
-- Dependencies:
-  - SuperTokens Core 10.x+ (already on 10.1.4)
-  - `supertokens-python` package supports AccountLinking
-
-- Risks:
-  - Existing duplicate accounts: may need admin script to merge
-  - Session invalidation: existing sessions should continue working
-  - Email verification state: OAuth emails considered verified by provider
+No code changes can be planned until one of the above blockers is resolved.

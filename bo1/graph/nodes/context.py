@@ -12,7 +12,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bo1.graph.nodes.utils import log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_core_state,
+    get_problem_state,
+)
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.state.repositories import user_repository
@@ -37,8 +41,12 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
     Returns:
         Dictionary with state updates (problem with enriched context)
     """
-    session_id = state.get("session_id")
-    request_id = state.get("request_id")
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+
+    session_id = core_state.get("session_id")
+    request_id = core_state.get("request_id")
     log_with_session(
         logger,
         logging.INFO,
@@ -47,12 +55,12 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
         request_id=request_id,
     )
 
-    problem = state.get("problem")
+    problem = problem_state.get("problem")
     if not problem:
         raise ValueError("context_collection_node called without problem")
 
     # Get user_id from state (optional)
-    user_id = state.get("user_id")
+    user_id = core_state.get("user_id")
 
     # Initialize metrics
     metrics = ensure_metrics(state)

@@ -8796,6 +8796,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/2fa/backup-codes/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Regenerate backup codes
+         * @description Generate new backup codes, invalidating all existing ones.
+         *
+         *         Use when:
+         *         - You've used most/all backup codes
+         *         - You think backup codes may be compromised
+         *         - You lost access to your saved codes
+         */
+        get: operations["regenerate_backup_codes_api_v1_user_2fa_backup_codes_regenerate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/2fa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable 2FA
+         * @description Disable 2FA. Requires password confirmation for security.
+         */
+        post: operations["disable_two_factor_api_v1_user_2fa_disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initiate 2FA setup
+         * @description Start the 2FA setup process. Returns:
+         *         - TOTP secret (for manual entry in authenticator)
+         *         - QR code URI (for scanning)
+         *         - Backup codes (save these securely)
+         *
+         *         After receiving these, call /verify-setup with the first code from your
+         *         authenticator app to complete setup.
+         */
+        post: operations["setup_two_factor_api_v1_user_2fa_setup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/2fa/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get 2FA status
+         * @description Check if 2FA is enabled for the current user.
+         */
+        get: operations["get_two_factor_status_api_v1_user_2fa_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/2fa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify 2FA code
+         * @description Verify a TOTP code or backup code during login.
+         *
+         *         Accepts either:
+         *         - 6-digit TOTP code from authenticator app
+         *         - 8-character backup code (single-use)
+         *
+         *         Rate limited: 5 failed attempts trigger 15-minute lockout.
+         */
+        post: operations["verify_two_factor_api_v1_user_2fa_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/2fa/verify-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete 2FA setup
+         * @description Verify the first TOTP code to complete 2FA setup.
+         *         This proves the user has correctly configured their authenticator app.
+         */
+        post: operations["verify_two_factor_setup_api_v1_user_2fa_verify_setup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/cost-calculator-defaults": {
         parameters: {
             query?: never;
@@ -16929,6 +17067,33 @@ export interface components {
              * @description Competitor website
              */
             url?: string | null;
+        };
+        /**
+         * DisableTwoFactorRequest
+         * @description Request to disable 2FA.
+         */
+        DisableTwoFactorRequest: {
+            /**
+             * Password
+             * @description Current password for confirmation
+             */
+            password: string;
+        };
+        /**
+         * DisableTwoFactorResponse
+         * @description Response after disabling 2FA.
+         */
+        DisableTwoFactorResponse: {
+            /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Whether 2FA was disabled
+             */
+            success: boolean;
         };
         /**
          * DismissRefreshRequest
@@ -26235,6 +26400,27 @@ export interface components {
             user_id: string;
         };
         /**
+         * SetupTwoFactorResponse
+         * @description Response for 2FA setup initiation.
+         */
+        SetupTwoFactorResponse: {
+            /**
+             * Backup Codes
+             * @description 10 single-use backup codes
+             */
+            backup_codes: string[];
+            /**
+             * Qr Uri
+             * @description otpauth:// URI for QR code generation
+             */
+            qr_uri: string;
+            /**
+             * Secret
+             * @description Base32-encoded TOTP secret
+             */
+            secret: string;
+        };
+        /**
          * SimilarityBucket
          * @description A bucket in the similarity distribution histogram.
          *
@@ -27808,6 +27994,28 @@ export interface components {
             recommendations: components["schemas"]["TuningRecommendation"][];
         };
         /**
+         * TwoFactorStatusResponse
+         * @description 2FA status for current user.
+         */
+        TwoFactorStatusResponse: {
+            /**
+             * Backup Codes Remaining
+             * @description Number of unused backup codes
+             * @default 0
+             */
+            backup_codes_remaining: number;
+            /**
+             * Enabled
+             * @description Whether 2FA is enabled
+             */
+            enabled: boolean;
+            /**
+             * Enabled At
+             * @description When 2FA was enabled
+             */
+            enabled_at?: string | null;
+        };
+        /**
          * UnassignedCountResponse
          * @description Response model for unassigned actions count.
          *
@@ -29059,6 +29267,66 @@ export interface components {
              * @example 50
              */
             weight: number;
+        };
+        /**
+         * VerifySetupRequest
+         * @description Request to verify 2FA setup with first code.
+         */
+        VerifySetupRequest: {
+            /**
+             * Code
+             * @description 6-digit TOTP code
+             */
+            code: string;
+        };
+        /**
+         * VerifySetupResponse
+         * @description Response after successful 2FA setup verification.
+         */
+        VerifySetupResponse: {
+            /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Whether setup verification succeeded
+             */
+            success: boolean;
+        };
+        /**
+         * VerifyTwoFactorRequest
+         * @description Request to verify 2FA code during login.
+         */
+        VerifyTwoFactorRequest: {
+            /**
+             * Code
+             * @description TOTP code or backup code
+             */
+            code: string;
+        };
+        /**
+         * VerifyTwoFactorResponse
+         * @description Response after 2FA verification.
+         */
+        VerifyTwoFactorResponse: {
+            /**
+             * Backup Codes Remaining
+             * @description Remaining backup codes (if used backup)
+             */
+            backup_codes_remaining?: number | null;
+            /**
+             * Success
+             * @description Whether verification succeeded
+             */
+            success: boolean;
+            /**
+             * Used Backup Code
+             * @description Whether a backup code was used
+             * @default false
+             */
+            used_backup_code: boolean;
         };
         /**
          * VolatilityLevel
@@ -49539,6 +49807,282 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TermsVersionResponse"];
+                };
+            };
+        };
+    };
+    regenerate_backup_codes_api_v1_user_2fa_backup_codes_regenerate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New backup codes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupTwoFactorResponse"];
+                };
+            };
+            /** @description 2FA not enabled */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    disable_two_factor_api_v1_user_2fa_disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisableTwoFactorRequest"];
+            };
+        };
+        responses: {
+            /** @description 2FA disabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisableTwoFactorResponse"];
+                };
+            };
+            /** @description 2FA not enabled or wrong password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setup_two_factor_api_v1_user_2fa_setup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 2FA setup initiated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupTwoFactorResponse"];
+                };
+            };
+            /** @description 2FA already enabled */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_two_factor_status_api_v1_user_2fa_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 2FA status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatusResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_two_factor_api_v1_user_2fa_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyTwoFactorRequest"];
+            };
+        };
+        responses: {
+            /** @description Verification result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyTwoFactorResponse"];
+                };
+            };
+            /** @description Invalid code */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many failed attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_two_factor_setup_api_v1_user_2fa_verify_setup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifySetupRequest"];
+            };
+        };
+        responses: {
+            /** @description 2FA setup complete */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifySetupResponse"];
+                };
+            };
+            /** @description Invalid code or no pending setup */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many failed attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -93,6 +93,15 @@ class PeerBenchmarkResult:
     updated_at: datetime | None = None
 
 
+@dataclass
+class UserContextStatus:
+    """Status of user's context for peer benchmarking."""
+
+    has_context: bool
+    has_industry: bool
+    industry: str | None = None
+
+
 # =============================================================================
 # Consent Management
 # =============================================================================
@@ -211,6 +220,43 @@ def is_consented(user_id: str) -> bool:
         True if user has active consent
     """
     return get_consent_status(user_id).consented
+
+
+# =============================================================================
+# User Context Helpers
+# =============================================================================
+
+
+def check_user_context(user_id: str) -> UserContextStatus:
+    """Check if user has context and industry set.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        UserContextStatus with has_context, has_industry, and industry
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT industry FROM user_context WHERE user_id = %s",
+                    (user_id,),
+                )
+                result = cur.fetchone()
+
+                if not result:
+                    return UserContextStatus(has_context=False, has_industry=False)
+
+                industry = result["industry"]
+                return UserContextStatus(
+                    has_context=True,
+                    has_industry=industry is not None and industry.strip() != "",
+                    industry=industry,
+                )
+    except Exception as e:
+        logger.warning("check_user_context_error", extra={"user_id": user_id, "error": str(e)})
+        return UserContextStatus(has_context=False, has_industry=False)
 
 
 # =============================================================================

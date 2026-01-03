@@ -103,6 +103,7 @@ async def get_user_info(
             "subscription_tier": user_data["subscription_tier"],
             "is_admin": user_data.get("is_admin", False),
             "password_upgrade_needed": user_data.get("password_upgrade_needed", False),
+            "totp_enabled": user_data.get("totp_enabled", False),
             "session_handle": session_handle,
         }
 
@@ -130,6 +131,7 @@ async def get_user_info(
         "subscription_tier": "free",
         "is_admin": False,
         "password_upgrade_needed": False,
+        "totp_enabled": False,
         "session_handle": session_handle,
     }
 

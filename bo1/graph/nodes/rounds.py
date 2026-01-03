@@ -27,7 +27,10 @@ from bo1.graph.nodes.utils import (
 from bo1.graph.quality.stopping_rules import update_stalled_disagreement_counter
 from bo1.graph.state import (
     DeliberationGraphState,
+    get_control_state,
+    get_core_state,
     get_discussion_state,
+    get_metrics_state,
     get_participant_state,
     get_phase_state,
     get_problem_state,
@@ -37,7 +40,10 @@ from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.prompts.sanitizer import sanitize_user_input
-from bo1.prompts.validation import validate_challenge_phase_contribution
+from bo1.prompts.validation import (
+    generate_challenge_reprompt,
+    validate_challenge_phase_contribution,
+)
 from bo1.utils.checkpoint_helpers import get_problem_context, get_problem_description
 from bo1.utils.deliberation_logger import get_deliberation_logger
 
@@ -104,17 +110,20 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates
     """
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
-    round_number = 1  # Initial round is always round 1
-    dlog = get_deliberation_logger(session_id, user_id, "initial_round_node")
-    dlog.info("Starting initial round")
 
     # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
     discussion_state = get_discussion_state(state)
     participant_state = get_participant_state(state)
     phase_state = get_phase_state(state)
     problem_state = get_problem_state(state)
+
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
+    request_id = core_state.get("request_id")
+    round_number = 1  # Initial round is always round 1
+    dlog = get_deliberation_logger(session_id, user_id, "initial_round_node")
+    dlog.info("Starting initial round", request_id=request_id)
 
     # GUARD: Check if round 1 already has contributions (prevents double-contribution bug)
     existing_contributions = discussion_state.get("contributions", [])
@@ -224,7 +233,7 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "metrics": metrics,
         "current_node": "initial_round",
         "personas": personas,
-        "sub_problem_index": state.get("sub_problem_index", 0),
+        "sub_problem_index": problem_state.get("sub_problem_index", 0),
         "round_summaries": round_summaries,
         "facilitator_guidance": facilitator_guidance,
         "experts_per_round": [[c.persona_code for c in filtered_contributions]],
@@ -476,14 +485,13 @@ async def _generate_parallel_contributions(
             if is_valid:
                 logger.info(f"Retry successful for {expert.display_name}")
             else:
-                session_id = state.get("session_id")
-                request_id = state.get("request_id")
+                core_state = get_core_state(state)
                 log_with_session(
                     logger,
                     logging.ERROR,
-                    session_id,
+                    core_state.get("session_id"),
                     f"Retry FAILED for {expert.display_name}: {reason}. Using as fallback.",
-                    request_id=request_id,
+                    request_id=core_state.get("request_id"),
                 )
             contribution_msgs.append(contribution_msg)
             track_accumulated_cost(
@@ -498,27 +506,222 @@ async def _generate_parallel_contributions(
     )
 
     # Validate challenge phase contributions (rounds 3-4)
-    # Phase 1: Soft enforcement - log + metric only, don't reject
     if round_number in (3, 4):
-        _validate_challenge_contributions(contribution_msgs, round_number)
+        contribution_msgs = await _handle_challenge_validation(
+            contribution_msgs=contribution_msgs,
+            round_number=round_number,
+            state=state,
+            engine=engine,
+            problem=problem,
+            participant_list=participant_list,
+            contrib_type=contrib_type,
+            contributions=contributions,
+            dependency_context=dependency_context,
+            subproblem_context=subproblem_context,
+            research_results=research_results,
+            metrics=metrics,
+        )
 
     return contribution_msgs
+
+
+async def _handle_challenge_validation(
+    contribution_msgs: list[Any],
+    round_number: int,
+    state: DeliberationGraphState,
+    engine: Any,
+    problem: Any,
+    participant_list: str,
+    contrib_type: Any,
+    contributions: list[Any],
+    dependency_context: str | None,
+    subproblem_context: str | None,
+    research_results: list[Any],
+    metrics: Any,
+) -> list[Any]:
+    """Handle challenge phase validation with optional hard mode retry.
+
+    In soft mode: logs failures and returns original contributions.
+    In hard mode: re-prompts failed experts once, accepts with warning if retry fails.
+
+    Args:
+        contribution_msgs: List of contributions to validate
+        round_number: Current round (3 or 4)
+        state: Current deliberation state
+        engine: DeliberationEngine instance
+        problem: Problem object
+        participant_list: Comma-separated participant names
+        contrib_type: Contribution type enum
+        contributions: Previous contributions for context
+        dependency_context: Optional dependency context
+        subproblem_context: Optional sub-problem context
+        research_results: Research results for context
+        metrics: Metrics object for cost tracking
+
+    Returns:
+        Updated contribution list (may include retried contributions)
+    """
+    from backend.api.middleware.metrics import (
+        record_challenge_rejection,
+        record_challenge_retry,
+    )
+    from bo1.config import get_settings
+
+    settings = get_settings()
+
+    # Validate and get failures
+    failed = _validate_challenge_contributions(contribution_msgs, round_number)
+
+    # Soft mode: just return as-is (validation already logged)
+    if settings.challenge_validation_mode == "soft" or not failed:
+        return contribution_msgs
+
+    # Hard mode: retry failed contributions
+    logger.info(f"Challenge validation hard mode: {len(failed)} contributions need retry")
+
+    # Build mapping of contribution to expert for retry
+    # We need to find the expert persona for each failed contribution
+    participant_state = get_participant_state(state)
+    personas = participant_state.get("personas", [])
+    persona_map = {p.code: p for p in personas}
+
+    retry_tasks = []
+    failed_contribution_codes = set()
+
+    for contrib, validation_result in failed:
+        expert_code = getattr(contrib, "persona_code", None)
+        if not expert_code or expert_code not in persona_map:
+            logger.warning(f"Cannot retry: expert {expert_code} not found in personas")
+            continue
+
+        expert = persona_map[expert_code]
+        content = getattr(contrib, "content", "")
+        failed_contribution_codes.add(expert_code)
+
+        # Record rejection metric
+        record_challenge_rejection(
+            round_number=round_number,
+            expert_type=getattr(contrib, "persona_type", "persona"),
+        )
+
+        # Generate reprompt
+        reprompt = generate_challenge_reprompt(
+            expert_name=expert.display_name,
+            detected_markers=validation_result.detected_markers,
+            required_markers=validation_result.threshold,
+            original_contribution=content,
+        )
+
+        # Build retry memory with reprompt
+        retry_memory = _build_retry_memory(
+            phase="challenge",
+            dependency_context=dependency_context,
+            subproblem_context=subproblem_context,
+            research_results=research_results,
+        )
+        retry_memory = f"{reprompt}\n\n{retry_memory}"
+
+        retry_task = engine._call_persona_async(
+            persona_profile=expert,
+            problem_statement=get_problem_description(problem),
+            problem_context=get_problem_context(problem),
+            participant_list=participant_list,
+            round_number=round_number,
+            contribution_type=contrib_type,
+            previous_contributions=contributions,
+            expert_memory=retry_memory,
+        )
+        retry_tasks.append((expert, contrib, retry_task))
+
+    if not retry_tasks:
+        return contribution_msgs
+
+    # Execute retries
+    logger.info(f"Retrying {len(retry_tasks)} challenge-phase contributions")
+    retry_results = await asyncio.gather(*[t[2] for t in retry_tasks])
+
+    # Process retry results
+    retried_codes = set()
+    new_contributions = []
+
+    for (expert, original_contrib, _), (new_contrib, llm_response) in zip(
+        retry_tasks, retry_results, strict=True
+    ):
+        track_accumulated_cost(metrics, f"round_{round_number}_challenge_retry", llm_response)
+
+        # Re-validate the retry
+        passed, result = validate_challenge_phase_contribution(
+            content=new_contrib.content,
+            round_number=round_number,
+            expert_name=expert.display_name,
+            min_markers=settings.challenge_min_markers,
+        )
+
+        # Record retry success/failure metric
+        record_challenge_retry(
+            success=passed,
+            round_number=round_number,
+            expert_type=getattr(original_contrib, "persona_type", "persona"),
+        )
+
+        if passed:
+            logger.info(
+                f"Challenge retry SUCCESS for {expert.display_name}: "
+                f"now has {result.marker_count} markers"
+            )
+            new_contributions.append(new_contrib)
+        else:
+            logger.warning(
+                f"Challenge retry FAILED for {expert.display_name}: "
+                f"still only {result.marker_count}/{result.threshold} markers. "
+                f"Accepting with warning."
+            )
+            # Accept the retry contribution anyway (it's likely better than original)
+            new_contributions.append(new_contrib)
+
+        retried_codes.add(expert.code)
+
+    # Build final contribution list: keep non-failed + add retried
+    final_contributions = []
+    for contrib in contribution_msgs:
+        code = getattr(contrib, "persona_code", None)
+        if code not in failed_contribution_codes:
+            final_contributions.append(contrib)
+
+    final_contributions.extend(new_contributions)
+
+    logger.info(
+        f"Challenge validation complete: {len(final_contributions)} contributions "
+        f"({len(retry_tasks)} retried)"
+    )
+
+    return final_contributions
 
 
 def _validate_challenge_contributions(
     contributions: list[Any],
     round_number: int,
-) -> None:
+    min_markers: int | None = None,
+) -> list[tuple[Any, Any]]:
     """Validate challenge phase contributions for critical engagement markers.
 
-    Phase 1 implementation: Soft enforcement - logs warnings and emits metrics
-    but does not reject contributions. Phase 2 will add rejection/re-prompting.
+    Supports both soft enforcement (log only) and hard enforcement (return failures).
+    In hard mode, returns list of (contribution, validation_result) for failures.
 
     Args:
         contributions: List of ContributionMessage objects
         round_number: Current round number (should be 3 or 4)
+        min_markers: Minimum markers required (uses config default if None)
+
+    Returns:
+        List of (contribution, validation_result) tuples for failed validations
     """
     from backend.api.middleware.metrics import record_challenge_validation
+    from bo1.config import get_settings
+
+    settings = get_settings()
+    effective_min_markers = min_markers or settings.challenge_min_markers
+    failed_contributions: list[tuple[Any, Any]] = []
 
     for contribution in contributions:
         expert_name = getattr(contribution, "persona_name", "unknown")
@@ -530,6 +733,7 @@ def _validate_challenge_contributions(
             round_number=round_number,
             expert_name=expert_name,
             expert_type=expert_type,
+            min_markers=effective_min_markers,
         )
 
         # Record metric for monitoring
@@ -539,12 +743,14 @@ def _validate_challenge_contributions(
             expert_type=expert_type,
         )
 
-        # Phase 1: Log but don't reject
         if not passed:
             logger.info(
                 f"Challenge validation: {expert_name} found {result.marker_count}/{result.threshold} markers. "
                 f"Detected: {result.detected_markers}"
             )
+            failed_contributions.append((contribution, result))
+
+    return failed_contributions
 
 
 async def _apply_semantic_deduplication(
@@ -816,6 +1022,9 @@ def _build_round_state_update(
     participant_state = get_participant_state(state)
     research_state = get_research_state(state)
 
+    # Get metrics state for tracking fields
+    metrics_state = get_metrics_state(state)
+
     # Update contributions
     all_contributions = list(discussion_state.get("contributions", []))
     all_contributions.extend(filtered_contributions)
@@ -828,8 +1037,8 @@ def _build_round_state_update(
     next_round = round_number + 1
 
     # Count meta-discussion contributions for context sufficiency detection
-    meta_discussion_count = state.get("meta_discussion_count", 0)
-    total_contributions_checked = state.get("total_contributions_checked", 0)
+    meta_discussion_count = metrics_state.get("meta_discussion_count", 0)
+    total_contributions_checked = metrics_state.get("total_contributions_checked", 0)
 
     for contrib in filtered_contributions:
         total_contributions_checked += 1
@@ -842,7 +1051,7 @@ def _build_round_state_update(
 
     # Calculate and log meta-discussion ratio
     # Also track research loop counter for loop prevention
-    consecutive_research_without_improvement = state.get(
+    consecutive_research_without_improvement = metrics_state.get(
         "consecutive_research_without_improvement", 0
     )
     research_results = research_state.get("research_results", [])
@@ -892,6 +1101,9 @@ def _build_round_state_update(
             f"{len(filtered_contributions)} contributions added"
         )
 
+    # Get problem state for sub_problem_index
+    problem_state = get_problem_state(state)
+
     return {
         "contributions": all_contributions,
         "round_number": next_round,
@@ -900,8 +1112,8 @@ def _build_round_state_update(
         "round_summaries": round_summaries,
         "metrics": metrics,
         "current_node": "parallel_round",
-        "personas": state.get("personas", []),
-        "sub_problem_index": state.get("sub_problem_index", 0),
+        "personas": participant_state.get("personas", []),
+        "sub_problem_index": problem_state.get("sub_problem_index", 0),
         "pending_research_queries": pending_research_queries,
         "facilitator_guidance": facilitator_guidance,
         # NEW: Context sufficiency tracking
@@ -934,14 +1146,17 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates
     """
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
-    dlog = get_deliberation_logger(session_id, user_id, "parallel_round_node")
-    dlog.info("Starting parallel round with multiple experts")
 
     # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
     phase_state = get_phase_state(state)
     discussion_state = get_discussion_state(state)
+
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
+    request_id = core_state.get("request_id")
+    dlog = get_deliberation_logger(session_id, user_id, "parallel_round_node")
+    dlog.info("Starting parallel round with multiple experts", request_id=request_id)
 
     # Get current round and phase from accessor
     round_number = phase_state.get("round_number", 1)
@@ -1011,6 +1226,8 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Initialize tracking objects
     metrics = ensure_metrics(state)
+    _ = get_control_state(state)  # Validate state has control_state
+    # Note: facilitator_guidance is not in ControlState, access directly from state
     facilitator_guidance = state.get("facilitator_guidance") or {}
 
     # Create quality check cache for this round (avoids re-checking duplicate content)
@@ -1029,7 +1246,8 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Summarize the round
-    round_summaries = list(state.get("round_summaries", []))
+    discussion_state_for_summaries = get_discussion_state(state)
+    round_summaries = list(discussion_state_for_summaries.get("round_summaries", []))
     summary = await _summarize_round(
         contributions=filtered_contributions,
         round_number=round_number,

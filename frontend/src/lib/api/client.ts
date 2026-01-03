@@ -16,6 +16,7 @@ import type {
 	SessionListResponse,
 	ControlResponse,
 	HealthResponse,
+	CheckpointStateResponse,
 	ApiError,
 	UserContextResponse,
 	UserContext,
@@ -637,6 +638,38 @@ export interface UserPreferencesResponse {
 }
 
 // ============================================================================
+// Two-Factor Authentication Types
+// ============================================================================
+
+export interface TwoFactorStatusResponse {
+	enabled: boolean;
+	enabled_at: string | null;
+	backup_codes_remaining: number;
+}
+
+export interface SetupTwoFactorResponse {
+	secret: string;
+	qr_uri: string;
+	backup_codes: string[];
+}
+
+export interface VerifySetupResponse {
+	success: boolean;
+	message: string;
+}
+
+export interface DisableTwoFactorResponse {
+	success: boolean;
+	message: string;
+}
+
+export interface VerifyTwoFactorResponse {
+	success: boolean;
+	used_backup_code: boolean;
+	backup_codes_remaining: number | null;
+}
+
+// ============================================================================
 // CSRF Token Utilities
 // ============================================================================
 
@@ -960,6 +993,28 @@ export class ApiClient {
 	 */
 	async retrySession(sessionId: string): Promise<ControlResponse> {
 		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/retry`);
+	}
+
+	/**
+	 * Get checkpoint state for a session (resume capability).
+	 * Used to show progress info like "Completed 2/5 sub-problems" for failed sessions.
+	 *
+	 * @param sessionId - Session identifier
+	 * @returns Checkpoint state with resume capability info
+	 */
+	async getCheckpointState(sessionId: string): Promise<CheckpointStateResponse> {
+		return this.fetch<CheckpointStateResponse>(`/api/v1/sessions/${sessionId}/checkpoint-state`);
+	}
+
+	/**
+	 * Resume a session from its last checkpoint (for failure recovery).
+	 * Similar to retry but specifically for resuming from sub-problem checkpoints.
+	 *
+	 * @param sessionId - Session identifier
+	 * @returns Control response with resume status
+	 */
+	async resumeFromCheckpoint(sessionId: string): Promise<ControlResponse> {
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/resume-from-checkpoint`);
 	}
 
 	/**
@@ -1770,6 +1825,34 @@ export class ApiClient {
 
 	async updateKanbanColumns(columns: KanbanColumn[]): Promise<KanbanColumnsResponse> {
 		return this.patch<KanbanColumnsResponse>('/api/v1/user/preferences/kanban-columns', { columns });
+	}
+
+	// ==========================================================================
+	// Two-Factor Authentication (2FA)
+	// ==========================================================================
+
+	async getTwoFactorStatus(): Promise<TwoFactorStatusResponse> {
+		return this.fetch<TwoFactorStatusResponse>('/api/v1/user/2fa/status');
+	}
+
+	async setupTwoFactor(): Promise<SetupTwoFactorResponse> {
+		return this.post<SetupTwoFactorResponse>('/api/v1/user/2fa/setup');
+	}
+
+	async verifyTwoFactorSetup(code: string): Promise<VerifySetupResponse> {
+		return this.post<VerifySetupResponse>('/api/v1/user/2fa/verify-setup', { code });
+	}
+
+	async disableTwoFactor(password: string): Promise<DisableTwoFactorResponse> {
+		return this.post<DisableTwoFactorResponse>('/api/v1/user/2fa/disable', { password });
+	}
+
+	async verifyTwoFactor(code: string): Promise<VerifyTwoFactorResponse> {
+		return this.post<VerifyTwoFactorResponse>('/api/v1/user/2fa/verify', { code });
+	}
+
+	async regenerateBackupCodes(): Promise<SetupTwoFactorResponse> {
+		return this.fetch<SetupTwoFactorResponse>('/api/v1/user/2fa/backup-codes/regenerate');
 	}
 
 	// ==========================================================================

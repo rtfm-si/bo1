@@ -52,6 +52,8 @@ class Session(BaseModel):
     task_count: int = Field(0, description="Number of tasks in session")
     # Workspace scope (from aa2_add_workspace_to_sessions migration)
     workspace_id: str | None = Field(None, description="Workspace UUID (None = personal)")
+    # Dataset scope (from g3_add_dataset_to_sessions migration)
+    dataset_id: str | None = Field(None, description="Dataset UUID for analysis sessions")
     # Recovery flags (from c3_add_session_recovery_flags migration)
     has_untracked_costs: bool = Field(False, description="True when cost inserts failed")
     recovery_needed: bool = Field(False, description="True when in-flight contributions exist")
@@ -135,6 +137,8 @@ class Session(BaseModel):
             task_count=row.get("task_count", 0),
             # Workspace scope
             workspace_id=row.get("workspace_id"),
+            # Dataset scope
+            dataset_id=row.get("dataset_id"),
             # Recovery flags
             has_untracked_costs=row.get("has_untracked_costs", False),
             recovery_needed=row.get("recovery_needed", False),

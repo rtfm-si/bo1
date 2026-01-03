@@ -90,6 +90,21 @@ export type EnrichmentSource = components['schemas']['EnrichmentSource'];
 export type HealthResponse = components['schemas']['HealthResponse'];
 export type ControlResponse = components['schemas']['ControlResponse'];
 
+// ---- Checkpoint State Types ----
+/**
+ * Response for session checkpoint state (resume capability).
+ * Used to show resumable progress on failed sessions.
+ */
+export interface CheckpointStateResponse {
+	session_id: string;
+	completed_sub_problems: number;
+	total_sub_problems: number | null;
+	last_checkpoint_at: string | null;
+	can_resume: boolean;
+	status: string;
+	phase: string | null;
+}
+
 // ---- Insights Types ----
 export type InsightCategory = components['schemas']['InsightCategory'];
 export type InsightMetricResponse = components['schemas']['InsightMetricResponse'];

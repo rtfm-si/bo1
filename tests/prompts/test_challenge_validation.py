@@ -6,6 +6,7 @@ Tests marker detection accuracy, threshold logic, and edge cases.
 from bo1.prompts.validation import (
     ChallengeValidationResult,
     detect_challenge_markers,
+    generate_challenge_reprompt,
     has_sufficient_challenge_engagement,
     validate_challenge_phase_contribution,
 )
@@ -342,3 +343,91 @@ class TestEdgeCases:
         markers = detect_challenge_markers(text)
         assert "however" in markers
         assert "risk" in markers
+
+
+class TestGenerateChallengeReprompt:
+    """Tests for generate_challenge_reprompt function."""
+
+    def test_basic_reprompt_generation(self):
+        """Test that reprompt is generated with required elements."""
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=["but"],
+            required_markers=2,
+            original_contribution="I think this is a good idea but we should consider it carefully.",
+        )
+
+        assert "lacked sufficient critical engagement" in reprompt
+        assert "1 marker(s)" in reprompt
+        assert "but" in reprompt
+        assert "At least 2 distinct challenge markers" in reprompt
+        assert "I think this is a good idea" in reprompt
+
+    def test_reprompt_with_no_markers(self):
+        """Test reprompt when no markers were detected."""
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=[],
+            required_markers=2,
+            original_contribution="I completely agree with this approach.",
+        )
+
+        assert "0 marker(s) - none" in reprompt
+        assert "At least 2 distinct challenge markers" in reprompt
+
+    def test_reprompt_truncates_long_contribution(self):
+        """Test that long contributions are truncated in reprompt."""
+        long_content = "A" * 300
+
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=[],
+            required_markers=2,
+            original_contribution=long_content,
+        )
+
+        # Should truncate to 200 chars + "..."
+        assert "..." in reprompt
+        assert "A" * 200 in reprompt
+        assert "A" * 201 not in reprompt.replace("...", "")
+
+    def test_reprompt_includes_challenge_guidance(self):
+        """Test that reprompt includes guidance on challenge markers."""
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=["risk"],
+            required_markers=2,
+            original_contribution="This is risky.",
+        )
+
+        # Check for category guidance
+        assert "Counterarguments" in reprompt
+        assert "Risk identification" in reprompt
+        assert "Disagreement" in reprompt
+        assert "Missing considerations" in reprompt
+        assert "Critical analysis" in reprompt
+
+    def test_reprompt_with_multiple_markers(self):
+        """Test reprompt correctly shows multiple detected markers."""
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=["however", "but"],
+            required_markers=3,
+            original_contribution="However, but I still agree.",
+        )
+
+        assert "2 marker(s) - however, but" in reprompt
+        assert "At least 3 distinct challenge markers" in reprompt
+
+    def test_reprompt_includes_instructions(self):
+        """Test that reprompt includes actionable instructions."""
+        reprompt = generate_challenge_reprompt(
+            expert_name="TestExpert",
+            detected_markers=[],
+            required_markers=2,
+            original_contribution="Good idea.",
+        )
+
+        assert "actively challenges" in reprompt
+        assert "questions assumptions" in reprompt
+        assert "DO NOT simply agree" in reprompt

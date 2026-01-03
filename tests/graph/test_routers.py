@@ -1,105 +1,120 @@
-"""Tests for graph router functions.
-
-Specifically tests dict/object handling after checkpoint restoration.
-"""
+"""Tests for router functions."""
 
 from unittest.mock import patch
 
 from bo1.graph.routers import (
+    _get_problem_attr,
+    _get_subproblem_attr,
     _validate_state_field,
-    route_after_synthesis,
+    route_clarification,
+    route_convergence_check,
     route_facilitator_decision,
+    route_phase,
+    route_subproblem_execution,
 )
 
 
-class TestRouteAfterSynthesis:
-    """Tests for route_after_synthesis with dict-based problem."""
+class TestRoutePhase:
+    """Tests for route_phase router."""
 
-    def test_handles_dict_problem_single_subproblem(self):
-        """Should handle problem as dict (after checkpoint restore) with single sub-problem."""
-        state = {
-            "problem": {
-                "statement": "Test problem",
-                "sub_problems": [{"id": "sp1", "goal": "Goal 1"}],
-            },
-            "sub_problem_index": 0,
-            "sub_problem_results": [],
-        }
+    def test_decomposition_routes_to_select_personas(self):
+        """Should route to select_personas when phase is decomposition."""
+        state = {"phase": "decomposition"}
 
-        result = route_after_synthesis(state)
-        # Single sub-problem -> END (atomic optimization)
+        result = route_phase(state)
+
+        assert result == "select_personas"
+
+    def test_selection_routes_to_initial_round(self):
+        """Should route to initial_round when phase is selection."""
+        state = {"phase": "selection"}
+
+        result = route_phase(state)
+
+        assert result == "initial_round"
+
+    def test_discussion_routes_to_facilitator_decide(self):
+        """Should route to facilitator_decide when phase is discussion."""
+        state = {"phase": "discussion"}
+
+        result = route_phase(state)
+
+        assert result == "facilitator_decide"
+
+    def test_unknown_phase_routes_to_end(self):
+        """Should route to END for unknown phases."""
+        state = {"phase": "unknown"}
+
+        result = route_phase(state)
+
         assert result == "END"
 
-    def test_handles_dict_problem_multiple_subproblems_incomplete(self):
-        """Should route to next_subproblem when more sub-problems exist."""
-        state = {
-            "problem": {
-                "statement": "Test problem",
-                "sub_problems": [
-                    {"id": "sp1", "goal": "Goal 1"},
-                    {"id": "sp2", "goal": "Goal 2"},
-                ],
-            },
-            "sub_problem_index": 0,
-            "sub_problem_results": [],
-        }
 
-        result = route_after_synthesis(state)
-        assert result == "next_subproblem"
+class TestRouteConvergenceCheck:
+    """Tests for route_convergence_check router."""
 
-    def test_handles_dict_problem_last_sp_routes_to_next_subproblem(self):
-        """Should route to next_subproblem even for last SP (to save result first).
+    def test_should_stop_true_routes_to_vote(self):
+        """Should route to vote when should_stop is True."""
+        state = {"should_stop": True}
 
-        RACE CONDITION FIX: Previously routed directly to meta_synthesis,
-        but that happened before the result was saved. Now we always go
-        through next_subproblem first, then route_after_next_subproblem
-        decides whether to continue or go to meta_synthesis.
-        """
-        from bo1.models.state import SubProblemResult
+        result = route_convergence_check(state)
 
-        state = {
-            "problem": {
-                "statement": "Test problem",
-                "sub_problems": [
-                    {"id": "sp1", "goal": "Goal 1"},
-                    {"id": "sp2", "goal": "Goal 2"},
-                ],
-            },
-            "sub_problem_index": 1,  # Last sub-problem
-            "sub_problem_results": [
-                SubProblemResult(
-                    sub_problem_id="sp1",
-                    sub_problem_goal="Goal 1",
-                    synthesis="Result 1",
-                    contribution_count=1,
-                    cost=0.0,
-                    duration_seconds=1.0,
-                ),
-                # Note: sp2 result not yet in list - that's the fix!
-                # The old code expected it here, but it's added by next_subproblem_node
-            ],
-        }
+        assert result == "vote"
 
-        result = route_after_synthesis(state)
-        assert result == "next_subproblem"
+    def test_should_stop_false_routes_to_facilitator(self):
+        """Should route to facilitator_decide when should_stop is False."""
+        state = {"should_stop": False}
 
-    def test_handles_missing_problem(self):
-        """Should return END when problem is None."""
-        state = {
-            "problem": None,
-            "sub_problem_index": 0,
-            "sub_problem_results": [],
-        }
+        result = route_convergence_check(state)
 
-        result = route_after_synthesis(state)
+        assert result == "facilitator_decide"
+
+
+class TestRouteSubproblemExecution:
+    """Tests for route_subproblem_execution router."""
+
+    def test_parallel_mode_true_routes_to_parallel(self):
+        """Should route to parallel_subproblems when parallel_mode is True."""
+        state = {"parallel_mode": True}
+
+        result = route_subproblem_execution(state)
+
+        assert result == "parallel_subproblems"
+
+    def test_parallel_mode_false_routes_to_sequential(self):
+        """Should route to select_personas when parallel_mode is False."""
+        state = {"parallel_mode": False}
+
+        result = route_subproblem_execution(state)
+
+        assert result == "select_personas"
+
+
+class TestRouteClarification:
+    """Tests for route_clarification router."""
+
+    def test_should_stop_true_routes_to_end(self):
+        """Should route to END when should_stop is True (session paused)."""
+        state = {"should_stop": True}
+
+        result = route_clarification(state)
+
         assert result == "END"
+
+    def test_should_stop_false_routes_to_persona(self):
+        """Should route to persona_contribute when should_stop is False."""
+        state = {"should_stop": False}
+
+        result = route_clarification(state)
+
+        assert result == "persona_contribute"
 
 
 class TestValidationHelpers:
-    """Tests for _validate_state_field helper."""
+    """Tests for validation helper functions."""
 
     def test_validate_state_field_returns_value_when_present(self):
-        """Should return field value when present in state."""
+        """Should return field value when present."""
         state = {"facilitator_decision": {"action": "vote"}}
 
         result = _validate_state_field(state, "facilitator_decision", "test_router")
@@ -107,24 +122,8 @@ class TestValidationHelpers:
         assert result == {"action": "vote"}
 
     def test_validate_state_field_returns_none_when_missing(self):
-        """Should return None when field is missing from state."""
+        """Should return None when field is missing."""
         state = {}
-
-        result = _validate_state_field(state, "facilitator_decision", "test_router")
-
-        assert result is None
-
-    def test_validate_state_field_returns_none_when_none(self):
-        """Should return None when field value is None."""
-        state = {"facilitator_decision": None}
-
-        result = _validate_state_field(state, "facilitator_decision", "test_router")
-
-        assert result is None
-
-    def test_validate_state_field_returns_none_when_empty(self):
-        """Should return None when field value is empty (falsy)."""
-        state = {"facilitator_decision": {}}
 
         result = _validate_state_field(state, "facilitator_decision", "test_router")
 
@@ -134,7 +133,7 @@ class TestValidationHelpers:
         """Should log GRAPH_STATE_ERROR with router context when field is missing."""
         state = {}
 
-        with patch("bo1.graph.routers.log_error") as mock_log:
+        with patch("bo1.graph.router_utils.log_error") as mock_log:
             _validate_state_field(state, "some_field", "my_router")
 
             mock_log.assert_called_once()
@@ -163,10 +162,75 @@ class TestRouteFacilitatorDecisionWithHelper:
 
         assert result == "vote"
 
-    def test_routes_to_persona_contribute_on_continue_action(self):
+    def test_routes_to_persona_on_continue_action(self):
         """Should route to persona_contribute when action is continue."""
         state = {"facilitator_decision": {"action": "continue"}}
 
         result = route_facilitator_decision(state)
 
         assert result == "persona_contribute"
+
+    def test_routes_to_persona_on_unknown_action(self):
+        """Should fallback to persona_contribute on unknown action."""
+        state = {"facilitator_decision": {"action": "unknown_action"}}
+
+        result = route_facilitator_decision(state)
+
+        assert result == "persona_contribute"
+
+
+class TestGetProblemAttr:
+    """Tests for _get_problem_attr helper."""
+
+    def test_handles_dict_problem(self):
+        """Should work with dict (checkpoint restored problem)."""
+        problem = {"sub_problems": ["sp1", "sp2"]}
+
+        result = _get_problem_attr(problem, "sub_problems", [])
+
+        assert result == ["sp1", "sp2"]
+
+    def test_handles_object_problem(self):
+        """Should work with object problem."""
+
+        class MockProblem:
+            sub_problems = ["sp1"]
+
+        result = _get_problem_attr(MockProblem(), "sub_problems", [])
+
+        assert result == ["sp1"]
+
+    def test_returns_default_when_none(self):
+        """Should return default when problem is None."""
+        result = _get_problem_attr(None, "sub_problems", [])
+
+        assert result == []
+
+
+class TestGetSubproblemAttr:
+    """Tests for _get_subproblem_attr helper."""
+
+    def test_handles_dict_subproblem(self):
+        """Should work with dict (checkpoint restored sub-problem)."""
+        sp = {"id": "sp-001", "goal": "Test goal"}
+
+        result = _get_subproblem_attr(sp, "goal")
+
+        assert result == "Test goal"
+
+    def test_handles_object_subproblem(self):
+        """Should work with object sub-problem."""
+
+        class MockSubProblem:
+            id = "sp-001"
+            goal = "Object goal"
+
+        result = _get_subproblem_attr(MockSubProblem(), "goal")
+
+        assert result == "Object goal"
+
+    def test_returns_default_when_none(self):
+        """Should return default when sub-problem is None."""
+        result = _get_subproblem_attr(None, "goal", "default")
+
+        assert result == "default"

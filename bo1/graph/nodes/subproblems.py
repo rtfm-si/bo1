@@ -34,7 +34,12 @@ from bo1.graph.deliberation import (
 from bo1.graph.deliberation.context import extract_recommendation_from_synthesis
 from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_core_state,
+    get_parallel_state,
+    get_problem_state,
+)
 from bo1.graph.utils import ensure_metrics
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
@@ -83,14 +88,21 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
         Then execution_batches = [[0, 2], [1]]  # A and C parallel, then B
         And parallel_mode = True (batch 0 has 2 sub-problems)
     """
-    from bo1.feature_flags.features import ENABLE_PARALLEL_SUBPROBLEMS
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
 
-    session_id = state.get("session_id")
+    session_id = core_state.get("session_id")
+    request_id = core_state.get("request_id")
     log_with_session(
-        logger, logging.INFO, session_id, "analyze_dependencies_node: Starting dependency analysis"
+        logger,
+        logging.INFO,
+        session_id,
+        "analyze_dependencies_node: Starting dependency analysis",
+        request_id=request_id,
     )
 
-    problem = state.get("problem")
+    problem = problem_state.get("problem")
     if not problem:
         raise ValueError("analyze_dependencies_node called without problem")
 
@@ -108,15 +120,11 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
         else:
             sub_problems.append(sp)
 
-    # Check if parallel sub-problems feature is enabled
-    if not ENABLE_PARALLEL_SUBPROBLEMS or len(sub_problems) <= 1:
-        # Sequential mode or single sub-problem
-        # Set current_sub_problem to first sub-problem for select_personas_node
+    # Single sub-problem: use sequential mode
+    if len(sub_problems) <= 1:
         first_sub_problem = sub_problems[0] if sub_problems else None
-
         logger.info(
-            f"analyze_dependencies_node: Sequential mode "
-            f"(feature_flag={ENABLE_PARALLEL_SUBPROBLEMS}, sub_problems={len(sub_problems)})"
+            f"analyze_dependencies_node: Sequential mode (sub_problems={len(sub_problems)})"
         )
         return {
             "execution_batches": [[i] for i in range(len(sub_problems))],
@@ -168,6 +176,7 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
             logging.ERROR,
             session_id,
             f"analyze_dependencies_node: {e}. Falling back to sequential execution.",
+            request_id=request_id,
         )
 
         # BUG FIX (P0 #1): Also set current_sub_problem in fallback case
@@ -847,15 +856,21 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
     from bo1.feature_flags import EARLY_START_THRESHOLD, ENABLE_SPECULATIVE_PARALLELISM
     from bo1.graph.deliberation.subgraph import get_subproblem_graph
 
-    logger.info("_parallel_subproblems_subgraph: Starting")
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    parallel_state = get_parallel_state(state)
+
+    request_id = core_state.get("request_id") or "no-request-id"
+    logger.info(f"[{request_id}] _parallel_subproblems_subgraph: Starting")
 
     writer = get_stream_writer()
-    problem = state.get("problem")
+    problem = problem_state.get("problem")
     if not problem:
         raise ValueError("_parallel_subproblems_subgraph called without problem")
 
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
 
     # Handle dict (from checkpoint recovery) vs Problem object
     if isinstance(problem, dict):
@@ -905,7 +920,7 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
         )
     else:
         # BATCH MODE: Execute batches sequentially (traditional approach)
-        execution_batches = state.get("execution_batches", [])
+        execution_batches: list[list[int]] = parallel_state.get("execution_batches", [])
         if not execution_batches:
             execution_batches = [[i] for i in range(len(sub_problems))]
 
@@ -937,7 +952,8 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
     total_contributions = sum(r.contribution_count for r in all_results)
 
     logger.info(
-        f"Complete: {len(all_results)} sub-problems, {total_contributions} contributions, ${total_cost:.4f}"
+        f"[{request_id}] Complete: {len(all_results)} sub-problems, "
+        f"{total_contributions} contributions, ${total_cost:.4f}"
     )
 
     writer(

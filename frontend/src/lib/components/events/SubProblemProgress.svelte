@@ -7,6 +7,8 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import { parseSynthesisXML, isXMLFormatted } from '$lib/utils/xml-parser';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency } from '$lib/utils/currency';
 
 	interface Props {
 		event: SubProblemCompleteEvent;
@@ -20,8 +22,8 @@
 		return `${minutes}m ${remainingSeconds}s`;
 	};
 
-	const formatCost = (cost: number): string => {
-		return `$${cost.toFixed(4)}`;
+	const formatCostValue = (cost: number): string => {
+		return formatCurrency(cost, $preferredCurrency, { decimals: 4 });
 	};
 
 	/**
@@ -168,7 +170,7 @@
 					<div>
 						<span class="text-neutral-600 dark:text-neutral-400">Cost:</span>
 						<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
-							{formatCost(event.data.cost)}
+							{formatCostValue(event.data.cost)}
 						</span>
 					</div>
 					<div>

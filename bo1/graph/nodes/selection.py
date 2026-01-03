@@ -12,7 +12,12 @@ from typing import Any
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.config import get_settings
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_control_state,
+    get_core_state,
+    get_problem_state,
+)
 from bo1.graph.utils import (
     calculate_problem_complexity,
     calculate_target_expert_count,
@@ -39,9 +44,20 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.models.problem import SubProblem
 
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    control_state = get_control_state(state)
+
+    session_id = core_state.get("session_id")
+    request_id = core_state.get("request_id")
     log_with_session(
-        logger, logging.INFO, session_id, "select_personas_node: Starting persona selection"
+        logger,
+        logging.INFO,
+        session_id,
+        "select_personas_node: Starting persona selection",
+        request_id=request_id,
     )
 
     # Calculate problem complexity and target expert count
@@ -49,9 +65,10 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     complexity_score = calculate_problem_complexity(state)
 
     # A/B TEST: Use persona_count_variant if set, otherwise calculate dynamically
-    persona_count_variant = state.get("persona_count_variant")
+    persona_count_variant = control_state.get("persona_count_variant")
+    target_count: int | None
     if persona_count_variant is not None:
-        target_count = persona_count_variant
+        target_count = int(str(persona_count_variant))
         log_with_session(
             logger,
             logging.INFO,
@@ -71,20 +88,21 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         logging.INFO,
         session_id,
         f"select_personas_node: Complexity={complexity_score:.2f}, target_experts={target_count}",
+        request_id=request_id,
     )
 
     # Create selector agent with target count
     selector = PersonaSelectorAgent()
 
     # Get current sub-problem - with defensive fallback for resume edge cases
-    current_sp = state.get("current_sub_problem")
-    sub_problem_index = state.get("sub_problem_index", 0)
+    current_sp = problem_state.get("current_sub_problem")
+    sub_problem_index = problem_state.get("sub_problem_index", 0)
 
     if not current_sp:
         # BUG FIX (P0): Defensive fallback when current_sub_problem is not set
         # This can happen when resuming from checkpoint after clarification
         # if the routing skips analyze_dependencies_node
-        problem = state.get("problem")
+        problem = problem_state.get("problem")
         if problem:
             # Handle both dict (from checkpoint) and Problem object
             if isinstance(problem, dict):
@@ -130,7 +148,9 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     recommended_personas = recommendations.get("recommended_personas", [])
     persona_codes = [p["code"] for p in recommended_personas]
 
-    log_with_session(logger, logging.INFO, session_id, f"Persona codes: {persona_codes}")
+    log_with_session(
+        logger, logging.INFO, session_id, f"Persona codes: {persona_codes}", request_id=request_id
+    )
 
     # Load persona profiles (uses cached PersonaProfile instances)
     from bo1.data import get_persona_profile_by_code
@@ -142,7 +162,11 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
             personas.append(persona)
         else:
             log_with_session(
-                logger, logging.WARNING, session_id, f"Persona '{code}' not found, skipping"
+                logger,
+                logging.WARNING,
+                session_id,
+                f"Persona '{code}' not found, skipping",
+                request_id=request_id,
             )
 
     # Track cost in metrics
@@ -155,6 +179,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         session_id,
         f"select_personas_node: Complete - {len(personas)} personas selected "
         f"(cost: ${response.cost_total:.4f})",
+        request_id=request_id,
     )
 
     # Return state updates
@@ -169,7 +194,9 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         "metrics": metrics,
         "current_node": "select_personas",
         "current_sub_problem": current_sp,  # BUG FIX: Persist for downstream nodes
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "sub_problem_index": problem_state.get(
+            "sub_problem_index", 0
+        ),  # Preserve sub_problem_index
         "problem_complexity": complexity_score,  # Observability: track complexity score
         "target_expert_count": target_count,  # Observability: track target count
     }

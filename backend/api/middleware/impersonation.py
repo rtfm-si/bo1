@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
+from supertokens_python.recipe.session.asyncio import get_session
 
 from backend.services.admin_impersonation import get_active_impersonation
 
@@ -57,31 +58,43 @@ class ImpersonationMiddleware(BaseHTTPMiddleware):
         request.state.impersonation_target_id = None
         request.state.impersonation_write_mode = False
 
-        # Get admin user ID from state (set by auth middleware)
-        admin_id = getattr(request.state, "user_id", None)
+        # Get admin user ID from SuperTokens session
+        # We need to verify the session here to get the user ID
+        try:
+            st_session = await get_session(request, session_required=False)
+            if st_session is None:
+                # No valid session, continue without impersonation
+                return await call_next(request)
+            admin_id = st_session.get_user_id()
+        except Exception as e:
+            # Session verification failed (expired, invalid, etc.)
+            # Continue without impersonation - let endpoint handle auth
+            logger.debug(f"Session verification in impersonation middleware failed: {e}")
+            return await call_next(request)
+
         if not admin_id:
             # No user logged in, continue without impersonation
             return await call_next(request)
 
         # Check if this user has an active impersonation session
-        session = get_active_impersonation(admin_id)
-        if not session:
+        impersonation_session = get_active_impersonation(admin_id)
+        if not impersonation_session:
             # No active impersonation, continue normally
             return await call_next(request)
 
         # Admin is impersonating - set state
         request.state.is_impersonation = True
         request.state.impersonation_admin_id = admin_id
-        request.state.impersonation_target_id = session.target_user_id
-        request.state.impersonation_write_mode = session.is_write_mode
+        request.state.impersonation_target_id = impersonation_session.target_user_id
+        request.state.impersonation_write_mode = impersonation_session.is_write_mode
 
         # Check if this is a mutation in read-only mode
-        if request.method in MUTATION_METHODS and not session.is_write_mode:
+        if request.method in MUTATION_METHODS and not impersonation_session.is_write_mode:
             # Allow certain paths even in read-only mode
             if not any(request.url.path.startswith(p) for p in IMPERSONATION_ALLOWED_PATHS):
                 logger.warning(
                     f"Admin {admin_id} blocked from {request.method} {request.url.path} "
-                    f"while impersonating {session.target_user_id} (read-only mode)"
+                    f"while impersonating {impersonation_session.target_user_id} (read-only mode)"
                 )
                 return JSONResponse(
                     status_code=403,
@@ -92,8 +105,8 @@ class ImpersonationMiddleware(BaseHTTPMiddleware):
                 )
 
         logger.debug(
-            f"Request from admin {admin_id} impersonating {session.target_user_id} "
-            f"(write_mode={session.is_write_mode})"
+            f"Request from admin {admin_id} impersonating {impersonation_session.target_user_id} "
+            f"(write_mode={impersonation_session.is_write_mode})"
         )
 
         return await call_next(request)

@@ -10,7 +10,10 @@ from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_core_state,
+)
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
@@ -34,9 +37,13 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates
     """
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
-    request_id = state.get("request_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
+    request_id = core_state.get("request_id")
     dlog = get_deliberation_logger(session_id, user_id, "decompose_node")
     dlog.info("Starting problem decomposition")
 

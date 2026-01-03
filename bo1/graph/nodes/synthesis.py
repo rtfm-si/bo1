@@ -15,7 +15,16 @@ from typing import Any
 
 from bo1.config import get_model_for_role
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState, prune_contributions_for_phase
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_context_state,
+    get_core_state,
+    get_discussion_state,
+    get_participant_state,
+    get_phase_state,
+    get_problem_state,
+    prune_contributions_for_phase,
+)
 from bo1.graph.utils import ensure_metrics, track_aggregated_cost, track_phase_cost
 from bo1.models.state import DeliberationPhase, SubProblemResult
 from bo1.prompts.synthesis import (
@@ -95,8 +104,13 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.orchestration.voting import collect_recommendations
 
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
     dlog = get_deliberation_logger(session_id, user_id, "vote_node")
     dlog.info("Starting recommendation collection phase")
 
@@ -141,7 +155,9 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": DeliberationPhase.VOTING,
         "metrics": metrics,
         "current_node": "vote",
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "sub_problem_index": problem_state.get(
+            "sub_problem_index", 0
+        ),  # Preserve sub_problem_index
     }
 
 
@@ -165,9 +181,17 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE, get_limited_context_sections
 
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    user_id = state.get("user_id")
-    request_id = state.get("request_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    discussion_state = get_discussion_state(state)
+    phase_state = get_phase_state(state)
+    context_state = get_context_state(state)
+
+    session_id = core_state.get("session_id")
+    user_id = core_state.get("user_id")
+    request_id = core_state.get("request_id")
     dlog = get_deliberation_logger(session_id, user_id, "synthesize_node")
     dlog.info("Starting synthesis with hierarchical template")
 
@@ -180,11 +204,11 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     pruned_contributions = prune_contributions_for_phase(state)
 
     # Get problem and contributions
-    problem = state.get("problem")
+    problem = problem_state.get("problem")
     contributions = pruned_contributions
-    votes = state.get("votes", [])
-    round_summaries = state.get("round_summaries", [])
-    current_round = state.get("round_number", 1)
+    votes = discussion_state.get("votes", [])
+    round_summaries = discussion_state.get("round_summaries", [])
+    current_round = phase_state.get("round_number", 1)
 
     if not problem:
         raise ValueError("synthesize_node called without problem in state")
@@ -230,7 +254,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         votes_text.append("\n")
 
     # Check for limited context mode (Option D+E Hybrid - Phase 8)
-    limited_context_mode = state.get("limited_context_mode", False)
+    limited_context_mode = context_state.get("limited_context_mode", False)
     prompt_section, output_section = get_limited_context_sections(limited_context_mode)
 
     if limited_context_mode:
@@ -292,7 +316,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
                 session_id,
                 f"[TOKEN_BUDGET] Synthesis output tokens ({output_tokens}) "
                 f">= {int(SYNTHESIS_TOKEN_WARNING_THRESHOLD * 100)}% of budget ({SYNTHESIS_MAX_TOKENS}). "
-                f"Sub-problem: {state.get('sub_problem_index', 0)}",
+                f"Sub-problem: {problem_state.get('sub_problem_index', 0)}",
             )
 
     # Clean up response - prepend the prefill since it's not included in response
@@ -379,7 +403,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": DeliberationPhase.SYNTHESIS,  # Don't set COMPLETE yet - may have more sub-problems
         "metrics": metrics,
         "current_node": "synthesize",
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "sub_problem_index": problem_state.get(
+            "sub_problem_index", 0
+        ),  # Preserve sub_problem_index
         "contributions": contributions,  # Pruned contributions (reduces Redis payload)
     }
 
@@ -405,14 +431,21 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.summarizer import SummarizerAgent
 
-    # Extract current sub-problem data
-    current_sp = state.get("current_sub_problem")
-    problem = state.get("problem")
-    sub_problem_index = state.get("sub_problem_index", 0)
-    previous_results = state.get("sub_problem_results", [])
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    discussion_state = get_discussion_state(state)
+    participant_state = get_participant_state(state)
+    phase_state = get_phase_state(state)
+
+    # Extract current sub-problem data from accessors
+    current_sp = problem_state.get("current_sub_problem")
+    problem = problem_state.get("problem")
+    sub_problem_index = problem_state.get("sub_problem_index", 0)
+    previous_results = problem_state.get("sub_problem_results", [])
 
     # Debug logging to trace state corruption after checkpoint restore
-    session_id = state.get("session_id")
+    session_id = core_state.get("session_id")
     log_with_session(
         logger,
         logging.DEBUG,
@@ -428,7 +461,6 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Guard: Ensure current_sp_id is hashable (string expected)
     # State corruption after checkpoint restore can cause id to be a list
     if current_sp_id and not isinstance(current_sp_id, str):
-        session_id = state.get("session_id")
         log_with_session(
             logger,
             logging.ERROR,
@@ -452,7 +484,6 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
                 existing_result_ids.add(sp_id)
 
         if current_sp_id in existing_result_ids:
-            session_id = state.get("session_id")
             log_with_session(
                 logger,
                 logging.WARNING,
@@ -474,15 +505,15 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
                     "current_sub_problem": None,
                     "current_node": "next_subproblem_skipped",
                 }
-    contributions = state.get("contributions", [])
-    votes = state.get("votes", [])
-    personas = state.get("personas", [])
-    synthesis = state.get("synthesis", "")
-    metrics = state.get("metrics")
+    contributions = discussion_state.get("contributions", [])
+    votes = discussion_state.get("votes", [])
+    personas = participant_state.get("personas", [])
+    synthesis = discussion_state.get("synthesis", "")
+    metrics = state.get("metrics")  # metrics is not in any accessor yet
     # sub_problem_index and previous_results already declared above (for guard check)
 
     # Enhanced logging for sub-problem progression (Bug #3 fix)
-    session_id = state.get("session_id")
+    # session_id already obtained from core_state above
     sub_problems = _get_problem_attr(problem, "sub_problems", [])
     total_sub_problems = len(sub_problems) if sub_problems else 0
     log_with_session(
@@ -536,7 +567,7 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
 
             # Summarize expert's contributions
             response = await summarizer.summarize_round(
-                round_number=state.get("round_number", 1),
+                round_number=phase_state.get("round_number", 1),
                 contributions=contribution_dicts,
                 problem_statement=_get_subproblem_attr(current_sp, "goal", ""),
                 target_tokens=75,  # Concise summary for memory
@@ -674,7 +705,12 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
 
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+
+    session_id = core_state.get("session_id")
     log_with_session(
         logger,
         logging.INFO,
@@ -682,9 +718,9 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         "meta_synthesize_node: Starting meta-synthesis (structured JSON)",
     )
 
-    # Get problem and sub-problem results
-    problem = state.get("problem")
-    sub_problem_results_raw = state.get("sub_problem_results", [])
+    # Get problem and sub-problem results from accessors
+    problem = problem_state.get("problem")
+    sub_problem_results_raw = problem_state.get("sub_problem_results", [])
 
     if not problem:
         raise ValueError("meta_synthesize_node called without problem")

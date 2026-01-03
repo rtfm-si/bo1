@@ -36,6 +36,7 @@ export interface User {
 	subscription_tier: 'free' | 'pro' | 'enterprise';
 	is_admin?: boolean;
 	password_upgrade_needed?: boolean;
+	totp_enabled?: boolean;
 	// Impersonation metadata (present when admin is impersonating)
 	is_impersonation?: boolean;
 	real_admin_id?: string;
@@ -71,6 +72,7 @@ export const passwordUpgradeNeeded = derived(
 	authStore,
 	($auth) => $auth.user?.password_upgrade_needed ?? false
 );
+export const totpEnabled = derived(authStore, ($auth) => $auth.user?.totp_enabled ?? false);
 
 /**
  * Initialize auth store - check if user has valid SuperTokens session.

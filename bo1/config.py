@@ -527,6 +527,20 @@ class Settings(BaseSettings):
         description="Input token count threshold for bloated prompt warnings (default: 50k)",
     )
 
+    # Challenge Phase Validation (rounds 3-4 critical engagement)
+    challenge_validation_mode: Literal["soft", "hard"] = Field(
+        default="soft",
+        description="Validation mode: 'soft' (log only), 'hard' (reject + reprompt)",
+    )
+    challenge_validation_retries: int = Field(
+        default=1,
+        description="Number of retry attempts for failed challenge contributions in hard mode",
+    )
+    challenge_min_markers: int = Field(
+        default=2,
+        description="Minimum challenge engagement markers required (e.g., 'however', 'risk')",
+    )
+
     # Feature Flags (Sprint Optimizations - Week 1)
     # LLM Response Caching
     enable_llm_response_cache: bool = Field(

@@ -13,7 +13,15 @@ from typing import Any, Literal
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
 from bo1.constants import SimilarityCacheThresholds
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import (
+    DeliberationGraphState,
+    get_core_state,
+    get_discussion_state,
+    get_participant_state,
+    get_phase_state,
+    get_problem_state,
+    get_research_state,
+)
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.state import DeliberationPhase
 from bo1.prompts.moderator import (
@@ -40,8 +48,15 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         Dictionary with state updates
     """
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
-    request_id = state.get("request_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    phase_state = get_phase_state(state)
+    problem_state = get_problem_state(state)
+    research_state = get_research_state(state)
+
+    session_id = core_state.get("session_id")
+    request_id = core_state.get("request_id")
     log_with_session(
         logger,
         logging.INFO,
@@ -52,7 +67,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
     # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
     # If queries exist, automatically trigger research node without facilitator decision
-    pending_queries = state.get("pending_research_queries", [])
+    pending_queries = research_state.get("pending_research_queries", [])
     if pending_queries:
         log_with_session(
             logger,
@@ -78,19 +93,19 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         # Clear pending queries so they're processed by research_node
         return {
             "facilitator_decision": asdict(research_decision),
-            "round_number": state.get("round_number", 1),
+            "round_number": phase_state.get("round_number", 1),
             "phase": DeliberationPhase.DISCUSSION,
             "current_node": "facilitator_decide",
-            "sub_problem_index": state.get("sub_problem_index", 0),
+            "sub_problem_index": problem_state.get("sub_problem_index", 0),
             # Note: pending_research_queries will be consumed by research_node
         }
 
     # Create facilitator agent
     facilitator = FacilitatorAgent()
 
-    # Get current round number and max rounds
-    round_number = state.get("round_number", 1)
-    max_rounds = state.get("max_rounds", 6)
+    # Get current round number and max rounds from accessor
+    round_number = phase_state.get("round_number", 1)
+    max_rounds = phase_state.get("max_rounds", 6)
 
     # Call facilitator to decide next action with v2 state
     decision, llm_response = await facilitator.decide_next_action(
@@ -115,7 +130,8 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
     # VALIDATION: Ensure decision is complete and valid (Issue #3 fix)
     # This prevents silent failures when facilitator returns invalid decisions
-    personas = state.get("personas", [])
+    participant_state = get_participant_state(state)
+    personas = participant_state.get("personas", [])
     persona_codes = [p.code for p in personas]
 
     if decision.action == "continue":
@@ -193,8 +209,8 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
         # Override decision to continue
         # Select a persona who hasn't spoken much
-        personas = state.get("personas", [])
-        contributions = state.get("contributions", [])
+        discussion_state = get_discussion_state(state)
+        contributions = discussion_state.get("contributions", [])
 
         # Count contributions per persona
         contribution_counts: dict[str, int] = {}
@@ -221,7 +237,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     # SAFETY CHECK: Prevent infinite research loops (Bug fix)
     # Check if facilitator is requesting research that's already been completed
     if decision.action == "research":
-        completed_queries = state.get("completed_research_queries", [])
+        completed_queries = research_state.get("completed_research_queries", [])
 
         # Extract research query from facilitator reasoning
         research_query = decision.reasoning[:200] if decision.reasoning else ""
@@ -260,8 +276,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         # Override to 'continue' if duplicate research detected
         if is_duplicate:
             # Select next speaker (same logic as premature voting override)
-            personas = state.get("personas", [])
-            contributions = state.get("contributions", [])
+            # personas already obtained from participant_state above
+            research_discussion_state = get_discussion_state(state)
+            contributions = research_discussion_state.get("contributions", [])
 
             research_contrib_counts: dict[str, int] = {}
             for contrib in contributions:
@@ -304,7 +321,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         cost_msg = "(no LLM call)"
 
     # Enhanced logging with sub_problem_index for debugging (Issue #3 fix)
-    sub_problem_index = state.get("sub_problem_index", 0)
+    sub_problem_index = problem_state.get("sub_problem_index", 0)
     log_with_session(
         logger,
         logging.INFO,
@@ -362,7 +379,14 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     from bo1.models.state import ContributionMessage, ContributionType
 
     _start_time = time.perf_counter()
-    session_id = state.get("session_id")
+
+    # Use nested state accessors for grouped field access
+    core_state = get_core_state(state)
+    problem_state = get_problem_state(state)
+    discussion_state = get_discussion_state(state)
+    phase_state = get_phase_state(state)
+
+    session_id = core_state.get("session_id")
     log_with_session(
         logger,
         logging.INFO,
@@ -374,7 +398,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     moderator = ModeratorAgent()
 
     # Get facilitator decision for intervention type
-    decision = state.get("facilitator_decision")
+    decision = state.get("facilitator_decision")  # ephemeral - direct access
 
     # Extract moderator type with proper type handling (default to contrarian for premature consensus)
     moderator_type_value = decision.get("moderator_type") if decision else None
@@ -388,9 +412,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         # Default to contrarian for challenging premature consensus
         moderator_type = "contrarian"
 
-    # Get problem and contributions
-    problem = state.get("problem")
-    contributions = list(state.get("contributions", []))
+    # Get problem and contributions from accessors
+    problem = problem_state.get("problem")
+    contributions = list(discussion_state.get("contributions", []))
 
     # Build discussion excerpt from recent contributions (last 3)
     recent_contributions = contributions[-3:] if len(contributions) >= 3 else contributions
@@ -421,7 +445,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         persona_name=f"{moderator_name} Moderator",
         content=intervention_text,
         contribution_type=ContributionType.MODERATOR,
-        round_number=state.get("round_number", 1),
+        round_number=phase_state.get("round_number", 1),
         thinking=None,
         token_count=llm_response.token_usage.output_tokens if llm_response.token_usage else None,
         cost=llm_response.cost if hasattr(llm_response, "cost") else None,
@@ -449,5 +473,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         "contributions": contributions,
         "metrics": metrics,
         "current_node": "moderator_intervene",
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "sub_problem_index": problem_state.get(
+            "sub_problem_index", 0
+        ),  # Preserve sub_problem_index
     }

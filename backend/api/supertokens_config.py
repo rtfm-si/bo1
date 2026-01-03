@@ -17,6 +17,7 @@ Architecture: BFF (Backend-for-Frontend) pattern
 
 import logging
 import os
+from datetime import UTC
 from typing import Any
 
 from fastapi import FastAPI
@@ -26,9 +27,11 @@ from supertokens_python.recipe import (
     accountlinking,
     emailpassword,
     emailverification,
+    multifactorauth,
     passwordless,
     session,
     thirdparty,
+    totp,
 )
 from supertokens_python.recipe.accountlinking.types import (
     AccountInfoWithRecipeIdAndUserId,
@@ -1115,6 +1118,77 @@ def _update_last_magic_link_at(user_id: str) -> None:
         logger.warning(f"Failed to update last_magic_link_at: {e}")
 
 
+# Rate limit: 60 seconds between magic link requests for the same email
+MAGIC_LINK_RATE_LIMIT_SECONDS = 60
+
+
+def _check_magic_link_rate_limit(email: str) -> tuple[bool, int]:
+    """Check if a magic link request is rate limited.
+
+    Args:
+        email: The email address to check
+
+    Returns:
+        Tuple of (is_rate_limited, seconds_remaining)
+    """
+    from bo1.state.database import db_session
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT last_magic_link_at
+                    FROM users
+                    WHERE LOWER(email) = LOWER(%s)
+                    """,
+                    (email,),
+                )
+                row = cur.fetchone()
+                if not row or row[0] is None:
+                    return False, 0
+
+                last_sent = row[0]
+                from datetime import datetime
+
+                now = datetime.now(UTC)
+                # Make last_sent timezone-aware if it isn't
+                if last_sent.tzinfo is None:
+                    last_sent = last_sent.replace(tzinfo=UTC)
+                elapsed = (now - last_sent).total_seconds()
+
+                if elapsed < MAGIC_LINK_RATE_LIMIT_SECONDS:
+                    remaining = int(MAGIC_LINK_RATE_LIMIT_SECONDS - elapsed)
+                    return True, remaining
+                return False, 0
+    except Exception as e:
+        logger.warning(f"Failed to check magic link rate limit: {e}")
+        return False, 0  # Allow on error
+
+
+def _update_magic_link_timestamp(email: str) -> None:
+    """Update the last_magic_link_at timestamp when sending a magic link.
+
+    This is called BEFORE sending (unlike _update_last_magic_link_at which is
+    called after consuming the code) to track when the email was sent.
+    """
+    from bo1.state.database import db_session
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET last_magic_link_at = NOW(), updated_at = NOW()
+                    WHERE LOWER(email) = LOWER(%s)
+                    """,
+                    (email,),
+                )
+    except Exception as e:
+        logger.warning(f"Failed to update magic link timestamp: {e}")
+
+
 class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.EmailTemplateVars]):
     """Custom email delivery service for magic link emails."""
 
@@ -1128,6 +1202,9 @@ class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.Ema
         Args:
             template_vars: Email template variables from SuperTokens
             user_context: Additional context
+
+        Raises:
+            ValueError: If magic link URL is missing or rate limited
         """
         email = template_vars.email
         url_with_link_code = template_vars.url_with_link_code
@@ -1136,6 +1213,16 @@ class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.Ema
         if not url_with_link_code:
             logger.error("Magic link URL is missing")
             raise ValueError("Magic link URL is required")
+
+        # Check rate limit before sending
+        is_rate_limited, seconds_remaining = _check_magic_link_rate_limit(email)
+        if is_rate_limited:
+            logger.warning(
+                f"Magic link rate limited for {_mask_email(email)}: {seconds_remaining}s remaining"
+            )
+            raise ValueError(
+                f"Please wait {seconds_remaining} seconds before requesting another link"
+            )
 
         expiry_minutes = code_life_time // 60000  # Convert ms to minutes
         html, text = render_magic_link_email(url_with_link_code, expiry_minutes)
@@ -1147,6 +1234,8 @@ class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.Ema
                 html=html,
                 text=text,
             )
+            # Update timestamp after successful send
+            _update_magic_link_timestamp(email)
             logger.info(f"Magic link email sent to {_mask_email(email)}")
         except Exception as e:
             log_error(
@@ -1155,7 +1244,7 @@ class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.Ema
                 f"Failed to send magic link email: {e}",
                 email=_mask_email(email),
             )
-        raise
+            raise  # Re-raise to let SuperTokens handle the error
 
 
 def override_session_apis(
@@ -1316,6 +1405,16 @@ def init_supertokens() -> None:
                 apis=override_emailpassword_apis,
             ),
         ),
+        # TOTP recipe for 2FA - provides TOTP device management
+        totp.init(
+            config=totp.TOTPConfig(
+                issuer="Board of One",
+                default_skew=1,  # Allow ±1 time period for clock drift
+                default_period=30,  # 30 second TOTP codes (standard)
+            )
+        ),
+        # MFA recipe - manages 2FA requirements per user
+        multifactorauth.init(),
     ]
 
     # Add Passwordless recipe if enabled (magic link auth)

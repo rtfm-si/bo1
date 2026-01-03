@@ -62,7 +62,9 @@ export type ErrorCode =
 	| 'API_REQUEST_ERROR'
 	| 'API_SSE_ERROR'
 	| 'API_SESSION_ERROR'
-	| 'API_RATE_LIMIT';
+	| 'API_RATE_LIMIT'
+	| 'API_CONTEXT_MISSING'
+	| 'API_INDUSTRY_NOT_SET';
 
 /**
  * Mapping of backend ErrorCode to user-friendly messages.
@@ -259,6 +261,20 @@ const errorMessages: Record<ErrorCode, ErrorMessage> = {
 		action: 'Wait a moment before trying again.',
 		recoveryTimeSeconds: 60,
 		isTransient: true
+	},
+	API_CONTEXT_MISSING: {
+		title: 'Business Context Not Set Up',
+		description: 'You haven\'t set up your business context yet.',
+		severity: 'info',
+		action: 'Set up your business context to access this feature.',
+		isTransient: false
+	},
+	API_INDUSTRY_NOT_SET: {
+		title: 'Industry Not Selected',
+		description: 'You need to select an industry in your business context.',
+		severity: 'info',
+		action: 'Select an industry to see peer benchmarks.',
+		isTransient: false
 	}
 };
 

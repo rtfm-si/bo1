@@ -4,13 +4,14 @@
 	 *
 	 * Shows a dismissible amber/warning alert when user has failed meetings
 	 * in the last 24 hours. Provides reassurance and retry options.
+	 * Shows checkpoint progress (e.g., "Completed 2/5 sub-problems") for resumable sessions.
 	 */
 
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { apiClient } from '$lib/api/client';
-	import type { FailedMeeting } from '$lib/api/types';
+	import type { FailedMeeting, CheckpointStateResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { RotateCcw } from 'lucide-svelte';
 
@@ -25,6 +26,7 @@
 	let isLoading = $state(true);
 	let isDismissed = $state(false);
 	let retryingSessionIds = $state<Set<string>>(new Set());
+	let checkpointStates = $state<Map<string, CheckpointStateResponse>>(new Map());
 
 	// LocalStorage key for dismiss state (per-user, 24h expiry)
 	const DISMISS_KEY = 'bo1_failed_meeting_alert_dismissed';
@@ -55,6 +57,21 @@
 			const response = await apiClient.getRecentFailures();
 			// Filter out already-dismissed sessions
 			failedMeetings = response.failures.filter(f => !dismissedSessionIds.has(f.session_id));
+
+			// Fetch checkpoint states for all failed meetings in parallel
+			if (failedMeetings.length > 0) {
+				const results = await Promise.allSettled(
+					failedMeetings.map(m => apiClient.getCheckpointState(m.session_id))
+				);
+
+				const newStates = new Map<string, CheckpointStateResponse>();
+				results.forEach((result, index) => {
+					if (result.status === 'fulfilled') {
+						newStates.set(failedMeetings[index].session_id, result.value);
+					}
+				});
+				checkpointStates = newStates;
+			}
 		} catch (error) {
 			console.error('Failed to check recent failures:', error);
 		} finally {
@@ -151,10 +168,18 @@
 				{#if failedMeetings.length > 0}
 					<div class="mt-3 space-y-2">
 						{#each failedMeetings as meeting}
+							{@const checkpoint = checkpointStates.get(meeting.session_id)}
 							<div class="flex items-center justify-between gap-2 rounded-md bg-amber-100/50 dark:bg-amber-800/30 px-3 py-2">
-								<span class="text-sm text-amber-800 dark:text-amber-200 truncate flex-1">
-									{meeting.problem_statement_preview || 'Untitled meeting'}
-								</span>
+								<div class="flex-1 min-w-0">
+									<span class="text-sm text-amber-800 dark:text-amber-200 truncate block">
+										{meeting.problem_statement_preview || 'Untitled meeting'}
+									</span>
+									{#if checkpoint && checkpoint.total_sub_problems && checkpoint.can_resume}
+										<span class="text-xs text-amber-600 dark:text-amber-400 mt-0.5 block">
+											{checkpoint.completed_sub_problems}/{checkpoint.total_sub_problems} focus areas complete
+										</span>
+									{/if}
+								</div>
 								<Button
 									variant="brand"
 									size="sm"
@@ -166,7 +191,7 @@
 										<span>Retrying...</span>
 									{:else}
 										<RotateCcw size={14} />
-										<span>Retry</span>
+										<span>{checkpoint?.can_resume ? 'Resume' : 'Retry'}</span>
 									{/if}
 								</Button>
 							</div>

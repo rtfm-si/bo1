@@ -112,7 +112,8 @@ class UserRepository(BaseRepository):
             return self._execute_one(
                 """
                 SELECT id, email, auth_provider, subscription_tier,
-                       is_admin, gdpr_consent_at, created_at, updated_at
+                       is_admin, gdpr_consent_at, created_at, updated_at,
+                       password_upgrade_needed, totp_enabled
                 FROM users
                 WHERE id = %s
                 """,

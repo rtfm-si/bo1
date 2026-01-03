@@ -79,6 +79,7 @@ from backend.api import (  # noqa: E402
     tags,
     templates,
     terms,
+    two_factor,
     user,
     waitlist,
     workspaces,
@@ -599,6 +600,7 @@ app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(ratings.router, prefix="/api", tags=["ratings"])
 app.include_router(ratings.admin_router, prefix="/api", tags=["admin"])
 app.include_router(user.router, prefix="/api", tags=["user"])
+app.include_router(two_factor.router, prefix="/api", tags=["2fa"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(workspaces.invitations_user_router, prefix="/api", tags=["invitations"])

@@ -16,6 +16,9 @@
     - Auth pages: Login, Callback
     - App pages: Dashboard, Context (all sub-pages), Mentor, Datasets, Analysis,
       Projects, Actions, Reports, Settings (all sub-pages), Help, SEO, Welcome, Onboarding
+    - Admin pages: Dashboard, Users, Sessions, Costs, Billing, Blog, SEO, Metrics,
+      Alerts, Feedback, Ratings, Waitlist, Whitelist, Terms, Toggles, Experiments,
+      Promotions, Ops, Collateral, Embeddings, Landing Analytics, Kill History
     - Billing pages: Success, Cancel
     - Share/Invite pages
 
@@ -996,20 +999,343 @@
     <step n="52.5">CHECK no flash of unstyled content</step>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- PHASE 53: CLEANUP & FINAL CHECKS -->
+    <!-- PHASE 53: ADMIN DASHBOARD (/admin) -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <step n="53.1">Delete test dataset if created</step>
-    <step n="53.2">Delete test project if created</step>
-    <step n="53.3">Delete test competitor if created</step>
-    <step n="53.4">Revoke test share link if created</step>
-    <step n="53.5">Revoke test invite if created</step>
-    <step n="53.6">Final console error check across all pages</step>
-    <step n="53.7">Final network error check</step>
-    <step n="53.8">Close browser</step>
+    <step n="53.1">Navigate to /admin</step>
+    <step n="53.2">Verify admin dashboard loads with all widgets</step>
+    <step n="53.3">TEST REFRESH: Reload page</step>
+    <step n="53.4">TEST BACK: Browser back navigation</step>
+    <step n="53.5">TEST Admin sidebar navigation (all links)</step>
+    <step n="53.6">TEST Dashboard metric cards (click for details)</step>
+    <step n="53.7">TEST Quick action buttons</step>
+    <step n="53.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 54: ADMIN USERS (/admin/users) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="54.1">Navigate to /admin/users</step>
+    <step n="54.2">Verify user list loads</step>
+    <step n="54.3">TEST REFRESH: Reload page</step>
+    <step n="54.4">TEST BACK: Browser back navigation</step>
+    <step n="54.5">TEST User search input (focus, type, filter)</step>
+    <step n="54.6">TEST Pagination controls (next, prev, page numbers)</step>
+    <step n="54.7">TEST User row click (expand details)</step>
+    <step n="54.8">TEST User tier dropdown (change tier - with caution)</step>
+    <step n="54.9">TEST Admin toggle (grant/revoke admin)</step>
+    <step n="54.10">TEST Impersonate button (if available)</step>
+    <step n="54.11">TEST Export users button</step>
+    <step n="54.12">TEST Sort columns (click headers)</step>
+    <step n="54.13">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 55: ADMIN SESSIONS (/admin/sessions) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="55.1">Navigate to /admin/sessions</step>
+    <step n="55.2">Verify session list loads</step>
+    <step n="55.3">TEST REFRESH: Reload page</step>
+    <step n="55.4">TEST BACK: Browser back navigation</step>
+    <step n="55.5">TEST Session search/filter</step>
+    <step n="55.6">TEST Session status filter dropdown</step>
+    <step n="55.7">TEST Session row click (view details)</step>
+    <step n="55.8">TEST Kill session button (if stuck sessions)</step>
+    <step n="55.9">TEST Retry session button (if failed)</step>
+    <step n="55.10">TEST Date range filter</step>
+    <step n="55.11">TEST Pagination controls</step>
+    <step n="55.12">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 56: ADMIN COSTS (/admin/costs) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="56.1">Navigate to /admin/costs</step>
+    <step n="56.2">Verify cost dashboard loads with all tabs</step>
+    <step n="56.3">TEST REFRESH: Reload page</step>
+    <step n="56.4">TEST BACK: Browser back navigation</step>
+    <step n="56.5">TEST Overview tab (cost summary cards)</step>
+    <step n="56.6">TEST By Provider tab (click)</step>
+    <step n="56.7">TEST Provider breakdown table</step>
+    <step n="56.8">TEST Fixed Costs tab (click)</step>
+    <step n="56.9">TEST Add fixed cost button (open modal)</step>
+    <step n="56.10">TEST Fixed cost form (provider, description, amount, category)</step>
+    <step n="56.11">TEST Save fixed cost button</step>
+    <step n="56.12">TEST Edit fixed cost button (inline edit)</step>
+    <step n="56.13">TEST Delete fixed cost button (confirm dialog)</step>
+    <step n="56.14">TEST Seed fixed costs button</step>
+    <step n="56.15">TEST Internal Costs tab (click)</step>
+    <step n="56.16">TEST SEO costs table (expand, sort)</step>
+    <step n="56.17">TEST System costs table</step>
+    <step n="56.18">TEST Data Analysis costs table</step>
+    <step n="56.19">TEST Mentor Chat costs table</step>
+    <step n="56.20">TEST Insights tab (click)</step>
+    <step n="56.21">TEST Period selector (day/week/month)</step>
+    <step n="56.22">TEST Refresh insights button</step>
+    <step n="56.23">TEST Cache effectiveness panel</step>
+    <step n="56.24">TEST Model impact panel</step>
+    <step n="56.25">TEST Feature efficiency panel</step>
+    <step n="56.26">TEST Tuning recommendations panel</step>
+    <step n="56.27">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 57: ADMIN BILLING (/admin/billing) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="57.1">Navigate to /admin/billing</step>
+    <step n="57.2">Verify billing admin page loads</step>
+    <step n="57.3">TEST REFRESH: Reload page</step>
+    <step n="57.4">TEST BACK: Browser back navigation</step>
+    <step n="57.5">TEST Revenue metrics display</step>
+    <step n="57.6">TEST Subscription stats</step>
+    <step n="57.7">TEST Payment history table</step>
+    <step n="57.8">TEST Refund button (if applicable - confirm only)</step>
+    <step n="57.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 58: ADMIN BLOG (/admin/blog) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="58.1">Navigate to /admin/blog</step>
+    <step n="58.2">Verify blog admin page loads</step>
+    <step n="58.3">TEST REFRESH: Reload page</step>
+    <step n="58.4">TEST BACK: Browser back navigation</step>
+    <step n="58.5">TEST Blog post list table</step>
+    <step n="58.6">TEST Status filter dropdown</step>
+    <step n="58.7">TEST Post row click (expand details)</step>
+    <step n="58.8">TEST Publish button (for drafts)</step>
+    <step n="58.9">TEST Unpublish button (for published)</step>
+    <step n="58.10">TEST Delete button (confirm dialog)</step>
+    <step n="58.11">TEST Generate post button</step>
+    <step n="58.12">TEST Performance metrics (views, clicks)</step>
+    <step n="58.13">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 59: ADMIN SEO (/admin/seo) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="59.1">Navigate to /admin/seo</step>
+    <step n="59.2">Verify SEO admin page loads</step>
+    <step n="59.3">TEST REFRESH: Reload page</step>
+    <step n="59.4">TEST BACK: Browser back navigation</step>
+    <step n="59.5">TEST SEO analytics charts</step>
+    <step n="59.6">TEST Keyword performance table</step>
+    <step n="59.7">TEST Topic cluster view</step>
+    <step n="59.8">TEST Content generation queue</step>
+    <step n="59.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 60: ADMIN METRICS (/admin/metrics) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="60.1">Navigate to /admin/metrics</step>
+    <step n="60.2">Verify metrics page loads</step>
+    <step n="60.3">TEST REFRESH: Reload page</step>
+    <step n="60.4">TEST BACK: Browser back navigation</step>
+    <step n="60.5">TEST Date range selector</step>
+    <step n="60.6">TEST Metric category tabs</step>
+    <step n="60.7">TEST Chart interactions (hover, zoom)</step>
+    <step n="60.8">TEST Export data button</step>
+    <step n="60.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 61: ADMIN ALERTS (/admin/alerts/settings, /admin/alerts/history) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="61.1">Navigate to /admin/alerts/settings</step>
+    <step n="61.2">Verify alert settings page loads</step>
+    <step n="61.3">TEST REFRESH: Reload page</step>
+    <step n="61.4">TEST Alert rule toggles</step>
+    <step n="61.5">TEST Threshold inputs</step>
+    <step n="61.6">TEST Notification channel settings</step>
+    <step n="61.7">TEST Save settings button</step>
+    <step n="61.8">Navigate to /admin/alerts/history</step>
+    <step n="61.9">Verify alert history loads</step>
+    <step n="61.10">TEST Alert filter dropdown</step>
+    <step n="61.11">TEST Alert row click (expand details)</step>
+    <step n="61.12">TEST Acknowledge button</step>
+    <step n="61.13">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 62: ADMIN FEEDBACK (/admin/feedback) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="62.1">Navigate to /admin/feedback</step>
+    <step n="62.2">Verify feedback page loads</step>
+    <step n="62.3">TEST REFRESH: Reload page</step>
+    <step n="62.4">TEST BACK: Browser back navigation</step>
+    <step n="62.5">TEST Feedback list table</step>
+    <step n="62.6">TEST Status filter dropdown</step>
+    <step n="62.7">TEST Feedback row click (expand)</step>
+    <step n="62.8">TEST Mark resolved button</step>
+    <step n="62.9">TEST Reply button (if applicable)</step>
+    <step n="62.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 63: ADMIN RATINGS (/admin/ratings) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="63.1">Navigate to /admin/ratings</step>
+    <step n="63.2">Verify ratings page loads</step>
+    <step n="63.3">TEST REFRESH: Reload page</step>
+    <step n="63.4">TEST BACK: Browser back navigation</step>
+    <step n="63.5">TEST Rating stats display</step>
+    <step n="63.6">TEST Rating distribution chart</step>
+    <step n="63.7">TEST Individual ratings list</step>
+    <step n="63.8">TEST Rating filters</step>
+    <step n="63.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 64: ADMIN WAITLIST (/admin/waitlist) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="64.1">Navigate to /admin/waitlist</step>
+    <step n="64.2">Verify waitlist page loads</step>
+    <step n="64.3">TEST REFRESH: Reload page</step>
+    <step n="64.4">TEST BACK: Browser back navigation</step>
+    <step n="64.5">TEST Waitlist entries table</step>
+    <step n="64.6">TEST Search/filter input</step>
+    <step n="64.7">TEST Invite button (for waitlist entry)</step>
+    <step n="64.8">TEST Remove button</step>
+    <step n="64.9">TEST Export waitlist button</step>
+    <step n="64.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 65: ADMIN WHITELIST (/admin/whitelist) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="65.1">Navigate to /admin/whitelist</step>
+    <step n="65.2">Verify whitelist page loads</step>
+    <step n="65.3">TEST REFRESH: Reload page</step>
+    <step n="65.4">TEST BACK: Browser back navigation</step>
+    <step n="65.5">TEST Whitelist entries table</step>
+    <step n="65.6">TEST Add entry button</step>
+    <step n="65.7">TEST Email/domain input</step>
+    <step n="65.8">TEST Remove entry button</step>
+    <step n="65.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 66: ADMIN TERMS (/admin/terms, /admin/terms/consents) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="66.1">Navigate to /admin/terms</step>
+    <step n="66.2">Verify terms admin page loads</step>
+    <step n="66.3">TEST REFRESH: Reload page</step>
+    <step n="66.4">TEST Terms version list</step>
+    <step n="66.5">TEST Create new version button</step>
+    <step n="66.6">TEST Version comparison (if available)</step>
+    <step n="66.7">Navigate to /admin/terms/consents</step>
+    <step n="66.8">Verify consents tracking page loads</step>
+    <step n="66.9">TEST Consent stats display</step>
+    <step n="66.10">TEST User consent list</step>
+    <step n="66.11">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 67: ADMIN TOGGLES (/admin/toggles) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="67.1">Navigate to /admin/toggles</step>
+    <step n="67.2">Verify feature toggles page loads</step>
+    <step n="67.3">TEST REFRESH: Reload page</step>
+    <step n="67.4">TEST BACK: Browser back navigation</step>
+    <step n="67.5">TEST Feature toggle switches (on/off)</step>
+    <step n="67.6">TEST Toggle percentage rollout (if applicable)</step>
+    <step n="67.7">TEST Toggle user targeting</step>
+    <step n="67.8">TEST Save toggles button</step>
+    <step n="67.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 68: ADMIN EXPERIMENTS (/admin/experiments) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="68.1">Navigate to /admin/experiments</step>
+    <step n="68.2">Verify experiments page loads</step>
+    <step n="68.3">TEST REFRESH: Reload page</step>
+    <step n="68.4">TEST BACK: Browser back navigation</step>
+    <step n="68.5">TEST Experiment list table</step>
+    <step n="68.6">TEST Create experiment button</step>
+    <step n="68.7">TEST Experiment details panel</step>
+    <step n="68.8">TEST Start/Stop experiment button</step>
+    <step n="68.9">TEST Results/metrics display</step>
+    <step n="68.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 69: ADMIN PROMOTIONS (/admin/promotions) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="69.1">Navigate to /admin/promotions</step>
+    <step n="69.2">Verify promotions page loads</step>
+    <step n="69.3">TEST REFRESH: Reload page</step>
+    <step n="69.4">TEST BACK: Browser back navigation</step>
+    <step n="69.5">TEST Promotion list table</step>
+    <step n="69.6">TEST Create promotion button</step>
+    <step n="69.7">TEST Promotion code input</step>
+    <step n="69.8">TEST Discount settings</step>
+    <step n="69.9">TEST Activate/deactivate button</step>
+    <step n="69.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 70: ADMIN OPS (/admin/ops) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="70.1">Navigate to /admin/ops</step>
+    <step n="70.2">Verify ops page loads</step>
+    <step n="70.3">TEST REFRESH: Reload page</step>
+    <step n="70.4">TEST BACK: Browser back navigation</step>
+    <step n="70.5">TEST System health indicators</step>
+    <step n="70.6">TEST Queue status display</step>
+    <step n="70.7">TEST Clear cache button (with caution)</step>
+    <step n="70.8">TEST Maintenance mode toggle (view only)</step>
+    <step n="70.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 71: ADMIN COLLATERAL (/admin/collateral) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="71.1">Navigate to /admin/collateral</step>
+    <step n="71.2">Verify collateral page loads</step>
+    <step n="71.3">TEST REFRESH: Reload page</step>
+    <step n="71.4">TEST BACK: Browser back navigation</step>
+    <step n="71.5">TEST Asset list display</step>
+    <step n="71.6">TEST Upload asset button</step>
+    <step n="71.7">TEST Asset preview</step>
+    <step n="71.8">TEST Delete asset button</step>
+    <step n="71.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 72: ADMIN EMBEDDINGS (/admin/embeddings) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="72.1">Navigate to /admin/embeddings</step>
+    <step n="72.2">Verify embeddings page loads</step>
+    <step n="72.3">TEST REFRESH: Reload page</step>
+    <step n="72.4">TEST BACK: Browser back navigation</step>
+    <step n="72.5">TEST Embedding stats display</step>
+    <step n="72.6">TEST Reindex button (with caution)</step>
+    <step n="72.7">TEST Status indicators</step>
+    <step n="72.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 73: ADMIN LANDING ANALYTICS (/admin/landing-analytics) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="73.1">Navigate to /admin/landing-analytics</step>
+    <step n="73.2">Verify landing analytics page loads</step>
+    <step n="73.3">TEST REFRESH: Reload page</step>
+    <step n="73.4">TEST BACK: Browser back navigation</step>
+    <step n="73.5">TEST Date range selector</step>
+    <step n="73.6">TEST Conversion funnel chart</step>
+    <step n="73.7">TEST Traffic source breakdown</step>
+    <step n="73.8">TEST A/B test results (if any)</step>
+    <step n="73.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 74: ADMIN KILL HISTORY (/admin/kill-history) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="74.1">Navigate to /admin/kill-history</step>
+    <step n="74.2">Verify kill history page loads</step>
+    <step n="74.3">TEST REFRESH: Reload page</step>
+    <step n="74.4">TEST BACK: Browser back navigation</step>
+    <step n="74.5">TEST Kill events list</step>
+    <step n="74.6">TEST Filter by date</step>
+    <step n="74.7">TEST Filter by reason</step>
+    <step n="74.8">TEST Event details expansion</step>
+    <step n="74.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 75: CLEANUP & FINAL CHECKS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="75.1">Delete test dataset if created</step>
+    <step n="75.2">Delete test project if created</step>
+    <step n="75.3">Delete test competitor if created</step>
+    <step n="75.4">Revoke test share link if created</step>
+    <step n="75.5">Revoke test invite if created</step>
+    <step n="75.6">Final console error check across all pages</step>
+    <step n="75.7">Final network error check</step>
+    <step n="75.8">Close browser</step>
   </scenario>
 
   <element_coverage_matrix>
-    Track pass/fail/skip for EVERY element type per page (~500+ steps total):
+    Track pass/fail/skip for EVERY element type per page (~700+ steps total):
 
     PUBLIC PAGES (Landing, About, Features, Pricing, Blog, Legal, Status):
     - Page loads: 8 pages
@@ -1043,6 +1369,19 @@
     - Charts: 5+ chart interactions
     - Drag-drop: 2 Kanban boards
     - Real-time: 3 streaming interfaces
+
+    ADMIN PAGES (Dashboard through Kill History):
+    - Page loads: 22 pages
+    - Refresh tests: 22 pages
+    - Back navigation: 22 pages
+    - Tables: 20+ sortable/filterable tables
+    - Buttons: 100+ action buttons
+    - Toggles: 30+ toggle switches
+    - Dropdowns: 25+ filter dropdowns
+    - Modals: 15+ confirm dialogs
+    - Charts: 10+ analytics charts
+    - Forms: 15+ admin forms
+    - Inputs: 50+ admin inputs
 
     GLOBAL ELEMENTS:
     - Navigation: 15+ links

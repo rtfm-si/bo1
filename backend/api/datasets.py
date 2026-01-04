@@ -645,10 +645,14 @@ async def get_dataset_insights(
     # Get profiles
     profiles = dataset_repository.get_profiles(dataset_id)
     if not profiles:
-        raise http_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Dataset not profiled. Generate a profile first.",
-            status=422,
+        # Return empty response with message instead of error
+        return DatasetInsightsResponse(
+            insights=None,
+            generated_at=datetime.now(UTC).isoformat(),
+            model_used="none",
+            tokens_used=0,
+            cached=False,
+            message="Dataset not profiled yet. Click 'Generate Profile' to analyze this dataset first.",
         )
 
     # Build profile dict for insight generator

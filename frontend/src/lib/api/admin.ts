@@ -1908,6 +1908,16 @@ export interface InternalCostItem {
 	output_tokens: number;
 }
 
+export interface FeatureCostItem {
+	feature: string;
+	provider: string;
+	total_cost: number;
+	request_count: number;
+	input_tokens: number;
+	output_tokens: number;
+	user_count: number;
+}
+
 export interface InternalCostsByPeriod {
 	today: number;
 	week: number;
@@ -1918,6 +1928,8 @@ export interface InternalCostsByPeriod {
 export interface InternalCostsResponse {
 	seo: InternalCostItem[];
 	system: InternalCostItem[];
+	data_analysis: FeatureCostItem[];
+	mentor_chat: FeatureCostItem[];
 	by_period: InternalCostsByPeriod;
 	total_usd: number;
 	total_requests: number;

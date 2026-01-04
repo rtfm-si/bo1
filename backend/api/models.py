@@ -4477,8 +4477,13 @@ class DatasetInsights(BaseModel):
 class DatasetInsightsResponse(BaseModel):
     """API response wrapper for insights."""
 
-    insights: DatasetInsights
+    insights: DatasetInsights | None = Field(
+        None, description="Insights data, or null if not yet available"
+    )
     generated_at: str
     model_used: str
     tokens_used: int
     cached: bool = False
+    message: str | None = Field(
+        None, description="Status message (e.g., when insights unavailable)"
+    )

@@ -16,7 +16,7 @@
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Error codes from backend for specific handling
-	type ContextErrorCode = 'API_CONTEXT_MISSING' | 'API_INDUSTRY_NOT_SET' | null;
+	type ContextErrorCode = 'API_CONTEXT_MISSING' | 'API_INDUSTRY_NOT_SET' | 'API_NOT_FOUND' | null;
 
 	// State
 	let consent = $state<PeerBenchmarkConsentStatus | null>(null);
@@ -35,7 +35,7 @@
 	function extractErrorCode(e: unknown): ContextErrorCode {
 		if (e && typeof e === 'object' && 'error_code' in e) {
 			const code = (e as ApiError).error_code;
-			if (code === 'API_CONTEXT_MISSING' || code === 'API_INDUSTRY_NOT_SET') {
+			if (code === 'API_CONTEXT_MISSING' || code === 'API_INDUSTRY_NOT_SET' || code === 'API_NOT_FOUND') {
 				return code;
 			}
 		}
@@ -127,6 +127,36 @@
 		if (percentile >= 50) return 'Above median';
 		if (percentile >= 25) return 'Below median';
 		return 'Bottom 25%';
+	}
+
+	function getSourceBadge(source: string | undefined): { label: string; color: string; description: string } {
+		switch (source) {
+			case 'industry_research':
+				return {
+					label: 'Industry Research',
+					color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+					description: 'Benchmark data sourced from industry research and reports'
+				};
+			case 'similar_industry':
+				return {
+					label: 'Similar Industry',
+					color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+					description: 'Benchmarks from a similar industry (no exact match found)'
+				};
+			default:
+				return {
+					label: 'Peer Data',
+					color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+					description: 'Anonymized data from opted-in peers in your industry'
+				};
+		}
+	}
+
+	function formatConfidence(confidence: number | null | undefined): string {
+		if (confidence === null || confidence === undefined) return '';
+		if (confidence >= 0.8) return 'High confidence';
+		if (confidence >= 0.5) return 'Medium confidence';
+		return 'Low confidence';
 	}
 </script>
 
@@ -285,7 +315,7 @@
 					with your company information.
 				</p>
 			</Alert>
-		{:else if errorCode === 'API_INDUSTRY_NOT_SET' || !benchmarks}
+		{:else if errorCode === 'API_INDUSTRY_NOT_SET'}
 			<Alert variant="warning">
 				<p>
 					<strong>Select an industry.</strong> Please update your
@@ -293,23 +323,78 @@
 					to select an industry and see peer comparisons.
 				</p>
 			</Alert>
+		{:else if errorCode === 'API_NOT_FOUND' || !benchmarks}
+			<Alert variant="info">
+				<p>
+					<strong>No peer data available yet.</strong> Peer benchmarks require multiple users in your industry to opt in.
+					As more users join and share their anonymized metrics, you'll be able to see how you compare.
+					{#if consent?.consented}
+						Thank you for opting in — you're helping build valuable benchmarks for your industry!
+					{:else}
+						<button type="button" class="font-medium underline text-brand-600 dark:text-brand-400" onclick={toggleConsent}>Opt in now</button> to be among the first in your industry.
+					{/if}
+				</p>
+			</Alert>
 		{:else}
 			<!-- Industry Header -->
-			<div class="flex items-center justify-between">
+			{@const sourceBadge = getSourceBadge(benchmarks.source)}
+			<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 				<div>
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-						{benchmarks.industry} Benchmarks
-					</h2>
-					{#if benchmarks.updated_at}
-						<p class="text-xs text-neutral-400 dark:text-neutral-500">
-							Last updated: {new Date(benchmarks.updated_at).toLocaleDateString()}
+					<div class="flex items-center gap-2 mb-1">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+							{benchmarks.industry} Benchmarks
+						</h2>
+						<span class={`text-xs px-2 py-0.5 rounded-full ${sourceBadge.color}`}>
+							{sourceBadge.label}
+						</span>
+					</div>
+					<p class="text-xs text-neutral-400 dark:text-neutral-500">
+						{sourceBadge.description}
+						{#if benchmarks.updated_at}
+							• Updated {new Date(benchmarks.updated_at).toLocaleDateString()}
+						{/if}
+					</p>
+					{#if benchmarks.similar_industry}
+						<p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+							Based on: {benchmarks.similar_industry}
 						</p>
 					{/if}
 				</div>
-				<div class="text-sm text-neutral-500 dark:text-neutral-400">
-					Min {benchmarks.k_anonymity_threshold} peers for data
+				<div class="flex items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+					{#if benchmarks.confidence !== null && benchmarks.confidence !== undefined}
+						<span class="flex items-center gap-1">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							{formatConfidence(benchmarks.confidence)}
+						</span>
+					{/if}
+					{#if benchmarks.source === 'peer_data'}
+						<span>Min {benchmarks.k_anonymity_threshold} peers for data</span>
+					{/if}
 				</div>
 			</div>
+
+			<!-- Research Sources (if applicable) -->
+			{#if benchmarks.sources && benchmarks.sources.length > 0 && benchmarks.source !== 'peer_data'}
+				<details class="text-xs">
+					<summary class="text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300">
+						View {benchmarks.sources.length} research sources
+					</summary>
+					<ul class="mt-2 space-y-1 pl-4 text-neutral-400 dark:text-neutral-500">
+						{#each benchmarks.sources.slice(0, 5) as source}
+							<li class="truncate">
+								<a href={source} target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 underline">
+									{source}
+								</a>
+							</li>
+						{/each}
+						{#if benchmarks.sources.length > 5}
+							<li class="text-neutral-400">+{benchmarks.sources.length - 5} more</li>
+						{/if}
+					</ul>
+				</details>
+			{/if}
 
 			<!-- Metrics Grid -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -325,7 +410,7 @@
 									<span class="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 rounded-full">
 										Upgrade to unlock
 									</span>
-								{:else if metric.sample_count < 5}
+								{:else if benchmarks.source === 'peer_data' && metric.sample_count < 5}
 									<span class="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
 										Insufficient data
 									</span>
@@ -342,8 +427,8 @@
 										<span class="text-xs">Pro feature</span>
 									</div>
 								</div>
-							{:else if metric.sample_count < 5}
-								<!-- Insufficient Data State -->
+							{:else if benchmarks.source === 'peer_data' && metric.sample_count < 5}
+								<!-- Insufficient Data State (peer data only) -->
 								<div class="h-24 flex items-center justify-center text-center">
 									<p class="text-sm text-neutral-400 dark:text-neutral-500">
 										Need {5 - metric.sample_count} more peers
@@ -400,10 +485,16 @@
 										{/if}
 									</div>
 
-									<!-- Sample Size -->
-									<p class="text-xs text-neutral-400 dark:text-neutral-500 text-right">
-										{metric.sample_count} peers
-									</p>
+									<!-- Sample Size (only for peer data) -->
+									{#if benchmarks.source === 'peer_data' && metric.sample_count > 0}
+										<p class="text-xs text-neutral-400 dark:text-neutral-500 text-right">
+											{metric.sample_count} peers
+										</p>
+									{:else if benchmarks.source !== 'peer_data'}
+										<p class="text-xs text-neutral-400 dark:text-neutral-500 text-right">
+											Industry research
+										</p>
+									{/if}
 								</div>
 							{/if}
 						</div>

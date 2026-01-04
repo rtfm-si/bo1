@@ -1616,6 +1616,14 @@ export interface PeerBenchmarksResponse {
 	metrics: PeerBenchmarkMetric[];
 	updated_at: string | null;
 	k_anonymity_threshold: number;
+	/** Data source type: peer_data, industry_research, or similar_industry */
+	source?: 'peer_data' | 'industry_research' | 'similar_industry';
+	/** Citation URLs for research-based data */
+	sources?: string[] | null;
+	/** Confidence score (0-1) for research data */
+	confidence?: number | null;
+	/** If source is similar_industry, the matched industry name */
+	similar_industry?: string | null;
 }
 
 /**

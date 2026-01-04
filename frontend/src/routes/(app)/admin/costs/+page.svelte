@@ -1194,6 +1194,98 @@
 						</table>
 					{/if}
 				</div>
+
+				<!-- Data Analysis Costs -->
+				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Data Analysis (Dataset Q&A)</h2>
+						<p class="text-sm text-neutral-500 mt-1">Costs for user dataset analysis and insights</p>
+					</div>
+					{#if internalCosts.data_analysis.length === 0}
+						<div class="p-8 text-center">
+							<p class="text-neutral-500">No data analysis costs recorded yet</p>
+						</div>
+					{:else}
+						<table class="w-full">
+							<thead class="bg-neutral-50 dark:bg-neutral-700">
+								<tr>
+									<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Provider</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Requests</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Users</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Tokens</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Cost</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+								{#each internalCosts.data_analysis as item}
+									<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-700/50">
+										<td class="px-6 py-4 text-sm font-medium text-neutral-900 dark:text-white capitalize">{item.provider}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">{item.request_count.toLocaleString()}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">{item.user_count.toLocaleString()}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">
+											{(item.input_tokens + item.output_tokens).toLocaleString()}
+										</td>
+										<td class="px-6 py-4 text-sm text-right font-medium text-neutral-900 dark:text-white">{formatCurrency(item.total_cost)}</td>
+									</tr>
+								{/each}
+							</tbody>
+							<tfoot class="bg-neutral-50 dark:bg-neutral-700">
+								<tr>
+									<td colspan="4" class="px-6 py-3 text-sm font-medium text-neutral-900 dark:text-white">Total Data Analysis Costs</td>
+									<td class="px-6 py-3 text-right text-sm font-semibold text-neutral-900 dark:text-white">
+										{formatCurrency(internalCosts.data_analysis.reduce((sum, item) => sum + item.total_cost, 0))}
+									</td>
+								</tr>
+							</tfoot>
+						</table>
+					{/if}
+				</div>
+
+				<!-- Mentor Chat Costs -->
+				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Mentor Chat</h2>
+						<p class="text-sm text-neutral-500 mt-1">Costs for AI mentor conversations</p>
+					</div>
+					{#if internalCosts.mentor_chat.length === 0}
+						<div class="p-8 text-center">
+							<p class="text-neutral-500">No mentor chat costs recorded yet</p>
+						</div>
+					{:else}
+						<table class="w-full">
+							<thead class="bg-neutral-50 dark:bg-neutral-700">
+								<tr>
+									<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Provider</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Requests</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Users</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Tokens</th>
+									<th class="px-6 py-3 text-right text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Cost</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+								{#each internalCosts.mentor_chat as item}
+									<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-700/50">
+										<td class="px-6 py-4 text-sm font-medium text-neutral-900 dark:text-white capitalize">{item.provider}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">{item.request_count.toLocaleString()}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">{item.user_count.toLocaleString()}</td>
+										<td class="px-6 py-4 text-sm text-right text-neutral-700 dark:text-neutral-300">
+											{(item.input_tokens + item.output_tokens).toLocaleString()}
+										</td>
+										<td class="px-6 py-4 text-sm text-right font-medium text-neutral-900 dark:text-white">{formatCurrency(item.total_cost)}</td>
+									</tr>
+								{/each}
+							</tbody>
+							<tfoot class="bg-neutral-50 dark:bg-neutral-700">
+								<tr>
+									<td colspan="4" class="px-6 py-3 text-sm font-medium text-neutral-900 dark:text-white">Total Mentor Chat Costs</td>
+									<td class="px-6 py-3 text-right text-sm font-semibold text-neutral-900 dark:text-white">
+										{formatCurrency(internalCosts.mentor_chat.reduce((sum, item) => sum + item.total_cost, 0))}
+									</td>
+								</tr>
+							</tfoot>
+						</table>
+					{/if}
+				</div>
 			</div>
 		{:else if activeTab === 'insights'}
 			<!-- Insights Tab -->

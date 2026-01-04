@@ -26,6 +26,7 @@ from backend.api.admin.models import (
     DailySummaryResponse,
     FeatureCostBreakdown,
     FeatureCostBreakdownResponse,
+    FeatureCostItem,
     FixedCostItem,
     FixedCostsResponse,
     HeavyUserItem,
@@ -910,7 +911,45 @@ async def get_internal_costs(
             )
             system_rows = cur.fetchall()
 
-            # Get period breakdown for all internal costs
+            # Get data analysis (dataset_qa) costs by feature
+            cur.execute(
+                """
+                SELECT
+                    feature,
+                    provider,
+                    COALESCE(SUM(total_cost), 0) as total_cost,
+                    COUNT(*) as request_count,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    COUNT(DISTINCT user_id) as user_count
+                FROM api_costs
+                WHERE feature = 'dataset_qa'
+                GROUP BY feature, provider
+                ORDER BY total_cost DESC
+                """
+            )
+            data_analysis_rows = cur.fetchall()
+
+            # Get mentor chat costs by feature
+            cur.execute(
+                """
+                SELECT
+                    feature,
+                    provider,
+                    COALESCE(SUM(total_cost), 0) as total_cost,
+                    COUNT(*) as request_count,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    COUNT(DISTINCT user_id) as user_count
+                FROM api_costs
+                WHERE feature = 'mentor_chat'
+                GROUP BY feature, provider
+                ORDER BY total_cost DESC
+                """
+            )
+            mentor_rows = cur.fetchall()
+
+            # Get period breakdown for all internal costs (includes feature costs)
             cur.execute(
                 """
                 SELECT
@@ -921,6 +960,7 @@ async def get_internal_costs(
                     COUNT(*) as total_requests
                 FROM api_costs
                 WHERE cost_category IN ('internal_seo', 'internal_system')
+                   OR feature IN ('dataset_qa', 'mentor_chat')
                 """,
                 (today, week_ago, month_ago),
             )
@@ -950,6 +990,32 @@ async def get_internal_costs(
         for r in system_rows
     ]
 
+    data_analysis = [
+        FeatureCostItem(
+            feature=r["feature"],
+            provider=r["provider"],
+            total_cost=float(r["total_cost"]),
+            request_count=r["request_count"],
+            input_tokens=r["input_tokens"],
+            output_tokens=r["output_tokens"],
+            user_count=r["user_count"],
+        )
+        for r in data_analysis_rows
+    ]
+
+    mentor_chat = [
+        FeatureCostItem(
+            feature=r["feature"],
+            provider=r["provider"],
+            total_cost=float(r["total_cost"]),
+            request_count=r["request_count"],
+            input_tokens=r["input_tokens"],
+            output_tokens=r["output_tokens"],
+            user_count=r["user_count"],
+        )
+        for r in mentor_rows
+    ]
+
     by_period = InternalCostsByPeriod(
         today=float(period_row["today"]),
         week=float(period_row["week"]),
@@ -957,12 +1023,19 @@ async def get_internal_costs(
         all_time=float(period_row["all_time"]),
     )
 
-    total_cost = sum(item.total_cost for item in seo) + sum(item.total_cost for item in system)
+    total_cost = (
+        sum(item.total_cost for item in seo)
+        + sum(item.total_cost for item in system)
+        + sum(item.total_cost for item in data_analysis)
+        + sum(item.total_cost for item in mentor_chat)
+    )
     total_requests = period_row["total_requests"] if period_row else 0
 
     return InternalCostsResponse(
         seo=seo,
         system=system,
+        data_analysis=data_analysis,
+        mentor_chat=mentor_chat,
         by_period=by_period,
         total_usd=total_cost,
         total_requests=total_requests,

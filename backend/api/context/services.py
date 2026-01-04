@@ -338,6 +338,7 @@ async def auto_save_competitors(
                 continue
 
             # Add to managed competitors with source tracking and enrichment data
+            # Use model_dump(mode="json") to ensure PostgreSQL JSONB compatibility
             managed.append(
                 {
                     "name": comp.name.strip(),
@@ -346,7 +347,7 @@ async def auto_save_competitors(
                     "added_at": now,
                     "source": source,
                     "relevance_score": comp.relevance_score,
-                    "relevance_flags": comp.relevance_flags.model_dump()
+                    "relevance_flags": comp.relevance_flags.model_dump(mode="json")
                     if comp.relevance_flags
                     else None,
                     "relevance_warning": comp.relevance_warning,

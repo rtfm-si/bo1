@@ -1764,12 +1764,36 @@ class InternalCostsByPeriod(BaseModel):
     all_time: float = Field(0.0, description="All-time cost (USD)")
 
 
+class FeatureCostItem(BaseModel):
+    """Single feature cost entry (user-facing features like mentor, dataset analysis).
+
+    Attributes:
+        feature: Feature name (mentor_chat, dataset_qa, etc.)
+        provider: Provider name
+        total_cost: Total cost in USD
+        request_count: Number of API calls
+        input_tokens: Total input tokens
+        output_tokens: Total output tokens
+        user_count: Number of unique users
+    """
+
+    feature: str = Field(..., description="Feature name")
+    provider: str = Field(..., description="Provider name")
+    total_cost: float = Field(..., description="Total cost in USD")
+    request_count: int = Field(..., description="Number of requests")
+    input_tokens: int = Field(0, description="Total input tokens")
+    output_tokens: int = Field(0, description="Total output tokens")
+    user_count: int = Field(0, description="Number of unique users")
+
+
 class InternalCostsResponse(BaseModel):
     """Response model for internal costs endpoint.
 
     Attributes:
         seo: SEO-related internal costs breakdown
         system: System/background job costs breakdown
+        data_analysis: Data analysis (dataset_qa) costs breakdown
+        mentor_chat: Mentor chat costs breakdown
         by_period: Costs aggregated by time period
         total_usd: Total internal costs
         total_requests: Total number of API requests
@@ -1777,6 +1801,12 @@ class InternalCostsResponse(BaseModel):
 
     seo: list[InternalCostItem] = Field(..., description="SEO costs breakdown")
     system: list[InternalCostItem] = Field(..., description="System costs breakdown")
+    data_analysis: list[FeatureCostItem] = Field(
+        default_factory=list, description="Data analysis costs breakdown"
+    )
+    mentor_chat: list[FeatureCostItem] = Field(
+        default_factory=list, description="Mentor chat costs breakdown"
+    )
     by_period: InternalCostsByPeriod = Field(..., description="Costs by period")
     total_usd: float = Field(..., description="Total internal costs (USD)")
     total_requests: int = Field(..., description="Total number of requests")

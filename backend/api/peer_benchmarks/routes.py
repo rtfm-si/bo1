@@ -10,6 +10,7 @@ Provides:
 
 import logging
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ from backend.api.middleware.rate_limit import PEER_BENCHMARKS_RATE_LIMIT, limite
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.services.industry_benchmark_researcher import IndustryBenchmarkResearcher
 from backend.services.peer_benchmarks import (
     K_ANONYMITY_THRESHOLD,
     check_user_context,
@@ -73,6 +75,15 @@ class PeerBenchmarksResponse(BaseModel):
     updated_at: datetime | None = Field(None, description="When aggregates were last updated")
     k_anonymity_threshold: int = Field(
         K_ANONYMITY_THRESHOLD, description="Minimum sample size for data"
+    )
+    # New fields for research-based benchmarks
+    source: Literal["peer_data", "industry_research", "similar_industry"] = Field(
+        "peer_data", description="Data source type"
+    )
+    sources: list[str] | None = Field(None, description="Citation URLs for research data")
+    confidence: float | None = Field(None, description="Confidence score (0-1) for research data")
+    similar_industry: str | None = Field(
+        None, description="If source is similar_industry, the matched industry"
     )
 
 
@@ -217,7 +228,8 @@ async def get_preview(
     if not result:
         raise http_error(
             ErrorCode.API_NOT_FOUND,
-            "Insufficient peer data for preview in your industry.",
+            "No peer benchmark data available for your industry yet. "
+            "As more users opt in, preview data will become available.",
             status=404,
         )
 
@@ -246,6 +258,8 @@ async def get_benchmarks(
 
     Returns percentile data (p10/p25/p50/p75/p90) for each metric.
     Metrics are tier-gated: free=3, starter=5, pro=unlimited.
+
+    Falls back to research-based benchmarks if no peer data available.
     """
     user_id = extract_user_id(current_user)
     tier = get_user_tier(user_id)
@@ -269,41 +283,120 @@ async def get_benchmarks(
     tier_config = PlanConfig.get_tier(tier)
     benchmark_limit = tier_config.peer_benchmarks_visible
 
+    # Step 1: Try peer data first
     result = get_peer_comparison(user_id)
+    has_peer_data = result and any(m.p50 is not None for m in result.metrics)
 
-    if not result:
-        raise http_error(
-            ErrorCode.API_NOT_FOUND,
-            "Failed to load peer benchmarks. Please try again.",
-            status=404,
-        )
+    if has_peer_data:
+        # Apply tier gating to peer data
+        metrics: list[PeerMetric] = []
+        for i, m in enumerate(result.metrics):
+            is_locked = benchmark_limit != -1 and i >= benchmark_limit
 
-    # Apply tier gating
-    metrics: list[PeerMetric] = []
-    for i, m in enumerate(result.metrics):
-        is_locked = benchmark_limit != -1 and i >= benchmark_limit
-
-        metrics.append(
-            PeerMetric(
-                metric=m.metric,
-                display_name=m.display_name,
-                p10=None if is_locked else m.p10,
-                p25=None if is_locked else m.p25,
-                p50=None if is_locked else m.p50,
-                p75=None if is_locked else m.p75,
-                p90=None if is_locked else m.p90,
-                sample_count=m.sample_count,
-                user_value=None if is_locked else m.user_value,
-                user_percentile=None if is_locked else m.user_percentile,
-                locked=is_locked,
+            metrics.append(
+                PeerMetric(
+                    metric=m.metric,
+                    display_name=m.display_name,
+                    p10=None if is_locked else m.p10,
+                    p25=None if is_locked else m.p25,
+                    p50=None if is_locked else m.p50,
+                    p75=None if is_locked else m.p75,
+                    p90=None if is_locked else m.p90,
+                    sample_count=m.sample_count,
+                    user_value=None if is_locked else m.user_value,
+                    user_percentile=None if is_locked else m.user_percentile,
+                    locked=is_locked,
+                )
             )
+
+        return PeerBenchmarksResponse(
+            industry=result.industry,
+            metrics=metrics,
+            updated_at=result.updated_at,
+            k_anonymity_threshold=K_ANONYMITY_THRESHOLD,
+            source="peer_data",
         )
 
-    return PeerBenchmarksResponse(
-        industry=result.industry,
-        metrics=metrics,
-        updated_at=result.updated_at,
-        k_anonymity_threshold=K_ANONYMITY_THRESHOLD,
+    # Step 2: Fallback to research-based benchmarks
+    logger.info(f"No peer data for {context_status.industry}, trying research fallback")
+    researcher = IndustryBenchmarkResearcher()
+
+    research_result = await researcher.get_or_research_benchmarks(context_status.industry)
+
+    if research_result and research_result.metrics:
+        # Convert research metrics to API format
+        metrics = []
+        for i, m in enumerate(research_result.metrics):
+            is_locked = benchmark_limit != -1 and i >= benchmark_limit
+
+            metrics.append(
+                PeerMetric(
+                    metric=m.metric,
+                    display_name=m.display_name,
+                    p10=None,  # Research data typically doesn't have p10/p90
+                    p25=None if is_locked else m.p25,
+                    p50=None if is_locked else m.p50,
+                    p75=None if is_locked else m.p75,
+                    p90=None,
+                    sample_count=0,  # No sample count for research data
+                    user_value=None,  # No user comparison for research data
+                    user_percentile=None,
+                    locked=is_locked,
+                )
+            )
+
+        return PeerBenchmarksResponse(
+            industry=research_result.industry,
+            metrics=metrics,
+            updated_at=research_result.generated_at,
+            k_anonymity_threshold=0,  # Not peer-based
+            source="industry_research",
+            sources=research_result.sources,
+            confidence=research_result.confidence,
+        )
+
+    # Step 3: Fallback to similar industry via embeddings
+    logger.info(f"No research data for {context_status.industry}, trying similar industry")
+    similar_result = await researcher.find_similar_industry(context_status.industry)
+
+    if similar_result and similar_result.metrics:
+        metrics = []
+        for i, m in enumerate(similar_result.metrics):
+            is_locked = benchmark_limit != -1 and i >= benchmark_limit
+
+            metrics.append(
+                PeerMetric(
+                    metric=m.metric,
+                    display_name=m.display_name,
+                    p10=None,
+                    p25=None if is_locked else m.p25,
+                    p50=None if is_locked else m.p50,
+                    p75=None if is_locked else m.p75,
+                    p90=None,
+                    sample_count=0,
+                    user_value=None,
+                    user_percentile=None,
+                    locked=is_locked,
+                )
+            )
+
+        return PeerBenchmarksResponse(
+            industry=similar_result.industry,
+            metrics=metrics,
+            updated_at=similar_result.generated_at,
+            k_anonymity_threshold=0,
+            source="similar_industry",
+            sources=similar_result.sources,
+            confidence=similar_result.confidence,
+            similar_industry=similar_result.similar_industry,
+        )
+
+    # No data available from any source
+    raise http_error(
+        ErrorCode.API_NOT_FOUND,
+        "No benchmark data available for your industry yet. "
+        "Try again later as we research industry benchmarks.",
+        status=404,
     )
 
 
@@ -345,7 +438,8 @@ async def get_comparison(
     if not result:
         raise http_error(
             ErrorCode.API_NOT_FOUND,
-            "Failed to load peer comparison. Please try again.",
+            "No peer benchmark data available for your industry yet. "
+            "As more users in your industry opt in, comparison data will become available.",
             status=404,
         )
 

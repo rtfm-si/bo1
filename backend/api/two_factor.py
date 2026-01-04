@@ -392,12 +392,25 @@ async def setup_two_factor(
     except HTTPException:
         raise
     except Exception as e:
+        error_msg = str(e)
         log_error(
             logger,
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Failed to setup 2FA for {user_id}: {e}",
             user_id=user_id,
         )
+        # Check for SuperTokens license error (TOTP/MFA requires paid tier)
+        if (
+            "402" in error_msg
+            or "not enabled" in error_msg.lower()
+            or "license" in error_msg.lower()
+        ):
+            raise http_error(
+                ErrorCode.API_FORBIDDEN,
+                "Two-factor authentication is not available on the current plan. "
+                "This feature requires a SuperTokens enterprise license.",
+                status=403,
+            ) from e
         raise http_error(
             ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to setup 2FA", status=500
         ) from e

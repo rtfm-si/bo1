@@ -679,20 +679,24 @@ async def get_tuning_recommendations(
 ) -> TuningRecommendationsResponse:
     """Get tuning recommendations based on recent metrics."""
     # Get 30-day metrics
-    stats = execute_query(
-        """
-        SELECT
-            COUNT(*) as total_requests,
-            COUNT(DISTINCT session_id) as total_sessions,
-            SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as cache_hit_rate,
-            SUM(total_cost) as total_cost,
-            SUM(COALESCE(cost_without_optimization, total_cost) - total_cost) as total_saved
-        FROM api_costs
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        """,
-        (),
-        fetch="one",
-    )
+    try:
+        stats = execute_query(
+            """
+            SELECT
+                COUNT(*) as total_requests,
+                COUNT(DISTINCT session_id) as total_sessions,
+                SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as cache_hit_rate,
+                SUM(total_cost) as total_cost,
+                SUM(COALESCE(cost_without_optimization, total_cost) - total_cost) as total_saved
+            FROM api_costs
+            WHERE created_at >= NOW() - INTERVAL '30 days'
+            """,
+            (),
+            fetch="one",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to get tuning recommendations stats: {e}")
+        stats = None
 
     recommendations = []
     total_requests = stats["total_requests"] or 0 if stats else 0
@@ -734,24 +738,28 @@ async def get_tuning_recommendations(
         )
 
     # Model mix recommendation
-    model_stats = execute_query(
-        """
-        SELECT
-            CASE
-                WHEN model_name ILIKE '%opus%' THEN 'opus'
-                WHEN model_name ILIKE '%sonnet%' THEN 'sonnet'
-                WHEN model_name ILIKE '%haiku%' THEN 'haiku'
-                ELSE 'other'
-            END as model_tier,
-            COUNT(*) as count,
-            SUM(total_cost) as cost
-        FROM api_costs
-        WHERE provider = 'anthropic'
-          AND created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY model_tier
-        """,
-        (),
-    )
+    try:
+        model_stats = execute_query(
+            """
+            SELECT
+                CASE
+                    WHEN model_name ILIKE '%opus%' THEN 'opus'
+                    WHEN model_name ILIKE '%sonnet%' THEN 'sonnet'
+                    WHEN model_name ILIKE '%haiku%' THEN 'haiku'
+                    ELSE 'other'
+                END as model_tier,
+                COUNT(*) as count,
+                SUM(total_cost) as cost
+            FROM api_costs
+            WHERE provider = 'anthropic'
+              AND created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY model_tier
+            """,
+            (),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to get model stats for tuning recommendations: {e}")
+        model_stats = []
 
     model_mix = {r["model_tier"]: r for r in model_stats}
     opus_pct = (
@@ -772,23 +780,27 @@ async def get_tuning_recommendations(
         )
 
     # Feature efficiency recommendation
-    feature_stats = execute_query(
-        """
-        SELECT
-            feature,
-            COUNT(*) as request_count,
-            SUM(total_cost) as total_cost,
-            AVG(total_cost) as avg_cost
-        FROM api_costs
-        WHERE feature IS NOT NULL
-          AND created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY feature
-        HAVING COUNT(*) > 100
-        ORDER BY AVG(total_cost) DESC
-        LIMIT 3
-        """,
-        (),
-    )
+    try:
+        feature_stats = execute_query(
+            """
+            SELECT
+                feature,
+                COUNT(*) as request_count,
+                SUM(total_cost) as total_cost,
+                AVG(total_cost) as avg_cost
+            FROM api_costs
+            WHERE feature IS NOT NULL
+              AND created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY feature
+            HAVING COUNT(*) > 100
+            ORDER BY AVG(total_cost) DESC
+            LIMIT 3
+            """,
+            (),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to get feature stats for tuning recommendations: {e}")
+        feature_stats = []
 
     for row in feature_stats:
         avg_cost = float(row["avg_cost"] or 0)

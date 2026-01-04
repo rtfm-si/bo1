@@ -1,58 +1,54 @@
-# Plan: Fix Feature Explorer Issues (Jan 4, 2026)
+# Plan: Dashboard Consolidation - Key Metrics + Research Headlines
 
 ## Summary
-Fix 5 issues identified in the Feature Explorer E2E test report.
 
-## Root Cause Analysis
-
-### ISS-004: Session Sharing 500 (Critical)
-**Cause:** `sessions.py` imports `SessionLocal` from `bo1.state.database` which no longer exists. Module was refactored to use `db_session()` context manager.
-**Fix:** Remove `SessionLocal` imports and rely on repository methods which already use `db_session()`.
-
-### ISS-001: 2FA Setup 403 (Major)
-**Cause:** SuperTokens TOTP/MFA requires paid license. Error: "MFA feature is not enabled. Please subscribe to a SuperTokens core license key."
-**Fix:** Update UI to indicate 2FA requires premium plan instead of showing enable button.
-
-### ISS-002: Dataset Insights 422 (Minor)
-**Cause:** Expected - returns 422 validation error when profiles don't exist.
-**Fix:** Already handled - frontend gracefully handles 422 with message.
-
-### ISS-003: Managed Competitors 503 (Minor)
-**Cause:** Transient service unavailability (connection pool exhaustion during load).
-**Fix:** Add retry logic and explicit timeout handling.
-
-### ISS-005: @mention No Context (Minor)
-**Cause:** Mentor prompt doesn't receive meeting context when @mention resolves to None.
-**Fix:** Add logging and improve error messaging when mention resolution fails.
+- Convert `/context/key-metrics` to redirect to `/context/metrics`
+- Update ValueMetricsPanel link from `/context/key-metrics` to `/context/metrics`
+- Redesign ResearchInsightsWidget as newspaper-style headlines (from scatter plot)
+- Populate insights from meetings, mentor conversations, and data analysis
 
 ## Implementation Steps
 
-### Step 1: Fix ISS-004 (Critical)
-Remove unused SessionLocal imports from sessions.py:
-- Lines 2055-2058: export_session
-- Lines 2154-2158: create_share
-- Lines 2221-2225: list_shares
-- Lines 2307-2311: revoke_share
+1. **Convert context/key-metrics to redirect**
+   - Replace full page content with redirect to `/context/metrics`
+   - Comment explaining consolidation
 
-The repository methods already handle database connections.
+2. **Update ValueMetricsPanel link**
+   - Change `/context/key-metrics` to `/context/metrics` (line 184-185)
 
-### Step 2: Fix ISS-001 (Major)
-Update Security settings page to check if 2FA is available via a new endpoint that returns the license status.
+3. **Create ResearchHeadlinesWidget**
+   - New component: `$lib/components/dashboard/ResearchHeadlinesWidget.svelte`
+   - Newspaper-style layout: headlines with taglines
+   - Source types: meetings (key takeaways), mentor (insights), analysis (findings)
+   - Clickable links to source (meeting/mentor/analysis)
+   - Empty state for no insights
+   - Loading skeleton
 
-### Step 3: Fix ISS-005 (Minor)
-Add logging to mention_resolver when meetings aren't found and improve mentor response.
+4. **Update dashboard to use ResearchHeadlinesWidget**
+   - Replace ResearchInsightsWidget with ResearchHeadlinesWidget
+   - Keep ResearchInsightsWidget file (may reuse scatter plot elsewhere)
+
+5. **Add API endpoint for research headlines**
+   - Create `/api/v1/context/research-headlines` endpoint
+   - Query: last 10 insights from sessions + mentor + analysis
+   - Return: headline, tagline, source_type, source_id, created_at
 
 ## Tests
 
-1. Test session sharing: Create share, list shares, revoke share
-2. Test 2FA status endpoint returns license info
-3. Verify @mention logs when resolution fails
+- Type check: `npm run check`
+- Manual validation:
+  - /context/key-metrics redirects to /context/metrics
+  - Dashboard ValueMetricsPanel "View all" links to /context/metrics
+  - Dashboard shows newspaper-style headlines
+  - Headlines link to their source correctly
+  - Empty state when no insights
 
 ## Dependencies & Risks
 
-### Dependencies
-- None - all fixes are self-contained
+- Dependencies:
+  - API needs new endpoint for headlines aggregation
+  - Existing session/mentor data structures
 
-### Risks/Edge Cases
-- ISS-001 requires UI change - might affect user expectations
-- ISS-004 might have other code paths using SessionLocal
+- Risks/edge cases:
+  - Large number of insights (limit to 10)
+  - Missing source links (graceful handling)

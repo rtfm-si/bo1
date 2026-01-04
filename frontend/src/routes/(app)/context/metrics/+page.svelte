@@ -4,10 +4,12 @@
 	 * Full implementation with API integration
 	 */
 	import { onMount } from 'svelte';
-	import { apiClient, type UserMetric, type MetricTemplate, type MetricCategory, type IndustryInsight } from '$lib/api/client';
+	import { apiClient, type UserMetric, type MetricTemplate, type MetricCategory } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { getCurrencySymbol } from '$lib/utils/currency';
 
 	// State
 	let metrics = $state<UserMetric[]>([]);
@@ -16,11 +18,6 @@
 	let error = $state<string | null>(null);
 	let savingMetric = $state<string | null>(null);
 	let saveSuccess = $state<string | null>(null);
-
-	// Industry insights state
-	let benchmarks = $state<IndustryInsight[]>([]);
-	let insightsIndustry = $state<string>('');
-	let isLoadingBenchmarks = $state(false);
 
 	// Edit state
 	let editingMetric = $state<string | null>(null);
@@ -84,7 +81,7 @@
 	});
 
 	onMount(async () => {
-		await Promise.all([loadMetrics(), loadBenchmarks()]);
+		await loadMetrics();
 	});
 
 	async function loadMetrics() {
@@ -100,21 +97,6 @@
 			console.error('Failed to load metrics:', e);
 		} finally {
 			isLoading = false;
-		}
-	}
-
-	async function loadBenchmarks() {
-		isLoadingBenchmarks = true;
-
-		try {
-			const response = await apiClient.getIndustryInsights('benchmark');
-			insightsIndustry = response.industry;
-			benchmarks = response.insights ?? [];
-		} catch (e) {
-			console.error('Failed to load benchmarks:', e);
-			// Don't show error - benchmarks are optional
-		} finally {
-			isLoadingBenchmarks = false;
 		}
 	}
 
@@ -173,9 +155,11 @@
 		const num = typeof value === 'number' ? value : parseFloat(String(value));
 		if (isNaN(num)) return '—';
 
+		const currencySymbol = getCurrencySymbol($preferredCurrency);
+
 		switch (unit) {
 			case '$':
-				return `$${num.toLocaleString()}`;
+				return `${currencySymbol}${num.toLocaleString()}`;
 			case '%':
 				return `${num}%`;
 			case 'months':
@@ -285,7 +269,7 @@
 										<!-- Edit Mode -->
 										<div class="flex items-center gap-2">
 											{#if metric.value_unit === '$'}
-												<span class="text-slate-400">$</span>
+												<span class="text-slate-400">{getCurrencySymbol($preferredCurrency)}</span>
 											{/if}
 											<input
 												type="number"
@@ -362,69 +346,19 @@
 			{/if}
 		{/each}
 
-		<!-- Industry Benchmarks Section -->
-		{#if benchmarks.length > 0}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<div class="flex items-center gap-3 mb-4">
-					<span class="text-2xl">📊</span>
-					<div>
-						<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-							Industry Benchmarks
-						</h3>
-						{#if insightsIndustry && insightsIndustry !== 'Unknown'}
-							<p class="text-sm text-slate-500 dark:text-slate-400">
-								Aggregated benchmarks for {insightsIndustry}
-							</p>
-						{/if}
-					</div>
-				</div>
-
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-					{#each benchmarks as benchmark}
-						{@const content = benchmark.content as { title: string; description: string; metric_name: string; metric_unit: string; p25?: number; p50?: number; p75?: number; sample_size?: number }}
-						<div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-							<p class="font-medium text-slate-900 dark:text-white text-sm mb-2">
-								{content.title}
-							</p>
-							<div class="space-y-1 text-sm">
-								{#if content.p50 !== undefined}
-									<div class="flex justify-between">
-										<span class="text-slate-500 dark:text-slate-400">Median:</span>
-										<span class="font-semibold text-brand-600 dark:text-brand-400">
-											{content.metric_unit === '$' ? '$' : ''}{content.p50}{content.metric_unit !== '$' ? content.metric_unit : ''}
-										</span>
-									</div>
-								{/if}
-								{#if content.p25 !== undefined && content.p75 !== undefined}
-									<div class="flex justify-between">
-										<span class="text-slate-500 dark:text-slate-400">Range (25-75%):</span>
-										<span class="text-slate-700 dark:text-slate-300">
-											{content.metric_unit === '$' ? '$' : ''}{content.p25} - {content.p75}{content.metric_unit !== '$' ? content.metric_unit : ''}
-										</span>
-									</div>
-								{/if}
-								{#if content.sample_size}
-									<p class="text-xs text-slate-400 dark:text-slate-500 mt-2">
-										Based on {content.sample_size} companies
-									</p>
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
-
-				<p class="text-xs text-slate-400 dark:text-slate-500 mt-4">
-					See <a href="/reports/benchmarks" class="text-brand-600 dark:text-brand-400 hover:underline">Reports &rarr; Benchmarks</a> for a personalized comparison showing where you stand versus your industry.
-				</p>
-			</div>
-		{:else if isLoadingBenchmarks}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<div class="flex items-center justify-center py-4">
-					<div class="animate-spin h-6 w-6 border-4 border-brand-600 border-t-transparent rounded-full"></div>
-					<span class="ml-3 text-slate-500 dark:text-slate-400">Loading benchmarks...</span>
+		<!-- Industry Benchmarks Link -->
+		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				<span class="text-xl">📊</span>
+				<div>
+					<p class="font-medium text-slate-900 dark:text-white">Industry Benchmarks</p>
+					<p class="text-sm text-slate-500 dark:text-slate-400">Compare your metrics against industry standards</p>
 				</div>
 			</div>
-		{/if}
+			<a href="/reports/benchmarks" class="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline">
+				View Benchmarks →
+			</a>
+		</div>
 
 		<!-- Info Box -->
 		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

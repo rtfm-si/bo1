@@ -174,6 +174,7 @@
 
 	function handleClose() {
 		if (!isCreating) {
+			open = false;
 			onclose?.();
 		}
 	}

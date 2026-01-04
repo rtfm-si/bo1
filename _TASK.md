@@ -136,6 +136,12 @@ _Last updated: 2026-01-04_
 
 ### January 2026 (Week of 01/02)
 
+**Navigation Consolidation - Board Menu**: Unified `/mentor` page with tabs (Chat, Analysis, Data Sources). Consolidated datasets upload, Google Sheets import, analysis chat, and mentor chat into single tabbed interface. Updated Header.svelte navigation. Added redirects from old `/datasets` and `/analysis` routes.
+
+**Navigation Consolidation - Context Menu**: Merged strategic content into context/overview (GoalHistory component + quick links). Created `/reports/trends` page for trend data (TrendSummaryCard, Market Trends, Trend Insights). Simplified context/metrics (removed inline benchmarks, added link to reports/benchmarks). Converted `/context/strategic` to redirect. Updated Header navigation (removed strategic/key-metrics from Context, added Trends to Reports).
+
+**Navigation Consolidation - Dashboard**: Converted `/context/key-metrics` to redirect to `/context/metrics`. Updated ValueMetricsPanel links. Created ResearchHeadlinesWidget with newspaper-style layout (headlines, taglines, category badges, links to source meetings). Replaced scatter plot visualization with actionable research insights.
+
 **Insight-to-Metrics Migration**: Auto-sync clarification insights to business_metrics table. Migration script for historical data. `CATEGORY_TO_METRIC_KEY` mapping. Hooks in routes.py and control.py for ongoing sync.
 
 **2FA Authentication**: Full TOTP 2FA with backup codes, rate limiting (5 attempts → 15min lockout), `/settings/security` UI, QR setup flow.
@@ -189,6 +195,30 @@ _Last updated: 2026-01-04_
 **Infrastructure**: Blue-green deploy, PostgreSQL backups, Prometheus/Grafana/Loki.
 
 **LLM Optimization**: Lean synthesis (30-60% cost reduction), Haiku to round 3, persona context 6→3.
+
+---
+
+## Navigation Consolidation (from _TODO.md, 2026-01-04)
+
+### P1 - Board Menu Consolidation (COMPLETED 2026-01-04)
+
+- [x] [UI][P1] Consolidate datasets, analysis, mentor pages into single "Mentor" page under Board menu - unified page with Chat/Analysis/Data Sources tabs (2026-01-04)
+- [x] [UI][P1] Ensure data loading capability works in consolidated Mentor page - CSV upload + Google Sheets import in Data Sources tab (2026-01-04)
+- [x] [UI][P1] Ensure data analysis capability works in consolidated Mentor page - AnalysisChat component in Analysis tab (2026-01-04)
+- [x] [UI][P1] Audit and remove duplicate features across datasets/analysis/mentor during consolidation - all features consolidated, old routes redirect (2026-01-04)
+
+### P1 - Context Menu Consolidation (COMPLETED 2026-01-04)
+
+- [x] [UI][P1] Merge context/strategic page content into context/overview page - added GoalHistory component + quick links, converted strategic to redirect (2026-01-04)
+- [x] [UI][P1] Create new reports/trends page for trend-type data from strategic page - created trends page with TrendSummaryCard, Market Trends, Trend Insights (2026-01-04)
+- [x] [UI][P1] Move competitor-type data from strategic to existing reports/competitors page - competitors already in reports, quick link added to overview (2026-01-04)
+- [x] [UI][P1] Move industry benchmarks from context/metrics to reports/benchmarks - removed inline display, kept simple link to reports/benchmarks (2026-01-04)
+
+### P1 - Dashboard Consolidation (COMPLETED 2026-01-04)
+
+- [x] [UI][P1] Remove key-metrics from context menu and integrate into dashboard key metrics section - converted /context/key-metrics to redirect, updated ValueMetricsPanel links to /context/metrics (2026-01-04)
+- [x] [UI][P1] Populate dashboard research section with insights from meetings/mentor/data analysis - created ResearchHeadlinesWidget using existing getInsights() API (2026-01-04)
+- [x] [UI][P1] Display research insights as newspaper-style headlines with concise taglines and links - newspaper-style layout with category badges, clickable links to source meetings (2026-01-04)
 
 ---
 

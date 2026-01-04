@@ -24,8 +24,6 @@
 		{ href: '/meeting', label: 'Meetings' },
 		{ href: '/actions', label: 'Actions' },
 		{ href: '/projects', label: 'Projects' },
-		{ href: '/datasets', label: 'Datasets' },
-		{ href: '/analysis', label: 'Analysis' },
 		{ href: '/mentor', label: 'Mentor' },
 		{ href: '/seo', label: 'SEO Tools' },
 	];
@@ -34,8 +32,6 @@
 	const contextLinks = [
 		{ href: '/context/overview', label: 'Overview' },
 		{ href: '/context/metrics', label: 'Metrics' },
-		{ href: '/context/key-metrics', label: 'Key Metrics' },
-		{ href: '/context/strategic', label: 'Strategic' },
 		{ href: '/context/insights', label: 'Insights' },
 		{ href: '/context/peer-benchmarks', label: 'Peer Benchmarks' },
 	];
@@ -45,6 +41,7 @@
 		{ href: '/reports/meetings', label: 'Meetings' },
 		{ href: '/reports/competitors', label: 'Competitors' },
 		{ href: '/reports/benchmarks', label: 'Benchmarks' },
+		{ href: '/reports/trends', label: 'Trends' },
 	];
 
 	// Props

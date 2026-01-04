@@ -181,7 +181,7 @@
 			{/if}
 		</div>
 		<a
-			href="/context/key-metrics"
+			href="/context/metrics"
 			class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors flex items-center gap-1"
 		>
 			View all
@@ -222,7 +222,7 @@
 				Configure your key metrics to see trends, industry comparisons, and focus areas at a glance.
 			</p>
 			<a
-				href="/context/key-metrics"
+				href="/context/metrics"
 				class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
 			>
 				<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

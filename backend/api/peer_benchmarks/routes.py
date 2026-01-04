@@ -321,7 +321,11 @@ async def get_benchmarks(
     logger.info(f"No peer data for {context_status.industry}, trying research fallback")
     researcher = IndustryBenchmarkResearcher()
 
-    research_result = await researcher.get_or_research_benchmarks(context_status.industry)
+    try:
+        research_result = await researcher.get_or_research_benchmarks(context_status.industry)
+    except Exception as e:
+        logger.warning(f"Research benchmark lookup failed for {context_status.industry}: {e}")
+        research_result = None
 
     if research_result and research_result.metrics:
         # Convert research metrics to API format
@@ -357,7 +361,11 @@ async def get_benchmarks(
 
     # Step 3: Fallback to similar industry via embeddings
     logger.info(f"No research data for {context_status.industry}, trying similar industry")
-    similar_result = await researcher.find_similar_industry(context_status.industry)
+    try:
+        similar_result = await researcher.find_similar_industry(context_status.industry)
+    except Exception as e:
+        logger.warning(f"Similar industry lookup failed for {context_status.industry}: {e}")
+        similar_result = None
 
     if similar_result and similar_result.metrics:
         metrics = []

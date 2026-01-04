@@ -295,11 +295,10 @@ def seed_default_fixed_costs() -> list[FixedCost]:
                 return []
 
     # Default infrastructure costs
+    # Note: Managed Redis and PostgreSQL Pro removed - using Vercel KV/Neon free tiers
     defaults = [
         ("digitalocean", "Droplet s-2vcpu-4gb-intel", Decimal("28.00"), "compute"),
         ("digitalocean", "Spaces 250GB", Decimal("5.00"), "storage"),
-        ("digitalocean", "Managed Redis 2GB", Decimal("15.00"), "database"),
-        ("neon", "PostgreSQL Pro", Decimal("0.00"), "database"),
         ("resend", "Email (Pro tier)", Decimal("20.00"), "email"),
     ]
 

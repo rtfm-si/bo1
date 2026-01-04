@@ -135,7 +135,8 @@
 		}
 	}
 
-	function formatPercent(value: number): string {
+	function formatPercent(value: number | null | undefined): string {
+		if (value == null) return '0.0%';
 		return `${(value * 100).toFixed(1)}%`;
 	}
 
@@ -283,7 +284,8 @@
 		};
 	}
 
-	function formatCurrency(value: number): string {
+	function formatCurrency(value: number | null | undefined): string {
+		if (value == null) return '$0.00';
 		return `$${value.toFixed(2)}`;
 	}
 

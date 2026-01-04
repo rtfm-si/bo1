@@ -30,7 +30,6 @@
 			title: 'Account',
 			items: [
 				{ href: '/settings/account', label: 'Profile', icon: '👤' },
-				{ href: '/settings/security', label: 'Security', icon: '🔐' },
 				{ href: '/settings/privacy', label: 'Privacy', icon: '🔒' },
 				{ href: '/settings/workspace', label: 'Workspace', icon: '🏢' }
 			]

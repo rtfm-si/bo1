@@ -21,7 +21,7 @@
 	import WeeklyPlanView from '$lib/components/dashboard/WeeklyPlanView.svelte';
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import RecentMeetingsWidget from '$lib/components/dashboard/RecentMeetingsWidget.svelte';
-	import ResearchInsightsWidget from '$lib/components/dashboard/ResearchInsightsWidget.svelte';
+	import ResearchHeadlinesWidget from '$lib/components/dashboard/ResearchHeadlinesWidget.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
@@ -498,9 +498,9 @@
 			<ValueMetricsPanel />
 		</div>
 
-		<!-- Research Insights Widget -->
+		<!-- Research Headlines Widget -->
 		<div class="mb-8">
-			<ResearchInsightsWidget />
+			<ResearchHeadlinesWidget />
 		</div>
 
 		<!-- Recent Meetings Widget -->

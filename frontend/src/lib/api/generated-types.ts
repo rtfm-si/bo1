@@ -7021,6 +7021,8 @@ export interface paths {
          *
          *     Returns percentile data (p10/p25/p50/p75/p90) for each metric.
          *     Metrics are tier-gated: free=3, starter=5, pro=unlimited.
+         *
+         *     Falls back to research-based benchmarks if no peer data available.
          */
         get: operations["get_benchmarks_api_v1_peer_benchmarks_get"];
         put?: never;
@@ -16522,7 +16524,13 @@ export interface components {
             cached: boolean;
             /** Generated At */
             generated_at: string;
-            insights: components["schemas"]["DatasetInsights"];
+            /** @description Insights data, or null if not yet available */
+            insights?: components["schemas"]["DatasetInsights"] | null;
+            /**
+             * Message
+             * @description Status message (e.g., when insights unavailable)
+             */
+            message?: string | null;
             /** Model Used */
             model_used: string;
             /** Tokens Used */
@@ -18033,6 +18041,59 @@ export interface components {
              * @description Total cost across all features (USD)
              */
             total_cost: number;
+        };
+        /**
+         * FeatureCostItem
+         * @description Single feature cost entry (user-facing features like mentor, dataset analysis).
+         *
+         *     Attributes:
+         *         feature: Feature name (mentor_chat, dataset_qa, etc.)
+         *         provider: Provider name
+         *         total_cost: Total cost in USD
+         *         request_count: Number of API calls
+         *         input_tokens: Total input tokens
+         *         output_tokens: Total output tokens
+         *         user_count: Number of unique users
+         */
+        FeatureCostItem: {
+            /**
+             * Feature
+             * @description Feature name
+             */
+            feature: string;
+            /**
+             * Input Tokens
+             * @description Total input tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @description Total output tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Provider
+             * @description Provider name
+             */
+            provider: string;
+            /**
+             * Request Count
+             * @description Number of requests
+             */
+            request_count: number;
+            /**
+             * Total Cost
+             * @description Total cost in USD
+             */
+            total_cost: number;
+            /**
+             * User Count
+             * @description Number of unique users
+             * @default 0
+             */
+            user_count: number;
         };
         /**
          * FeatureEfficiencyItem
@@ -19939,6 +20000,8 @@ export interface components {
          *     Attributes:
          *         seo: SEO-related internal costs breakdown
          *         system: System/background job costs breakdown
+         *         data_analysis: Data analysis (dataset_qa) costs breakdown
+         *         mentor_chat: Mentor chat costs breakdown
          *         by_period: Costs aggregated by time period
          *         total_usd: Total internal costs
          *         total_requests: Total number of API requests
@@ -19946,6 +20009,16 @@ export interface components {
         InternalCostsResponse: {
             /** @description Costs by period */
             by_period: components["schemas"]["InternalCostsByPeriod"];
+            /**
+             * Data Analysis
+             * @description Data analysis costs breakdown
+             */
+            data_analysis?: components["schemas"]["FeatureCostItem"][];
+            /**
+             * Mentor Chat
+             * @description Mentor chat costs breakdown
+             */
+            mentor_chat?: components["schemas"]["FeatureCostItem"][];
             /**
              * Seo
              * @description SEO costs breakdown
@@ -22135,6 +22208,11 @@ export interface components {
          */
         PeerBenchmarksResponse: {
             /**
+             * Confidence
+             * @description Confidence score (0-1) for research data
+             */
+            confidence?: number | null;
+            /**
              * Industry
              * @description Industry segment
              */
@@ -22150,6 +22228,23 @@ export interface components {
              * @description Benchmark metrics
              */
             metrics?: components["schemas"]["PeerMetric"][];
+            /**
+             * Similar Industry
+             * @description If source is similar_industry, the matched industry
+             */
+            similar_industry?: string | null;
+            /**
+             * Source
+             * @description Data source type
+             * @default peer_data
+             * @enum {string}
+             */
+            source: "peer_data" | "industry_research" | "similar_industry";
+            /**
+             * Sources
+             * @description Citation URLs for research data
+             */
+            sources?: string[] | null;
             /**
              * Updated At
              * @description When aggregates were last updated

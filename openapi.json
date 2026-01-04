@@ -9740,7 +9740,27 @@
             "type": "string"
           },
           "insights": {
-            "$ref": "#/components/schemas/DatasetInsights"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetInsights"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Insights data, or null if not yet available"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status message (e.g., when insights unavailable)",
+            "title": "Message"
           },
           "model_used": {
             "title": "Model Used",
@@ -9752,7 +9772,6 @@
           }
         },
         "required": [
-          "insights",
           "generated_at",
           "model_used",
           "tokens_used"
@@ -12072,6 +12091,57 @@
           "total_cost"
         ],
         "title": "FeatureCostBreakdownResponse",
+        "type": "object"
+      },
+      "FeatureCostItem": {
+        "description": "Single feature cost entry (user-facing features like mentor, dataset analysis).\n\nAttributes:\n    feature: Feature name (mentor_chat, dataset_qa, etc.)\n    provider: Provider name\n    total_cost: Total cost in USD\n    request_count: Number of API calls\n    input_tokens: Total input tokens\n    output_tokens: Total output tokens\n    user_count: Number of unique users",
+        "properties": {
+          "feature": {
+            "description": "Feature name",
+            "title": "Feature",
+            "type": "string"
+          },
+          "input_tokens": {
+            "default": 0,
+            "description": "Total input tokens",
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "default": 0,
+            "description": "Total output tokens",
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Provider name",
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_count": {
+            "description": "Number of requests",
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "total_cost": {
+            "description": "Total cost in USD",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "user_count": {
+            "default": 0,
+            "description": "Number of unique users",
+            "title": "User Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feature",
+          "provider",
+          "total_cost",
+          "request_count"
+        ],
+        "title": "FeatureCostItem",
         "type": "object"
       },
       "FeatureEfficiencyItem": {
@@ -14604,11 +14674,27 @@
         "type": "object"
       },
       "InternalCostsResponse": {
-        "description": "Response model for internal costs endpoint.\n\nAttributes:\n    seo: SEO-related internal costs breakdown\n    system: System/background job costs breakdown\n    by_period: Costs aggregated by time period\n    total_usd: Total internal costs\n    total_requests: Total number of API requests",
+        "description": "Response model for internal costs endpoint.\n\nAttributes:\n    seo: SEO-related internal costs breakdown\n    system: System/background job costs breakdown\n    data_analysis: Data analysis (dataset_qa) costs breakdown\n    mentor_chat: Mentor chat costs breakdown\n    by_period: Costs aggregated by time period\n    total_usd: Total internal costs\n    total_requests: Total number of API requests",
         "properties": {
           "by_period": {
             "$ref": "#/components/schemas/InternalCostsByPeriod",
             "description": "Costs by period"
+          },
+          "data_analysis": {
+            "description": "Data analysis costs breakdown",
+            "items": {
+              "$ref": "#/components/schemas/FeatureCostItem"
+            },
+            "title": "Data Analysis",
+            "type": "array"
+          },
+          "mentor_chat": {
+            "description": "Mentor chat costs breakdown",
+            "items": {
+              "$ref": "#/components/schemas/FeatureCostItem"
+            },
+            "title": "Mentor Chat",
+            "type": "array"
           },
           "seo": {
             "description": "SEO costs breakdown",
@@ -18211,6 +18297,18 @@
       "PeerBenchmarksResponse": {
         "description": "Response containing peer benchmark data.",
         "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Confidence score (0-1) for research data",
+            "title": "Confidence"
+          },
           "industry": {
             "description": "Industry segment",
             "title": "Industry",
@@ -18229,6 +18327,44 @@
             },
             "title": "Metrics",
             "type": "array"
+          },
+          "similar_industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If source is similar_industry, the matched industry",
+            "title": "Similar Industry"
+          },
+          "source": {
+            "default": "peer_data",
+            "description": "Data source type",
+            "enum": [
+              "peer_data",
+              "industry_research",
+              "similar_industry"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Citation URLs for research data",
+            "title": "Sources"
           },
           "updated_at": {
             "anyOf": [
@@ -52549,7 +52685,7 @@
     },
     "/api/v1/peer-benchmarks": {
       "get": {
-        "description": "Get industry peer benchmarks for user's industry.\n\nReturns percentile data (p10/p25/p50/p75/p90) for each metric.\nMetrics are tier-gated: free=3, starter=5, pro=unlimited.",
+        "description": "Get industry peer benchmarks for user's industry.\n\nReturns percentile data (p10/p25/p50/p75/p90) for each metric.\nMetrics are tier-gated: free=3, starter=5, pro=unlimited.\n\nFalls back to research-based benchmarks if no peer data available.",
         "operationId": "get_benchmarks_api_v1_peer_benchmarks_get",
         "responses": {
           "200": {

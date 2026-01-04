@@ -28094,6 +28094,12 @@ export interface components {
          */
         TwoFactorStatusResponse: {
             /**
+             * Available
+             * @description Whether 2FA feature is available (requires license)
+             * @default true
+             */
+            available: boolean;
+            /**
              * Backup Codes Remaining
              * @description Number of unused backup codes
              * @default 0
@@ -28109,6 +28115,11 @@ export interface components {
              * @description When 2FA was enabled
              */
             enabled_at?: string | null;
+            /**
+             * Unavailable Reason
+             * @description Reason if 2FA is not available
+             */
+            unavailable_reason?: string | null;
         };
         /**
          * UnassignedCountResponse

@@ -26845,6 +26845,12 @@
       "TwoFactorStatusResponse": {
         "description": "2FA status for current user.",
         "properties": {
+          "available": {
+            "default": true,
+            "description": "Whether 2FA feature is available (requires license)",
+            "title": "Available",
+            "type": "boolean"
+          },
           "backup_codes_remaining": {
             "default": 0,
             "description": "Number of unused backup codes",
@@ -26868,6 +26874,18 @@
             ],
             "description": "When 2FA was enabled",
             "title": "Enabled At"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reason if 2FA is not available",
+            "title": "Unavailable Reason"
           }
         },
         "required": [

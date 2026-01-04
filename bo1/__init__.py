@@ -5,4 +5,4 @@ problems through structured decomposition, multi-perspective debate, and
 collaborative synthesis using AI personas.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.8.0"

@@ -1,6 +1,6 @@
 {
   "name": "board-of-one-frontend",
-  "version": "1.0.0",
+  "version": "0.8.0",
   "description": "Board of One Web UI - Multi-agent deliberation system",
   "private": true,
   "type": "module",

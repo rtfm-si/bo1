@@ -723,3 +723,31 @@ openapi-public: openapi-export ## Generate filtered public OpenAPI spec (exclude
 .PHONY: lint-datetime
 lint-datetime: ## Lint for raw .isoformat() calls in API response code
 	@docker-compose run --rm bo1 python scripts/lint_datetime.py --base /app
+
+# =============================================================================
+# Version Management Commands
+# =============================================================================
+
+.PHONY: version-show
+version-show: ## Show current app version
+	@cat VERSION
+
+.PHONY: version-check
+version-check: ## Verify all version files are in sync
+	@./scripts/bump-version.sh check
+
+.PHONY: version-sync
+version-sync: ## Sync VERSION to all version files
+	@./scripts/bump-version.sh sync
+
+.PHONY: version-patch
+version-patch: ## Bump patch version (0.8.0 -> 0.8.1)
+	@./scripts/bump-version.sh patch
+
+.PHONY: version-minor
+version-minor: ## Bump minor version (0.8.0 -> 0.9.0)
+	@./scripts/bump-version.sh minor
+
+.PHONY: version-major
+version-major: ## Bump major version (0.8.0 -> 1.0.0)
+	@./scripts/bump-version.sh major

@@ -1,6 +1,14 @@
 repos:
   - repo: local
     hooks:
+      # Version sync check (runs first, fast)
+      - id: version-sync
+        name: Version sync check
+        entry: ./scripts/bump-version.sh check
+        language: system
+        pass_filenames: false
+        files: ^(VERSION|pyproject\.toml|frontend/package\.json|frontend/src/lib/config/version\.ts|bo1/__init__\.py)$
+
       # Backend linting
       - id: ruff-check
         name: Backend linting (ruff check)

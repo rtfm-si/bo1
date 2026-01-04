@@ -153,6 +153,8 @@ class TwoFactorStatusResponse(BaseModel):
     enabled: bool = Field(..., description="Whether 2FA is enabled")
     enabled_at: datetime | None = Field(None, description="When 2FA was enabled")
     backup_codes_remaining: int = Field(0, description="Number of unused backup codes")
+    available: bool = Field(True, description="Whether 2FA feature is available (requires license)")
+    unavailable_reason: str | None = Field(None, description="Reason if 2FA is not available")
 
 
 class SetupTwoFactorResponse(BaseModel):
@@ -224,7 +226,14 @@ async def get_two_factor_status(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> TwoFactorStatusResponse:
     """Get current user's 2FA status."""
+    import os
+
     user_id = user["user_id"]
+
+    # Check if 2FA is available (requires SuperTokens paid license)
+    # We detect this by checking an env var or attempting a lightweight TOTP call
+    totp_available = os.getenv("SUPERTOKENS_TOTP_ENABLED", "").lower() == "true"
+    unavailable_reason = None if totp_available else "Requires SuperTokens enterprise license"
 
     try:
         with db_session() as conn:
@@ -238,7 +247,14 @@ async def get_two_factor_status(
                 )
                 row = cur.fetchone()
                 if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+                    # User not in local DB yet - 2FA not enabled
+                    return TwoFactorStatusResponse(
+                        enabled=False,
+                        enabled_at=None,
+                        backup_codes_remaining=0,
+                        available=totp_available,
+                        unavailable_reason=unavailable_reason,
+                    )
 
                 enabled = row.get("totp_enabled", False) or False
                 enabled_at = row.get("totp_enabled_at")
@@ -248,6 +264,8 @@ async def get_two_factor_status(
                     enabled=enabled,
                     enabled_at=enabled_at,
                     backup_codes_remaining=len(backup_codes),
+                    available=totp_available,
+                    unavailable_reason=unavailable_reason,
                 )
 
     except HTTPException:

@@ -303,35 +303,66 @@
 					</p>
 				</div>
 			{:else if setupStep === 'idle'}
-				<!-- 2FA not enabled, show setup button -->
-				<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
-					<div class="flex gap-3">
-						<svg
-							class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-							/>
-						</svg>
-						<div>
-							<p class="font-medium text-amber-800 dark:text-amber-200">
-								Protect your account
-							</p>
-							<p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
-								Enable 2FA to add an extra layer of security. You'll need an authenticator
-								app like Google Authenticator, Authy, or 1Password.
-							</p>
+				<!-- 2FA not enabled -->
+				{#if status?.available === false}
+					<!-- 2FA not available (requires license) -->
+					<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 mb-4">
+						<div class="flex gap-3">
+							<svg
+								class="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0 mt-0.5"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+								/>
+							</svg>
+							<div>
+								<p class="font-medium text-slate-700 dark:text-slate-300">
+									Two-Factor Authentication Coming Soon
+								</p>
+								<p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+									{status?.unavailable_reason || 'This feature is currently not available.'}
+									We're working on making this available in a future update.
+								</p>
+							</div>
 						</div>
 					</div>
-				</div>
+				{:else}
+					<!-- 2FA available, show setup prompt -->
+					<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
+						<div class="flex gap-3">
+							<svg
+								class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+								/>
+							</svg>
+							<div>
+								<p class="font-medium text-amber-800 dark:text-amber-200">
+									Protect your account
+								</p>
+								<p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+									Enable 2FA to add an extra layer of security. You'll need an authenticator
+									app like Google Authenticator, Authy, or 1Password.
+								</p>
+							</div>
+						</div>
+					</div>
 
-				<Button variant="brand" loading={isSettingUp} onclick={startSetup}>Enable 2FA</Button>
+					<Button variant="brand" loading={isSettingUp} onclick={startSetup}>Enable 2FA</Button>
+				{/if}
 			{:else if setupStep === 'qr'}
 				<!-- Setup step 1: Show QR code -->
 				{#if setupError}

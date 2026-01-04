@@ -645,6 +645,8 @@ export interface TwoFactorStatusResponse {
 	enabled: boolean;
 	enabled_at: string | null;
 	backup_codes_remaining: number;
+	available: boolean;
+	unavailable_reason: string | null;
 }
 
 export interface SetupTwoFactorResponse {

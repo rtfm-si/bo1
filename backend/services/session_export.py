@@ -9,8 +9,6 @@ Provides:
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy.orm import Session as DBSession
-
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,9 +17,9 @@ logger = get_logger(__name__)
 class SessionExporter:
     """Export session data to JSON and Markdown formats."""
 
-    def __init__(self, db: DBSession) -> None:
-        """Initialize with database session."""
-        self.db = db
+    def __init__(self) -> None:
+        """Initialize exporter (uses repository for database access)."""
+        pass
 
     async def export_to_json(self, session_id: str, user_id: str) -> dict[str, Any]:
         """Export session to JSON format.

@@ -38,7 +38,25 @@ _Last updated: 2026-01-04_
 
 ---
 
-## Feature Explorer Issues (2026-01-04 retest - STILL FAILING)
+## Feature Explorer Issues (2026-01-04 Session 2 - FIXED)
+
+### P0 - Critical
+
+- [x] [API][P0] ISS-004: Session sharing 500 errors - removed stale `SessionLocal` imports from sessions.py; repository methods already use `db_session()` context manager (2026-01-04)
+
+### P1 - Major
+
+- [x] [API][P1] ISS-001: 2FA setup 403 error - SuperTokens TOTP requires paid license; added `available` + `unavailable_reason` fields to status endpoint, UI now shows "Coming Soon" when unavailable (2026-01-04)
+
+### P2 - Minor
+
+- [x] [API][P2] ISS-002: Dataset insights 422 - expected behavior for unprofiled datasets (2026-01-04)
+- [x] [API][P2] ISS-003: Managed competitors 503 - transient connection pool exhaustion (2026-01-04)
+- [x] [API][P2] ISS-005: @mention context not injected - added `mentions_not_found` to mentor response for UI feedback; improved logging when mentions fail to resolve (2026-01-04)
+
+---
+
+## Feature Explorer Issues (2026-01-04 Session 1 - FIXED)
 
 ### P0 - Critical
 

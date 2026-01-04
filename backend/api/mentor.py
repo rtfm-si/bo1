@@ -429,18 +429,25 @@ async def _stream_mentor_response(
             "tokens": usage.total_tokens,
         }
         # Include resolved mentions for UI display
-        if resolved_mentions and resolved_mentions.has_context():
-            done_data["mentions"] = {
-                "meetings": [
-                    {"id": m.id, "title": m.problem_statement[:50]}
-                    for m in resolved_mentions.meetings
-                ],
-                "actions": [{"id": a.id, "title": a.title} for a in resolved_mentions.actions],
-                "datasets": [{"id": d.id, "title": d.name} for d in resolved_mentions.datasets],
-                "chats": [
-                    {"id": c.id, "title": c.label or "Unnamed"} for c in resolved_mentions.chats
-                ],
-            }
+        if resolved_mentions:
+            if resolved_mentions.has_context():
+                done_data["mentions"] = {
+                    "meetings": [
+                        {"id": m.id, "title": m.problem_statement[:50]}
+                        for m in resolved_mentions.meetings
+                    ],
+                    "actions": [{"id": a.id, "title": a.title} for a in resolved_mentions.actions],
+                    "datasets": [{"id": d.id, "title": d.name} for d in resolved_mentions.datasets],
+                    "chats": [
+                        {"id": c.id, "title": c.label or "Unnamed"} for c in resolved_mentions.chats
+                    ],
+                }
+            # Include unresolved mentions so UI can show warning
+            if resolved_mentions.not_found:
+                done_data["mentions_not_found"] = resolved_mentions.not_found
+                logger.info(
+                    f"Mentor chat: {len(resolved_mentions.not_found)} mentions not resolved for user {user_id}: {resolved_mentions.not_found}"
+                )
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
     except Exception as e:

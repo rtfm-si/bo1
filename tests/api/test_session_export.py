@@ -4,7 +4,7 @@ Tests GET /api/v1/sessions/{id}/export for JSON and Markdown export.
 """
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -15,18 +15,13 @@ class TestSessionExporterService:
     """Test SessionExporter service class."""
 
     @pytest.fixture
-    def mock_db(self):
-        """Create mock database session."""
-        return MagicMock()
-
-    @pytest.fixture
-    def exporter(self, mock_db):
+    def exporter(self):
         """Create SessionExporter instance."""
-        return SessionExporter(mock_db)
+        return SessionExporter()
 
-    def test_exporter_initialization(self, exporter, mock_db):
-        """Test exporter initializes with db session."""
-        assert exporter.db is mock_db
+    def test_exporter_initialization(self, exporter):
+        """Test exporter initializes (uses repository internally)."""
+        assert exporter is not None
 
     @pytest.mark.asyncio
     async def test_export_to_json_structure(self, exporter):

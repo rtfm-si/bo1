@@ -2051,40 +2051,33 @@ async def export_session(
             # Unpack verified session data
             user_id, metadata = session_data
 
-            # Get database session for exporter
-            from bo1.state.database import SessionLocal
+            # Create exporter (uses repository internally)
+            exporter = SessionExporter()
 
-            db = SessionLocal()
-            try:
-                exporter = SessionExporter(db)
+            if format == "json":
+                export_data = await exporter.export_to_json(session_id, user_id)
 
-                if format == "json":
-                    export_data = await exporter.export_to_json(session_id, user_id)
+                from fastapi.responses import JSONResponse
 
-                    from fastapi.responses import JSONResponse
+                filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.json"
+                return JSONResponse(
+                    content=export_data,
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}",
+                    },
+                )
+            else:  # markdown
+                export_data = await exporter.export_to_markdown(session_id, user_id)
 
-                    filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.json"
-                    return JSONResponse(
-                        content=export_data,
-                        headers={
-                            "Content-Disposition": f"attachment; filename={filename}",
-                        },
-                    )
-                else:  # markdown
-                    export_data = await exporter.export_to_markdown(session_id, user_id)
+                from fastapi.responses import PlainTextResponse
 
-                    from fastapi.responses import PlainTextResponse
-
-                    filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
-                    return PlainTextResponse(
-                        content=export_data,
-                        headers={
-                            "Content-Disposition": f"attachment; filename={filename}",
-                        },
-                    )
-
-            finally:
-                db.close()
+                filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
+                return PlainTextResponse(
+                    content=export_data,
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}",
+                    },
+                )
 
         except ValueError as e:
             # Permission or not found error from SessionExporter
@@ -2150,33 +2143,24 @@ async def create_share(
             token = SessionShareService.generate_token()
             expires_at = SessionShareService.calculate_expiry(ttl_days)
 
-            # Get database session for storage
-            from bo1.state.database import SessionLocal
+            # Store in PostgreSQL (repository handles db connection)
+            session_repository.create_share(
+                session_id=session_id,
+                token=token,
+                expires_at=expires_at,
+                created_by=user_id,
+            )
 
-            db = SessionLocal()
-            try:
-                # Store in PostgreSQL
-                session_repository.create_share(
-                    session_id=session_id,
-                    token=token,
-                    expires_at=expires_at,
-                    created_by=user_id,
-                )
+            logger.info(f"Created share for session {session_id}: {token}")
 
-                logger.info(f"Created share for session {session_id}: {token}")
+            # Build share URL (relative - client builds full URL)
+            share_url = f"/share/{token}"
 
-                # Build share URL
-                # In production, this would be the actual domain
-                share_url = f"/share/{token}"  # Relative URL; client will build full URL
-
-                return {
-                    "token": token,
-                    "share_url": share_url,
-                    "expires_at": expires_at.isoformat(),
-                }
-
-            finally:
-                db.close()
+            return {
+                "token": token,
+                "share_url": share_url,
+                "expires_at": expires_at.isoformat(),
+            }
 
         except ValueError as e:
             raise http_error(ErrorCode.VALIDATION_ERROR, str(e), 400) from e
@@ -2217,42 +2201,34 @@ async def list_shares(
             # Unpack verified session data
             user_id, metadata = session_data
 
-            # Get database session
-            from bo1.state.database import SessionLocal
+            # Get all shares for this session (repository handles db)
+            shares = session_repository.list_shares(session_id)
 
-            db = SessionLocal()
-            try:
-                # Get all shares for this session
-                shares = session_repository.list_shares(session_id)
+            # Filter out expired shares and format response
+            active_shares = []
+            for share in shares:
+                expires_at = share.get("expires_at")
+                if isinstance(expires_at, str):
+                    expires_at = datetime.fromisoformat(expires_at)
 
-                # Filter out expired shares and format response
-                active_shares = []
-                for share in shares:
-                    expires_at = share.get("expires_at")
-                    if isinstance(expires_at, str):
-                        expires_at = datetime.fromisoformat(expires_at)
+                is_active = not SessionShareService.is_expired(expires_at)
 
-                    is_active = not SessionShareService.is_expired(expires_at)
+                active_shares.append(
+                    {
+                        "token": share.get("token"),
+                        "expires_at": expires_at.isoformat()
+                        if isinstance(expires_at, datetime)
+                        else expires_at,
+                        "created_at": share.get("created_at"),
+                        "is_active": is_active,
+                    }
+                )
 
-                    active_shares.append(
-                        {
-                            "token": share.get("token"),
-                            "expires_at": expires_at.isoformat()
-                            if isinstance(expires_at, datetime)
-                            else expires_at,
-                            "created_at": share.get("created_at"),
-                            "is_active": is_active,
-                        }
-                    )
-
-                return {
-                    "session_id": session_id,
-                    "shares": active_shares,
-                    "total": len(active_shares),
-                }
-
-            finally:
-                db.close()
+            return {
+                "session_id": session_id,
+                "shares": active_shares,
+                "total": len(active_shares),
+            }
 
         except HTTPException:
             raise
@@ -2303,28 +2279,20 @@ async def revoke_share(
             # Unpack verified session data
             user_id, metadata = session_data
 
-            # Get database session
-            from bo1.state.database import SessionLocal
+            # Revoke the share (repository handles db)
+            success = session_repository.revoke_share(session_id, token)
 
-            db = SessionLocal()
-            try:
-                # Revoke the share
-                success = session_repository.revoke_share(session_id, token)
+            if not success:
+                raise http_error(
+                    ErrorCode.NOT_FOUND, f"Share token not found for session {session_id}", 404
+                )
 
-                if not success:
-                    raise http_error(
-                        ErrorCode.NOT_FOUND, f"Share token not found for session {session_id}", 404
-                    )
+            logger.info(f"Revoked share {token} for session {session_id}")
 
-                logger.info(f"Revoked share {token} for session {session_id}")
+            # Return 204 No Content
+            from fastapi.responses import Response
 
-                # Return 204 No Content
-                from fastapi.responses import Response
-
-                return Response(status_code=204)
-
-            finally:
-                db.close()
+            return Response(status_code=204)
 
         except HTTPException:
             raise

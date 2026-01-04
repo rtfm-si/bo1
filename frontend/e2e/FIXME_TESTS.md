@@ -1,7 +1,7 @@
 # E2E Test Fixme Tracker
 
 ## Summary
-~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ **8 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
+~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ ~~8 tests~~ **9 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
 
 **Fixed**:
 - Settings Page (18 tests → 19 tests now passing)
@@ -189,7 +189,7 @@ npx playwright test
 ---
 
 ### Flaky CI Tests - API/Data Loading (2026-01-01)
-**2 tests marked as fixme**
+**3 tests marked as fixme**
 
 1. `datasets.spec.ts:387` - "displays dataset profile summary"
    - **Issue**: AI Summary section may not load in time in CI
@@ -199,7 +199,11 @@ npx playwright test
    - **Issue**: Email may not appear in main content area in CI
    - **Selector**: `locator('main').getByText('test@example.com')`
 
-**Root cause**: Both tests depend on async data loading that may not complete within CI timeouts.
+3. `datasets.spec.ts:125` - "displays datasets list"
+   - **Issue**: Heading not found due to page load timing in CI
+   - **Selector**: `getByRole('heading', { name: /Datasets|Data/i }).first()`
+
+**Root cause**: Tests depend on async data loading that may not complete within CI timeouts.
 
 ---
 

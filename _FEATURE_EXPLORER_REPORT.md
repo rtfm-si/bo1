@@ -4,72 +4,72 @@
 **Environment:** Production (https://boardof.one)
 **Test User:** e2e.test@boardof.one
 **Authentication:** SuperTokens session injection
+**Duration:** ~45 minutes
 
 ---
 
 ## Executive Summary
 
-Comprehensive E2E testing of Board of One production application completed. Tested 18 feature areas covering dashboard, context management, mentor chat, datasets, analysis, projects, actions, reports, settings (account, security, privacy, billing, workspace), and help center.
+Comprehensive E2E testing of Board of One production application completed. Tested 18 feature areas covering dashboard, context management, mentor chat, datasets, projects, actions, reports, settings (account, security, privacy, billing, workspace), SEO tools, and help center.
 
-**Overall Result:** 🟡 PARTIAL PASS - Core features functional with 6 issues identified
+**Overall Result:** PARTIAL PASS - Core features functional with 6 issues identified
 
 | Severity | Count |
 |----------|-------|
 | Critical | 2 |
-| Major | 1 |
-| Minor | 3 |
+| Major | 2 |
+| Minor | 2 |
 
 ---
 
 ## Issues Found
 
-### ISS-001: Metric Save Error (Major)
-- **Location:** `/context/metrics`
-- **Severity:** Major
-- **Description:** When saving a Key Metric value (MRR with value 5000), throws error `e(...).trim is not a function`
-- **Steps to Reproduce:**
-  1. Navigate to /context/metrics
-  2. Click "+ Add Key Metric"
-  3. Enter name and numeric value
-  4. Click Save
-- **Expected:** Metric saves successfully
-- **Actual:** Error toast appears: "e(...).trim is not a function"
-- **Evidence:** `context-2.5-metric-save-error.png`
-
-### ISS-002: Competitors 404 Navigation Issue (Minor)
-- **Location:** `/context/competitors`
-- **Severity:** Minor (UX)
-- **Description:** Direct navigation to `/context/competitors` returns 404. Competitors feature is actually at `/reports/competitors`
-- **Impact:** User confusion if bookmarked or linked incorrectly
-- **Evidence:** `context-2.6-competitors-404.png`
-
-### ISS-003: Session Sharing Broken (Critical)
-- **Location:** `/meeting/{id}` share dialog
+### ISS-001: Session Sharing Broken (Critical)
+- **Location:** `/context` - Share tab
 - **Severity:** Critical
 - **Description:** Both loading existing shares and creating new shares return 500 errors
 - **Console Errors:**
   - `Failed to load shares: ApiClientError: Unknown error`
   - `Failed to create share: ApiClientError: An unexpected error occurred`
-- **Steps to Reproduce:**
-  1. Navigate to any meeting detail page
-  2. Click Share button
-  3. Observe error in console
-  4. Attempt to create share link
+- **API Endpoints:**
+  - GET shares: 500
+  - POST create share: 500
 - **Expected:** Share dialog loads existing shares and allows creating new ones
 - **Actual:** 500 errors on all share operations
-- **Evidence:** `context-2.12-share-dialog-error.png`, `context-2.12-share-create-error.png`
+- **Evidence:** `12-context-share-error.png`
 
-### ISS-004: Mentor Clear Button Non-functional (Minor)
-- **Location:** `/mentor`
-- **Severity:** Minor
-- **Description:** Clicking the "Clear" button in Mentor chat does not clear the conversation history
-- **Steps to Reproduce:**
-  1. Navigate to /mentor
-  2. Send a message
-  3. Click "Clear" button
-- **Expected:** Conversation history clears
-- **Actual:** Conversation remains visible
-- **Evidence:** `mentor-3.10-clear-not-working.png`
+### ISS-002: Project Detail View Broken (Critical)
+- **Location:** `/projects/{id}`
+- **Severity:** Critical
+- **Description:** Navigating to project detail returns "Project Not Found" with 500 errors
+- **Impact:** Users can create projects but cannot view their details
+- **API Endpoints:**
+  - `/api/v1/projects/{id}`: 500
+  - `/api/v1/projects/{id}/gantt`: 500
+  - `/api/v1/projects/{id}/actions`: 500
+  - `/api/v1/projects/{id}/sessions`: 500
+- **Evidence:** `22-projects-detail-error.png`
+
+### ISS-003: 2FA Setup 500 Error (Major)
+- **Location:** `/settings/security`
+- **Severity:** Major
+- **Description:** Clicking "Enable 2FA" button returns 500 server error
+- **API Endpoint:** `/api/v1/user/2fa/setup`: 500
+- **Expected:** 2FA setup flow initiates with QR code
+- **Actual:** 500 error in console
+- **Evidence:** `26-settings-security-2fa-error.png`
+
+### ISS-004: SEO Module APIs Return 404 (Major)
+- **Location:** `/seo`
+- **Severity:** Major
+- **Description:** SEO Trend Analyzer page loads but all API calls return 404
+- **Impact:** SEO feature is completely non-functional
+- **API Endpoints:**
+  - `/api/v1/seo/history`: 404
+  - `/api/v1/seo/topics`: 404
+  - `/api/v1/seo/articles`: 404
+  - `/api/v1/seo/autopilot`: 404
+- **Evidence:** `32-seo-tools.png`
 
 ### ISS-005: Dataset Insights 422 Error (Minor)
 - **Location:** `/datasets/{id}`
@@ -77,115 +77,145 @@ Comprehensive E2E testing of Board of One production application completed. Test
 - **Description:** When loading dataset detail page, insights endpoint returns 422 error
 - **Console Error:** `[Insights] Error fetching insights: ApiClientError: Unknown error`
 - **Impact:** Insights feature not loading, but page otherwise functional
-- **Evidence:** `datasets-4.6-detail.png`
+- **Evidence:** `15-datasets-detail.png`
 
-### ISS-006: 2FA Setup 500 Error (Critical)
-- **Location:** `/settings/security`
-- **Severity:** Critical
-- **Description:** Clicking "Enable 2FA" button returns 500 server error
-- **Steps to Reproduce:**
-  1. Navigate to /settings/security
-  2. Click "Enable 2FA" button
-- **Expected:** 2FA setup flow initiates with QR code
-- **Actual:** 500 error in console
-- **Evidence:** `settings-10.2-2fa-error.png`
+### ISS-006: Direct /projects/new Navigation 500 (Minor)
+- **Location:** `/projects/new`
+- **Severity:** Minor
+- **Description:** Direct URL navigation to `/projects/new` causes 500 errors
+- **Impact:** Must use UI button to create projects (workaround exists)
+- **Evidence:** `19-projects-new-error.png`
 
 ---
 
 ## Features Tested
 
 ### 1. Dashboard ✅ PASS
-- Activity heatmap with legend
-- Today's Focus widget with action items
-- Key Metrics display
-- Recent Meetings list
-- **Evidence:** `dashboard-1.1-full.png`, `dashboard-1.2-heatmap-legend.png`, `dashboard-1.3-todays-focus.png`, `dashboard-1.4-metrics-meetings.png`
+- Activity heatmap: Working with legend
+- Today's Focus widget: Working
+- Key Metrics display: Working (MRR $5,000 visible)
+- Recent Meetings list: Working
+- Outstanding Actions: Working
+- **Evidence:** `02-dashboard.png`
 
-### 2. Context Management 🟡 PARTIAL (ISS-001, ISS-002, ISS-003)
-- Business Overview page loads and saves ✅
-- Key Metrics page loads ✅
-- Adding metrics fails (ISS-001) ❌
-- Competitors navigation issue (ISS-002) ⚠️
-- Session sharing broken (ISS-003) ❌
-- Meetings list and detail view ✅
-- **Evidence:** `context-2.1-overview.png` through `context-2.12-*`
+### 2. Context Management 🟡 PARTIAL (ISS-001)
+- Business Overview: ✅ PASS
+- Edit profile/save: ✅ PASS
+- Key Metrics configuration: ✅ PASS
+- Competitors tab: ✅ PASS
+- **Session Sharing: ❌ FAIL (500 errors)**
+- **Evidence:** `03-context-*.png` through `12-context-share-error.png`
 
-### 3. Mentor Sessions ✅ PASS (ISS-004 minor)
-- Persona selection working
-- Message send/receive working
-- @mention autocomplete functional
-- Meeting reference resolution working
-- Clear button issue (ISS-004) ⚠️
-- **Evidence:** `mentor-3.1-page.png`, `mentor-3.3-response.png`, `mentor-3.9-mention-response.png`
+### 3. Mentor Sessions ✅ PASS
+- Chat interface: Working
+- Persona selection: Working (Data Analyst tested)
+- Message send/receive: Working
+- @mention autocomplete: Working (shows Meetings, Actions, Datasets, Chats)
+- **Evidence:** `13-mentor-*.png`, `14-mentor-mention.png`
 
 ### 4. Datasets ✅ PASS (ISS-005 minor)
-- CSV file upload working
-- Dataset listing working
-- Dataset detail view working
-- Q&A chat functional
-- Insights 422 error (ISS-005) ⚠️
-- **Evidence:** `datasets-4.1-page.png` through `datasets-4.7-qa-response.png`
+- Dataset listing: Working
+- Dataset detail view: Working
+- Q&A history visible: Working
+- Insights 422 error (minor): ⚠️
+- **Evidence:** `15-datasets-detail.png`
 
-### 5. Analysis ✅ PASS
-- Dataset selector working
-- Query submission working
-- AI response generation working
-- **Evidence:** `analysis-5.1-page.png`, `analysis-5.3-response.png`
+### 5. Projects 🟡 PARTIAL (ISS-002, ISS-006)
+- Empty state display: ✅ PASS
+- Generate Ideas (from Actions): ✅ PASS (no groupings found - expected)
+- Generate Ideas (from Context): ✅ PASS (prompts for missing context)
+- Manual project creation: ✅ PASS
+- **Project detail view: ❌ FAIL (500 errors)**
+- Archive project: ✅ PASS
+- **Evidence:** `17-projects-*.png` through `22-projects-detail-error.png`
 
-### 6. Projects ✅ PASS
-- Page loads with unassigned action count
-- Generate Ideas modal working
-- From Actions/From Business Context tabs
-- **Evidence:** `projects-6.1-page.png`, `projects-6.2-generate-dialog.png`
+### 6. Actions ✅ PASS
+- Kanban view: Working (53 actions displayed)
+- Gantt view: Working (timeline Dec-Jun visible)
+- Filters: Working (Meeting, Status, Due date dropdowns)
+- Statistics: Working (53 To Do, 0 In Progress, 0 Completed)
+- Day/Week/Month toggle: Present
+- **Evidence:** `16-actions-kanban.png`
 
-### 7. Actions ✅ PASS
-- Kanban view with 53 actions displayed
-- Gantt view timeline rendering correctly
-- Filters (meeting, status, due date) present
-- Action cards with priority, type, duration
-- **Evidence:** `actions-7.1-kanban.png`, `actions-7.3-gantt.png`
+### 7. Reports ✅ PASS
+- Competitor Watch page: Working
+- Add competitor form: Working
+- Enrich competitor: Working (Capterra data returned)
+- Remove competitor: Working
+- Free plan limits: Displayed (3 tracked max)
+- **Evidence:** `23-reports-competitors.png`
 
-### 8. Reports ✅ PASS
-- Competitor Watch page loads
-- Add competitor form present
-- Free plan limits displayed (0/3 tracked)
-- **Evidence:** `reports-8.1-competitors.png`
+### 8. Settings - Account ✅ PASS
+- Profile display (email, user ID): Working
+- Meeting Preferences toggle: Working
+- Currency Display (GBP/USD/EUR): Working
+- Working Days selection: Working
+- Activity Heatmap duration: Working
+- Subscription info: Working (Free plan)
+- Onboarding tour restart: Present
+- **Evidence:** `24-settings-account.png`
 
-### 9. Settings - Account ✅ PASS
-- Profile (email, user ID) displayed
-- Meeting Preferences toggle working
-- Currency Display (GBP/USD/EUR) options
-- Working Days selection
-- Activity Heatmap duration setting
-- Subscription info
-- Onboarding tour restart button
-- **Evidence:** `settings-9.1-account.png`
+### 9. Settings - Security 🔴 FAIL (ISS-003)
+- 2FA status: Displayed (Disabled)
+- **Enable 2FA: ❌ FAIL (500 error)**
+- Security tips: Present
+- **Evidence:** `25-settings-security.png`, `26-settings-security-2fa-error.png`
 
-### 10. Settings - Security 🔴 FAIL (ISS-006)
-- 2FA status displayed (Disabled)
-- Enable 2FA button present but fails
-- **Evidence:** `settings-10.1-security.png`, `settings-10.2-2fa-error.png`
+### 10. Settings - Privacy ✅ PASS
+- Legal Agreements section: Working
+- Email Preferences (3 toggles): Working
+- Data Retention (1-3 years, Forever): Working
+- Export Data button: Present
+- Delete Account button: Present
+- GDPR info: Present
+- **Evidence:** `27-settings-privacy.png`
 
-### 11. Settings - Privacy ✅ PASS
-- Email Preferences with toggles
-- Data Retention with dropdown (1-3 years, Forever)
-- Export Data button
-- Delete Account button with warnings
-- **Evidence:** `settings-11.1-privacy.png`
-
-### 12. Settings - Billing ✅ PASS
+### 11. Settings - Billing ✅ PASS
 - Current Plan: Free displayed
-- Meeting Credits bundles (£10-£90)
-- Usage tracking (1/3 meetings this month)
-- Contact Sales for paid plans
-- **Evidence:** `settings-12.1-billing.png`
+- Paid Plans Coming Soon notice: Present
+- Meeting Credits bundles (£10-£90): Working
+- Usage tracking (1/3 meetings): Working
+- Contact support email: Present
+- **Evidence:** `28-settings-billing.png`
+
+### 12. Settings - Workspace ✅ PASS
+- Empty state: Working (No Workspace Selected)
+- Personal mode indicator: Present
+- Create Workspace button: Present
+- **Evidence:** `29-settings-workspace.png`
 
 ### 13. Help Center ✅ PASS
-- Search box functional
-- Category navigation (7 categories)
-- Article content rendering
-- Contact support links
-- **Evidence:** `help-18.1-center.png`
+- Search box: Present and functional
+- Category navigation (7 categories): Working
+- Article content rendering: Working
+- Expandable sections: Working
+- Contact support links: Present
+- **Evidence:** `30-help-center.png`
+
+### 14. Feedback Modal ✅ PASS
+- Modal opens from header button: Working
+- Feature Request / Bug Report options: Present
+- Form fields (title, description): Working
+- Cancel/Submit buttons: Present
+- **Evidence:** `31-feedback-modal.png`
+
+### 15. SEO Tools 🔴 FAIL (ISS-004)
+- Page loads: ✅ PASS
+- UI elements present: ✅ PASS
+- **API data: ❌ FAIL (all 404 errors)**
+- Analyze Trends form: Present (disabled without data)
+- Topics/Articles sections: Empty (404)
+- Autopilot section: Present (config 404)
+- **Evidence:** `32-seo-tools.png`
+
+---
+
+## Test Data Cleanup
+
+| Item | Action | Status |
+|------|--------|--------|
+| E2E Test Project | Archived | ✅ Done |
+| E2E Test Competitor Inc | Removed | ✅ Done |
 
 ---
 
@@ -193,59 +223,47 @@ Comprehensive E2E testing of Board of One production application completed. Test
 
 All screenshots saved to: `/Users/si/projects/bo1/.playwright-mcp/`
 
-| Screenshot | Description |
-|------------|-------------|
-| `dashboard-1.1-full.png` | Full dashboard view |
-| `dashboard-1.2-heatmap-legend.png` | Heatmap with legend |
-| `dashboard-1.3-todays-focus.png` | Today's Focus widget |
-| `dashboard-1.4-metrics-meetings.png` | Key Metrics and Recent Meetings |
-| `context-2.1-overview.png` | Business Context Overview |
-| `context-2.3-save-success.png` | Context save confirmation |
-| `context-2.4-key-metrics-empty.png` | Empty Key Metrics page |
-| `context-2.5-metrics-list.png` | Full metrics list |
-| `context-2.5-metric-save-error.png` | ISS-001 error |
-| `context-2.6-competitors-404.png` | ISS-002 404 error |
-| `context-2.11-meetings-list.png` | Meetings list |
-| `context-2.11-meeting-detail.png` | Meeting detail view |
-| `context-2.12-share-dialog-error.png` | ISS-003 share error |
-| `context-2.12-share-create-error.png` | Share create error |
-| `mentor-3.1-page.png` | Mentor page |
-| `mentor-3.3-response.png` | Mentor response |
-| `mentor-3.9-mention-response.png` | @mention resolved response |
-| `mentor-3.10-clear-not-working.png` | ISS-004 clear issue |
-| `datasets-4.1-page.png` | Datasets page |
-| `datasets-4.3-upload-success.png` | CSV upload success |
-| `datasets-4.6-detail.png` | Dataset detail view |
-| `datasets-4.7-qa-response.png` | Q&A response |
-| `analysis-5.1-page.png` | Analysis page |
-| `analysis-5.3-response.png` | Analysis AI response |
-| `projects-6.1-page.png` | Projects page |
-| `projects-6.2-generate-dialog.png` | Generate ideas dialog |
-| `actions-7.1-kanban.png` | Actions Kanban view |
-| `actions-7.3-gantt.png` | Actions Gantt view |
-| `reports-8.1-competitors.png` | Competitor Watch |
-| `settings-9.1-account.png` | Account Settings |
-| `settings-10.1-security.png` | Security Settings |
-| `settings-10.2-2fa-error.png` | ISS-006 2FA error |
-| `settings-11.1-privacy.png` | Privacy Settings |
-| `settings-12.1-billing.png` | Billing Settings |
-| `help-18.1-center.png` | Help Center |
+| # | Screenshot | Description |
+|---|------------|-------------|
+| 1 | `01-auth-verified.png` | Authentication verified |
+| 2 | `02-dashboard.png` | Full dashboard view |
+| 3-11 | `03-11-context-*.png` | Context management tests |
+| 12 | `12-context-share-error.png` | ISS-001 share 500 error |
+| 13-14 | `13-14-mentor-*.png` | Mentor chat tests |
+| 15 | `15-datasets-detail.png` | Dataset detail (ISS-005 422) |
+| 16 | `16-actions-kanban.png` | Actions Kanban view |
+| 17 | `17-projects-empty-state.png` | Projects empty state |
+| 18 | `18-projects-generate-ideas.png` | Generate ideas dialog |
+| 19 | `19-projects-new-error.png` | ISS-006 direct nav 500 |
+| 20 | `20-projects-create-form.png` | Project creation form |
+| 21 | `21-projects-created.png` | Project created successfully |
+| 22 | `22-projects-detail-error.png` | ISS-002 detail 500 error |
+| 23 | `23-reports-competitors.png` | Competitor Watch |
+| 24 | `24-settings-account.png` | Account Settings |
+| 25 | `25-settings-security.png` | Security Settings |
+| 26 | `26-settings-security-2fa-error.png` | ISS-003 2FA 500 error |
+| 27 | `27-settings-privacy.png` | Privacy Settings |
+| 28 | `28-settings-billing.png` | Billing Settings |
+| 29 | `29-settings-workspace.png` | Workspace Settings |
+| 30 | `30-help-center.png` | Help Center |
+| 31 | `31-feedback-modal.png` | Feedback modal |
+| 32 | `32-seo-tools.png` | ISS-004 SEO 404 errors |
 
 ---
 
 ## Recommendations
 
 ### Critical Priority (Fix Immediately)
-1. **ISS-003**: Fix session sharing API endpoints - 500 errors blocking share functionality
-2. **ISS-006**: Fix 2FA enrollment endpoint - security feature non-functional
+1. **ISS-001**: Fix session sharing API endpoints - 500 errors blocking collaboration
+2. **ISS-002**: Fix project detail API endpoints - users cannot view created projects
 
 ### High Priority
-3. **ISS-001**: Fix metric save validation - `.trim()` being called on numeric value
+3. **ISS-003**: Fix 2FA enrollment endpoint - security feature non-functional
+4. **ISS-004**: Fix SEO module API endpoints - entire feature non-functional
 
 ### Low Priority
-4. **ISS-002**: Update navigation or redirects for `/context/competitors`
-5. **ISS-004**: Fix Mentor clear button state management
-6. **ISS-005**: Fix dataset insights endpoint 422 response
+5. **ISS-005**: Fix dataset insights endpoint 422 response
+6. **ISS-006**: Fix direct navigation to `/projects/new`
 
 ---
 
@@ -255,6 +273,7 @@ All screenshots saved to: `/Users/si/projects/bo1/.playwright-mcp/`
 - **Test User ID:** `991cac1b-a2e9-4164-a7fe-66082180e035`
 - **Browser:** Playwright MCP (Chromium-based)
 - **Session Verification:** Each page navigation triggered "Verifying your session" overlay (expected behavior)
+- **API Key:** SuperTokens Core accessed via SSH to production server
 
 ---
 

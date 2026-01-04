@@ -2,18 +2,16 @@
 	import { onMount } from 'svelte';
 	import { Search, Loader2, AlertCircle } from 'lucide-svelte';
 	import { adminApi, type ResearchCostsResponse } from '$lib/api/admin';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency } from '$lib/utils/currency';
 
 	let data = $state<ResearchCostsResponse | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
-	function formatCurrency(amount: number): string {
-		return amount.toLocaleString('en-US', {
-			style: 'currency',
-			currency: 'USD',
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 4
-		});
+	// Format currency using user's preferred currency
+	function fmtCurrency(amount: number): string {
+		return formatCurrency(amount, $preferredCurrency);
 	}
 
 	async function loadResearchCosts() {
@@ -79,7 +77,7 @@
 					<div class="flex justify-between items-center">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">Total Cost</span>
 						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{formatCurrency(data.brave.amount_usd)}</span
+							>{fmtCurrency(data.brave.amount_usd)}</span
 						>
 					</div>
 					<div class="flex justify-between items-center">
@@ -92,7 +90,7 @@
 						<div class="flex justify-between items-center">
 							<span class="text-sm text-neutral-600 dark:text-neutral-400">Avg/Query</span>
 							<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-								>{formatCurrency(data.brave.amount_usd / data.brave.query_count)}</span
+								>{fmtCurrency(data.brave.amount_usd / data.brave.query_count)}</span
 							>
 						</div>
 					{/if}
@@ -113,7 +111,7 @@
 					<div class="flex justify-between items-center">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">Total Cost</span>
 						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{formatCurrency(data.tavily.amount_usd)}</span
+							>{fmtCurrency(data.tavily.amount_usd)}</span
 						>
 					</div>
 					<div class="flex justify-between items-center">
@@ -126,7 +124,7 @@
 						<div class="flex justify-between items-center">
 							<span class="text-sm text-neutral-600 dark:text-neutral-400">Avg/Query</span>
 							<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-								>{formatCurrency(data.tavily.amount_usd / data.tavily.query_count)}</span
+								>{fmtCurrency(data.tavily.amount_usd / data.tavily.query_count)}</span
 							>
 						</div>
 					{/if}
@@ -147,25 +145,25 @@
 					<div class="flex justify-between items-center">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">Today</span>
 						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{formatCurrency(data.by_period.today)}</span
+							>{fmtCurrency(data.by_period.today)}</span
 						>
 					</div>
 					<div class="flex justify-between items-center">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">This Week</span>
 						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{formatCurrency(data.by_period.week)}</span
+							>{fmtCurrency(data.by_period.week)}</span
 						>
 					</div>
 					<div class="flex justify-between items-center">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">This Month</span>
 						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{formatCurrency(data.by_period.month)}</span
+							>{fmtCurrency(data.by_period.month)}</span
 						>
 					</div>
 					<div class="flex justify-between items-center pt-2 border-t border-neutral-200 dark:border-neutral-700">
 						<span class="text-sm text-neutral-600 dark:text-neutral-400">All Time</span>
 						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{formatCurrency(data.total_usd)}</span
+							>{fmtCurrency(data.total_usd)}</span
 						>
 					</div>
 				</div>
@@ -185,7 +183,7 @@
 						{@const maxTotal = getMaxDailyTotal()}
 						{@const braveHeight = maxTotal > 0 ? (day.brave / maxTotal) * 100 : 0}
 						{@const tavilyHeight = maxTotal > 0 ? (day.tavily / maxTotal) * 100 : 0}
-						<div class="flex-1 flex flex-col items-center gap-1" title={`${day.date}: ${formatCurrency(day.total)}`}>
+						<div class="flex-1 flex flex-col items-center gap-1" title={`${day.date}: ${fmtCurrency(day.total)}`}>
 							<div class="w-full flex flex-col items-center h-24">
 								<div
 									class="w-full max-w-8 bg-purple-500 dark:bg-purple-400 rounded-t"

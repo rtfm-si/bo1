@@ -968,6 +968,43 @@ async def update_insight(
     user_repository.save_context(user_id, context_data)
     logger.info(f"Updated clarification insight for user {user_id}: {question[:50]}...")
 
+    # Auto-sync to business_metrics if metric was extracted with good confidence
+    try:
+        from backend.api.context.services import (
+            CATEGORY_TO_METRIC_KEY,
+            DEFAULT_CONFIDENCE_THRESHOLD,
+            METRIC_DISPLAY_NAMES,
+        )
+        from bo1.state.repositories.metrics_repository import metrics_repository
+
+        category = existing.get("category")
+        confidence = existing.get("confidence_score", 0.0)
+        metric_data = existing.get("metric")
+
+        if (
+            category
+            and category in CATEGORY_TO_METRIC_KEY
+            and CATEGORY_TO_METRIC_KEY[category]
+            and confidence >= DEFAULT_CONFIDENCE_THRESHOLD
+            and metric_data
+            and metric_data.get("value") is not None
+        ):
+            metric_key = CATEGORY_TO_METRIC_KEY[category]
+            name = METRIC_DISPLAY_NAMES.get(metric_key, metric_key.replace("_", " ").title())
+            metrics_repository.save_metric(
+                user_id=user_id,
+                metric_key=metric_key,
+                value=float(metric_data["value"]),
+                name=name,
+                value_unit=metric_data.get("unit"),
+                source="clarification",
+                is_predefined=False,
+            )
+            logger.debug(f"Auto-saved metric {metric_key} from clarification for {user_id}")
+    except Exception as metric_err:
+        # Non-blocking: don't fail the request if metric save fails
+        logger.warning(f"Failed to auto-save metric from clarification: {metric_err}")
+
     # Build metric response if present
     metric_response = None
     if existing.get("metric"):
@@ -3513,8 +3550,51 @@ async def apply_metric_suggestion(
             if request.source_question:
                 latest["source_question"] = request.source_question[:200]
 
-    # Save context
+    # Save context (legacy dual-write for backward compat)
     user_repository.save_context(user_id, context_data)
+
+    # Also upsert to business_metrics table (primary storage going forward)
+    try:
+        from backend.api.context.services import (
+            CATEGORY_TO_METRIC_KEY,
+            METRIC_DISPLAY_NAMES,
+        )
+        from bo1.state.repositories.metrics_repository import metrics_repository
+
+        # Map field to metric_key via reverse lookup
+        field_to_metric_key = {v: k for k, v in CATEGORY_TO_FIELD_MAPPING.items()}
+        category = field_to_metric_key.get(request.field)
+        if category and category in CATEGORY_TO_METRIC_KEY:
+            metric_key = CATEGORY_TO_METRIC_KEY[category]
+            if metric_key:
+                # Try to parse numeric value
+                value_str = str(request.value).replace("$", "").replace(",", "").replace("%", "")
+                if value_str.endswith(("k", "K")):
+                    numeric_val = float(value_str[:-1]) * 1000
+                elif value_str.endswith(("m", "M")):
+                    numeric_val = float(value_str[:-1]) * 1_000_000
+                else:
+                    try:
+                        numeric_val = float(value_str)
+                    except ValueError:
+                        numeric_val = None
+
+                if numeric_val is not None:
+                    name = METRIC_DISPLAY_NAMES.get(
+                        metric_key, metric_key.replace("_", " ").title()
+                    )
+                    metrics_repository.save_metric(
+                        user_id=user_id,
+                        metric_key=metric_key,
+                        value=numeric_val,
+                        name=name,
+                        source="clarification",
+                        is_predefined=False,
+                    )
+                    logger.debug(f"Synced metric {metric_key}={numeric_val} to business_metrics")
+    except Exception as e:
+        # Non-blocking: don't fail if business_metrics sync fails
+        logger.warning(f"Failed to sync metric suggestion to business_metrics: {e}")
 
     logger.info(f"Applied metric suggestion for user {user_id}: {request.field}={request.value}")
 

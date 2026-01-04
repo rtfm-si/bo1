@@ -259,3 +259,56 @@ class TestDisableResponse:
             message="Invalid password",
         )
         assert response.success is False
+
+
+@pytest.mark.unit
+class TestSetupTwoFactorUserSync:
+    """Test 2FA setup user synchronization (ISS-003 fix).
+
+    These tests verify the user existence check and UPDATE row count handling
+    that were added to fix ISS-003 (500 error when user not in local DB).
+    """
+
+    def test_ensure_exists_import_and_call_pattern(self) -> None:
+        """Test that ensure_exists is called with user_id and email."""
+        # This is a simpler unit test that verifies the code path exists
+        # Integration testing of the full flow happens in e2e tests
+
+        # Read the source code to verify the pattern
+        import inspect
+
+        from backend.api import two_factor
+
+        source = inspect.getsource(two_factor.setup_two_factor)
+
+        # Verify the ensure_exists call is present with correct pattern
+        assert "user_repository.ensure_exists(user_id, email)" in source
+        assert "if not user_repository.ensure_exists" in source
+
+    def test_update_returning_check_exists(self) -> None:
+        """Test that UPDATE uses RETURNING and checks for None."""
+        import inspect
+
+        from backend.api import two_factor
+
+        source = inspect.getsource(two_factor.setup_two_factor)
+
+        # Verify RETURNING clause is used
+        assert "RETURNING id" in source
+
+        # Verify None check for 0 rows
+        assert "if not row:" in source
+        assert "UPDATE totp_backup_codes affected 0 rows" in source
+
+    def test_error_messages_are_user_friendly(self) -> None:
+        """Test that error messages provide clear guidance."""
+        import inspect
+
+        from backend.api import two_factor
+
+        source = inspect.getsource(two_factor.setup_two_factor)
+
+        # Verify user-friendly error messages
+        assert "Failed to initialize account" in source
+        assert "Account setup incomplete" in source
+        assert "sign out and sign in again" in source

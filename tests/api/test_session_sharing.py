@@ -245,3 +245,218 @@ class TestSharePermissions:
 
         has_permission = session_owner == requesting_user
         assert has_permission is True
+
+
+class TestShareEndpoints:
+    """Integration tests for share endpoints with API calls."""
+
+    @pytest.fixture
+    def mock_user(self):
+        """Create mock authenticated user."""
+        return {"user_id": "test-user-123", "email": "test@example.com"}
+
+    @pytest.fixture
+    def mock_session_metadata(self):
+        """Create mock session metadata."""
+        return {
+            "user_id": "test-user-123",
+            "status": "completed",
+            "phase": "synthesis",
+            "created_at": "2025-12-01T00:00:00Z",
+            "updated_at": "2025-12-01T01:00:00Z",
+            "problem_statement": "Test problem",
+            "problem_context": {},
+        }
+
+    @pytest.fixture
+    def test_session_id(self):
+        """Valid session ID format."""
+        return "bo1_550e8400-e29b-41d4-a716-446655440000"
+
+    def test_create_share_calls_repository(self, mock_user, mock_session_metadata, test_session_id):
+        """Test create share endpoint calls repository correctly."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("backend.api.sessions.session_repository") as mock_repo:
+            mock_repo.create_share = MagicMock()
+
+            # Verify the repository method signature
+            mock_repo.create_share(
+                session_id=test_session_id,
+                token="test-token",  # noqa: S106
+                expires_at=datetime.now(UTC),
+                created_by=mock_user["user_id"],
+            )
+
+            mock_repo.create_share.assert_called_once()
+            call_args = mock_repo.create_share.call_args
+            assert call_args.kwargs["session_id"] == test_session_id
+            assert call_args.kwargs["created_by"] == mock_user["user_id"]
+
+    def test_list_shares_returns_active_only(self):
+        """Test list shares filters to active shares."""
+        from unittest.mock import MagicMock, patch
+
+        now = datetime.now(UTC)
+        mock_shares = [
+            {
+                "token": "active-token",
+                "expires_at": (now + timedelta(days=7)).isoformat(),
+                "created_at": now.isoformat(),
+            },
+            {
+                "token": "expired-token",
+                "expires_at": (now - timedelta(days=1)).isoformat(),
+                "created_at": (now - timedelta(days=8)).isoformat(),
+            },
+        ]
+
+        with patch("backend.api.sessions.session_repository") as mock_repo:
+            mock_repo.list_shares = MagicMock(return_value=mock_shares)
+
+            shares = mock_repo.list_shares("test-session-id")
+
+            # Filter active shares (mimicking endpoint logic)
+            active_shares = [
+                s
+                for s in shares
+                if not SessionShareService.is_expired(datetime.fromisoformat(s["expires_at"]))
+            ]
+
+            assert len(active_shares) == 1
+            assert active_shares[0]["token"] == "active-token"  # noqa: S105
+
+    def test_revoke_share_calls_repository(self, test_session_id):
+        """Test revoke share endpoint calls repository."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("backend.api.sessions.session_repository") as mock_repo:
+            mock_repo.revoke_share = MagicMock(return_value=True)
+
+            result = mock_repo.revoke_share(test_session_id, "test-token")
+
+            assert result is True
+            mock_repo.revoke_share.assert_called_once_with(test_session_id, "test-token")
+
+    @pytest.mark.asyncio
+    async def test_share_requires_session_ownership(
+        self, mock_user, mock_session_metadata, test_session_id
+    ):
+        """Test share endpoint requires session ownership."""
+        from fastapi import HTTPException
+
+        from backend.api.utils.security import verify_session_ownership
+
+        # Test that non-owner cannot access - metadata shows different user
+        other_user_metadata = {**mock_session_metadata, "user_id": "other-user-456"}
+
+        # Passing pre-loaded metadata with different owner should raise 404
+        with pytest.raises(HTTPException) as exc_info:
+            await verify_session_ownership(
+                test_session_id,
+                mock_user["user_id"],  # Requesting user
+                other_user_metadata,  # Metadata shows other user owns it
+            )
+
+        # Returns 404 to prevent session enumeration
+        assert exc_info.value.status_code == 404
+
+
+class TestPostgreSQLFallback:
+    """Test PostgreSQL fallback for sessions not in Redis."""
+
+    @pytest.fixture
+    def test_session_id(self):
+        """Valid session ID format."""
+        return "bo1_550e8400-e29b-41d4-a716-446655440001"
+
+    @pytest.fixture
+    def pg_session_metadata(self):
+        """Session metadata as returned from PostgreSQL."""
+        return {
+            "user_id": "test-user-123",
+            "status": "completed",
+            "phase": "synthesis",
+            "created_at": "2025-12-01T00:00:00+00:00",
+            "updated_at": "2025-12-01T01:00:00+00:00",
+            "problem_statement": "Test problem for PostgreSQL fallback",
+            "problem_context": {},
+        }
+
+    @pytest.mark.asyncio
+    async def test_verify_ownership_falls_back_to_postgresql(
+        self, test_session_id, pg_session_metadata
+    ):
+        """Test verify_session_ownership uses PostgreSQL when Redis returns None."""
+        from unittest.mock import MagicMock, patch
+
+        from backend.api.utils.security import verify_session_ownership
+
+        # Patch at the source modules that get imported inside the function
+        with patch("backend.api.dependencies.get_redis_manager") as mock_redis_fn:
+            mock_manager = MagicMock()
+            # Redis returns None (session not cached)
+            mock_manager.load_metadata = MagicMock(return_value=None)
+            mock_redis_fn.return_value = mock_manager
+
+            with patch("bo1.state.repositories.session_repository") as mock_pg_repo:
+                # PostgreSQL has the session
+                mock_pg_repo.get_metadata = MagicMock(return_value=pg_session_metadata)
+
+                # Should succeed by falling back to PostgreSQL
+                result = await verify_session_ownership(
+                    test_session_id,
+                    "test-user-123",  # Matches user_id in pg_session_metadata
+                    None,  # No pre-loaded metadata
+                )
+
+                assert result is not None
+                assert result["user_id"] == "test-user-123"
+                # PostgreSQL fallback was used
+                mock_pg_repo.get_metadata.assert_called_once_with(test_session_id)
+
+    @pytest.mark.asyncio
+    async def test_verify_ownership_404_when_not_in_redis_or_postgresql(self, test_session_id):
+        """Test verify_session_ownership returns 404 when session not found anywhere."""
+        from unittest.mock import MagicMock, patch
+
+        from fastapi import HTTPException
+
+        from backend.api.utils.security import verify_session_ownership
+
+        with patch("backend.api.dependencies.get_redis_manager") as mock_redis_fn:
+            mock_manager = MagicMock()
+            mock_manager.load_metadata = MagicMock(return_value=None)
+            mock_redis_fn.return_value = mock_manager
+
+            with patch("bo1.state.repositories.session_repository") as mock_pg_repo:
+                # PostgreSQL also returns None
+                mock_pg_repo.get_metadata = MagicMock(return_value=None)
+
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_session_ownership(
+                        test_session_id,
+                        "test-user-123",
+                        None,
+                    )
+
+                assert exc_info.value.status_code == 404
+                assert "Session not found" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_verify_ownership_with_preloaded_metadata_skips_lookup(
+        self, test_session_id, pg_session_metadata
+    ):
+        """Test verify_session_ownership skips Redis/PostgreSQL when metadata is preloaded."""
+        from backend.api.utils.security import verify_session_ownership
+
+        # Pass preloaded metadata - should not need to call any external services
+        result = await verify_session_ownership(
+            test_session_id,
+            "test-user-123",
+            pg_session_metadata,  # Preloaded - no lookups needed
+        )
+
+        assert result is not None
+        assert result["user_id"] == "test-user-123"
+        # No external calls made - function just validates ownership

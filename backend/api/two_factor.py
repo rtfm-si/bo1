@@ -337,6 +337,18 @@ async def setup_two_factor(
         backup_codes = _generate_backup_codes()
         hashed_codes = [_hash_backup_code(code) for code in backup_codes]
 
+        # Ensure user exists in local DB before storing backup codes
+        # This syncs SuperTokens user to PostgreSQL if needed (FK constraint)
+        from bo1.state.repositories.user_repository import user_repository
+
+        if not user_repository.ensure_exists(user_id, email):
+            logger.error(f"Failed to ensure user {user_id} exists in local DB for 2FA setup")
+            raise http_error(
+                ErrorCode.DB_QUERY_ERROR,
+                "Failed to initialize account. Please try again or contact support.",
+                status=500,
+            )
+
         # Store hashed backup codes (don't enable 2FA yet - wait for verification)
         with db_session() as conn:
             with conn.cursor() as cur:
@@ -345,9 +357,19 @@ async def setup_two_factor(
                     UPDATE users
                     SET totp_backup_codes = %s, updated_at = NOW()
                     WHERE id = %s
+                    RETURNING id
                     """,
                     (hashed_codes, user_id),
                 )
+                row = cur.fetchone()
+                if not row:
+                    # UPDATE affected 0 rows - user still doesn't exist
+                    logger.error(f"UPDATE totp_backup_codes affected 0 rows for user {user_id}")
+                    raise http_error(
+                        ErrorCode.DB_QUERY_ERROR,
+                        "Account setup incomplete. Please sign out and sign in again.",
+                        status=400,
+                    )
 
         logger.info(f"2FA setup initiated for user {user_id}")
 

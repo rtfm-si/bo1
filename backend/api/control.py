@@ -1856,6 +1856,48 @@ async def _submit_clarification_impl(
                 from backend.api.context.services import normalize_clarification_for_storage
 
                 clarifications[question] = normalize_clarification_for_storage(clarification_entry)
+
+                # Auto-sync to business_metrics if metric was extracted with good confidence
+                try:
+                    from backend.api.context.services import (
+                        CATEGORY_TO_METRIC_KEY,
+                        DEFAULT_CONFIDENCE_THRESHOLD,
+                        METRIC_DISPLAY_NAMES,
+                    )
+                    from bo1.state.repositories.metrics_repository import metrics_repository
+
+                    category = clarification_entry.get("category")
+                    confidence = clarification_entry.get("confidence_score", 0.0)
+                    metric_data = clarification_entry.get("metric")
+
+                    if (
+                        category
+                        and category in CATEGORY_TO_METRIC_KEY
+                        and CATEGORY_TO_METRIC_KEY[category]
+                        and confidence >= DEFAULT_CONFIDENCE_THRESHOLD
+                        and metric_data
+                        and metric_data.get("value") is not None
+                    ):
+                        metric_key = CATEGORY_TO_METRIC_KEY[category]
+                        name = METRIC_DISPLAY_NAMES.get(
+                            metric_key, metric_key.replace("_", " ").title()
+                        )
+                        metrics_repository.save_metric(
+                            user_id=user_id,
+                            metric_key=metric_key,
+                            value=float(metric_data["value"]),
+                            name=name,
+                            value_unit=metric_data.get("unit"),
+                            source="clarification",
+                            is_predefined=False,
+                        )
+                        logger.debug(
+                            f"Auto-saved metric {metric_key} from clarification for {user_id}"
+                        )
+                except Exception as metric_err:
+                    # Non-blocking: don't fail the request if metric save fails
+                    logger.warning(f"Failed to auto-save metric from clarification: {metric_err}")
+
             existing_context["clarifications"] = clarifications
 
             # Context Auto-Update: Extract business context updates from clarification answers

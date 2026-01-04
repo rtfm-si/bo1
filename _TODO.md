@@ -1,7 +1,7 @@
-XHRGET
-https://boardof.one/api/v1/user/preferences
-[HTTP/2 500 65ms]
+# Active TODOs
 
-metrics all show $ despite me selection GBP £ in settings
+_Last cleared: 2026-01-04 - all items from previous session completed and moved to `_TASK.md`_
 
-existing insights havent been mapped/extracted to metrics
+---
+
+No outstanding items.

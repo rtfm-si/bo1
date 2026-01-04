@@ -12,6 +12,8 @@
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import { preferredCurrency } from '$lib/stores/preferences';
+	import { formatCurrency } from '$lib/utils/currency';
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
 	import ChevronUp from 'lucide-svelte/icons/chevron-up';
 	import Calculator from 'lucide-svelte/icons/calculator';
@@ -51,14 +53,9 @@
 		return ((traditionalCost - BO1_COST_PER_MEETING) / traditionalCost) * 100;
 	});
 
-	// Format currency
-	function formatCurrency(value: number): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD',
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2
-		}).format(value);
+	// Format currency using user's preferred currency
+	function fmtCurrency(value: number): string {
+		return formatCurrency(value, $preferredCurrency);
 	}
 
 	// Format percentage
@@ -141,7 +138,7 @@
 			</span>
 			<div class="flex items-center gap-2">
 				<span class="text-lg font-semibold text-success-600 dark:text-success-400">
-					{formatCurrency(savings)}
+					{fmtCurrency(savings)}
 				</span>
 				<Badge variant="success">{formatPercent(savingsPercent)}</Badge>
 			</div>
@@ -182,7 +179,7 @@
 							Avg hourly rate
 						</label>
 						<span class="font-medium text-neutral-900 dark:text-neutral-100">
-							{formatCurrency(avgHourlyRate)}/hr
+							{fmtCurrency(avgHourlyRate)}/hr
 						</span>
 					</div>
 					<input
@@ -240,13 +237,13 @@
 				<div class="flex justify-between items-center">
 					<span class="text-sm text-neutral-600 dark:text-neutral-400">Traditional meeting cost</span>
 					<span class="font-medium text-neutral-900 dark:text-neutral-100">
-						{formatCurrency(traditionalCost)}
+						{fmtCurrency(traditionalCost)}
 					</span>
 				</div>
 				<div class="flex justify-between items-center">
 					<span class="text-sm text-neutral-600 dark:text-neutral-400">Bo1 meeting cost</span>
 					<span class="font-medium text-success-600 dark:text-success-400">
-						{formatCurrency(BO1_COST_PER_MEETING)}
+						{fmtCurrency(BO1_COST_PER_MEETING)}
 					</span>
 				</div>
 				<div
@@ -255,7 +252,7 @@
 					<span class="font-medium text-success-700 dark:text-success-300">Your savings</span>
 					<div class="flex items-center gap-2">
 						<span class="text-xl font-bold text-success-600 dark:text-success-400">
-							{formatCurrency(savings)}
+							{fmtCurrency(savings)}
 						</span>
 						<Badge variant="success">{formatPercent(savingsPercent)}</Badge>
 					</div>
@@ -270,7 +267,7 @@
 				<p class="mt-2 pl-4">
 					Traditional cost = Participants × (Duration + Prep time) × Hourly rate
 					<br />
-					({participants} × ({durationMins} + {prepMins}) min ÷ 60) × {formatCurrency(avgHourlyRate)}/hr = {formatCurrency(traditionalCost)}
+					({participants} × ({durationMins} + {prepMins}) min ÷ 60) × {fmtCurrency(avgHourlyRate)}/hr = {fmtCurrency(traditionalCost)}
 				</p>
 			</details>
 

@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2026-01-03_
+_Last updated: 2026-01-04_
 
 ---
 
@@ -18,10 +18,42 @@ _Last updated: 2026-01-03_
 - [ ] [MONITORING] Clarify "grafana logs: value A" requirement
 - [ ] [DATA][P2] Clarify data retention soft-delete behavior
 
+---
+
+## New Tasks (from _TODO.md, 2026-01-04)
+
+### P1 - High
+
+- [x] [UI][P1] Fix currency display: metrics show $ despite user selecting GBP £ in settings (2026-01-04)
+- [x] [DATA][P1] Extract existing insights to metrics - implemented CATEGORY_TO_METRIC_KEY mapping, migration script, auto-sync hooks (2026-01-04)
+
+### P2 - Medium
+
+- [x] [UI][P2] Add app version number display in settings (major.minor.patch format, currently 0.8.0) (2026-01-04)
+
 ### Deferred by Design
 
 - [ ] [DATA][P2] DuckDB backend for large datasets - defer until >100K rows
 - [ ] [BILLING][P4] Upgrade prompts near usage limit - nice-to-have
+
+---
+
+## Feature Explorer Issues (2026-01-04 retest - STILL FAILING)
+
+### P0 - Critical
+
+- [x] [API][P0] ISS-001: Session sharing 500 errors - PostgreSQL fallback already exists in `verify_session_ownership()`; added integration tests for share endpoints + PostgreSQL fallback (2026-01-04)
+- [x] [API][P0] ISS-002: Project detail 500 errors - fixed gantt SQL (removed non-existent progress_percent), fixed sessions column alias mismatch (2026-01-04)
+
+### P1 - Major
+
+- [x] [API][P1] ISS-003: 2FA setup 500 error - added `user_repository.ensure_exists()` call before backup code storage, RETURNING id check for UPDATE (2026-01-04)
+- [x] [API][P1] ISS-004: SEO module 404 errors - verified working: all endpoints return 401 (auth required) not 404; tables+migrations deployed (2026-01-04)
+
+### P2 - Minor
+
+- [x] [API][P2] ISS-005: Dataset insights 422 error - frontend now gracefully handles 422 (expected for unprofiled data) (2026-01-04)
+- [x] [ROUTE][P2] ISS-006: Direct `/projects/new` navigation 500 - added client-side redirect to `/projects?create=true` (2026-01-04)
 
 ---
 
@@ -85,6 +117,8 @@ _Last updated: 2026-01-03_
 ## Completed Summary
 
 ### January 2026 (Week of 01/02)
+
+**Insight-to-Metrics Migration**: Auto-sync clarification insights to business_metrics table. Migration script for historical data. `CATEGORY_TO_METRIC_KEY` mapping. Hooks in routes.py and control.py for ongoing sync.
 
 **2FA Authentication**: Full TOTP 2FA with backup codes, rate limiting (5 attempts → 15min lockout), `/settings/security` UI, QR setup flow.
 

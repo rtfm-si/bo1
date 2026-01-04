@@ -2,26 +2,44 @@
 
 ## Summary
 
-- All remaining tasks in `_TASK.md` are blocked, need clarification, deferred, or user-owned
-- No development work can proceed without user input
+- All P0-P2 technical tasks are **complete**
+- Remaining items are blocked, deferred, or need user clarification
+- No implementation plan can be generated without user input
 
-## Current Task Status
+## Current Backlog State
 
-| Category | Count | Status |
-|----------|-------|--------|
-| Blocked on User Action | 3 | Awaiting user decisions (Stripe live mode, email triggers, social posting) |
-| Needs Clarification | 3 | K8s deployment, Grafana logs, data retention behavior |
-| Deferred by Design | 2 | DuckDB (wait for >100K rows), upgrade prompts (nice-to-have) |
-| A/B Test Deferred | 1 | Insufficient session data (need ≥100 sessions/variant) |
-| User-Owned | 1 | Help pages content review (Si's todo) |
+### Blocked on User Action
+- `[LAUNCH][P1]` Switch Stripe to live mode
+- `[EMAIL][P4]` Payment receipt email trigger
+- `[SOCIAL][P3]` Direct posting to social accounts
+
+### Needs Clarification (Actionable if User Provides Input)
+- `[MONITORING][P1]` Kubernetes deployment manifest - are we using k8s?
+- `[MONITORING]` Clarify "grafana logs: value A" requirement
+- `[DATA][P2]` Clarify data retention soft-delete behavior
+
+### Deferred by Design
+- `[DATA][P2]` DuckDB backend - defer until >100K rows
+- `[BILLING][P4]` Upgrade prompts near usage limit
+- `[COST][P2]` Persona count A/B test - need more users
 
 ## Recommended Next Steps
 
-1. **Unblock Stripe**: Follow `docs/runbooks/stripe-config.md` to switch to live mode
-2. **Clarify K8s**: Confirm if Kubernetes is planned or staying with SSH to droplet
-3. **Clarify data retention**: Define soft-delete behavior requirements
-4. **Wait for data**: A/B test needs more users/sessions before analysis
+Pick one:
 
-## No Implementation Steps Required
+1. **Stripe Live Mode** (`/plan LAUNCH`) - Provide Stripe live API keys to proceed
+2. **Data Retention** (`/plan DATA`) - Clarify soft-delete behavior to implement
+3. **Kubernetes** (`/plan MONITORING`) - Confirm if k8s is in scope or continue with current SSH deploy
+4. **New Feature** - Add a new task to `_TASK.md` or `_TODO.md`
 
-No code changes can be planned until one of the above blockers is resolved.
+## Tests
+
+N/A - no implementation steps
+
+## Dependencies & Risks
+
+### Dependencies
+- User decision required to unblock any remaining task
+
+### Risks/Edge Cases
+- None

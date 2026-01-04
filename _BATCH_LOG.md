@@ -1,17 +1,12 @@
-=== Starting batch run: 25 iterations ===
-2026-01-03 17:46:59: ✓ Deploy 2FA Security Settings (P0)
-2026-01-03 17:53:58: ✓ Fix /api/v1/user/preferences 500 Error (P0)
-2026-01-03 18:02:23: ✓ Add correlation ID to graph state and node logs [OBS][P1]
-2026-01-03 18:06:17: ✓ Add missing fields to Session Pydantic model [DATA][P1]
-2026-01-03 18:17:07: ✓ Add "Retry Session" UI for Checkpoint Recovery [REL][P0]
-2026-01-03 18:26:37: ✓ [LLM][P1] Add Challenge Phase Validation - Phase 2 Rejection
-2026-01-03 18:36:44: ✓ [ARCH][P2] Remove ENABLE_PARALLEL_SUBPROBLEMS Feature Flag
-2026-01-03 18:44:20: ✓ Task Backlog Cleanup + P1 API 503 Investigation
-2026-01-03 18:55:50: ✓ Standardize API Error Response Format (Phase 1)
-2026-01-03 19:04:39: ✓ Fix `/context/peer-benchmarks` 404 Errors
-2026-01-03 19:22:34: ✓ [ARCH][P1] Split DeliberationGraphState by Domain
-2026-01-03 19:35:10: ✓ [ARCH][P2] Consolidate Router Validation
-2026-01-03 19:39:25: ✓ Task Cleanup - Mark Completed P2 Items
-2026-01-03 19:44:11: ✓ Persona Count A/B Test Analysis & Decision
-2026-01-03 19:45:27: ✓ No Actionable Tasks
-2026-01-03 19:46:09: ✓ No Actionable Tasks
+=== Starting batch run: 10 iterations ===
+2026-01-04 11:20:02: ✓ ISS-002 Project Detail 500 Errors
+2026-01-04 11:28:03: ✓ [UI][P1] Fix Currency Display in Metrics
+2026-01-04 11:37:24: ✓ [API][P0] ISS-001: Fix Session Sharing 500 Errors
+2026-01-04 11:45:03: ✓ ISS-003 - Fix 2FA Setup 500 Error
+2026-01-04 11:52:05: ✓ ISS-004 - Fix SEO Module 404 Errors
+2026-01-04 11:55:55: ✓ [UI][P2] Add App Version Number Display in Settings
+2026-01-04 12:11:07: ✓ [DATA][P1] Extract Existing Insights to Metrics
+2026-01-04 12:14:26: ✓ Task Board Cleanup
+2026-01-04 12:15:37: ✓ No Actionable Tasks
+2026-01-04 12:16:25: ✓ No Actionable Tasks
+=== Batch complete: 10 completed, 0 deferred ===

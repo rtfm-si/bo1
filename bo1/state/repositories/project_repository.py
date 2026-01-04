@@ -802,7 +802,7 @@ class ProjectRepository(BaseRepository):
             SELECT id, title, status, priority,
                    estimated_start_date, estimated_end_date,
                    actual_start_date, actual_end_date,
-                   progress_percent, blocking_reason
+                   blocking_reason
             FROM actions
             WHERE project_id = %s
             ORDER BY estimated_start_date NULLS LAST, sort_order

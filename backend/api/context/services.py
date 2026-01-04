@@ -686,12 +686,27 @@ def calculate_trend_from_history(
 # Insight-to-Metric Mapping for Auto-Population
 # =============================================================================
 
-# Map clarification categories to context fields
+# Map clarification categories to context fields (legacy, for backward compat)
 CATEGORY_TO_FIELD_MAPPING = {
     "revenue": "revenue",
     "customers": "customers",
     "growth": "growth_rate",
     "team": "team_size",
+}
+
+# Extended mapping: InsightCategory -> business_metrics metric_key
+CATEGORY_TO_METRIC_KEY = {
+    "revenue": "mrr",
+    "growth": "growth_rate",
+    "customers": "customer_count",
+    "team": "team_size",
+    "costs": "burn_rate",
+    "operations": "ops_metric",
+    "market": "market_size",
+    "competition": "competitive_metric",
+    "funding": "runway",
+    "product": "product_metric",
+    "uncategorized": None,  # skip
 }
 
 # Default confidence threshold for suggestions
@@ -810,6 +825,96 @@ def get_metrics_from_insights(
     suggestions.sort(key=lambda s: s.get("confidence", 0), reverse=True)
 
     return suggestions
+
+
+def insight_to_business_metric(
+    entry: ClarificationStorageEntry,
+    question: str,
+) -> dict[str, Any] | None:
+    """Convert a ClarificationStorageEntry to business_metrics row data.
+
+    Args:
+        entry: Validated clarification entry
+        question: The clarification question text
+
+    Returns:
+        Dict with business_metrics fields, or None if not mappable
+    """
+    from datetime import UTC, datetime
+
+    from backend.api.context.models import InsightCategory
+
+    # Get category and check if mappable
+    category = entry.category
+    if not category:
+        return None
+
+    # Convert enum to string for lookup
+    category_str = category.value if isinstance(category, InsightCategory) else str(category)
+    if category_str not in CATEGORY_TO_METRIC_KEY:
+        return None
+
+    metric_key = CATEGORY_TO_METRIC_KEY[category_str]
+    if metric_key is None:
+        return None  # uncategorized
+
+    # Check confidence threshold
+    confidence = entry.confidence_score or 0.0
+    if confidence < DEFAULT_CONFIDENCE_THRESHOLD:
+        return None
+
+    # Check for metric data
+    metric = entry.metric
+    if not metric:
+        return None
+
+    # Extract value - handle both dict and InsightMetricResponse model
+    if isinstance(metric, dict):
+        value = metric.get("value")
+        unit = metric.get("unit")
+    else:
+        # It's an InsightMetricResponse model
+        value = getattr(metric, "value", None)
+        unit = getattr(metric, "unit", None)
+
+    if value is None:
+        return None
+
+    # Determine captured_at - handle both datetime and string
+    captured_at = None
+    if entry.parsed_at:
+        if isinstance(entry.parsed_at, datetime):
+            captured_at = entry.parsed_at
+        elif isinstance(entry.parsed_at, str):
+            try:
+                captured_at = datetime.fromisoformat(entry.parsed_at.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
+    if not captured_at and entry.answered_at:
+        if isinstance(entry.answered_at, datetime):
+            captured_at = entry.answered_at
+        elif isinstance(entry.answered_at, str):
+            try:
+                captured_at = datetime.fromisoformat(entry.answered_at.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
+    if not captured_at:
+        captured_at = datetime.now(UTC)
+
+    # Build display name from metric_key
+    name = METRIC_DISPLAY_NAMES.get(metric_key, metric_key.replace("_", " ").title())
+
+    return {
+        "metric_key": metric_key,
+        "name": name,
+        "value": float(value) if isinstance(value, (int, float, str)) else None,
+        "value_unit": unit,
+        "captured_at": captured_at,
+        "source": "clarification",
+        "is_predefined": False,
+        "source_question": question,
+        "confidence": confidence,
+    }
 
 
 def get_key_metrics_for_user(

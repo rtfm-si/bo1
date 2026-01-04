@@ -883,7 +883,9 @@ async def get_project_sessions(
                 "relationship": s["relationship"],
                 "problem_statement": s.get("problem_statement", ""),
                 "session_status": s.get("session_status", ""),
-                "created_at": (s["created_at"].isoformat() if s.get("created_at") else None),
+                "created_at": (
+                    s["session_created_at"].isoformat() if s.get("session_created_at") else None
+                ),
             }
             for s in sessions
         ]

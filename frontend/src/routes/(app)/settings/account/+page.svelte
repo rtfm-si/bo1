@@ -9,6 +9,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import { resetTour } from '$lib/stores/tour';
+	import { APP_VERSION } from '$lib/config/version';
 
 	// State for meeting preferences
 	let skipClarification = $state(false);
@@ -489,4 +490,9 @@
 			</Button>
 		</div>
 	</div>
+
+	<!-- Version Footer -->
+	<p class="text-center text-sm text-slate-400 dark:text-slate-500">
+		Board of One v{APP_VERSION}
+	</p>
 </div>

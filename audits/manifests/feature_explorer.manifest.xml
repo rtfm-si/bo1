@@ -1,38 +1,44 @@
-# Comprehensive Feature Explorer Manifest
+# Ultra-Comprehensive Feature Explorer Manifest
 
 <audit_manifest>
   <audit_type>feature_explorer</audit_type>
 
   <purpose>
-    Run a synthetic user session through ALL application features except meetings/deliberations.
-    Test every user-facing feature: context, competitors, mentor, datasets, projects, actions,
-    settings, reports, billing, and workspaces. Capture evidence at every step.
-    No code changes, PRs, or diffs—diagnostics only.
+    Run an exhaustive synthetic user session testing EVERY interactive element on EVERY page.
+    Test all buttons, links, text inputs, dropdowns, checkboxes, toggles, modals, forms,
+    page refresh behavior, back navigation, and keyboard interactions.
+    Capture evidence at every step. No code changes—diagnostics only.
   </purpose>
 
   <scope>
-    - Dashboard widgets and data display
-    - Context management (business context, metrics, competitors, trends, goals)
-    - Session sharing (create share links, public view, TTL, revocation)
-    - Mentor sessions (all personas, conversation persistence, streaming)
-    - Mentor @mentions (autocomplete, meeting/action/dataset references, context sources)
-    - Datasets (upload CSV, import sheets, Q&A, charts, profiling)
-    - Projects (CRUD, Gantt, action assignment, session linking)
-    - Actions (CRUD, Kanban, Gantt, dependencies, status transitions)
-    - Settings (account, security/2FA with backup codes, privacy/GDPR, integrations, workspace)
-    - Reports (competitors, meetings history, benchmarks)
-    - Billing (plan display, checkout flow initiation, portal access)
-    - Workspace management (creation, members, roles, invitations)
-    - Calendar integration (Google Calendar OAuth flow)
-    - Onboarding (tour flows, step completion tracking)
-    - Welcome page (demo questions, personalized greeting)
-    - Ratings and feedback submission (thumbs up/down, feature requests, problem reports)
-    - SEO module (keyword research, topic management, autopilot, quotas)
-    - Help center (searchable FAQ, categories, articles)
-    - Research sharing consent (opt-in/opt-out for anonymized data)
+    EVERY page in the application (excluding meetings/deliberations):
+    - Public pages: Landing, About, Features, Pricing, Blog, Legal, Status
+    - Auth pages: Login, Callback
+    - App pages: Dashboard, Context (all sub-pages), Mentor, Datasets, Analysis,
+      Projects, Actions, Reports, Settings (all sub-pages), Help, SEO, Welcome, Onboarding
+    - Billing pages: Success, Cancel
+    - Share/Invite pages
+
+    FOR EACH PAGE, TEST:
+    - Page load (all elements render)
+    - Page refresh (F5 / browser refresh maintains state)
+    - Browser back button (proper navigation)
+    - Every button (click, hover state, disabled state)
+    - Every link (navigation, external links)
+    - Every text input (focus, type, clear, validation)
+    - Every dropdown/select (open, options, selection)
+    - Every checkbox (check, uncheck)
+    - Every toggle switch (on, off)
+    - Every modal (open, close, escape key)
+    - Every form (validation, submission)
+    - Every tab (switch, active state)
+    - Every accordion (expand, collapse)
+    - Every tooltip (hover trigger)
+    - Every toast/alert (dismissal)
+    - Keyboard navigation (Tab, Enter, Escape)
 
     EXPLICITLY EXCLUDED:
-    - Meeting creation and running
+    - Meeting creation and running (/meeting/new submit, /meeting/[id] active deliberation)
     - Deliberation flow
     - Any LLM-based meeting orchestration
   </scope>
@@ -43,7 +49,9 @@
     - MUST capture at least one evidence item for every reported issue
     - MUST follow scenario steps in order (dependencies respected)
     - MUST use Playwright MCP for all browser interactions
-    - MUST NOT start or interact with meetings/deliberations
+    - MUST NOT start or interact with active meetings/deliberations
+    - MUST test refresh and back navigation on EVERY page
+    - MUST test every visible interactive element
     - Read-only observation mode only (except for CRUD test data)
     - Follow CLAUDE.md, GOVERNANCE, CONTEXT_BOUNDARY, MODEL_GUIDANCE
   </constraints>
@@ -70,7 +78,7 @@
     - Single file: _FEATURE_EXPLORER_REPORT.md
     - YAML frontmatter with run metadata
     - Summary with pass/warn/fail result and issue counts
-    - Feature coverage matrix with status per feature area
+    - Element coverage matrix per page
     - Timeline table with step-by-step evidence
     - Issue blocks with severity, evidence, and suggested fixes
     - Prioritized recommendations
@@ -78,9 +86,9 @@
   </expected_outputs>
 
   <severity_rules>
-    - Critical: Feature completely broken, data loss, auth failures, payment broken, GDPR violations
-    - Major: Feature works but with significant errors, broken UI, confusing UX, data inconsistency
-    - Minor: Cosmetic issues, non-blocking warnings, copy improvements, performance suggestions
+    - Critical: Feature broken, data loss, auth failures, payment broken, GDPR violations, unresponsive buttons
+    - Major: Feature works but with significant errors, broken UI, confusing UX, data inconsistency, broken links
+    - Minor: Cosmetic issues, non-blocking warnings, missing hover states, copy improvements
   </severity_rules>
 
   <evidence_rule>
@@ -91,179 +99,959 @@
     - Precise UI location/component reference
   </evidence_rule>
 
-  <scenario name="feature_coverage_v1">
-    <!-- Authentication -->
+  <element_testing_protocol>
+    For EACH interactive element:
+    1. VERIFY element is visible and accessible
+    2. TEST interaction (click/type/select)
+    3. VERIFY expected behavior occurs
+    4. CHECK for console errors after interaction
+    5. RECORD evidence (pass or issue)
+
+    For EACH page:
+    1. LOAD page and verify all elements render
+    2. CHECK console for errors/warnings
+    3. TEST page REFRESH (F5) and verify state persists correctly
+    4. TEST browser BACK button navigation
+    5. TEST all buttons, links, inputs, dropdowns, checkboxes
+    6. TEST keyboard navigation (Tab through elements)
+  </element_testing_protocol>
+
+  <scenario name="ultra_comprehensive_v2">
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 0: AUTHENTICATION -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <step n="0.1">Create session via SuperTokens Core API</step>
     <step n="0.2">Open base_url (unauthenticated)</step>
     <step n="0.3">Inject session cookies via browser_evaluate</step>
     <step n="0.4">Reload page to apply session</step>
-    <step n="0.5">Verify authenticated state</step>
+    <step n="0.5">Verify authenticated state (user menu visible)</step>
 
-    <!-- Dashboard -->
-    <step n="1.1">Verify dashboard loads with all widgets</step>
-    <step n="1.2">Check activity heatmap displays</step>
-    <step n="1.3">Check pending reminders widget</step>
-    <step n="1.4">Check value metrics panel</step>
-    <step n="1.5">Check recent meetings widget</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 1: LANDING PAGE (/) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="1.1">Navigate to landing page (/)</step>
+    <step n="1.2">Verify page load - all sections render (Hero, Metrics, FAQ)</step>
+    <step n="1.3">TEST REFRESH: Reload page, verify same state</step>
+    <step n="1.4">TEST BACK: Navigate away and back, verify page renders</step>
+    <step n="1.5">TEST Header logo link (click, verify navigation)</step>
+    <step n="1.6">TEST Header navigation links (Features, Pricing, About)</step>
+    <step n="1.7">TEST Header Login/Signup button</step>
+    <step n="1.8">TEST Hero section CTA button (primary action)</step>
+    <step n="1.9">TEST Email waitlist input (focus, type email, validation)</step>
+    <step n="1.10">TEST Waitlist submit button (verify form submission)</step>
+    <step n="1.11">TEST Sample decision carousel (prev/next buttons)</step>
+    <step n="1.12">TEST Sample decision modal (open, close, escape key)</step>
+    <step n="1.13">TEST FAQ accordion items (expand each, collapse)</step>
+    <step n="1.14">TEST Metrics grid hover states</step>
+    <step n="1.15">TEST Footer links (all navigation links)</step>
+    <step n="1.16">TEST Footer social links (verify external URLs)</step>
+    <step n="1.17">TEST Cookie consent banner (accept, dismiss)</step>
+    <step n="1.18">TEST Keyboard navigation (Tab through all interactive elements)</step>
+    <step n="1.19">CHECK console for errors</step>
 
-    <!-- Context Management + Session Sharing -->
-    <step n="2.1">Navigate to context overview</step>
-    <step n="2.2">View existing business context (or create if empty)</step>
-    <step n="2.3">Edit business context fields</step>
-    <step n="2.4">Navigate to metrics configuration</step>
-    <step n="2.5">Add or view custom metrics</step>
-    <step n="2.6">Navigate to competitor tracking</step>
-    <step n="2.7">Add a test competitor</step>
-    <step n="2.8">Trigger competitor enrichment</step>
-    <step n="2.9">View market trends</step>
-    <step n="2.10">Check key metrics display</step>
-    <step n="2.11">Navigate to session sharing (find completed meeting)</step>
-    <step n="2.12">Create share link with TTL</step>
-    <step n="2.13">Test public share link access</step>
-    <step n="2.14">Revoke share link</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 2: ABOUT PAGE (/about) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="2.1">Navigate to /about</step>
+    <step n="2.2">Verify page load - all content sections render</step>
+    <step n="2.3">TEST REFRESH: Reload page, verify same state</step>
+    <step n="2.4">TEST BACK: Browser back to landing, then forward to about</step>
+    <step n="2.5">TEST Header navigation (all links)</step>
+    <step n="2.6">TEST Any CTA buttons on page</step>
+    <step n="2.7">TEST Footer links</step>
+    <step n="2.8">CHECK console for errors</step>
 
-    <!-- Mentor Sessions + @mentions -->
-    <step n="3.1">Navigate to mentor chat</step>
-    <step n="3.2">Select data_analyst persona</step>
-    <step n="3.3">Send a test message and verify streaming response</step>
-    <step n="3.4">Switch to sales_coach persona</step>
-    <step n="3.5">Send another message</step>
-    <step n="3.6">View conversation history list</step>
-    <step n="3.7">Return to a previous conversation</step>
-    <step n="3.8">Test @mention autocomplete trigger</step>
-    <step n="3.9">Use @mention in message</step>
-    <step n="3.10">Check context sources badge</step>
-    <step n="3.11">Test repeated topics detection</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 3: FEATURES PAGE (/features) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="3.1">Navigate to /features</step>
+    <step n="3.2">Verify page load - all feature cards render</step>
+    <step n="3.3">TEST REFRESH: Reload page</step>
+    <step n="3.4">TEST BACK: Browser back navigation</step>
+    <step n="3.5">TEST Header navigation</step>
+    <step n="3.6">TEST Feature card hover states</step>
+    <step n="3.7">TEST Any CTA buttons</step>
+    <step n="3.8">TEST Footer links</step>
+    <step n="3.9">CHECK console for errors</step>
 
-    <!-- Datasets -->
-    <step n="4.1">Navigate to datasets page</step>
-    <step n="4.2">Upload a test CSV file (small sample)</step>
-    <step n="4.3">View dataset profile and summary</step>
-    <step n="4.4">Ask a question about the data</step>
-    <step n="4.5">Verify streaming response and chart generation</step>
-    <step n="4.6">View dataset conversation history</step>
-    <step n="4.7">Delete test dataset</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 4: PRICING PAGE (/pricing) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="4.1">Navigate to /pricing</step>
+    <step n="4.2">Verify page load - pricing table and bundles render</step>
+    <step n="4.3">TEST REFRESH: Reload page</step>
+    <step n="4.4">TEST BACK: Browser back navigation</step>
+    <step n="4.5">TEST Header navigation</step>
+    <step n="4.6">TEST Plan comparison toggle (monthly/yearly if exists)</step>
+    <step n="4.7">TEST Each plan CTA button (Free, Starter, Pro, Enterprise)</step>
+    <step n="4.8">TEST Meeting bundles selector (if visible)</step>
+    <step n="4.9">TEST Feature comparison tooltips (hover)</step>
+    <step n="4.10">TEST Footer links</step>
+    <step n="4.11">CHECK console for errors</step>
 
-    <!-- Data Analysis -->
-    <step n="5.1">Navigate to analysis page</step>
-    <step n="5.2">Ask a general data question</step>
-    <step n="5.3">Verify response includes guidance</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 5: BLOG PAGES (/blog, /blog/[slug]) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="5.1">Navigate to /blog</step>
+    <step n="5.2">Verify page load - blog post list renders</step>
+    <step n="5.3">TEST REFRESH: Reload page</step>
+    <step n="5.4">TEST BACK: Browser back navigation</step>
+    <step n="5.5">TEST Blog post card click (navigate to article)</step>
+    <step n="5.6">Verify blog article page loads (/blog/[slug])</step>
+    <step n="5.7">TEST REFRESH on article page</step>
+    <step n="5.8">TEST BACK from article to blog list</step>
+    <step n="5.9">TEST Any share buttons on article</step>
+    <step n="5.10">TEST Footer links</step>
+    <step n="5.11">CHECK console for errors on both pages</step>
 
-    <!-- Projects -->
-    <step n="6.1">Navigate to projects page</step>
-    <step n="6.2">Create a new test project</step>
-    <step n="6.3">View project details</step>
-    <step n="6.4">View project Gantt chart</step>
-    <step n="6.5">Check auto-generated project suggestions</step>
-    <step n="6.6">Update project status</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 6: LEGAL PAGES (/legal/*) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="6.1">Navigate to /legal/terms</step>
+    <step n="6.2">Verify terms content loads</step>
+    <step n="6.3">TEST REFRESH: Reload page</step>
+    <step n="6.4">TEST BACK: Browser back navigation</step>
+    <step n="6.5">TEST Any internal links within terms</step>
+    <step n="6.6">Navigate to /legal/privacy</step>
+    <step n="6.7">Verify privacy policy content loads</step>
+    <step n="6.8">TEST REFRESH on privacy page</step>
+    <step n="6.9">Navigate to /legal/cookies</step>
+    <step n="6.10">Verify cookie policy content loads</step>
+    <step n="6.11">TEST REFRESH on cookies page</step>
+    <step n="6.12">CHECK console for errors on all legal pages</step>
 
-    <!-- Actions -->
-    <step n="7.1">Navigate to actions page</step>
-    <step n="7.2">View Kanban board</step>
-    <step n="7.3">View global Gantt chart</step>
-    <step n="7.4">Filter actions by status/project</step>
-    <step n="7.5">View action detail (if any exist)</step>
-    <step n="7.6">Test status transitions (if actions exist)</step>
-    <step n="7.7">Test dependency management UI (if multiple actions)</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 7: STATUS PAGE (/status) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="7.1">Navigate to /status</step>
+    <step n="7.2">Verify status indicators render</step>
+    <step n="7.3">TEST REFRESH: Reload page</step>
+    <step n="7.4">TEST BACK: Browser back navigation</step>
+    <step n="7.5">TEST Any expandable status details</step>
+    <step n="7.6">CHECK console for errors</step>
 
-    <!-- Reports -->
-    <step n="8.1">Navigate to competitor reports</step>
-    <step n="8.2">Navigate to meetings report</step>
-    <step n="8.3">Navigate to benchmarks report</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 8: LOGIN PAGE (/(auth)/login) - AUTH -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="8.1">Open new incognito/private tab for login testing</step>
+    <step n="8.2">Navigate to /login</step>
+    <step n="8.3">Verify login page loads (forms visible)</step>
+    <step n="8.4">TEST REFRESH: Reload page</step>
+    <step n="8.5">TEST Email input field (focus, type, clear, validation)</step>
+    <step n="8.6">TEST Password input field (focus, type, show/hide toggle)</step>
+    <step n="8.7">TEST Login/Signup mode toggle</step>
+    <step n="8.8">TEST Magic link option (click, verify form change)</step>
+    <step n="8.9">TEST OAuth buttons (Google - verify redirect initiates)</step>
+    <step n="8.10">TEST OAuth buttons (GitHub - verify redirect initiates)</step>
+    <step n="8.11">TEST GDPR consent checkbox (check, uncheck)</step>
+    <step n="8.12">TEST Form validation (empty submit, invalid email)</step>
+    <step n="8.13">TEST Error message display (verify styling)</step>
+    <step n="8.14">TEST Keyboard navigation (Tab through form)</step>
+    <step n="8.15">TEST Enter key form submission</step>
+    <step n="8.16">TEST "Forgot password" link if present</step>
+    <step n="8.17">TEST Back to home link</step>
+    <step n="8.18">CHECK console for errors</step>
+    <step n="8.19">Close incognito tab, return to authenticated session</step>
 
-    <!-- Settings - Account -->
-    <step n="9.1">Navigate to account settings</step>
-    <step n="9.2">View account information</step>
-    <step n="9.3">Check profile editing capability</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 9: DASHBOARD (/dashboard) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="9.1">Navigate to /dashboard</step>
+    <step n="9.2">Verify dashboard loads with all widgets</step>
+    <step n="9.3">TEST REFRESH: Reload page, verify widgets reload</step>
+    <step n="9.4">TEST BACK: Browser back navigation</step>
+    <step n="9.5">TEST Activity heatmap (click day, hover tooltip)</step>
+    <step n="9.6">TEST Heatmap depth selector dropdown (1/3/6 months)</step>
+    <step n="9.7">TEST Pending reminders widget (expand, click items)</step>
+    <step n="9.8">TEST Value metrics panel (all cards visible)</step>
+    <step n="9.9">TEST Recent meetings widget (click meeting links)</step>
+    <step n="9.10">TEST Research insights widget (expand if present)</step>
+    <step n="9.11">TEST Goal banner (if visible - click action)</step>
+    <step n="9.12">TEST Smart focus banner (if visible - click action)</step>
+    <step n="9.13">TEST Onboarding checklist (expand, click items)</step>
+    <step n="9.14">TEST Tour restart button (if visible)</step>
+    <step n="9.15">TEST Objective progress modal (click to open, close)</step>
+    <step n="9.16">TEST Weekly plan view (tab switching if applicable)</step>
+    <step n="9.17">TEST Daily activities section (expand/collapse)</step>
+    <step n="9.18">TEST Failed meeting alert (dismiss if present)</step>
+    <step n="9.19">TEST Context refresh banner (refresh button if stale)</step>
+    <step n="9.20">TEST Working pattern editor (Mon-Fri checkboxes)</step>
+    <step n="9.21">TEST Main navigation sidebar links</step>
+    <step n="9.22">TEST User menu dropdown (profile, settings, logout)</step>
+    <step n="9.23">TEST Workspace switcher dropdown (if multiple workspaces)</step>
+    <step n="9.24">TEST Keyboard navigation through dashboard</step>
+    <step n="9.25">CHECK console for errors</step>
 
-    <!-- Settings - Security + 2FA -->
-    <step n="10.1">Navigate to security settings</step>
-    <step n="10.2">Check 2FA status</step>
-    <step n="10.3">Verify password change UI (do not actually change)</step>
-    <step n="10.4">Initiate 2FA setup (view QR code)</step>
-    <step n="10.5">View backup codes</step>
-    <step n="10.6">Test 2FA verification UI</step>
-    <step n="10.7">Cancel 2FA setup (do not enable)</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 10: CONTEXT OVERVIEW (/context/overview) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="10.1">Navigate to /context/overview</step>
+    <step n="10.2">Verify page loads with context form</step>
+    <step n="10.3">TEST REFRESH: Reload page, verify data persists</step>
+    <step n="10.4">TEST BACK: Browser back to dashboard</step>
+    <step n="10.5">TEST Company name input (focus, type, edit)</step>
+    <step n="10.6">TEST Website URL input (focus, type, validation)</step>
+    <step n="10.7">TEST Business stage dropdown (open, select each option, close)</step>
+    <step n="10.8">TEST Primary objective dropdown (open, select, close)</step>
+    <step n="10.9">TEST North Star goal input (type, edit, clear)</step>
+    <step n="10.10">TEST Strategic objectives list (add item, edit, remove)</step>
+    <step n="10.11">TEST Context enrichment button (click, verify loading state)</step>
+    <step n="10.12">TEST Save button (click, verify success toast)</step>
+    <step n="10.13">TEST Welcome banner dismiss (if visible)</step>
+    <step n="10.14">TEST Goal staleness prompt (update if shown)</step>
+    <step n="10.15">TEST Context sub-navigation tabs/links</step>
+    <step n="10.16">TEST Keyboard navigation through form</step>
+    <step n="10.17">CHECK console for errors</step>
 
-    <!-- Settings - Privacy + Research Sharing -->
-    <step n="11.1">Navigate to privacy settings</step>
-    <step n="11.2">View GDPR consent status</step>
-    <step n="11.3">Check data export functionality</step>
-    <step n="11.4">Verify data retention controls</step>
-    <step n="11.5">Check account deletion UI (do not execute)</step>
-    <step n="11.6">Check research sharing consent toggle</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 11: CONTEXT KEY METRICS (/context/key-metrics) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="11.1">Navigate to /context/key-metrics</step>
+    <step n="11.2">Verify page loads with metrics configuration</step>
+    <step n="11.3">TEST REFRESH: Reload page</step>
+    <step n="11.4">TEST BACK: Browser back navigation</step>
+    <step n="11.5">TEST Add metric button (open form)</step>
+    <step n="11.6">TEST Metric name input</step>
+    <step n="11.7">TEST Metric value input</step>
+    <step n="11.8">TEST Metric unit dropdown</step>
+    <step n="11.9">TEST Metric target input</step>
+    <step n="11.10">TEST Save metric button</step>
+    <step n="11.11">TEST Edit existing metric (if any exist)</step>
+    <step n="11.12">TEST Delete metric button (confirm dialog)</step>
+    <step n="11.13">TEST Metric suggestions (if shown - click to add)</step>
+    <step n="11.14">CHECK console for errors</step>
 
-    <!-- Settings - Billing -->
-    <step n="12.1">Navigate to billing settings</step>
-    <step n="12.2">View current plan</step>
-    <step n="12.3">Check upgrade options</step>
-    <step n="12.4">Verify checkout flow initiates (do not complete)</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 12: CONTEXT METRICS (/context/metrics) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="12.1">Navigate to /context/metrics</step>
+    <step n="12.2">Verify metrics list/grid loads</step>
+    <step n="12.3">TEST REFRESH: Reload page</step>
+    <step n="12.4">TEST BACK: Browser back navigation</step>
+    <step n="12.5">TEST Any filter dropdowns</step>
+    <step n="12.6">TEST Any search/filter inputs</step>
+    <step n="12.7">TEST Metric card interactions</step>
+    <step n="12.8">CHECK console for errors</step>
 
-    <!-- Settings - Workspace -->
-    <step n="13.1">Navigate to workspace settings</step>
-    <step n="13.2">View workspace details</step>
-    <step n="13.3">Check member list</step>
-    <step n="13.4">Verify invitation capability</step>
-    <step n="13.5">Check role management UI</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 13: CONTEXT COMPETITORS (/context/competitors) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="13.1">Navigate to context competitors section</step>
+    <step n="13.2">Verify competitor list loads</step>
+    <step n="13.3">TEST REFRESH: Reload page</step>
+    <step n="13.4">TEST BACK: Browser back navigation</step>
+    <step n="13.5">TEST Add competitor button (open form)</step>
+    <step n="13.6">TEST Competitor name input</step>
+    <step n="13.7">TEST Competitor website input</step>
+    <step n="13.8">TEST Competitor description textarea</step>
+    <step n="13.9">TEST Save competitor button</step>
+    <step n="13.10">TEST Competitor card (expand details)</step>
+    <step n="13.11">TEST Competitor enrichment button (if available)</step>
+    <step n="13.12">TEST Edit competitor (existing)</step>
+    <step n="13.13">TEST Delete competitor (confirm dialog)</step>
+    <step n="13.14">TEST Competitor insight cards (expand/collapse)</step>
+    <step n="13.15">TEST Tier limit warning (if max competitors reached)</step>
+    <step n="13.16">CHECK console for errors</step>
 
-    <!-- Settings - Integrations + Calendar -->
-    <step n="14.1">Navigate to integrations settings</step>
-    <step n="14.2">View available integrations</step>
-    <step n="14.3">Check connection status indicators</step>
-    <step n="14.4">Test Google Calendar connect (OAuth initiation)</step>
-    <step n="14.5">Cancel calendar connection</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 14: CONTEXT INSIGHTS (/context/insights) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="14.1">Navigate to /context/insights</step>
+    <step n="14.2">Verify insights page loads</step>
+    <step n="14.3">TEST REFRESH: Reload page</step>
+    <step n="14.4">TEST BACK: Browser back navigation</step>
+    <step n="14.5">TEST Any insight cards (expand, actions)</step>
+    <step n="14.6">TEST Refresh insights button (if present)</step>
+    <step n="14.7">TEST Any filter/sort controls</step>
+    <step n="14.8">CHECK console for errors</step>
 
-    <!-- Onboarding + Welcome -->
-    <step n="15.1">Check onboarding progress indicator</step>
-    <step n="15.2">Verify tour availability (if not completed)</step>
-    <step n="15.3">Navigate to welcome page</step>
-    <step n="15.4">Test demo questions</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 15: CONTEXT STRATEGIC (/context/strategic) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="15.1">Navigate to /context/strategic</step>
+    <step n="15.2">Verify strategic analysis loads</step>
+    <step n="15.3">TEST REFRESH: Reload page</step>
+    <step n="15.4">TEST BACK: Browser back navigation</step>
+    <step n="15.5">TEST Any strategic section toggles</step>
+    <step n="15.6">TEST Any action buttons</step>
+    <step n="15.7">CHECK console for errors</step>
 
-    <!-- Feedback -->
-    <step n="16.1">Locate feedback submission UI</step>
-    <step n="16.2">Verify rating capability</step>
-    <step n="16.3">Test feedback form (do not submit)</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 16: CONTEXT PEER BENCHMARKS (/context/peer-benchmarks) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="16.1">Navigate to /context/peer-benchmarks</step>
+    <step n="16.2">Verify benchmarks page loads</step>
+    <step n="16.3">TEST REFRESH: Reload page</step>
+    <step n="16.4">TEST BACK: Browser back navigation</step>
+    <step n="16.5">TEST Benchmark range bars (hover tooltips)</step>
+    <step n="16.6">TEST Benchmark history toggle</step>
+    <step n="16.7">TEST Refresh benchmarks button</step>
+    <step n="16.8">CHECK console for errors</step>
 
-    <!-- SEO Module -->
-    <step n="17.1">Navigate to SEO page</step>
-    <step n="17.2">View keyword research</step>
-    <step n="17.3">Check topic management</step>
-    <step n="17.4">View quota/limits</step>
-    <step n="17.5">Check autopilot settings</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 17: MENTOR (/mentor) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="17.1">Navigate to /mentor</step>
+    <step n="17.2">Verify mentor chat interface loads</step>
+    <step n="17.3">TEST REFRESH: Reload page, verify chat state</step>
+    <step n="17.4">TEST BACK: Browser back navigation</step>
+    <step n="17.5">TEST Persona picker dropdown (open, view all options)</step>
+    <step n="17.6">TEST Select data_analyst persona</step>
+    <step n="17.7">TEST Select sales_coach persona</step>
+    <step n="17.8">TEST Select each available persona</step>
+    <step n="17.9">TEST Chat input field (focus, type message)</step>
+    <step n="17.10">TEST Send button (click)</step>
+    <step n="17.11">TEST Enter key to send message</step>
+    <step n="17.12">Verify streaming response renders</step>
+    <step n="17.13">TEST @mention autocomplete (type @, verify popup)</step>
+    <step n="17.14">TEST @mention selection (click suggestion)</step>
+    <step n="17.15">TEST @mention types (meeting, action, dataset refs)</step>
+    <step n="17.16">TEST Context sources badge (click to expand)</step>
+    <step n="17.17">TEST Chat history sidebar (open)</step>
+    <step n="17.18">TEST Chat history item click (load previous conversation)</step>
+    <step n="17.19">TEST New conversation button</step>
+    <step n="17.20">TEST Delete conversation (if available)</step>
+    <step n="17.21">TEST Message copy button (if present)</step>
+    <step n="17.22">TEST Message feedback buttons (thumbs up/down)</step>
+    <step n="17.23">TEST Repeated topics warning (if shown)</step>
+    <step n="17.24">TEST Keyboard navigation through chat</step>
+    <step n="17.25">CHECK console for errors</step>
 
-    <!-- Help Center -->
-    <step n="18.1">Navigate to help page</step>
-    <step n="18.2">Search help articles</step>
-    <step n="18.3">View help category</step>
-    <step n="18.4">View help article</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 18: DATASETS LIST (/datasets) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="18.1">Navigate to /datasets</step>
+    <step n="18.2">Verify datasets page loads</step>
+    <step n="18.3">TEST REFRESH: Reload page</step>
+    <step n="18.4">TEST BACK: Browser back navigation</step>
+    <step n="18.5">TEST Upload area (click to open file picker)</step>
+    <step n="18.6">TEST Drag-and-drop zone (visual feedback on dragover)</step>
+    <step n="18.7">TEST Upload CSV file (small test file)</step>
+    <step n="18.8">Verify upload progress indicator</step>
+    <step n="18.9">TEST Google Sheets connect button (if available)</step>
+    <step n="18.10">TEST Dataset card click (navigate to detail)</step>
+    <step n="18.11">TEST Dataset card menu (edit, delete options)</step>
+    <step n="18.12">TEST Delete dataset button (confirm dialog)</step>
+    <step n="18.13">TEST Query templates (click template to use)</step>
+    <step n="18.14">TEST Data insights panel (expand/collapse)</step>
+    <step n="18.15">TEST Any filter/search controls</step>
+    <step n="18.16">CHECK console for errors</step>
 
-    <!-- Cleanup & End -->
-    <step n="19.1">Delete test project if created</step>
-    <step n="19.2">Delete test competitor if created</step>
-    <step n="19.3">Close browser</step>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 19: DATASET DETAIL (/datasets/[id]) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="19.1">Navigate to a dataset detail page</step>
+    <step n="19.2">Verify dataset chat interface loads</step>
+    <step n="19.3">TEST REFRESH: Reload page</step>
+    <step n="19.4">TEST BACK: Browser back to datasets list</step>
+    <step n="19.5">TEST Dataset info header (name, stats visible)</step>
+    <step n="19.6">TEST Column reference sidebar (open, browse columns)</step>
+    <step n="19.7">TEST Chat input (focus, type question)</step>
+    <step n="19.8">TEST Send query button</step>
+    <step n="19.9">TEST Enter key to send query</step>
+    <step n="19.10">Verify streaming response with chart</step>
+    <step n="19.11">TEST Chart modal (click chart to fullscreen)</step>
+    <step n="19.12">TEST Chart modal close (X button, escape key)</step>
+    <step n="19.13">TEST Analysis gallery (view previous charts)</step>
+    <step n="19.14">TEST Chat history navigation</step>
+    <step n="19.15">TEST Export/download options (if present)</step>
+    <step n="19.16">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 20: ANALYSIS (/analysis) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="20.1">Navigate to /analysis</step>
+    <step n="20.2">Verify analysis page loads</step>
+    <step n="20.3">TEST REFRESH: Reload page</step>
+    <step n="20.4">TEST BACK: Browser back navigation</step>
+    <step n="20.5">TEST Breadcrumb navigation</step>
+    <step n="20.6">TEST Analysis chat input</step>
+    <step n="20.7">TEST Send query button</step>
+    <step n="20.8">Verify response with guidance</step>
+    <step n="20.9">TEST Any suggested queries</step>
+    <step n="20.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 21: PROJECTS LIST (/projects) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="21.1">Navigate to /projects</step>
+    <step n="21.2">Verify projects list loads</step>
+    <step n="21.3">TEST REFRESH: Reload page</step>
+    <step n="21.4">TEST BACK: Browser back navigation</step>
+    <step n="21.5">TEST Create project button (open modal)</step>
+    <step n="21.6">TEST Project name input in modal</step>
+    <step n="21.7">TEST Project description textarea</step>
+    <step n="21.8">TEST Project color/icon selector (if present)</step>
+    <step n="21.9">TEST Create button in modal</step>
+    <step n="21.10">TEST Cancel button in modal (close without saving)</step>
+    <step n="21.11">TEST Modal close via X button</step>
+    <step n="21.12">TEST Modal close via Escape key</step>
+    <step n="21.13">TEST Project card click (navigate to detail)</step>
+    <step n="21.14">TEST Project card menu (edit, delete)</step>
+    <step n="21.15">TEST Auto-generate projects button (from actions)</step>
+    <step n="21.16">TEST Unassigned tasks indicator</step>
+    <step n="21.17">TEST Any filter/search controls</step>
+    <step n="21.18">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 22: PROJECT DETAIL (/projects/[id]) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="22.1">Navigate to a project detail page</step>
+    <step n="22.2">Verify project detail loads with Gantt</step>
+    <step n="22.3">TEST REFRESH: Reload page</step>
+    <step n="22.4">TEST BACK: Browser back to projects list</step>
+    <step n="22.5">TEST Project title (edit if editable)</step>
+    <step n="22.6">TEST Project description (edit if editable)</step>
+    <step n="22.7">TEST Project status dropdown (change status)</step>
+    <step n="22.8">TEST Gantt chart zoom controls</step>
+    <step n="22.9">TEST Gantt chart task click (open details)</step>
+    <step n="22.10">TEST Gantt chart drag (if enabled)</step>
+    <step n="22.11">TEST Add task button (within project)</step>
+    <step n="22.12">TEST Task list view toggle (if present)</step>
+    <step n="22.13">TEST Delete project button (confirm dialog)</step>
+    <step n="22.14">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 23: NEW PROJECT (/projects/new) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="23.1">Navigate to /projects/new</step>
+    <step n="23.2">Verify new project form loads</step>
+    <step n="23.3">TEST REFRESH: Reload page</step>
+    <step n="23.4">TEST BACK: Browser back navigation</step>
+    <step n="23.5">TEST All form fields (name, description, etc.)</step>
+    <step n="23.6">TEST Form validation (empty submit)</step>
+    <step n="23.7">TEST Cancel/Back link</step>
+    <step n="23.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 24: ACTIONS/KANBAN (/actions) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="24.1">Navigate to /actions</step>
+    <step n="24.2">Verify Kanban board loads</step>
+    <step n="24.3">TEST REFRESH: Reload page</step>
+    <step n="24.4">TEST BACK: Browser back navigation</step>
+    <step n="24.5">TEST Kanban column headers</step>
+    <step n="24.6">TEST Add task inline input (quick add)</step>
+    <step n="24.7">TEST Task card click (open detail modal)</step>
+    <step n="24.8">TEST Task card drag (move between columns)</step>
+    <step n="24.9">TEST Task status dropdown (in card)</step>
+    <step n="24.10">TEST Task due date picker</step>
+    <step n="24.11">TEST Task priority selector</step>
+    <step n="24.12">TEST Task assignment dropdown</step>
+    <step n="24.13">TEST Task description edit</step>
+    <step n="24.14">TEST Task detail modal (open, edit, close)</step>
+    <step n="24.15">TEST Task detail modal X button</step>
+    <step n="24.16">TEST Task detail modal Escape key</step>
+    <step n="24.17">TEST Delete task button (confirm)</step>
+    <step n="24.18">TEST Project filter dropdown</step>
+    <step n="24.19">TEST Status filter dropdown</step>
+    <step n="24.20">TEST Global Gantt view toggle</step>
+    <step n="24.21">TEST Dependency graph view (if available)</step>
+    <step n="24.22">TEST Reminder settings button</step>
+    <step n="24.23">TEST Activity timeline panel</step>
+    <step n="24.24">TEST Unblock suggestions (if blocked tasks)</step>
+    <step n="24.25">TEST Replanning suggestions modal</step>
+    <step n="24.26">TEST Cancellation modal</step>
+    <step n="24.27">TEST Action social share buttons</step>
+    <step n="24.28">TEST Keyboard navigation through Kanban</step>
+    <step n="24.29">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 25: ACTION DETAIL (/actions/[id]) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="25.1">Navigate to an action detail page</step>
+    <step n="25.2">Verify action detail loads</step>
+    <step n="25.3">TEST REFRESH: Reload page</step>
+    <step n="25.4">TEST BACK: Browser back to actions list</step>
+    <step n="25.5">TEST All editable fields</step>
+    <step n="25.6">TEST Status change</step>
+    <step n="25.7">TEST Dependencies management</step>
+    <step n="25.8">TEST Activity history</step>
+    <step n="25.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 26: MEETING LIST (/meeting) - APP (VIEW ONLY) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="26.1">Navigate to /meeting</step>
+    <step n="26.2">Verify meeting list loads</step>
+    <step n="26.3">TEST REFRESH: Reload page</step>
+    <step n="26.4">TEST BACK: Browser back navigation</step>
+    <step n="26.5">TEST Meeting card click (navigate to results)</step>
+    <step n="26.6">TEST Meeting card menu (share, delete)</step>
+    <step n="26.7">TEST Meeting status indicators</step>
+    <step n="26.8">TEST Any filter/search controls</step>
+    <step n="26.9">TEST Delete meeting button (confirm - do NOT delete)</step>
+    <step n="26.10">TEST New meeting button (navigate to /meeting/new)</step>
+    <step n="26.11">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 27: MEETING RESULTS (/meeting/[id]/results) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="27.1">Navigate to a completed meeting results page</step>
+    <step n="27.2">Verify results page loads</step>
+    <step n="27.3">TEST REFRESH: Reload page</step>
+    <step n="27.4">TEST BACK: Browser back to meeting list</step>
+    <step n="27.5">TEST Share modal (open, close)</step>
+    <step n="27.6">TEST Share link copy button</step>
+    <step n="27.7">TEST Social share buttons</step>
+    <step n="27.8">TEST Download/PDF button</step>
+    <step n="27.9">TEST Expert summaries panel (expand/collapse)</step>
+    <step n="27.10">TEST Research panel (expand/collapse)</step>
+    <step n="27.11">TEST Sub-problem tabs (if multiple)</step>
+    <step n="27.12">TEST Rating prompt (if shown - do NOT submit)</step>
+    <step n="27.13">TEST Project suggestions (link to project)</step>
+    <step n="27.14">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 28: REPORTS - COMPETITORS (/reports/competitors) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="28.1">Navigate to /reports/competitors</step>
+    <step n="28.2">Verify competitor reports load</step>
+    <step n="28.3">TEST REFRESH: Reload page</step>
+    <step n="28.4">TEST BACK: Browser back navigation</step>
+    <step n="28.5">TEST Report search/filter input</step>
+    <step n="28.6">TEST Report card click (expand details)</step>
+    <step n="28.7">TEST Generate report button</step>
+    <step n="28.8">TEST Export options (if present)</step>
+    <step n="28.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 29: REPORTS - MEETINGS (/reports/meetings) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="29.1">Navigate to /reports/meetings</step>
+    <step n="29.2">Verify meetings report loads</step>
+    <step n="29.3">TEST REFRESH: Reload page</step>
+    <step n="29.4">TEST BACK: Browser back navigation</step>
+    <step n="29.5">TEST Date range filter (if present)</step>
+    <step n="29.6">TEST Report items (click to expand)</step>
+    <step n="29.7">TEST Export button</step>
+    <step n="29.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 30: REPORTS - BENCHMARKS (/reports/benchmarks) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="30.1">Navigate to /reports/benchmarks</step>
+    <step n="30.2">Verify benchmarks report loads</step>
+    <step n="30.3">TEST REFRESH: Reload page</step>
+    <step n="30.4">TEST BACK: Browser back navigation</step>
+    <step n="30.5">TEST Benchmark range bars (hover tooltips)</step>
+    <step n="30.6">TEST Benchmark history view</step>
+    <step n="30.7">TEST Refresh benchmarks button</step>
+    <step n="30.8">TEST Benchmark refresh banner (if stale)</step>
+    <step n="30.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 31: SETTINGS - ACCOUNT (/settings/account) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="31.1">Navigate to /settings/account</step>
+    <step n="31.2">Verify account settings load</step>
+    <step n="31.3">TEST REFRESH: Reload page</step>
+    <step n="31.4">TEST BACK: Browser back navigation</step>
+    <step n="31.5">TEST Settings sidebar navigation (all tabs)</step>
+    <step n="31.6">TEST Skip clarification checkbox (toggle)</step>
+    <step n="31.7">TEST Working pattern Mon checkbox</step>
+    <step n="31.8">TEST Working pattern Tue checkbox</step>
+    <step n="31.9">TEST Working pattern Wed checkbox</step>
+    <step n="31.10">TEST Working pattern Thu checkbox</step>
+    <step n="31.11">TEST Working pattern Fri checkbox</step>
+    <step n="31.12">TEST Heatmap depth dropdown (1 month)</step>
+    <step n="31.13">TEST Heatmap depth dropdown (3 months)</step>
+    <step n="31.14">TEST Heatmap depth dropdown (6 months)</step>
+    <step n="31.15">TEST Preferred currency dropdown (GBP)</step>
+    <step n="31.16">TEST Preferred currency dropdown (USD)</step>
+    <step n="31.17">TEST Preferred currency dropdown (EUR)</step>
+    <step n="31.18">TEST Restart onboarding tour button</step>
+    <step n="31.19">TEST Save preferences button</step>
+    <step n="31.20">TEST Success toast after save</step>
+    <step n="31.21">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 32: SETTINGS - SECURITY (/settings/security) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="32.1">Navigate to /settings/security</step>
+    <step n="32.2">Verify security settings load</step>
+    <step n="32.3">TEST REFRESH: Reload page</step>
+    <step n="32.4">TEST BACK: Browser back navigation</step>
+    <step n="32.5">TEST Password upgrade prompt (if shown)</step>
+    <step n="32.6">TEST Current password input</step>
+    <step n="32.7">TEST New password input</step>
+    <step n="32.8">TEST Confirm password input</step>
+    <step n="32.9">TEST Password visibility toggle</step>
+    <step n="32.10">TEST Password validation (weak password warning)</step>
+    <step n="32.11">TEST 2FA status indicator</step>
+    <step n="32.12">TEST Enable 2FA button (open setup)</step>
+    <step n="32.13">TEST 2FA QR code display</step>
+    <step n="32.14">TEST 2FA secret key copy button</step>
+    <step n="32.15">TEST 2FA verification code input</step>
+    <step n="32.16">TEST 2FA verify button (with invalid code)</step>
+    <step n="32.17">TEST Cancel 2FA setup button</step>
+    <step n="32.18">TEST Backup codes display (if 2FA enabled)</step>
+    <step n="32.19">TEST Backup codes copy button</step>
+    <step n="32.20">TEST Backup codes regenerate button</step>
+    <step n="32.21">TEST Disable 2FA button (if enabled)</step>
+    <step n="32.22">TEST Active sessions list (if shown)</step>
+    <step n="32.23">TEST Revoke session button (if shown)</step>
+    <step n="32.24">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 33: SETTINGS - PRIVACY (/settings/privacy) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="33.1">Navigate to /settings/privacy</step>
+    <step n="33.2">Verify privacy settings load</step>
+    <step n="33.3">TEST REFRESH: Reload page</step>
+    <step n="33.4">TEST BACK: Browser back navigation</step>
+    <step n="33.5">TEST GDPR consent status display</step>
+    <step n="33.6">TEST Research sharing consent toggle</step>
+    <step n="33.7">TEST Data export request button</step>
+    <step n="33.8">TEST Data export confirmation (do NOT execute)</step>
+    <step n="33.9">TEST Data retention controls (view settings)</step>
+    <step n="33.10">TEST Account deletion button (view warning)</step>
+    <step n="33.11">TEST Account deletion confirmation modal</step>
+    <step n="33.12">TEST Cancel deletion button</step>
+    <step n="33.13">TEST Escape key to close deletion modal</step>
+    <step n="33.14">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 34: SETTINGS - BILLING (/settings/billing) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="34.1">Navigate to /settings/billing</step>
+    <step n="34.2">Verify billing settings load</step>
+    <step n="34.3">TEST REFRESH: Reload page</step>
+    <step n="34.4">TEST BACK: Browser back navigation</step>
+    <step n="34.5">TEST Current plan display</step>
+    <step n="34.6">TEST Plan features list</step>
+    <step n="34.7">TEST Upgrade plan button</step>
+    <step n="34.8">TEST Plan selector (if modal opens)</step>
+    <step n="34.9">TEST Checkout initiation (verify redirect - do NOT complete)</step>
+    <step n="34.10">TEST Cancel checkout/close modal</step>
+    <step n="34.11">TEST Billing history section (if present)</step>
+    <step n="34.12">TEST Invoice download buttons</step>
+    <step n="34.13">TEST Payment method update button</step>
+    <step n="34.14">TEST Cancel subscription button (view warning - do NOT proceed)</step>
+    <step n="34.15">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 35: SETTINGS - WORKSPACE (/settings/workspace) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="35.1">Navigate to /settings/workspace</step>
+    <step n="35.2">Verify workspace settings load</step>
+    <step n="35.3">TEST REFRESH: Reload page</step>
+    <step n="35.4">TEST BACK: Browser back navigation</step>
+    <step n="35.5">TEST Workspace name input (edit)</step>
+    <step n="35.6">TEST Workspace logo upload (if present)</step>
+    <step n="35.7">TEST Save workspace button</step>
+    <step n="35.8">TEST Member list display</step>
+    <step n="35.9">TEST Member role dropdown (change role)</step>
+    <step n="35.10">TEST Remove member button (confirm - do NOT remove)</step>
+    <step n="35.11">TEST Invite member button (open modal)</step>
+    <step n="35.12">TEST Invite email input</step>
+    <step n="35.13">TEST Invite role dropdown</step>
+    <step n="35.14">TEST Send invite button</step>
+    <step n="35.15">TEST Cancel invite button</step>
+    <step n="35.16">TEST Pending invitations list</step>
+    <step n="35.17">TEST Resend invitation button</step>
+    <step n="35.18">TEST Revoke invitation button</step>
+    <step n="35.19">TEST Join requests panel (if any)</step>
+    <step n="35.20">TEST Approve join request button</step>
+    <step n="35.21">TEST Deny join request button</step>
+    <step n="35.22">TEST Create new workspace button</step>
+    <step n="35.23">TEST Create workspace modal (name, save, cancel)</step>
+    <step n="35.24">TEST Delete workspace button (confirm - do NOT delete)</step>
+    <step n="35.25">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 36: SETTINGS - WORKSPACE BILLING (/settings/workspace/billing) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="36.1">Navigate to /settings/workspace/billing</step>
+    <step n="36.2">Verify workspace billing loads</step>
+    <step n="36.3">TEST REFRESH: Reload page</step>
+    <step n="36.4">TEST BACK: Browser back navigation</step>
+    <step n="36.5">TEST All billing controls (same as user billing)</step>
+    <step n="36.6">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 37: SETTINGS - INTEGRATIONS (/settings/integrations) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="37.1">Navigate to /settings/integrations</step>
+    <step n="37.2">Verify integrations page loads</step>
+    <step n="37.3">TEST REFRESH: Reload page</step>
+    <step n="37.4">TEST BACK: Browser back navigation</step>
+    <step n="37.5">TEST Integration tiles display</step>
+    <step n="37.6">TEST Google Calendar connect button</step>
+    <step n="37.7">Verify OAuth redirect initiates (cancel before completing)</step>
+    <step n="37.8">TEST Google Sheets connect button (if separate)</step>
+    <step n="37.9">TEST Connection status indicators (green/red)</step>
+    <step n="37.10">TEST Disconnect button (for connected integrations)</step>
+    <step n="37.11">TEST Disconnect confirmation modal</step>
+    <step n="37.12">TEST Cancel disconnect button</step>
+    <step n="37.13">TEST Integration settings (if any sub-settings)</step>
+    <step n="37.14">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 38: SEO (/seo) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="38.1">Navigate to /seo</step>
+    <step n="38.2">Verify SEO page loads</step>
+    <step n="38.3">TEST REFRESH: Reload page</step>
+    <step n="38.4">TEST BACK: Browser back navigation</step>
+    <step n="38.5">TEST Keyword research section</step>
+    <step n="38.6">TEST Add keyword input</step>
+    <step n="38.7">TEST Keyword list (view, edit, delete)</step>
+    <step n="38.8">TEST Topic management section</step>
+    <step n="38.9">TEST Add topic button</step>
+    <step n="38.10">TEST Topic card interactions</step>
+    <step n="38.11">TEST Quota/limits display</step>
+    <step n="38.12">TEST Autopilot toggle</step>
+    <step n="38.13">TEST Autopilot settings (if expanded)</step>
+    <step n="38.14">TEST Any filter/sort controls</step>
+    <step n="38.15">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 39: HELP (/help) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="39.1">Navigate to /help</step>
+    <step n="39.2">Verify help page loads</step>
+    <step n="39.3">TEST REFRESH: Reload page</step>
+    <step n="39.4">TEST BACK: Browser back navigation</step>
+    <step n="39.5">TEST Help sidebar navigation</step>
+    <step n="39.6">TEST Search input (type search term)</step>
+    <step n="39.7">TEST Search results display</step>
+    <step n="39.8">TEST Search result click (navigate to article)</step>
+    <step n="39.9">TEST Category expansion (click category)</step>
+    <step n="39.10">TEST Article click (load content)</step>
+    <step n="39.11">TEST Article content links (if internal)</step>
+    <step n="39.12">TEST Relationship diagram (if present - click nodes)</step>
+    <step n="39.13">TEST Back to help home link</step>
+    <step n="39.14">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 40: WELCOME (/welcome) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="40.1">Navigate to /welcome</step>
+    <step n="40.2">Verify welcome page loads</step>
+    <step n="40.3">TEST REFRESH: Reload page</step>
+    <step n="40.4">TEST BACK: Browser back navigation</step>
+    <step n="40.5">TEST Personalized greeting display</step>
+    <step n="40.6">TEST Demo question buttons (click each)</step>
+    <step n="40.7">TEST Skip/Continue button</step>
+    <step n="40.8">TEST Any onboarding prompts</step>
+    <step n="40.9">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 41: ONBOARDING (/onboarding) - APP -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="41.1">Navigate to /onboarding</step>
+    <step n="41.2">Verify onboarding page loads</step>
+    <step n="41.3">TEST REFRESH: Reload page</step>
+    <step n="41.4">TEST BACK: Browser back navigation</step>
+    <step n="41.5">TEST Onboarding step progress</step>
+    <step n="41.6">TEST Next/Continue buttons</step>
+    <step n="41.7">TEST Skip button (if present)</step>
+    <step n="41.8">TEST Any form inputs in onboarding</step>
+    <step n="41.9">TEST Completion indicators</step>
+    <step n="41.10">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 42: BILLING SUCCESS (/billing/success) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="42.1">Navigate to /billing/success</step>
+    <step n="42.2">Verify success page loads</step>
+    <step n="42.3">TEST REFRESH: Reload page</step>
+    <step n="42.4">TEST BACK: Browser back navigation</step>
+    <step n="42.5">TEST Success message display</step>
+    <step n="42.6">TEST Continue to dashboard button</step>
+    <step n="42.7">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 43: BILLING CANCEL (/billing/cancel) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="43.1">Navigate to /billing/cancel</step>
+    <step n="43.2">Verify cancel page loads</step>
+    <step n="43.3">TEST REFRESH: Reload page</step>
+    <step n="43.4">TEST BACK: Browser back navigation</step>
+    <step n="43.5">TEST Cancel message display</step>
+    <step n="43.6">TEST Try again button</step>
+    <step n="43.7">TEST Return to dashboard button</step>
+    <step n="43.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 44: SHARE PAGE (/share/[token]) - PUBLIC -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="44.1">Navigate to a share link (create one from meeting first)</step>
+    <step n="44.2">Verify share page loads (or create share link first)</step>
+    <step n="44.3">TEST REFRESH: Reload page</step>
+    <step n="44.4">TEST BACK: Browser back navigation</step>
+    <step n="44.5">TEST Share page content display</step>
+    <step n="44.6">TEST Any interactive elements on share page</step>
+    <step n="44.7">TEST Error page display (invalid token)</step>
+    <step n="44.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 45: INVITE PAGE (/invite/[token]) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="45.1">Navigate to an invite link (create one first)</step>
+    <step n="45.2">Verify invite page loads</step>
+    <step n="45.3">TEST REFRESH: Reload page</step>
+    <step n="45.4">TEST BACK: Browser back navigation</step>
+    <step n="45.5">TEST Accept invitation button</step>
+    <step n="45.6">TEST Decline invitation button</step>
+    <step n="45.7">TEST Invalid/expired invite handling</step>
+    <step n="45.8">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 46: DESIGN SYSTEM (/design-system) - DEV -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="46.1">Navigate to /design-system</step>
+    <step n="46.2">Verify design system page loads</step>
+    <step n="46.3">TEST REFRESH: Reload page</step>
+    <step n="46.4">TEST BACK: Browser back navigation</step>
+    <step n="46.5">TEST All button variants (click each)</step>
+    <step n="46.6">TEST All input variants (focus, type)</step>
+    <step n="46.7">TEST All badge variants (display)</step>
+    <step n="46.8">TEST All alert variants (display, dismiss)</step>
+    <step n="46.9">TEST Spinner display</step>
+    <step n="46.10">TEST Progress bar variants</step>
+    <step n="46.11">TEST Avatar variants</step>
+    <step n="46.12">TEST Tooltip triggers</step>
+    <step n="46.13">TEST Modal open/close</step>
+    <step n="46.14">TEST Dropdown variants</step>
+    <step n="46.15">TEST Tab components</step>
+    <step n="46.16">TEST Toast triggers</step>
+    <step n="46.17">TEST Card variants</step>
+    <step n="46.18">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 47: GLOBAL NAVIGATION & HEADER TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="47.1">TEST Header logo (navigate to appropriate page)</step>
+    <step n="47.2">TEST All main navigation links</step>
+    <step n="47.3">TEST User menu dropdown (open, close)</step>
+    <step n="47.4">TEST User menu - Profile link</step>
+    <step n="47.5">TEST User menu - Settings link</step>
+    <step n="47.6">TEST User menu - Logout button</step>
+    <step n="47.7">TEST Workspace switcher (if multiple workspaces)</step>
+    <step n="47.8">TEST Service status banner (if visible)</step>
+    <step n="47.9">TEST Impersonation banner (if admin impersonating)</step>
+    <step n="47.10">TEST Mobile menu toggle (if responsive)</step>
+    <step n="47.11">TEST Mobile navigation links</step>
+    <step n="47.12">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 48: GLOBAL FOOTER TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="48.1">TEST Footer - About link</step>
+    <step n="48.2">TEST Footer - Features link</step>
+    <step n="48.3">TEST Footer - Pricing link</step>
+    <step n="48.4">TEST Footer - Blog link</step>
+    <step n="48.5">TEST Footer - Help link</step>
+    <step n="48.6">TEST Footer - Terms link</step>
+    <step n="48.7">TEST Footer - Privacy link</step>
+    <step n="48.8">TEST Footer - Cookies link</step>
+    <step n="48.9">TEST Footer - Status link</step>
+    <step n="48.10">TEST Footer - Social links (Twitter/X)</step>
+    <step n="48.11">TEST Footer - Social links (LinkedIn)</step>
+    <step n="48.12">TEST Footer - Social links (GitHub)</step>
+    <step n="48.13">CHECK all external links open in new tab</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 49: TOAST/NOTIFICATION TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="49.1">Trigger success toast (via save action)</step>
+    <step n="49.2">TEST Toast dismiss button</step>
+    <step n="49.3">TEST Toast auto-dismiss timing</step>
+    <step n="49.4">Trigger error toast (via invalid action)</step>
+    <step n="49.5">TEST Multiple toasts stacking</step>
+    <step n="49.6">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 50: KEYBOARD ACCESSIBILITY TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="50.1">TEST Tab navigation through entire page</step>
+    <step n="50.2">TEST Enter key activates focused button</step>
+    <step n="50.3">TEST Escape key closes modals</step>
+    <step n="50.4">TEST Escape key closes dropdowns</step>
+    <step n="50.5">TEST Arrow keys in dropdowns</step>
+    <step n="50.6">TEST Focus trap in modals</step>
+    <step n="50.7">TEST Skip to content link (if present)</step>
+    <step n="50.8">CHECK focus indicators visible</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 51: ERROR STATE TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="51.1">TEST 404 page (navigate to /nonexistent-page)</step>
+    <step n="51.2">Verify 404 page displays correctly</step>
+    <step n="51.3">TEST 404 page - Back to home link</step>
+    <step n="51.4">TEST Network error handling (offline simulation if possible)</step>
+    <step n="51.5">TEST Form validation error states</step>
+    <step n="51.6">TEST Empty state displays (no data)</step>
+    <step n="51.7">CHECK console for errors</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 52: LOADING STATE TESTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="52.1">Verify skeleton loaders during page load</step>
+    <step n="52.2">Verify spinners during async operations</step>
+    <step n="52.3">Verify loading dots in appropriate contexts</step>
+    <step n="52.4">Verify disabled states during loading</step>
+    <step n="52.5">CHECK no flash of unstyled content</step>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PHASE 53: CLEANUP & FINAL CHECKS -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <step n="53.1">Delete test dataset if created</step>
+    <step n="53.2">Delete test project if created</step>
+    <step n="53.3">Delete test competitor if created</step>
+    <step n="53.4">Revoke test share link if created</step>
+    <step n="53.5">Revoke test invite if created</step>
+    <step n="53.6">Final console error check across all pages</step>
+    <step n="53.7">Final network error check</step>
+    <step n="53.8">Close browser</step>
   </scenario>
 
-  <feature_coverage_matrix>
-    Track pass/fail/skip for each feature area (102 steps total):
-    - Dashboard: [widgets, heatmap, reminders, metrics] (5 steps)
-    - Context+Share: [overview, edit, metrics, competitors, trends, goals, share links] (14 steps)
-    - Mentor+Mentions: [chat, personas, history, streaming, @mentions, context sources] (11 steps)
-    - Datasets: [upload, profile, Q&A, charts, delete] (7 steps)
-    - Analysis: [queries, guidance] (3 steps)
-    - Projects: [CRUD, Gantt, suggestions, status] (6 steps)
-    - Actions: [Kanban, Gantt, filters, details, status, dependencies] (7 steps)
-    - Reports: [competitors, meetings, benchmarks] (3 steps)
-    - Account: [settings, profile, edit] (3 steps)
-    - Security+2FA: [settings, 2FA setup, QR code, backup codes, verification] (7 steps)
-    - Privacy+GDPR: [consent, export, retention, deletion, research sharing] (6 steps)
-    - Billing: [plan, upgrade, checkout] (4 steps)
-    - Workspace: [settings, members, roles, invitations] (5 steps)
-    - Integrations: [list, status, calendar OAuth] (5 steps)
-    - Onboarding: [progress, tours, welcome, demo questions] (4 steps)
-    - Feedback: [ratings, form] (3 steps)
-    - SEO: [keywords, topics, quota, autopilot] (5 steps)
-    - Help: [search, categories, articles] (4 steps)
-  </feature_coverage_matrix>
+  <element_coverage_matrix>
+    Track pass/fail/skip for EVERY element type per page (~500+ steps total):
+
+    PUBLIC PAGES (Landing, About, Features, Pricing, Blog, Legal, Status):
+    - Page loads: 8 pages
+    - Refresh tests: 8 pages
+    - Back navigation: 8 pages
+    - Header/Footer: ~20 links
+    - CTAs: ~15 buttons
+    - Forms: ~3 forms
+    - Accordions: ~5 items
+    - Modals: ~2 modals
+
+    AUTH PAGES (Login):
+    - Forms: 3 (email/pass, magic link, OAuth)
+    - Inputs: 4 fields
+    - Buttons: ~8 buttons
+    - Toggles: 2 toggles
+    - Validation: 5 scenarios
+
+    APP PAGES (Dashboard through SEO):
+    - Page loads: 30+ pages
+    - Refresh tests: 30+ pages
+    - Back navigation: 30+ pages
+    - Forms: 20+ forms
+    - Inputs: 100+ fields
+    - Dropdowns: 50+ selects
+    - Checkboxes: 30+ checkboxes
+    - Buttons: 200+ buttons
+    - Modals: 30+ modals
+    - Tabs: 15+ tab groups
+    - Cards: 50+ interactive cards
+    - Charts: 5+ chart interactions
+    - Drag-drop: 2 Kanban boards
+    - Real-time: 3 streaming interfaces
+
+    GLOBAL ELEMENTS:
+    - Navigation: 15+ links
+    - Footer: 12+ links
+    - Toasts: 3 types
+    - Keyboard: 8 key tests
+    - Error states: 5 scenarios
+    - Loading states: 4 types
+  </element_coverage_matrix>
 
   <tier_awareness>
     Test behavior differs by subscription tier:
@@ -279,9 +1067,10 @@
     If a step fails:
     1. Capture screenshot and console state immediately
     2. Attempt ONE recovery action (refresh page OR navigate back)
-    3. If recovery fails, record failure with evidence and SKIP to next feature area
-    4. Continue testing other features (unlike meeting flow which blocks)
-    5. Never skip entire feature areas without attempting all steps
+    3. If recovery fails, record failure with evidence and SKIP to next element/section
+    4. Continue testing other elements (do not abort entire page)
+    5. Never skip entire page without attempting all elements
+    6. Log all skipped elements with reason
   </recovery_policy>
 
   <activation_conditions>
@@ -291,6 +1080,7 @@
     - After API changes
     - Weekly comprehensive regression
     - After settings/billing changes
+    - After component library updates
     - On-demand feature validation
   </activation_conditions>
 

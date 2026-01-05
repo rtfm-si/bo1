@@ -115,6 +115,13 @@ class TestInsightCategory:
             "funding",
             "costs",
             "uncategorized",
+            # D2C/product metrics
+            "inventory",
+            "margin",
+            "conversion",
+            "aov",
+            "cogs",
+            "returns",
         ]
         actual = [c.value for c in InsightCategory]
         assert set(expected) == set(actual)

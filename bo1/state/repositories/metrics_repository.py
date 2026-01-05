@@ -28,20 +28,20 @@ class MetricsRepository(BaseRepository):
 
         Args:
             business_model: Filter to templates applicable to this model
-                           (saas, ecommerce, marketplace) or None for all
+                           (saas, ecommerce, marketplace, d2c) or None for all
 
         Returns:
-            List of metric template dictionaries
+            List of metric template dictionaries ordered by priority then display_order
         """
         if business_model:
             # Filter by business model (includes 'all' templates)
             return self._execute_query(
                 """
                 SELECT metric_key, name, definition, importance, category,
-                       value_unit, display_order, applies_to
+                       value_unit, display_order, applies_to, priority
                 FROM metric_templates
                 WHERE applies_to @> %s OR applies_to @> '["all"]'
-                ORDER BY display_order, metric_key
+                ORDER BY priority ASC, display_order ASC, metric_key
                 """,
                 (f'["{business_model}"]',),
             )
@@ -49,9 +49,9 @@ class MetricsRepository(BaseRepository):
             return self._execute_query(
                 """
                 SELECT metric_key, name, definition, importance, category,
-                       value_unit, display_order, applies_to
+                       value_unit, display_order, applies_to, priority
                 FROM metric_templates
-                ORDER BY display_order, metric_key
+                ORDER BY priority ASC, display_order ASC, metric_key
                 """
             )
 
@@ -67,7 +67,7 @@ class MetricsRepository(BaseRepository):
         return self._execute_one(
             """
             SELECT metric_key, name, definition, importance, category,
-                   value_unit, display_order, applies_to
+                   value_unit, display_order, applies_to, priority
             FROM metric_templates
             WHERE metric_key = %s
             """,
@@ -78,22 +78,38 @@ class MetricsRepository(BaseRepository):
     # User Metrics
     # =========================================================================
 
-    def get_business_metrics(self, user_id: str) -> list[dict[str, Any]]:
+    def get_business_metrics(
+        self, user_id: str, include_irrelevant: bool = False
+    ) -> list[dict[str, Any]]:
         """Get all metrics for a user.
 
         Args:
             user_id: User identifier
+            include_irrelevant: If True, include metrics marked as not relevant
 
         Returns:
             List of user metric dictionaries
         """
+        if include_irrelevant:
+            return self._execute_query(
+                """
+                SELECT id, user_id, metric_key, name, definition, importance,
+                       category, value, value_unit, captured_at, source,
+                       is_predefined, display_order, is_relevant, created_at, updated_at
+                FROM business_metrics
+                WHERE user_id = %s
+                ORDER BY display_order, metric_key
+                """,
+                (user_id,),
+                user_id=user_id,
+            )
         return self._execute_query(
             """
             SELECT id, user_id, metric_key, name, definition, importance,
                    category, value, value_unit, captured_at, source,
-                   is_predefined, display_order, created_at, updated_at
+                   is_predefined, display_order, is_relevant, created_at, updated_at
             FROM business_metrics
-            WHERE user_id = %s
+            WHERE user_id = %s AND is_relevant = TRUE
             ORDER BY display_order, metric_key
             """,
             (user_id,),
@@ -114,7 +130,7 @@ class MetricsRepository(BaseRepository):
             """
             SELECT id, user_id, metric_key, name, definition, importance,
                    category, value, value_unit, captured_at, source,
-                   is_predefined, display_order, created_at, updated_at
+                   is_predefined, display_order, is_relevant, created_at, updated_at
             FROM business_metrics
             WHERE user_id = %s AND metric_key = %s
             """,
@@ -123,35 +139,50 @@ class MetricsRepository(BaseRepository):
         )
 
     def get_metrics_with_templates(
-        self, user_id: str, business_model: str | None = None
+        self, user_id: str, business_model: str | None = None, include_irrelevant: bool = False
     ) -> dict[str, Any]:
         """Get user metrics merged with applicable templates.
 
-        Returns both:
-        - User's saved metrics (with values)
+        Returns:
+        - User's saved metrics (relevant only by default)
         - Template definitions for metrics not yet saved
+        - Hidden metrics (when include_irrelevant=True)
 
         Args:
             user_id: User identifier
             business_model: Filter templates by business model
+            include_irrelevant: If True, also return hidden metrics separately
 
         Returns:
-            Dict with 'metrics' (user's saved) and 'templates' (unfilled)
+            Dict with 'metrics' (user's saved), 'templates' (unfilled),
+            and optionally 'hidden_metrics'
         """
-        # Get user's saved metrics
-        business_metrics = self.get_business_metrics(user_id)
-        saved_keys = {m["metric_key"] for m in business_metrics}
+        # Get user's saved metrics (relevant only)
+        business_metrics = self.get_business_metrics(user_id, include_irrelevant=False)
 
         # Get applicable templates
         templates = self.get_templates(business_model)
 
-        # Filter templates to those not already saved
-        unfilled_templates = [t for t in templates if t["metric_key"] not in saved_keys]
+        # Filter templates to those not already saved (check all metrics including hidden)
+        all_user_metrics = (
+            self.get_business_metrics(user_id, include_irrelevant=True)
+            if include_irrelevant
+            else business_metrics
+        )
+        all_saved_keys = {m["metric_key"] for m in all_user_metrics}
+        unfilled_templates = [t for t in templates if t["metric_key"] not in all_saved_keys]
 
-        return {
+        result = {
             "metrics": business_metrics,
             "templates": unfilled_templates,
         }
+
+        # Get hidden metrics if requested
+        if include_irrelevant:
+            hidden_metrics = [m for m in all_user_metrics if not m.get("is_relevant", True)]
+            result["hidden_metrics"] = hidden_metrics
+
+        return result
 
     def save_metric(
         self,
@@ -223,7 +254,7 @@ class MetricsRepository(BaseRepository):
                 updated_at = NOW()
             RETURNING id, user_id, metric_key, name, definition, importance,
                       category, value, value_unit, captured_at, source,
-                      is_predefined, display_order, created_at, updated_at
+                      is_predefined, display_order, is_relevant, created_at, updated_at
             """,
             (
                 user_id,
@@ -272,7 +303,7 @@ class MetricsRepository(BaseRepository):
             WHERE user_id = %s AND metric_key = %s
             RETURNING id, user_id, metric_key, name, definition, importance,
                       category, value, value_unit, captured_at, source,
-                      is_predefined, display_order, created_at, updated_at
+                      is_predefined, display_order, is_relevant, created_at, updated_at
             """,
             (value, captured_at, source, user_id, metric_key),
             user_id=user_id,
@@ -306,6 +337,42 @@ class MetricsRepository(BaseRepository):
             user_id=user_id,
         )
         return count > 0
+
+    def set_metric_relevance(
+        self, user_id: str, metric_key: str, is_relevant: bool
+    ) -> dict[str, Any] | None:
+        """Set the relevance flag for a predefined metric.
+
+        Only works for predefined metrics. Custom metrics should use delete.
+
+        Args:
+            user_id: User identifier
+            metric_key: The metric key
+            is_relevant: True to show, False to hide
+
+        Returns:
+            Updated metric or None if not found/not predefined
+        """
+        existing = self.get_user_metric(user_id, metric_key)
+        if not existing:
+            return None
+        if not existing.get("is_predefined"):
+            logger.warning(f"Cannot set relevance on custom metric {metric_key} for user {user_id}")
+            return None
+
+        return self._execute_one(
+            """
+            UPDATE business_metrics
+            SET is_relevant = %s,
+                updated_at = NOW()
+            WHERE user_id = %s AND metric_key = %s
+            RETURNING id, user_id, metric_key, name, definition, importance,
+                      category, value, value_unit, captured_at, source,
+                      is_predefined, display_order, is_relevant, created_at, updated_at
+            """,
+            (is_relevant, user_id, metric_key),
+            user_id=user_id,
+        )
 
     def initialize_predefined_metrics(
         self, user_id: str, business_model: str | None = None

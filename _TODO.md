@@ -1,8 +1,17 @@
-mentor breadcrumbs duplicated
+0. data analysis is broken a bit - when i load a dataset then go to analysis and ask a question, the app doesnt know what the column names are (despite being present in the file). whe a data set is loaded in, we should automatically perform exploratory analysis and show the user some top level insights as part of that flow
 
-peer benchmarks needs to move from context to reports/benchmarks and a tab in here (1 tab industry, 1 tab peer)
+1. mentor breadcrumbs duplicated, same for seo - check playwright to confirm
 
-context> metrics: user should be able to remove metrics 'not relevant to me' and replace with metrics from metrics.md. CTA 'need a new metric?' > feature request. we should have a bank of metrics that are more relevant for different industries and D2C direct to customer product sales, rather than saas recurring revenue & churn etc. we should pick the top 5 metrics relevant for the business (based on provided context) and ask them to populate that, with others optionally / populated over time rather than a list of 20 right up front.
+2. seo :
+   remove the industry box, but add a CTA with link to context/overview if they havent populated industry and product info etc
+   user can add their own topics, _OR_ use a button to autogenerate (using our AI & analysis)
+
+analysis formatting is off and presents raw text rather than formatted markdown / html etc
+generated articles - no way to click through to review the article. when click through, user should be able to 'regenerate with following changes...' and provide a short list of up to 3 changes, with 'tone of voice' selector. where possible, we should use their website and brand tone (both in context) for initial tone of voice
+
+3. peer benchmarks needs to move from context to reports/benchmarks and a tab in here (1 tab industry, 1 tab peer)
+
+4. context> metrics: user should be able to remove metrics 'not relevant to me' and replace with metrics from metrics.md. CTA 'need a new metric?' > feature request. we should have a bank of metrics that are more relevant for different industries and D2C direct to customer product sales, rather than saas recurring revenue & churn etc. we should pick the top 5 metrics relevant for the business (based on provided context) and ask them to populate that, with others optionally / populated over time rather than a list of 20 right up front.
 
 use ontology below to update metrics.md, extend metrics to cover any not already covered for all types of solo, small and medium sized businesses who might use boardof.one :
 Below is a **normalized KPI ontology** designed for **analytics + AI reasoning**.

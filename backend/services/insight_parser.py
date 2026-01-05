@@ -102,6 +102,13 @@ class InsightCategory(str, Enum):
     COMPETITION = "competition"
     FUNDING = "funding"
     COSTS = "costs"
+    # D2C/Product-specific categories
+    INVENTORY = "inventory"
+    MARGIN = "margin"
+    CONVERSION = "conversion"
+    AOV = "aov"
+    COGS = "cogs"
+    RETURNS = "returns"
     UNCATEGORIZED = "uncategorized"
 
 

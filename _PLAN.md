@@ -1,54 +1,37 @@
-# Plan: Dashboard Consolidation - Key Metrics + Research Headlines
+# Plan: No Actionable Tasks
+
+_Last checked: 2026-01-05_
 
 ## Summary
 
-- Convert `/context/key-metrics` to redirect to `/context/metrics`
-- Update ValueMetricsPanel link from `/context/key-metrics` to `/context/metrics`
-- Redesign ResearchInsightsWidget as newspaper-style headlines (from scatter plot)
-- Populate insights from meetings, mentor conversations, and data analysis
+- All tasks in `_TASK.md` are either completed, blocked, or deferred
+- Items in `_TODO.md` have been migrated to `_TASK.md` and are marked complete
+- No immediate implementation work available
 
-## Implementation Steps
+## Status
 
-1. **Convert context/key-metrics to redirect**
-   - Replace full page content with redirect to `/context/metrics`
-   - Comment explaining consolidation
+### Blocked on User Action
+- `[LAUNCH][P1]` Stripe live mode switch
+- `[EMAIL][P4]` Payment receipt (depends on Stripe)
+- `[SOCIAL][P3]` Direct social posting (awaiting user decision)
 
-2. **Update ValueMetricsPanel link**
-   - Change `/context/key-metrics` to `/context/metrics` (line 184-185)
+### Needs Clarification
+- `[MONITORING][P1]` Kubernetes deployment manifests
+- `[MONITORING]` Grafana logs "value A" requirement
+- `[DATA][P2]` Data retention soft-delete behavior
 
-3. **Create ResearchHeadlinesWidget**
-   - New component: `$lib/components/dashboard/ResearchHeadlinesWidget.svelte`
-   - Newspaper-style layout: headlines with taglines
-   - Source types: meetings (key takeaways), mentor (insights), analysis (findings)
-   - Clickable links to source (meeting/mentor/analysis)
-   - Empty state for no insights
-   - Loading skeleton
+### Deferred by Design
+- `[DATA][P2]` DuckDB for large datasets (defer until >100K rows)
+- `[BILLING][P4]` Upgrade prompts near usage limit
+- `[COST][P2]` Persona count A/B test (need more users)
 
-4. **Update dashboard to use ResearchHeadlinesWidget**
-   - Replace ResearchInsightsWidget with ResearchHeadlinesWidget
-   - Keep ResearchInsightsWidget file (may reuse scatter plot elsewhere)
+### User-Owned
+- `[DOCS][P3]` Help pages content review
 
-5. **Add API endpoint for research headlines**
-   - Create `/api/v1/context/research-headlines` endpoint
-   - Query: last 10 insights from sessions + mentor + analysis
-   - Return: headline, tagline, source_type, source_id, created_at
+## Next Steps
 
-## Tests
-
-- Type check: `npm run check`
-- Manual validation:
-  - /context/key-metrics redirects to /context/metrics
-  - Dashboard ValueMetricsPanel "View all" links to /context/metrics
-  - Dashboard shows newspaper-style headlines
-  - Headlines link to their source correctly
-  - Empty state when no insights
-
-## Dependencies & Risks
-
-- Dependencies:
-  - API needs new endpoint for headlines aggregation
-  - Existing session/mentor data structures
-
-- Risks/edge cases:
-  - Large number of insights (limit to 10)
-  - Missing source links (graceful handling)
+Choose one:
+1. **Add new tasks** to `_TASK.md` from recent work or new requirements
+2. **Unblock** a blocked task (e.g., decide on social posting approach)
+3. **Clarify** a pending requirement (e.g., k8s vs SSH deploy, data retention rules)
+4. **Run `/full_audit`** to discover new issues/improvements

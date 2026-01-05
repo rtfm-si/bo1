@@ -21,3 +21,5 @@ etc...
 user clicks a buttin and we populate all the metrics with q&a dialog. start with basic building blocjs and build up. store every answer as insight
 
 in data analytics stuff, theres an 'ask si' option
+
+check we arent regererating actions etc in meetings once complete

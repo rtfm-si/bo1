@@ -64,6 +64,7 @@ class MetricTemplate(BaseModel):
     value_unit: str = Field(..., description="Unit of measurement ($, %, months, ratio)")
     display_order: int = Field(..., description="Sort order")
     applies_to: list[str] = Field(..., description="Business models this applies to")
+    priority: int = Field(2, description="Priority level (1=high, 2=medium, 3=low)")
 
 
 class UserMetric(BaseModel):
@@ -81,6 +82,7 @@ class UserMetric(BaseModel):
     captured_at: str | None = Field(None, description="When value was captured")
     source: MetricSource = Field(MetricSource.MANUAL, description="Source of value")
     is_predefined: bool = Field(False, description="Based on template")
+    is_relevant: bool = Field(True, description="Whether metric is relevant to user")
     display_order: int = Field(0, description="Sort order")
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
@@ -91,6 +93,9 @@ class MetricsResponse(BaseModel):
 
     metrics: list[UserMetric] = Field(..., description="User's saved metrics")
     templates: list[MetricTemplate] = Field(..., description="Unfilled template metrics")
+    hidden_metrics: list[UserMetric] = Field(
+        default_factory=list, description="Hidden/dismissed metrics (is_relevant=false)"
+    )
 
 
 class UpdateMetricRequest(BaseModel):
@@ -118,6 +123,12 @@ class CreateMetricRequest(BaseModel):
     value: float | None = Field(None, description="Initial value")
 
 
+class SetRelevanceRequest(BaseModel):
+    """Request to set metric relevance."""
+
+    is_relevant: bool = Field(..., description="Whether metric is relevant to user")
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -138,6 +149,7 @@ def _format_metric(metric: dict[str, Any]) -> dict[str, Any]:
         "captured_at": (metric["captured_at"].isoformat() if metric.get("captured_at") else None),
         "source": metric.get("source", "manual"),
         "is_predefined": metric.get("is_predefined", False),
+        "is_relevant": metric.get("is_relevant", True),
         "display_order": metric.get("display_order", 0),
         "created_at": (metric["created_at"].isoformat() if metric.get("created_at") else ""),
         "updated_at": (metric["updated_at"].isoformat() if metric.get("updated_at") else ""),
@@ -155,7 +167,70 @@ def _format_template(template: dict[str, Any]) -> dict[str, Any]:
         "value_unit": template.get("value_unit", ""),
         "display_order": template.get("display_order", 0),
         "applies_to": template.get("applies_to", ["all"]),
+        "priority": template.get("priority", 2),
     }
+
+
+def detect_business_model_from_context(user_id: str) -> str | None:
+    """Detect business model from user's BusinessContext.
+
+    Maps user-provided business_model text to template filter keys.
+    Returns None if no context or unrecognized model.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        Normalized business model key (saas, ecommerce, d2c, marketplace) or None
+    """
+    from bo1.state.repositories import user_repository
+
+    try:
+        context = user_repository.get_context(user_id)
+        if not context:
+            return None
+
+        business_model = context.get("business_model")
+        if not business_model:
+            return None
+
+        # Normalize text to lowercase for matching
+        model_lower = business_model.lower().strip()
+
+        # Map common variations to standard keys
+        # SaaS variants
+        if any(
+            term in model_lower
+            for term in ["saas", "software as a service", "subscription software"]
+        ):
+            return "saas"
+
+        # E-commerce / D2C variants
+        if any(
+            term in model_lower
+            for term in ["d2c", "direct to consumer", "direct-to-consumer", "dtc"]
+        ):
+            return "d2c"
+
+        if any(
+            term in model_lower for term in ["ecommerce", "e-commerce", "online store", "retail"]
+        ):
+            return "ecommerce"
+
+        # Marketplace variants
+        if any(term in model_lower for term in ["marketplace", "two-sided", "platform"]):
+            return "marketplace"
+
+        # Service/agency variants
+        if any(term in model_lower for term in ["agency", "consulting", "service", "freelance"]):
+            return "service"
+
+        # No recognized model - return None to show all templates
+        return None
+
+    except Exception as e:
+        logger.warning(f"Failed to detect business model for {user_id}: {e}")
+        return None
 
 
 # =============================================================================
@@ -171,18 +246,24 @@ def _format_template(template: dict[str, Any]) -> dict[str, Any]:
     Get the authenticated user's saved business metrics along with unfilled template metrics.
 
     Returns:
-    - metrics: User's saved metrics with values
-    - templates: Predefined metrics not yet saved (for display/initialization)
+    - metrics: User's saved metrics with values (relevant only by default)
+    - templates: Predefined metrics not yet saved (for display/initialization), ordered by priority
+    - hidden_metrics: Metrics marked as not relevant (only when include_irrelevant=true)
 
-    Optionally filter templates by business model (saas, ecommerce, marketplace).
+    If business_model is not passed, auto-detects from user's BusinessContext.
+    Templates are ordered by priority (1=high first) then display_order.
     """,
 )
 @handle_api_errors("get metrics")
 async def get_metrics(
     business_model: str | None = Query(
         None,
-        description="Filter templates by business model",
-        examples=["saas", "ecommerce"],
+        description="Filter templates by business model. Auto-detected from context if not provided.",
+        examples=["saas", "ecommerce", "d2c"],
+    ),
+    include_irrelevant: bool = Query(
+        False,
+        description="Include hidden/irrelevant metrics in response",
     ),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> MetricsResponse:
@@ -190,11 +271,21 @@ async def get_metrics(
     try:
         user_id = extract_user_id(user)
 
-        result = metrics_repository.get_metrics_with_templates(user_id, business_model)
+        # Auto-detect business model from context if not explicitly passed
+        effective_model = business_model
+        if effective_model is None:
+            effective_model = detect_business_model_from_context(user_id)
+            if effective_model:
+                logger.debug(f"Auto-detected business model '{effective_model}' for user {user_id}")
+
+        result = metrics_repository.get_metrics_with_templates(
+            user_id, effective_model, include_irrelevant=include_irrelevant
+        )
 
         return MetricsResponse(
             metrics=[_format_metric(m) for m in result["metrics"]],
             templates=[_format_template(t) for t in result["templates"]],
+            hidden_metrics=[_format_metric(m) for m in result.get("hidden_metrics", [])],
         )
 
     except (DatabaseError, OperationalError) as e:
@@ -345,6 +436,83 @@ async def update_metric(
             logger,
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Unexpected error updating metric: {e}",
+            exc_info=True,
+            user_id=user_id,
+            metric_key=metric_key,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update metric: {str(e)}",
+        ) from e
+
+
+@router.patch(
+    "/v1/business-metrics/{metric_key}/relevance",
+    response_model=UserMetric,
+    summary="Set metric relevance",
+    description="""
+    Set whether a predefined metric is relevant to the user.
+
+    Setting is_relevant=false hides the metric from the default view but keeps
+    it recoverable. Only works for predefined metrics - use DELETE for custom metrics.
+    """,
+)
+@handle_api_errors("set metric relevance")
+async def set_metric_relevance(
+    metric_key: str,
+    request: SetRelevanceRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> UserMetric:
+    """Set metric relevance (show/hide)."""
+    try:
+        user_id = extract_user_id(user)
+
+        # Check if it exists
+        existing = metrics_repository.get_user_metric(user_id, metric_key)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Metric not found")
+
+        if not existing.get("is_predefined"):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot set relevance for custom metrics. Use DELETE instead.",
+            )
+
+        result = metrics_repository.set_metric_relevance(
+            user_id=user_id,
+            metric_key=metric_key,
+            is_relevant=request.is_relevant,
+        )
+
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to update metric")
+
+        logger.info(
+            f"Set metric {metric_key} relevance to {request.is_relevant} for user {user_id}"
+        )
+        return _format_metric(result)
+
+    except HTTPException:
+        raise
+    except (DatabaseError, OperationalError) as e:
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Database error setting metric relevance: {e}",
+            user_id=user_id,
+            metric_key=metric_key,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while updating metric",
+        ) from e
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error setting metric relevance: {e}",
             exc_info=True,
             user_id=user_id,
             metric_key=metric_key,

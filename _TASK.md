@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2026-01-04_
+_Last updated: 2026-01-05_
 
 ---
 
@@ -219,6 +219,33 @@ _Last updated: 2026-01-04_
 - [x] [UI][P1] Remove key-metrics from context menu and integrate into dashboard key metrics section - converted /context/key-metrics to redirect, updated ValueMetricsPanel links to /context/metrics (2026-01-04)
 - [x] [UI][P1] Populate dashboard research section with insights from meetings/mentor/data analysis - created ResearchHeadlinesWidget using existing getInsights() API (2026-01-04)
 - [x] [UI][P1] Display research insights as newspaper-style headlines with concise taglines and links - newspaper-style layout with category badges, clickable links to source meetings (2026-01-04)
+
+---
+
+## New Tasks (from _TODO.md, 2026-01-04 - Batch 2)
+
+### P1 - High
+
+- [x] [DATA][P1] Fix data analysis column detection: ensure loaded dataset column names are available when asking questions in analysis tab (2026-01-04)
+- [x] [DATA][P1] Auto-run exploratory analysis on dataset load: show top-level insights (summary stats, distributions, notable patterns) as part of load flow (2026-01-04)
+- [x] [UI][P1] Generated articles: add click-through to review full article content (2026-01-04)
+- [x] [UI][P1] Generated articles: add "regenerate with changes" feature (up to 3 user-specified changes + tone selector) (2026-01-04)
+- [x] [UI][P1] Generated articles: use website/brand tone from context for initial tone of voice (2026-01-04)
+
+### P2 - Medium
+
+- [x] [UI][P2] Fix duplicate breadcrumbs on mentor page - removed page-level Breadcrumb, layout handles it (2026-01-04)
+- [x] [UI][P2] Fix duplicate breadcrumbs on SEO page - removed page-level Breadcrumb, layout handles it (2026-01-04)
+- [x] [SEO][P2] Remove industry box from SEO page; add CTA linking to context/overview if industry/product info not populated (2026-01-04)
+- [x] [SEO][P2] Allow users to manually add their own SEO topics - added form with keyword + notes fields above topics table (2026-01-04)
+- [x] [SEO][P2] Add "autogenerate topics" button using AI analysis - uses discover_topics() service, filters duplicates (2026-01-04)
+- [x] [UI][P2] Fix analysis output formatting: render markdown/HTML properly instead of raw text - updated InsightsPreview.svelte to use MarkdownContent for narrative_summary and insight.detail (2026-01-04)
+- [x] [NAV][P2] Move peer benchmarks from context to reports/benchmarks as a tab (industry tab + peer tab) - created IndustryBenchmarksTab/PeerBenchmarksTab components, added URL-synced tabbed interface, updated Header navigation (2026-01-04)
+- [x] [CONTEXT][P2] Metrics: allow users to remove metrics marked "not relevant to me" - added is_relevant column, PATCH /api/v1/business-metrics/{key}/relevance endpoint, dismiss UI with confirmation (2026-01-04)
+- [x] [CONTEXT][P2] Metrics: add ability to restore removed metrics from hidden section - added include_irrelevant query param, collapsible Hidden Metrics section with restore button (2026-01-04)
+- [x] [CONTEXT][P2] Metrics: add "need a new metric?" CTA linking to feature request - added mailto:feedback@boardofone.com CTA below benchmarks link (2026-01-05)
+- [x] [DATA][P2] Extend metrics with D2C/product-specific metrics - added InsightCategory values (INVENTORY, MARGIN, CONVERSION, AOV, COGS, RETURNS), CATEGORY_TO_METRIC_KEY mappings, METRIC_BUSINESS_TYPES for filtering, metric templates migration (2026-01-05)
+- [x] [CONTEXT][P2] Metrics: smart selection - show top 5 relevant metrics based on business context, others optional/progressive (2026-01-05)
 
 ---
 

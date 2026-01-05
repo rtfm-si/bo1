@@ -1409,6 +1409,14 @@ export interface SeoTopicListResponse {
 }
 
 /**
+ * SEO topics autogenerate response
+ */
+export interface SeoTopicsAutogenerateResponse {
+	topics: SeoTopic[];
+	count: number;
+}
+
+/**
  * SEO blog article status
  */
 export type SeoBlogArticleStatus = 'draft' | 'published';
@@ -1448,6 +1456,14 @@ export interface SeoBlogArticleListResponse {
 	articles: SeoBlogArticle[];
 	total: number;
 	remaining_this_month: number;
+}
+
+/**
+ * SEO article regeneration request
+ */
+export interface RegenerateArticleRequest {
+	tone?: string;
+	changes?: string[];
 }
 
 // =============================================================================

@@ -600,6 +600,13 @@ METRIC_DISPLAY_NAMES = {
     "revenue_churn": "Revenue Churn",
     "nps": "NPS Score",
     "quick_ratio": "Quick Ratio",
+    # D2C/Product metrics
+    "inventory_turnover": "Inventory Turnover",
+    "gross_margin": "Gross Margin",
+    "conversion_rate": "Conversion Rate",
+    "average_order_value": "Average Order Value",
+    "cost_of_goods_sold": "Cost of Goods Sold",
+    "return_rate": "Return Rate",
 }
 
 # Units for each metric
@@ -621,6 +628,40 @@ METRIC_UNITS = {
     "revenue_churn": "%",
     "nps": "score",
     "quick_ratio": "ratio",
+    # D2C/Product metrics
+    "inventory_turnover": "turns",
+    "gross_margin": "%",
+    "conversion_rate": "%",
+    "average_order_value": "$",
+    "cost_of_goods_sold": "$",
+    "return_rate": "%",
+}
+
+# Business type tags for metrics (for smart filtering)
+# SaaS metrics vs D2C/retail metrics
+METRIC_BUSINESS_TYPES: dict[str, list[str]] = {
+    # SaaS-specific
+    "mrr": ["saas"],
+    "arr_growth_rate": ["saas"],
+    "grr": ["saas"],
+    "active_churn": ["saas"],
+    "revenue_churn": ["saas"],
+    "quick_ratio": ["saas"],
+    "dau_mau_ratio": ["saas", "app"],
+    # D2C/Retail-specific
+    "inventory_turnover": ["d2c", "retail", "ecommerce"],
+    "gross_margin": ["d2c", "retail", "ecommerce"],
+    "conversion_rate": ["d2c", "retail", "ecommerce"],
+    "average_order_value": ["d2c", "retail", "ecommerce"],
+    "cost_of_goods_sold": ["d2c", "retail", "ecommerce"],
+    "return_rate": ["d2c", "retail", "ecommerce"],
+    # Universal (all business types)
+    "revenue": ["saas", "d2c", "retail", "ecommerce", "service"],
+    "customers": ["saas", "d2c", "retail", "ecommerce", "service"],
+    "growth_rate": ["saas", "d2c", "retail", "ecommerce", "service"],
+    "team_size": ["saas", "d2c", "retail", "ecommerce", "service"],
+    "nps": ["saas", "d2c", "retail", "ecommerce", "service"],
+    "arpu": ["saas", "d2c", "app"],
 }
 
 
@@ -707,6 +748,13 @@ CATEGORY_TO_METRIC_KEY = {
     "competition": "competitive_metric",
     "funding": "runway",
     "product": "product_metric",
+    # D2C/Product-specific mappings
+    "inventory": "inventory_turnover",
+    "margin": "gross_margin",
+    "conversion": "conversion_rate",
+    "aov": "average_order_value",
+    "cogs": "cost_of_goods_sold",
+    "returns": "return_rate",
     "uncategorized": None,  # skip
 }
 

@@ -22,40 +22,58 @@ K_ANONYMITY_THRESHOLD = 5
 
 # Metrics available for peer benchmarking (subset of BENCHMARK_FIELDS)
 PEER_BENCHMARK_METRICS = [
+    # Universal metrics
     "revenue",
     "customers",
     "growth_rate",
     "team_size",
     "mau_bucket",
+    "traffic_range",
+    "revenue_stage",
+    "nps",
+    # SaaS-specific
     "dau_mau_ratio",
     "arpu",
     "arr_growth_rate",
     "grr",
     "active_churn",
     "revenue_churn",
-    "nps",
     "quick_ratio",
-    "traffic_range",
-    "revenue_stage",
+    # D2C/Product-specific
+    "inventory_turnover",
+    "gross_margin",
+    "conversion_rate",
+    "average_order_value",
+    "cost_of_goods_sold",
+    "return_rate",
 ]
 
 # Human-friendly display names
 METRIC_DISPLAY_NAMES = {
+    # Universal
     "revenue": "Monthly Revenue",
     "customers": "Customer Count",
     "growth_rate": "Growth Rate",
     "team_size": "Team Size",
     "mau_bucket": "Monthly Active Users",
+    "traffic_range": "Website Traffic",
+    "revenue_stage": "Revenue Stage",
+    "nps": "Net Promoter Score",
+    # SaaS-specific
     "dau_mau_ratio": "DAU/MAU Ratio",
     "arpu": "Average Revenue Per User",
     "arr_growth_rate": "ARR Growth Rate",
     "grr": "Gross Revenue Retention",
     "active_churn": "Customer Churn Rate",
     "revenue_churn": "Revenue Churn Rate",
-    "nps": "Net Promoter Score",
     "quick_ratio": "SaaS Quick Ratio",
-    "traffic_range": "Website Traffic",
-    "revenue_stage": "Revenue Stage",
+    # D2C/Product-specific
+    "inventory_turnover": "Inventory Turnover",
+    "gross_margin": "Gross Margin",
+    "conversion_rate": "Conversion Rate",
+    "average_order_value": "Average Order Value",
+    "cost_of_goods_sold": "Cost of Goods Sold",
+    "return_rate": "Return Rate",
 }
 
 

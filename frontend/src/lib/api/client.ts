@@ -185,6 +185,7 @@ import type {
 	SeoTopicCreate,
 	SeoTopicUpdate,
 	SeoTopicListResponse,
+	SeoTopicsAutogenerateResponse,
 	// SEO Blog Article types
 	SeoBlogArticle,
 	SeoBlogArticleUpdate,
@@ -492,6 +493,7 @@ export interface MetricTemplate {
 	value_unit: string;
 	display_order: number;
 	applies_to: string[];
+	priority: number;
 }
 
 export interface UserMetric {
@@ -507,6 +509,7 @@ export interface UserMetric {
 	captured_at: string | null;
 	source: MetricSource;
 	is_predefined: boolean;
+	is_relevant: boolean;
 	display_order: number;
 	created_at: string;
 	updated_at: string;
@@ -515,6 +518,7 @@ export interface UserMetric {
 export interface MetricsResponse {
 	metrics: UserMetric[];
 	templates: MetricTemplate[];
+	hidden_metrics: UserMetric[];
 }
 
 export interface UpdateMetricRequest {
@@ -1604,8 +1608,11 @@ export class ApiClient {
 	// Business Metrics Endpoints
 	// ==========================================================================
 
-	async getMetrics(businessModel?: string): Promise<MetricsResponse> {
-		const endpoint = withQueryString('/api/v1/business-metrics', { business_model: businessModel });
+	async getMetrics(businessModel?: string, includeIrrelevant?: boolean): Promise<MetricsResponse> {
+		const endpoint = withQueryString('/api/v1/business-metrics', {
+			business_model: businessModel,
+			include_irrelevant: includeIrrelevant ? 'true' : undefined
+		});
 		return this.fetch<MetricsResponse>(endpoint);
 	}
 
@@ -1624,6 +1631,10 @@ export class ApiClient {
 
 	async deleteMetric(metricKey: string): Promise<{ status: string }> {
 		return this.delete<{ status: string }>(`/api/v1/business-metrics/${metricKey}`);
+	}
+
+	async setMetricRelevance(metricKey: string, isRelevant: boolean): Promise<UserMetric> {
+		return this.patch<UserMetric>(`/api/v1/business-metrics/${metricKey}/relevance`, { is_relevant: isRelevant });
 	}
 
 	async initializeMetrics(businessModel?: string): Promise<UserMetric[]> {
@@ -3346,6 +3357,19 @@ export class ApiClient {
 		return this.delete<void>(`/api/v1/seo/topics/${topicId}`);
 	}
 
+	/**
+	 * Autogenerate SEO topics using AI discovery
+	 *
+	 * Uses business context to discover relevant topics.
+	 */
+	async autogenerateSeoTopics(): Promise<SeoTopic[]> {
+		const response = await this.post<SeoTopicsAutogenerateResponse>(
+			'/api/v1/seo/topics/autogenerate',
+			{}
+		);
+		return response.topics;
+	}
+
 	// ============================================================================
 	// SEO Blog Article Methods
 	// ============================================================================
@@ -3387,6 +3411,16 @@ export class ApiClient {
 	 */
 	async deleteSeoArticle(articleId: number): Promise<void> {
 		return this.delete<void>(`/api/v1/seo/articles/${articleId}`);
+	}
+
+	/**
+	 * Regenerate an SEO article with changes and/or tone adjustment
+	 */
+	async regenerateSeoArticle(
+		articleId: number,
+		params: { tone?: string; changes?: string[] }
+	): Promise<SeoBlogArticle> {
+		return this.post<SeoBlogArticle>(`/api/v1/seo/articles/${articleId}/regenerate`, params);
 	}
 
 	// ============================================================================

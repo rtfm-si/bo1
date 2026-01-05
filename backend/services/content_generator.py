@@ -225,6 +225,97 @@ Output JSON with:
     return data
 
 
+async def regenerate_blog_post(
+    original: BlogContent,
+    changes: list[str] | None = None,
+    tone: str | None = None,
+) -> BlogContent:
+    """Regenerate a blog post with specific changes and/or tone adjustment.
+
+    Args:
+        original: Original blog content to regenerate
+        changes: List of specific changes to make (max 3)
+        tone: Desired tone (Professional, Friendly, Technical, Persuasive, Conversational)
+
+    Returns:
+        Regenerated BlogContent
+
+    Raises:
+        ValueError: If generation fails or returns invalid format
+    """
+    # Build the changes section
+    changes_text = ""
+    if changes:
+        changes_list = [c for c in changes[:3] if c.strip()]  # Max 3 changes
+        if changes_list:
+            changes_text = "\n\nPlease make these specific changes:\n" + "\n".join(
+                f"- {c}" for c in changes_list
+            )
+
+    # Build tone instruction
+    tone_text = ""
+    if tone:
+        tone_text = f"\n\nWrite in a {tone.lower()} tone of voice."
+
+    regenerate_prompt = f"""Regenerate the following blog post with improvements.
+
+Original article:
+Title: {original.title}
+Content:
+{original.content}
+{changes_text}{tone_text}
+
+Maintain the same topic and SEO focus, but apply the requested changes/tone.
+Keep the article length similar (1000-1500 words).
+Output your response as JSON with:
+{{
+    "title": "Improved title (50-60 characters)",
+    "excerpt": "Compelling meta description (150-160 characters)",
+    "content": "Regenerated content in Markdown",
+    "meta_title": "SEO title",
+    "meta_description": "SEO meta description"
+}}"""
+
+    client = ClaudeClient()
+
+    # Track cost with internal_seo category
+    with CostTracker.track_call(
+        provider="anthropic",
+        operation_type="completion",
+        model_name=resolve_model_alias(MODEL),
+        prompt_type="blog_regeneration",
+        cost_category="internal_seo",
+    ) as cost_record:
+        response, usage = await client.call(
+            model=MODEL,
+            messages=[{"role": "user", "content": regenerate_prompt}],
+            temperature=0.7,
+            max_tokens=4096,
+            prefill="{",
+        )
+        # Populate cost record with usage data
+        cost_record.input_tokens = usage.input_tokens
+        cost_record.output_tokens = usage.output_tokens
+        cost_record.cache_creation_tokens = usage.cache_creation_tokens or 0
+        cost_record.cache_read_tokens = usage.cache_read_tokens or 0
+
+    # Extract JSON using robust parser (prefill already included by client)
+    data = extract_json_from_response(response)
+
+    logger.info(
+        f"Regenerated blog post: '{data.get('title', 'Untitled')}' (tokens: {usage.total_tokens})"
+    )
+
+    return BlogContent(
+        title=data["title"],
+        excerpt=data["excerpt"],
+        content=data["content"],
+        meta_title=data.get("meta_title", data["title"]),
+        meta_description=data.get("meta_description", data["excerpt"]),
+        usage=usage,
+    )
+
+
 async def improve_blog_post(
     content: str,
     instructions: str,

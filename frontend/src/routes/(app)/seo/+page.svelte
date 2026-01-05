@@ -17,13 +17,13 @@
 		SeoAutopilotConfigResponse,
 		SeoPendingArticle
 	} from '$lib/api/types';
-	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
-	import BoCard from '$lib/components/ui/BoCard.svelte';
+		import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import BoFormField from '$lib/components/ui/BoFormField.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import ShimmerSkeleton from '$lib/components/ui/loading/ShimmerSkeleton.svelte';
+	import ArticleDetailModal from '$lib/components/seo/ArticleDetailModal.svelte';
 	import { toast } from '$lib/stores/toast';
 
 	// State
@@ -39,6 +39,14 @@
 	let error = $state<string | null>(null);
 	let addingTopic = $state<string | null>(null);
 	let deletingTopic = $state<number | null>(null);
+
+	// Manual topic form state
+	let newTopicKeyword = $state('');
+	let newTopicNotes = $state('');
+	let addingManualTopic = $state(false);
+
+	// Autogenerate state
+	let autogeneratingTopics = $state(false);
 	let articles = $state<SeoBlogArticle[]>([]);
 	let articlesLoading = $state(true);
 	let articlesRemaining = $state<number>(-1);
@@ -53,10 +61,33 @@
 	let approvingArticle = $state<number | null>(null);
 	let rejectingArticle = $state<number | null>(null);
 
-	// Load history, topics, articles, and autopilot config on mount
+	// Article detail modal state
+	let selectedArticle = $state<SeoBlogArticle | null>(null);
+	let brandTone = $state<string | null>(null);
+
+	// Context state for CTA
+	let contextLoaded = $state(false);
+	let hasIndustry = $state(false);
+	let hasProductDescription = $state(false);
+
+	// Load history, topics, articles, autopilot config, and brand tone on mount
 	onMount(async () => {
-		await Promise.all([loadHistory(), loadTopics(), loadArticles(), loadAutopilotConfig()]);
+		await Promise.all([loadHistory(), loadTopics(), loadArticles(), loadAutopilotConfig(), loadBrandTone()]);
 	});
+
+	async function loadBrandTone() {
+		try {
+			const response = await apiClient.getUserContext();
+			brandTone = response.context?.brand_tone || null;
+			hasIndustry = !!response.context?.industry;
+			hasProductDescription = !!response.context?.product_description;
+		} catch (err) {
+			// Fallback to Professional if context not available
+			console.debug('Could not load brand tone, using default');
+		} finally {
+			contextLoaded = true;
+		}
+	}
 
 	async function loadHistory() {
 		historyLoading = true;
@@ -352,12 +383,63 @@
 		return status === 'published' ? 'success' : 'neutral';
 	}
 
+	function handleArticleUpdate(updated: SeoBlogArticle) {
+		articles = articles.map((a) => (a.id === updated.id ? updated : a));
+		selectedArticle = updated;
+	}
+
+	function openArticleModal(article: SeoBlogArticle) {
+		selectedArticle = article;
+	}
+
+	function closeArticleModal() {
+		selectedArticle = null;
+	}
+
 	function isTopicAdded(keyword: string): boolean {
 		return topics.some((t) => t.keyword.toLowerCase() === keyword.toLowerCase());
 	}
 
 	function hasArticleForTopic(topicId: number): boolean {
 		return articles.some((a) => a.topic_id === topicId);
+	}
+
+	async function addManualTopic() {
+		if (!newTopicKeyword.trim()) return;
+		addingManualTopic = true;
+		try {
+			const newTopic = await apiClient.createSeoTopic({
+				keyword: newTopicKeyword.trim(),
+				notes: newTopicNotes.trim() || undefined
+			});
+			topics = [newTopic, ...topics];
+			newTopicKeyword = '';
+			newTopicNotes = '';
+			toast.success(`Added "${newTopic.keyword}" to topics`);
+		} catch (err) {
+			console.error('Failed to add topic:', err);
+			toast.error('Failed to add topic');
+		} finally {
+			addingManualTopic = false;
+		}
+	}
+
+	async function autogenerateTopics() {
+		autogeneratingTopics = true;
+		try {
+			const newTopics = await apiClient.autogenerateSeoTopics();
+			if (newTopics.length > 0) {
+				topics = [...newTopics, ...topics];
+				toast.success(`Added ${newTopics.length} AI-suggested topics`);
+			} else {
+				toast.info('No new topics suggested - try adding some context first');
+			}
+		} catch (err) {
+			console.error('Failed to autogenerate topics:', err);
+			toast.error('Failed to autogenerate topics');
+		} finally {
+			autogeneratingTopics = false;
+		}
 	}
 </script>
 
@@ -370,16 +452,6 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-	<!-- Breadcrumb -->
-	<div class="mb-6">
-		<Breadcrumb
-			items={[
-				{ label: 'Dashboard', href: '/dashboard' },
-				{ label: 'SEO Tools', href: '/seo' }
-			]}
-		/>
-	</div>
-
 	<!-- Page Header -->
 	<div class="mb-6">
 		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">SEO Trend Analyzer</h1>
@@ -387,6 +459,28 @@
 			Analyze search trends and discover opportunities for your business.
 		</p>
 	</div>
+
+	<!-- Context Setup CTA -->
+	{#if contextLoaded && (!hasIndustry || !hasProductDescription)}
+		<div class="mb-6">
+			<Alert variant="info">
+				<div class="flex items-center justify-between gap-4">
+					<div>
+						<p class="font-medium">Set up your business context for personalized SEO recommendations</p>
+						<p class="text-sm mt-1 opacity-80">
+							Adding your industry and product details helps us tailor trend analysis to your specific market.
+						</p>
+					</div>
+					<a
+						href="/context/overview"
+						class="flex-shrink-0 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+					>
+						Set Up Context
+					</a>
+				</div>
+			</Alert>
+		</div>
+	{/if}
 
 	<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 		<!-- Main Analysis Area -->
@@ -611,10 +705,57 @@
 			<!-- Topics Table -->
 			<BoCard>
 				{#snippet header()}
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
-						Your Topics
-					</h2>
+					<div class="flex items-center justify-between">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+							Your Topics
+						</h2>
+						<BoButton
+							variant="outline"
+							size="sm"
+							onclick={autogenerateTopics}
+							loading={autogeneratingTopics}
+							disabled={autogeneratingTopics || topicsLoading}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+							</svg>
+							{autogeneratingTopics ? 'Generating...' : 'Autogenerate Topics'}
+						</BoButton>
+					</div>
 				{/snippet}
+
+				<!-- Manual Topic Form -->
+				<div class="mb-4 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
+					<form onsubmit={(e) => { e.preventDefault(); addManualTopic(); }} class="flex flex-col sm:flex-row gap-3">
+						<div class="flex-1">
+							<input
+								type="text"
+								bind:value={newTopicKeyword}
+								placeholder="Enter keyword or topic..."
+								class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+								disabled={addingManualTopic}
+							/>
+						</div>
+						<div class="flex-1">
+							<input
+								type="text"
+								bind:value={newTopicNotes}
+								placeholder="Notes (optional)"
+								class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+								disabled={addingManualTopic}
+							/>
+						</div>
+						<BoButton
+							type="submit"
+							variant="brand"
+							size="sm"
+							loading={addingManualTopic}
+							disabled={addingManualTopic || !newTopicKeyword.trim()}
+						>
+							Add Topic
+						</BoButton>
+					</form>
+				</div>
 
 				{#if topicsLoading}
 					<div class="space-y-3">
@@ -745,7 +886,11 @@
 				{:else}
 					<div class="space-y-4">
 						{#each articles as article (article.id)}
-							<div class="p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+							<button
+								type="button"
+								class="w-full text-left p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:border-brand-300 dark:hover:border-brand-700 transition-colors cursor-pointer"
+								onclick={() => openArticleModal(article)}
+							>
 								<div class="flex items-start justify-between gap-4">
 									<div class="flex-1 min-w-0">
 										<h3 class="font-medium text-neutral-900 dark:text-white truncate">
@@ -768,7 +913,7 @@
 										<BoButton
 											variant="ghost"
 											size="sm"
-											onclick={() => navigator.clipboard.writeText(article.content).then(() => toast.success('Content copied!'))}
+											onclick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(article.content).then(() => toast.success('Content copied!')); }}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -777,7 +922,7 @@
 										<BoButton
 											variant="ghost"
 											size="sm"
-											onclick={() => deleteArticle(article)}
+											onclick={(e) => { e.stopPropagation(); deleteArticle(article); }}
 											loading={deletingArticle === article.id}
 											disabled={deletingArticle !== null}
 										>
@@ -787,7 +932,7 @@
 										</BoButton>
 									</div>
 								</div>
-							</div>
+							</button>
 						{/each}
 					</div>
 				{/if}
@@ -980,3 +1125,14 @@
 		</div>
 	</div>
 </div>
+
+<!-- Article Detail Modal -->
+{#if selectedArticle}
+	<ArticleDetailModal
+		article={selectedArticle}
+		open={selectedArticle !== null}
+		defaultTone={brandTone}
+		onclose={closeArticleModal}
+		onupdate={handleArticleUpdate}
+	/>
+{/if}

@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from backend.services.content_generator import BlogContent, generate_blog_post
+from backend.services.content_generator import (
+    BlogContent,
+    generate_blog_post,
+    regenerate_blog_post,
+)
 from bo1.llm.client import TokenUsage
 
 
@@ -220,3 +224,164 @@ class TestGenerateBlogPost:
 
             with pytest.raises(ValueError, match="missing required field"):
                 await generate_blog_post("Test topic")
+
+
+class TestRegenerateBlogPost:
+    """Tests for regenerate_blog_post function."""
+
+    @pytest.fixture
+    def original_content(self) -> BlogContent:
+        """Create a sample original blog content."""
+        return BlogContent(
+            title="Original Title",
+            excerpt="Original excerpt",
+            content="# Original Content\n\nThis is the original article.",
+            meta_title="Original Meta Title",
+            meta_description="Original meta description",
+        )
+
+    @pytest.mark.asyncio
+    async def test_regenerate_with_changes(self, original_content: BlogContent) -> None:
+        """Test regeneration with specific changes."""
+        mock_response = json.dumps(
+            {
+                "title": "Improved Title",
+                "excerpt": "Improved excerpt",
+                "content": "# Improved Content\n\nWith requested changes.",
+                "meta_title": "Improved Meta Title",
+                "meta_description": "Improved meta description",
+            }
+        )
+
+        mock_usage = TokenUsage(
+            input_tokens=200,
+            output_tokens=300,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+        )
+
+        with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.call = AsyncMock(return_value=(mock_response, mock_usage))
+
+            result = await regenerate_blog_post(
+                original=original_content,
+                changes=["Make the introduction more engaging", "Add more examples"],
+            )
+
+            assert isinstance(result, BlogContent)
+            assert result.title == "Improved Title"
+            assert result.content == "# Improved Content\n\nWith requested changes."
+            # Verify changes were included in prompt
+            call_messages = mock_client.call.call_args[1]["messages"]
+            assert "Make the introduction more engaging" in call_messages[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_regenerate_with_tone(self, original_content: BlogContent) -> None:
+        """Test regeneration with tone adjustment."""
+        mock_response = json.dumps(
+            {
+                "title": "Friendly Title",
+                "excerpt": "Friendly excerpt",
+                "content": "# Friendly Content",
+                "meta_title": "Friendly Meta",
+                "meta_description": "Friendly desc",
+            }
+        )
+
+        mock_usage = TokenUsage(
+            input_tokens=200,
+            output_tokens=300,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+        )
+
+        with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.call = AsyncMock(return_value=(mock_response, mock_usage))
+
+            result = await regenerate_blog_post(
+                original=original_content,
+                tone="Friendly",
+            )
+
+            assert isinstance(result, BlogContent)
+            assert result.title == "Friendly Title"
+            # Verify tone was included in prompt
+            call_messages = mock_client.call.call_args[1]["messages"]
+            assert "friendly tone" in call_messages[0]["content"].lower()
+
+    @pytest.mark.asyncio
+    async def test_regenerate_with_changes_and_tone(self, original_content: BlogContent) -> None:
+        """Test regeneration with both changes and tone."""
+        mock_response = json.dumps(
+            {
+                "title": "Technical Title",
+                "excerpt": "Technical excerpt",
+                "content": "# Technical Content",
+                "meta_title": "Technical Meta",
+                "meta_description": "Technical desc",
+            }
+        )
+
+        mock_usage = TokenUsage(
+            input_tokens=200,
+            output_tokens=300,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+        )
+
+        with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.call = AsyncMock(return_value=(mock_response, mock_usage))
+
+            result = await regenerate_blog_post(
+                original=original_content,
+                changes=["Add code examples"],
+                tone="Technical",
+            )
+
+            assert isinstance(result, BlogContent)
+            call_messages = mock_client.call.call_args[1]["messages"]
+            content = call_messages[0]["content"]
+            assert "Add code examples" in content
+            assert "technical" in content.lower()
+
+    @pytest.mark.asyncio
+    async def test_regenerate_limits_changes_to_three(self, original_content: BlogContent) -> None:
+        """Test that only first 3 changes are used."""
+        mock_response = json.dumps(
+            {
+                "title": "Title",
+                "excerpt": "Excerpt",
+                "content": "Content",
+                "meta_title": "Meta",
+                "meta_description": "Desc",
+            }
+        )
+
+        mock_usage = TokenUsage(
+            input_tokens=200,
+            output_tokens=300,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+        )
+
+        with patch("backend.services.content_generator.ClaudeClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.call = AsyncMock(return_value=(mock_response, mock_usage))
+
+            await regenerate_blog_post(
+                original=original_content,
+                changes=["Change 1", "Change 2", "Change 3", "Change 4", "Change 5"],
+            )
+
+            call_messages = mock_client.call.call_args[1]["messages"]
+            content = call_messages[0]["content"]
+            # First 3 should be included
+            assert "Change 1" in content
+            assert "Change 2" in content
+            assert "Change 3" in content
+            # 4th and 5th should not be included
+            assert "Change 4" not in content
+            assert "Change 5" not in content

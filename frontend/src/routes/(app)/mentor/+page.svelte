@@ -15,8 +15,7 @@
 	import MentorChat from '$lib/components/mentor/MentorChat.svelte';
 	import MentorChatHistory from '$lib/components/mentor/MentorChatHistory.svelte';
 	import AnalysisChat from '$lib/components/analysis/AnalysisChat.svelte';
-	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
-	import { Button } from '$lib/components/ui';
+		import { Button } from '$lib/components/ui';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { toast } from '$lib/stores/toast';
 	import { MessageSquare, BarChart3, Database } from 'lucide-svelte';
@@ -275,16 +274,6 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-	<!-- Breadcrumb -->
-	<div class="mb-6">
-		<Breadcrumb
-			items={[
-				{ label: 'Dashboard', href: '/dashboard' },
-				{ label: 'Mentor', href: '/mentor' }
-			]}
-		/>
-	</div>
-
 	<!-- Page Header -->
 	<div class="mb-6">
 		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Mentor</h1>

@@ -529,3 +529,293 @@ test.describe('Dataset Detail Page', () => {
 		});
 	});
 });
+
+// Mock insights data - matches DatasetInsightsResponse structure
+const mockInsights = {
+	insights: {
+		identity: { name: 'Sales Data', description: 'Sales transaction data' },
+		headline_metrics: [
+			{ label: 'Total Revenue', value: '$1.2M', context: 'vs $800K last period', trend: 'up 50%', is_good: true },
+			{ label: 'Avg Order', value: '$245', context: 'per transaction', trend: 'up 12%', is_good: true },
+			{ label: 'Customers', value: '4,892', context: 'unique buyers', trend: null, is_good: null },
+			{ label: 'Refund Rate', value: '2.3%', context: 'of orders', trend: 'down 0.5%', is_good: true }
+		],
+		insights: [
+			{ type: 'trend', severity: 'high', headline: 'Revenue growing rapidly', detail: 'Q4 revenue is 50% higher than Q3', metric: 'revenue', action: 'Analyze top products' },
+			{ type: 'pattern', severity: 'medium', headline: 'Weekend sales spike', detail: 'Saturday and Sunday account for 40% of weekly sales', metric: 'orders', action: null },
+			{ type: 'anomaly', severity: 'low', headline: 'Unusual spike on Dec 15', detail: 'Orders were 3x normal volume', metric: 'orders', action: 'Investigate promotion' }
+		],
+		quality: { overall_score: 92, completeness: 98, consistency: 88, validity: 95 },
+		suggested_questions: [
+			{ question: 'What products have the highest revenue?', category: 'revenue', why_relevant: 'Identify top performers' },
+			{ question: 'Which customer segment is growing fastest?', category: 'growth', why_relevant: 'Focus acquisition efforts' },
+			{ question: 'What is the trend in average order value?', category: 'metrics', why_relevant: 'Track pricing effectiveness' }
+		],
+		column_semantics: [],
+		narrative_summary: 'This sales dataset shows strong Q4 performance with 50% revenue growth.'
+	},
+	generated_at: new Date().toISOString(),
+	model_used: 'claude-3-haiku',
+	tokens_used: 1500,
+	cached: true
+};
+
+test.describe('Analysis Tab - Insights Preview', () => {
+	test.beforeEach(async ({ page }) => {
+		// Mock datasets list
+		await page.route('**/api/v1/datasets**', (route) => {
+			const url = route.request().url();
+			if (url.includes('/insights')) {
+				return route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(mockInsights)
+				});
+			}
+			if (url.match(/\/api\/v1\/datasets\/ds-1$/)) {
+				return route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(mockDatasetProfile)
+				});
+			}
+			return route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify(mockDatasets)
+			});
+		});
+
+		// Mock mentor conversations
+		await page.route('**/api/v1/mentor/conversations**', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ conversations: [], total: 0 })
+			})
+		);
+	});
+
+	test('selecting dataset shows insights panel', async ({ page }) => {
+		await page.goto('/mentor?tab=analysis');
+
+		if (page.url().includes('/login')) {
+			test.skip();
+			return;
+		}
+
+		await page.waitForLoadState('networkidle');
+
+		// Select dataset from dropdown
+		const datasetSelector = page.locator('select');
+		await datasetSelector.selectOption('ds-1');
+
+		// Wait for insights to load
+		await page.waitForResponse((resp) => resp.url().includes('/insights') && resp.status() === 200);
+
+		// Check headline metrics appear
+		await expect(page.getByText('Key Metrics')).toBeVisible();
+		await expect(page.getByText('Total Revenue')).toBeVisible();
+		await expect(page.getByText('$1.2M')).toBeVisible();
+
+		// Check insights section appears
+		await expect(page.getByText('Notable Patterns')).toBeVisible();
+		await expect(page.getByText('Revenue growing rapidly')).toBeVisible();
+
+		// Check suggested questions appear
+		await expect(page.getByText('Explore Your Data')).toBeVisible();
+		await expect(page.getByText('What products have the highest revenue?')).toBeVisible();
+	});
+
+	test('clicking suggested question submits it', async ({ page }) => {
+		// Mock analysis SSE response
+		await page.route('**/api/v1/datasets/ds-1/ask', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'text/event-stream',
+				body: 'event: analysis\ndata: {"content":"Top products: Product A ($500K), Product B ($300K)"}\n\nevent: done\ndata: {"conversation_id":"conv-1"}\n\n'
+			})
+		);
+
+		await page.goto('/mentor?tab=analysis');
+
+		if (page.url().includes('/login')) {
+			test.skip();
+			return;
+		}
+
+		await page.waitForLoadState('networkidle');
+
+		// Select dataset
+		const datasetSelector = page.locator('select');
+		await datasetSelector.selectOption('ds-1');
+
+		// Wait for insights
+		await page.waitForResponse((resp) => resp.url().includes('/insights') && resp.status() === 200);
+
+		// Click suggested question
+		await page.getByRole('button', { name: /What products have the highest revenue/i }).click();
+
+		// Response should appear
+		await expect(page.getByText('Top products: Product A')).toBeVisible({ timeout: 5000 });
+	});
+
+	test('insights panel hides after first question', async ({ page }) => {
+		// Mock analysis SSE response
+		await page.route('**/api/v1/datasets/ds-1/ask', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'text/event-stream',
+				body: 'event: analysis\ndata: {"content":"Analysis complete"}\n\nevent: done\ndata: {"conversation_id":"conv-1"}\n\n'
+			})
+		);
+
+		await page.goto('/mentor?tab=analysis');
+
+		if (page.url().includes('/login')) {
+			test.skip();
+			return;
+		}
+
+		await page.waitForLoadState('networkidle');
+
+		// Select dataset
+		const datasetSelector = page.locator('select');
+		await datasetSelector.selectOption('ds-1');
+
+		// Wait for insights
+		await page.waitForResponse((resp) => resp.url().includes('/insights') && resp.status() === 200);
+
+		// Insights should be visible
+		await expect(page.getByText('Key Metrics')).toBeVisible();
+
+		// Click suggested question
+		await page.getByRole('button', { name: /What products have the highest revenue/i }).click();
+
+		// Wait for response
+		await expect(page.getByText('Analysis complete')).toBeVisible({ timeout: 5000 });
+
+		// Insights panel should be hidden (messages.length > 0)
+		await expect(page.getByText('Key Metrics')).not.toBeVisible();
+	});
+
+	test('switching datasets loads new insights', async ({ page }) => {
+		// Add second dataset with different insights
+		const secondDataset = {
+			...mockDatasets,
+			datasets: [
+				...mockDatasets.datasets,
+				{
+					id: 'ds-3',
+					user_id: 'test-user',
+					name: 'inventory_2024.csv',
+					description: 'Inventory data',
+					source_type: 'upload' as const,
+					source_uri: null,
+					file_key: 'datasets/test-user/inventory.csv',
+					row_count: 2000,
+					column_count: 8,
+					file_size_bytes: 50000,
+					created_at: new Date().toISOString(),
+					updated_at: new Date().toISOString()
+				}
+			]
+		};
+
+		const inventoryInsights = {
+			...mockInsights,
+			insights: {
+				...mockInsights.insights,
+				headline_metrics: [
+					{ label: 'SKUs', value: '1,234', context: 'active products', trend: null, is_good: null }
+				],
+				narrative_summary: 'Inventory dataset with 1,234 active SKUs.'
+			}
+		};
+
+		await page.route('**/api/v1/datasets**', (route) => {
+			const url = route.request().url();
+			if (url.includes('ds-3/insights')) {
+				return route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(inventoryInsights)
+				});
+			}
+			if (url.includes('ds-1/insights')) {
+				return route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(mockInsights)
+				});
+			}
+			if (url.match(/\/api\/v1\/datasets\/ds-\d+$/)) {
+				return route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(mockDatasetProfile)
+				});
+			}
+			return route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify(secondDataset)
+			});
+		});
+
+		await page.goto('/mentor?tab=analysis');
+
+		if (page.url().includes('/login')) {
+			test.skip();
+			return;
+		}
+
+		await page.waitForLoadState('networkidle');
+
+		// Select first dataset
+		const datasetSelector = page.locator('select');
+		await datasetSelector.selectOption('ds-1');
+
+		// Wait for first insights
+		await expect(page.getByText('Total Revenue')).toBeVisible();
+
+		// Select second dataset
+		await datasetSelector.selectOption('ds-3');
+
+		// Wait for new insights - use exact match to avoid strict mode violation
+		await expect(page.getByText('SKUs', { exact: true })).toBeVisible();
+		await expect(page.getByText('1,234', { exact: true })).toBeVisible();
+
+		// Old insights should be gone
+		await expect(page.getByText('Total Revenue')).not.toBeVisible();
+	});
+
+	test('unprofiled dataset shows profiling message', async ({ page }) => {
+		await page.route('**/api/v1/datasets/ds-1/insights', (route) =>
+			route.fulfill({
+				status: 422,
+				contentType: 'application/json',
+				body: JSON.stringify({ detail: 'Dataset not yet profiled' })
+			})
+		);
+
+		await page.goto('/mentor?tab=analysis');
+
+		if (page.url().includes('/login')) {
+			test.skip();
+			return;
+		}
+
+		await page.waitForLoadState('networkidle');
+
+		// Select dataset
+		const datasetSelector = page.locator('select');
+		await datasetSelector.selectOption('ds-1');
+
+		// Wait for 422 response
+		await page.waitForResponse((resp) => resp.url().includes('/insights'));
+
+		// Check profiling message appears
+		await expect(page.getByText(/Analyzing your data/i)).toBeVisible();
+	});
+});

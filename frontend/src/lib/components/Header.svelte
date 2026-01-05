@@ -33,7 +33,6 @@
 		{ href: '/context/overview', label: 'Overview' },
 		{ href: '/context/metrics', label: 'Metrics' },
 		{ href: '/context/insights', label: 'Insights' },
-		{ href: '/context/peer-benchmarks', label: 'Peer Benchmarks' },
 	];
 
 	// Reports navigation (intelligence features)

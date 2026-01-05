@@ -4723,10 +4723,12 @@ export interface paths {
          * @description Get the authenticated user's saved business metrics along with unfilled template metrics.
          *
          *         Returns:
-         *         - metrics: User's saved metrics with values
-         *         - templates: Predefined metrics not yet saved (for display/initialization)
+         *         - metrics: User's saved metrics with values (relevant only by default)
+         *         - templates: Predefined metrics not yet saved (for display/initialization), ordered by priority
+         *         - hidden_metrics: Metrics marked as not relevant (only when include_irrelevant=true)
          *
-         *         Optionally filter templates by business model (saas, ecommerce, marketplace).
+         *         If business_model is not passed, auto-detects from user's BusinessContext.
+         *         Templates are ordered by priority (1=high first) then display_order.
          */
         get: operations["get_metrics_api_v1_business_metrics_get"];
         put?: never;
@@ -4821,6 +4823,29 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/business-metrics/{metric_key}/relevance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set metric relevance
+         * @description Set whether a predefined metric is relevant to the user.
+         *
+         *         Setting is_relevant=false hides the metric from the default view but keeps
+         *         it recoverable. Only works for predefined metrics - use DELETE for custom metrics.
+         */
+        patch: operations["set_metric_relevance_api_v1_business_metrics__metric_key__relevance_patch"];
         trace?: never;
     };
     "/api/v1/competitors": {
@@ -7641,6 +7666,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seo/articles/{article_id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Article
+         * @description Regenerate an article with specific changes and/or tone.
+         *
+         *     Takes the original article and regenerates it with:
+         *     - Up to 3 specific changes requested by the user
+         *     - A different tone of voice (Professional, Friendly, Technical, Persuasive, Conversational)
+         *
+         *     Rate limited to 2 requests per minute.
+         *     Uses the same monthly quota as article generation.
+         */
+        post: operations["regenerate_article_api_v1_seo_articles__article_id__regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seo/assets": {
         parameters: {
             query?: never;
@@ -7865,6 +7917,31 @@ export interface paths {
          *     Creates a topic from a keyword, optionally linked to a trend analysis.
          */
         post: operations["create_topic_api_v1_seo_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/topics/autogenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Autogenerate Topics
+         * @description Autogenerate SEO topics using AI-powered discovery.
+         *
+         *     Uses user's business context (industry, focus areas) to discover
+         *     relevant topics. Filters out topics that already exist.
+         *
+         *     Rate limited to 5 requests per minute.
+         */
+        post: operations["autogenerate_topics_api_v1_seo_topics_autogenerate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -21366,6 +21443,12 @@ export interface components {
              */
             name: string;
             /**
+             * Priority
+             * @description Priority level (1=high, 2=medium, 3=low)
+             * @default 2
+             */
+            priority: number;
+            /**
              * Value Unit
              * @description Unit of measurement ($, %, months, ratio)
              */
@@ -21415,6 +21498,11 @@ export interface components {
          * @description Response containing user metrics and unfilled templates.
          */
         MetricsResponse: {
+            /**
+             * Hidden Metrics
+             * @description Hidden/dismissed metrics (is_relevant=false)
+             */
+            hidden_metrics?: components["schemas"]["UserMetric"][];
             /**
              * Metrics
              * @description User's saved metrics
@@ -23883,6 +23971,22 @@ export interface components {
             stale_metrics?: components["schemas"]["StaleFieldSummary"][];
         };
         /**
+         * RegenerateArticleRequest
+         * @description Request to regenerate an article with changes and/or tone.
+         */
+        RegenerateArticleRequest: {
+            /**
+             * Changes
+             * @description List of specific changes to make (max 3)
+             */
+            changes?: string[] | null;
+            /**
+             * Tone
+             * @description Desired tone: Professional, Friendly, Technical, Persuasive, Conversational
+             */
+            tone?: string | null;
+        };
+        /**
          * RelatedAction
          * @description Summary of a related action for replan context.
          */
@@ -25763,6 +25867,23 @@ export interface components {
             status?: string | null;
         };
         /**
+         * SeoTopicsAutogenerateResponse
+         * @description Response from autogenerate topics endpoint.
+         */
+        SeoTopicsAutogenerateResponse: {
+            /**
+             * Count
+             * @description Number of topics created
+             * @default 0
+             */
+            count: number;
+            /**
+             * Topics
+             * @description Created topics
+             */
+            topics?: components["schemas"]["SeoTopic"][];
+        };
+        /**
          * ServiceHealthSummary
          * @description Summary of a service's health status.
          */
@@ -26279,6 +26400,17 @@ export interface components {
              * @example Local Food Bank
              */
             org_name: string;
+        };
+        /**
+         * SetRelevanceRequest
+         * @description Request to set metric relevance.
+         */
+        SetRelevanceRequest: {
+            /**
+             * Is Relevant
+             * @description Whether metric is relevant to user
+             */
+            is_relevant: boolean;
         };
         /**
          * SetTierOverrideRequest
@@ -28809,6 +28941,12 @@ export interface components {
              * @default false
              */
             is_predefined: boolean;
+            /**
+             * Is Relevant
+             * @description Whether metric is relevant to user
+             * @default true
+             */
+            is_relevant: boolean;
             /**
              * Metric Key
              * @description Unique metric identifier
@@ -40783,8 +40921,10 @@ export interface operations {
     get_metrics_api_v1_business_metrics_get: {
         parameters: {
             query?: {
-                /** @description Filter templates by business model */
+                /** @description Filter templates by business model. Auto-detected from context if not provided. */
                 business_model?: string | null;
+                /** @description Include hidden/irrelevant metrics in response */
+                include_irrelevant?: boolean;
             };
             header?: never;
             path?: never;
@@ -40964,6 +41104,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_metric_relevance_api_v1_business_metrics__metric_key__relevance_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                metric_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRelevanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserMetric"];
                 };
             };
             /** @description Validation Error */
@@ -46619,6 +46794,52 @@ export interface operations {
             };
         };
     };
+    regenerate_article_api_v1_seo_articles__article_id__regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegenerateArticleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoBlogArticle"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     list_assets_api_v1_seo_assets_get: {
         parameters: {
             query?: {
@@ -47047,6 +47268,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    autogenerate_topics_api_v1_seo_topics_autogenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeoTopicsAutogenerateResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

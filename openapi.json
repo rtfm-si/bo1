@@ -17213,6 +17213,12 @@
             "title": "Name",
             "type": "string"
           },
+          "priority": {
+            "default": 2,
+            "description": "Priority level (1=high, 2=medium, 3=low)",
+            "title": "Priority",
+            "type": "integer"
+          },
           "value_unit": {
             "description": "Unit of measurement ($, %, months, ratio)",
             "title": "Value Unit",
@@ -17326,6 +17332,14 @@
       "MetricsResponse": {
         "description": "Response containing user metrics and unfilled templates.",
         "properties": {
+          "hidden_metrics": {
+            "description": "Hidden/dismissed metrics (is_relevant=false)",
+            "items": {
+              "$ref": "#/components/schemas/UserMetric"
+            },
+            "title": "Hidden Metrics",
+            "type": "array"
+          },
           "metrics": {
             "description": "User's saved metrics",
             "items": {
@@ -20986,6 +21000,41 @@
         "title": "RefreshCheckResponse",
         "type": "object"
       },
+      "RegenerateArticleRequest": {
+        "description": "Request to regenerate an article with changes and/or tone.",
+        "properties": {
+          "changes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of specific changes to make (max 3)",
+            "title": "Changes"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Desired tone: Professional, Friendly, Technical, Persuasive, Conversational",
+            "title": "Tone"
+          }
+        },
+        "title": "RegenerateArticleRequest",
+        "type": "object"
+      },
       "RelatedAction": {
         "description": "Summary of a related action for replan context.",
         "properties": {
@@ -23718,6 +23767,28 @@
         "title": "SeoTopicUpdate",
         "type": "object"
       },
+      "SeoTopicsAutogenerateResponse": {
+        "description": "Response from autogenerate topics endpoint.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of topics created",
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "topics": {
+            "description": "Created topics",
+            "items": {
+              "$ref": "#/components/schemas/SeoTopic"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "title": "SeoTopicsAutogenerateResponse",
+        "type": "object"
+      },
       "ServiceHealthSummary": {
         "description": "Summary of a service's health status.",
         "properties": {
@@ -24438,6 +24509,21 @@
           "org_name"
         ],
         "title": "SetNonprofitRequest",
+        "type": "object"
+      },
+      "SetRelevanceRequest": {
+        "description": "Request to set metric relevance.",
+        "properties": {
+          "is_relevant": {
+            "description": "Whether metric is relevant to user",
+            "title": "Is Relevant",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_relevant"
+        ],
+        "title": "SetRelevanceRequest",
         "type": "object"
       },
       "SetTierOverrideRequest": {
@@ -28186,6 +28272,12 @@
             "default": false,
             "description": "Based on template",
             "title": "Is Predefined",
+            "type": "boolean"
+          },
+          "is_relevant": {
+            "default": true,
+            "description": "Whether metric is relevant to user",
+            "title": "Is Relevant",
             "type": "boolean"
           },
           "metric_key": {
@@ -46549,11 +46641,11 @@
     },
     "/api/v1/business-metrics": {
       "get": {
-        "description": "Get the authenticated user's saved business metrics along with unfilled template metrics.\n\n    Returns:\n    - metrics: User's saved metrics with values\n    - templates: Predefined metrics not yet saved (for display/initialization)\n\n    Optionally filter templates by business model (saas, ecommerce, marketplace).",
+        "description": "Get the authenticated user's saved business metrics along with unfilled template metrics.\n\n    Returns:\n    - metrics: User's saved metrics with values (relevant only by default)\n    - templates: Predefined metrics not yet saved (for display/initialization), ordered by priority\n    - hidden_metrics: Metrics marked as not relevant (only when include_irrelevant=true)\n\n    If business_model is not passed, auto-detects from user's BusinessContext.\n    Templates are ordered by priority (1=high first) then display_order.",
         "operationId": "get_metrics_api_v1_business_metrics_get",
         "parameters": [
           {
-            "description": "Filter templates by business model",
+            "description": "Filter templates by business model. Auto-detected from context if not provided.",
             "in": "query",
             "name": "business_model",
             "required": false,
@@ -46566,12 +46658,25 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter templates by business model",
+              "description": "Filter templates by business model. Auto-detected from context if not provided.",
               "examples": [
                 "saas",
-                "ecommerce"
+                "ecommerce",
+                "d2c"
               ],
               "title": "Business Model"
+            }
+          },
+          {
+            "description": "Include hidden/irrelevant metrics in response",
+            "in": "query",
+            "name": "include_irrelevant",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include hidden/irrelevant metrics in response",
+              "title": "Include Irrelevant",
+              "type": "boolean"
             }
           }
         ],
@@ -46860,6 +46965,60 @@
           }
         },
         "summary": "Update a metric value",
+        "tags": [
+          "business-metrics",
+          "business-metrics"
+        ]
+      }
+    },
+    "/api/v1/business-metrics/{metric_key}/relevance": {
+      "patch": {
+        "description": "Set whether a predefined metric is relevant to the user.\n\n    Setting is_relevant=false hides the metric from the default view but keeps\n    it recoverable. Only works for predefined metrics - use DELETE for custom metrics.",
+        "operationId": "set_metric_relevance_api_v1_business_metrics__metric_key__relevance_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_key",
+            "required": true,
+            "schema": {
+              "title": "Metric Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRelevanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMetric"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set metric relevance",
         "tags": [
           "business-metrics",
           "business-metrics"
@@ -54690,6 +54849,79 @@
         ]
       }
     },
+    "/api/v1/seo/articles/{article_id}/regenerate": {
+      "post": {
+        "description": "Regenerate an article with specific changes and/or tone.\n\nTakes the original article and regenerates it with:\n- Up to 3 specific changes requested by the user\n- A different tone of voice (Professional, Friendly, Technical, Persuasive, Conversational)\n\nRate limited to 2 requests per minute.\nUses the same monthly quota as article generation.",
+        "operationId": "regenerate_article_api_v1_seo_articles__article_id__regenerate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "article_id",
+            "required": true,
+            "schema": {
+              "title": "Article Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegenerateArticleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoBlogArticle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Regenerate Article",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
     "/api/v1/seo/assets": {
       "get": {
         "description": "List user's marketing assets with optional filtering.\n\nSupports filtering by asset type, tags, and text search.",
@@ -55350,6 +55582,48 @@
           }
         },
         "summary": "Create Topic",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/topics/autogenerate": {
+      "post": {
+        "description": "Autogenerate SEO topics using AI-powered discovery.\n\nUses user's business context (industry, focus areas) to discover\nrelevant topics. Filters out topics that already exist.\n\nRate limited to 5 requests per minute.",
+        "operationId": "autogenerate_topics_api_v1_seo_topics_autogenerate_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoTopicsAutogenerateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Autogenerate Topics",
         "tags": [
           "seo",
           "seo"

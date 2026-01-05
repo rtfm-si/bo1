@@ -1,0 +1,8 @@
+# Auth state (contains session cookies)
+.auth-state.json
+
+# Generated reports
+reports/
+
+# Screenshots from errors
+screenshots/

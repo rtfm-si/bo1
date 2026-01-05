@@ -1,7 +1,7 @@
 # E2E Test Fixme Tracker
 
 ## Summary
-~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ ~~8 tests~~ **9 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
+~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ ~~8 tests~~ ~~9 tests~~ **10 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
 
 **Fixed**:
 - Settings Page (18 tests → 19 tests now passing)
@@ -204,6 +204,17 @@ npx playwright test
    - **Selector**: `getByRole('heading', { name: /Datasets|Data/i }).first()`
 
 **Root cause**: Tests depend on async data loading that may not complete within CI timeouts.
+
+---
+
+### Meeting Complete - Sidebar Metrics (2026-01-05)
+**1 test marked as fixme**
+
+1. `meeting-complete.spec.ts:538` - "displays contributions count greater than zero"
+   - **Issue**: Sidebar metrics timing-dependent, times out waiting for contributions container
+   - **Selector**: `locator('xpath=ancestor::div[contains(@class, "flex")]')`
+
+**Root cause**: XPath ancestor selector and textContent() call times out in CI due to async rendering timing.
 
 ---
 

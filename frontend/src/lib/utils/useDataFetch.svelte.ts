@@ -73,8 +73,9 @@ export function useDataFetch<T>(fetchFn: () => Promise<T>): DataFetchState<T> {
 	let error = $state<string | null>(null);
 
 	async function fetch() {
-		// Defer state mutations to avoid unsafe_mutation during render
-		await Promise.resolve();
+		// Use setTimeout(0) to properly defer state mutations outside Svelte's render cycle
+		// Promise.resolve() runs as a microtask which can still be within the same render batch
+		await new Promise(resolve => setTimeout(resolve, 0));
 
 		try {
 			isLoading = true;

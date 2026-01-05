@@ -33,7 +33,8 @@ const DEFAULT_CONFIG: CrawlConfig = {
 	],
 	runNewMeeting: false,
 	screenshotOnError: true,
-	verbose: false
+	verbose: false,
+	delayBetweenPages: 1000  // 1 second delay to prevent rate limiting
 };
 
 export class WebsiteCrawler {
@@ -73,6 +74,7 @@ export class WebsiteCrawler {
 		this.addKnownRoutes();
 
 		// Process queue
+		let isFirstPage = true;
 		while (
 			this.urlQueue.length > 0 &&
 			this.visitedUrls.size < this.config.maxPages
@@ -83,6 +85,12 @@ export class WebsiteCrawler {
 			if (this.shouldSkipUrl(next.url) || this.visitedUrls.has(this.normalizeUrl(next.url))) {
 				continue;
 			}
+
+			// Add delay between pages to prevent rate limiting (skip first page)
+			if (!isFirstPage && this.config.delayBetweenPages) {
+				await new Promise(resolve => setTimeout(resolve, this.config.delayBetweenPages));
+			}
+			isFirstPage = false;
 
 			try {
 				const result = await this.crawlPage(next.url, next.depth, next.parentUrl);
@@ -112,16 +120,20 @@ export class WebsiteCrawler {
 	 * Add known routes to ensure complete coverage
 	 */
 	private addKnownRoutes(): void {
+		// These routes must match actual app routes in src/routes/(app)/
 		const knownRoutes = [
 			'/dashboard',
-			'/meetings',
+			'/meeting',           // meetings list (singular, not /meetings)
 			'/actions',
 			'/datasets',
 			'/settings',
-			'/settings/profile',
-			'/settings/preferences',
+			'/settings/account',  // actual settings sub-routes
+			'/settings/workspace',
 			'/settings/privacy',
-			'/settings/billing'
+			'/settings/billing',
+			'/context/overview',
+			'/context/metrics',
+			'/help'
 		];
 
 		for (const route of knownRoutes) {
@@ -132,7 +144,7 @@ export class WebsiteCrawler {
 		// Conditionally add new meeting route
 		if (this.config.runNewMeeting) {
 			this.urlQueue.push({
-				url: new URL('/meetings/new', this.config.baseUrl).toString(),
+				url: new URL('/meeting/new', this.config.baseUrl).toString(),
 				depth: 1
 			});
 		}
@@ -731,8 +743,15 @@ export class WebsiteCrawler {
 			issues.push(`${imagesWithoutAlt} images without alt text`);
 		}
 
-		// Buttons without accessible name
-		const buttonsWithoutName = await this.page.locator('button:not([aria-label]):not(:has-text(/./))').count();
+		// Buttons without accessible name (no aria-label and no text content)
+		const buttonsWithoutName = await this.page.evaluate(() => {
+			const buttons = document.querySelectorAll('button:not([aria-label])');
+			let count = 0;
+			buttons.forEach(btn => {
+				if (!btn.textContent?.trim()) count++;
+			});
+			return count;
+		});
 		if (buttonsWithoutName > 0) {
 			issues.push(`${buttonsWithoutName} buttons without accessible name`);
 		}

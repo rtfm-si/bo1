@@ -17,7 +17,7 @@ const AUTH_STATE_FILE = './e2e/crawler/.auth-state.json';
 
 test.describe('Auth Setup', () => {
 	test('capture auth state via manual login', async ({ page, context }) => {
-		test.setTimeout(120000); // 2 minutes for manual login
+		test.setTimeout(300000); // 5 minutes for manual login
 
 		console.log('\n=================================================');
 		console.log('AUTH STATE CAPTURE');
@@ -34,7 +34,7 @@ test.describe('Auth Setup', () => {
 		console.log('Waiting for login to complete (navigate to dashboard)...');
 
 		try {
-			await page.waitForURL('**/dashboard', { timeout: 120000 });
+			await page.waitForURL('**/dashboard', { timeout: 300000 });
 		} catch {
 			// Check if already on dashboard
 			if (!page.url().includes('/dashboard')) {

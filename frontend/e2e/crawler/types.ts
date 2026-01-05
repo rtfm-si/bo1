@@ -12,6 +12,8 @@ export interface CrawlConfig {
 	runNewMeeting: boolean;
 	screenshotOnError: boolean;
 	verbose: boolean;
+	/** Delay between page navigations in ms (prevents rate limiting) */
+	delayBetweenPages?: number;
 }
 
 export interface PageInfo {

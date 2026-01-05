@@ -49,15 +49,8 @@ test.describe('Website Crawler', () => {
 		console.log(`Run new meeting: ${RUN_NEW_MEETING}`);
 		console.log(`Max pages: ${MAX_PAGES}, Max depth: ${MAX_DEPTH}`);
 
-		// Authenticate
+		// Authenticate (already navigates to dashboard and verifies login)
 		await authenticate(page, context);
-
-		// Verify we're logged in
-		await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'networkidle' });
-		const isLoggedIn = !page.url().includes('/login');
-		if (!isLoggedIn) {
-			throw new Error('Failed to authenticate. Please check credentials or auth state file.');
-		}
 		console.log('Successfully authenticated');
 
 		// Configure crawler
@@ -255,6 +248,11 @@ test.describe('Website Crawler', () => {
 
 /**
  * Authenticate with the site
+ *
+ * SuperTokens requires three things for authenticated state:
+ * 1. sAccessToken cookie (JWT)
+ * 2. sFrontToken cookie (base64 user info for frontend SDK)
+ * 3. localStorage supertokens-auth state
  */
 async function authenticate(page: Page, context: BrowserContext): Promise<void> {
 	// Try to load stored auth state first
@@ -262,12 +260,44 @@ async function authenticate(page: Page, context: BrowserContext): Promise<void> 
 		const fs = await import('fs');
 		if (fs.existsSync(AUTH_STATE_FILE)) {
 			const state = JSON.parse(fs.readFileSync(AUTH_STATE_FILE, 'utf-8'));
-			await context.addCookies(state.cookies || []);
-			console.log('Loaded auth state from file');
+
+			if (!state.cookies || state.cookies.length === 0) {
+				throw new Error('No cookies in auth state file');
+			}
+
+			// Add all cookies from the file (should include sAccessToken, sRefreshToken, sFrontToken)
+			await context.addCookies(state.cookies);
+			console.log(`Added ${state.cookies.length} cookies from auth state file`);
+
+			// Navigate to dashboard
+			await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'networkidle' });
+
+			// Wait for session verification to complete
+			console.log('Waiting for session verification...');
+			try {
+				await page.waitForFunction(() => {
+					const verifying = document.body?.textContent?.includes('Verifying your session');
+					return !verifying;
+				}, { timeout: 15000 });
+			} catch {
+				console.log('Session verification wait timed out');
+			}
+
+			// Additional wait for any redirects
+			await page.waitForTimeout(2000);
+
+			// Check final URL
+			const finalUrl = page.url();
+			if (finalUrl.includes('/login')) {
+				console.log(`Auth failed - redirected to login. Final URL: ${finalUrl}`);
+				throw new Error('Session verification failed - ended up on login page');
+			}
+
+			console.log(`Auth successful - on ${finalUrl}`);
 			return;
 		}
 	} catch (e) {
-		console.log('No stored auth state, proceeding with login');
+		console.log('No stored auth state or error loading:', e);
 	}
 
 	// If no stored state, try to login via UI
@@ -329,5 +359,31 @@ async function loginViaUI(page: Page, email: string, password: string): Promise<
 		console.log('Login successful');
 	} else {
 		throw new Error('Could not find login form');
+	}
+}
+
+/**
+ * Extract user ID from SuperTokens JWT
+ * JWT format: header.payload.signature (all base64url encoded)
+ */
+function extractUserIdFromJWT(jwt: string): string | null {
+	try {
+		const parts = jwt.split('.');
+		if (parts.length !== 3) return null;
+
+		// Decode payload (second part)
+		// Replace URL-safe chars and add padding
+		const payload = parts[1]
+			.replace(/-/g, '+')
+			.replace(/_/g, '/');
+		const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
+
+		const decoded = Buffer.from(padded, 'base64').toString('utf-8');
+		const data = JSON.parse(decoded);
+
+		// SuperTokens stores user ID in 'sub' claim
+		return data.sub || null;
+	} catch {
+		return null;
 	}
 }

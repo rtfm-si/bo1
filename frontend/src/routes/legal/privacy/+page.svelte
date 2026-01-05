@@ -181,7 +181,7 @@
 					</li>
 					<li>
 						<strong>Rectification:</strong> Correct inaccurate or incomplete data
-						<a href="/settings/profile">(Settings → Profile)</a>
+						<a href="/settings/account">(Settings → Account)</a>
 					</li>
 					<li>
 						<strong>Erasure ("Right to be Forgotten"):</strong> Request deletion of your account and

@@ -120,11 +120,11 @@
 		<ServiceStatusBanner />
 		<Header />
 		{#if showBreadcrumbs && breadcrumbs.length > 0}
-			<nav aria-label="Breadcrumb" class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+			<div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
 				<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
 					<Breadcrumb items={breadcrumbs} />
 				</div>
-			</nav>
+			</div>
 		{/if}
 		<main id="main-content">
 			{@render children()}

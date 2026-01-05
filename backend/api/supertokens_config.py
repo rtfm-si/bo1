@@ -1,8 +1,6 @@
 """SuperTokens configuration for Board of One authentication.
 
 This module initializes SuperTokens with:
-- AccountLinking recipe for linking accounts with same email across providers
-- EmailVerification recipe (required for AccountLinking)
 - ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
 - EmailPassword recipe for email/password authentication
 - Session recipe for httpOnly cookie-based session management
@@ -13,6 +11,9 @@ Architecture: BFF (Backend-for-Frontend) pattern
 - Tokens never reach frontend (exchanged server-side)
 - Sessions stored as httpOnly cookies (XSS-proof)
 - Automatic token refresh and CSRF protection
+
+Note: AccountLinking is disabled (requires SuperTokens paid license).
+Users cannot link OAuth + email accounts to same user.
 """
 
 import logging
@@ -24,19 +25,12 @@ from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import (
-    accountlinking,
     emailpassword,
-    emailverification,
     multifactorauth,
     passwordless,
     session,
     thirdparty,
     totp,
-)
-from supertokens_python.recipe.accountlinking.types import (
-    AccountInfoWithRecipeIdAndUserId,
-    ShouldAutomaticallyLink,
-    ShouldNotAutomaticallyLink,
 )
 from supertokens_python.recipe.emailpassword.interfaces import (
     APIInterface as EmailPasswordAPIInterface,
@@ -76,7 +70,6 @@ from supertokens_python.recipe.thirdparty.provider import (
 )
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 from supertokens_python.types import GeneralErrorResponse
-from supertokens_python.types import User as SuperTokensUser
 
 from backend.api.middleware.csrf import (
     clear_csrf_cookie_on_response,
@@ -1286,61 +1279,10 @@ def override_session_apis(
 TRUSTED_OAUTH_PROVIDERS = {"google", "linkedin", "github"}
 
 
-async def should_do_automatic_account_linking(
-    new_account_info: AccountInfoWithRecipeIdAndUserId,
-    user: SuperTokensUser | None,
-    session_container: SessionContainer | None,
-    tenant_id: str,
-    user_context: dict[str, Any],
-) -> ShouldAutomaticallyLink | ShouldNotAutomaticallyLink:
-    """Determine whether to automatically link accounts.
-
-    Links accounts when:
-    - Email is present (OAuth providers like Google verify emails)
-    - Provider is trusted (Google, LinkedIn, GitHub)
-
-    This allows users who signed up with email/password to later sign in
-    with Google using the same email address, and vice versa.
-
-    Note: OAuth providers (Google, LinkedIn, GitHub) verify emails before
-    returning them, so we trust emails from thirdparty recipe as verified.
-    """
-    email = new_account_info.email
-    recipe_id = new_account_info.recipe_id
-
-    if email:
-        # Log linking attempt
-        logger.info(f"Account linking check: email={_mask_email(email)}, recipe={recipe_id}")
-
-        # ThirdParty providers (Google, LinkedIn, GitHub) verify emails
-        # We trust the email is verified when coming from OAuth
-        if recipe_id == "thirdparty":
-            logger.info(f"Auto-linking approved for OAuth email: {_mask_email(email)}")
-            # OAuth emails are already verified by the provider
-            return ShouldAutomaticallyLink(should_require_verification=False)
-
-        # EmailPassword - require email verification before linking
-        if recipe_id == "emailpassword":
-            logger.info(f"Auto-linking approved for email/password: {_mask_email(email)}")
-            # Require verification for email/password signups
-            return ShouldAutomaticallyLink(should_require_verification=True)
-
-        # Passwordless (magic link) - email was verified by clicking link
-        if recipe_id == "passwordless":
-            logger.info(f"Auto-linking approved for passwordless: {_mask_email(email)}")
-            return ShouldAutomaticallyLink(should_require_verification=False)
-
-    # Don't auto-link accounts without email
-    logger.info(f"Auto-linking denied: no email present, recipe={recipe_id}")
-    return ShouldNotAutomaticallyLink()
-
-
 def init_supertokens() -> None:
     """Initialize SuperTokens with all recipes and configurations.
 
     Recipes:
-    - AccountLinking: Links accounts with same email across providers
-    - EmailVerification: Required for AccountLinking (OPTIONAL mode)
     - ThirdParty: OAuth providers (Google, LinkedIn, GitHub)
     - EmailPassword: Email/password authentication
     - Passwordless: Magic link authentication (if enabled)
@@ -1373,15 +1315,8 @@ def init_supertokens() -> None:
     logger.info(f"Cookie configuration: env={env}, secure={cookie_secure}, domain={cookie_domain}")
 
     # Build recipe list
-    # Note: AccountLinking and EmailVerification must be initialized BEFORE other recipes
+    # Note: AccountLinking disabled (requires SuperTokens paid license)
     recipe_list = [
-        # EmailVerification recipe - required for AccountLinking
-        # OAuth providers (Google, LinkedIn, GitHub) already verify emails
-        emailverification.init(mode="OPTIONAL"),
-        # AccountLinking recipe - enables linking different auth methods to same user
-        accountlinking.init(
-            should_do_automatic_account_linking=should_do_automatic_account_linking,
-        ),
         # ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
         thirdparty.init(
             sign_in_and_up_feature=thirdparty.SignInAndUpFeature(providers=get_oauth_providers()),

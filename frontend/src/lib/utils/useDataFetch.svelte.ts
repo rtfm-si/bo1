@@ -73,6 +73,9 @@ export function useDataFetch<T>(fetchFn: () => Promise<T>): DataFetchState<T> {
 	let error = $state<string | null>(null);
 
 	async function fetch() {
+		// Defer state mutations to avoid unsafe_mutation during render
+		await Promise.resolve();
+
 		try {
 			isLoading = true;
 			error = null;

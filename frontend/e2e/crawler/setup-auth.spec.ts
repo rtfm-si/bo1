@@ -16,6 +16,9 @@ const BASE_URL = process.env.CRAWLER_BASE_URL || 'https://boardof.one';
 const AUTH_STATE_FILE = './e2e/crawler/.auth-state.json';
 
 test.describe('Auth Setup', () => {
+	// Skip in CI - requires manual browser interaction
+	test.skip(!!process.env.CI, 'Manual auth setup cannot run in CI');
+
 	test('capture auth state via manual login', async ({ page, context }) => {
 		test.setTimeout(300000); // 5 minutes for manual login
 

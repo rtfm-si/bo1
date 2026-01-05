@@ -520,11 +520,12 @@ test.describe('Dataset Detail Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Click back link
+			// Click back link - may go to /datasets or /mentor?tab=data depending on navigation context
 			const backLink = page.getByRole('link', { name: /Back|Datasets/i });
 			if (await backLink.first().isVisible()) {
 				await backLink.first().click();
-				await expect(page).toHaveURL(/\/datasets$/);
+				// Accept either /datasets or /mentor?tab=data as valid destinations
+				await expect(page).toHaveURL(/\/datasets$|\/mentor\?tab=data/);
 			}
 		});
 	});

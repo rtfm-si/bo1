@@ -1,3 +1,8 @@
+<script lang="ts" module>
+	// Module-level flag to prevent duplicate OAuth processing across component re-mounts
+	let oauthProcessed = false;
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -29,6 +34,13 @@
 	}
 
 	onMount(async () => {
+		// Prevent duplicate processing (OAuth codes are single-use)
+		if (oauthProcessed) {
+			console.log('[Callback] OAuth already processed, skipping duplicate call');
+			return;
+		}
+		oauthProcessed = true;
+
 		console.log('[Callback] Starting OAuth callback processing...');
 		console.log('[Callback] URL:', window.location.href);
 		console.log('[Callback] Search params:', window.location.search);

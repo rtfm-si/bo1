@@ -37,7 +37,11 @@ const TEST_USER_PASSWORD = process.env.CRAWLER_USER_PASSWORD;
 // Auth state file (can be pre-saved from a manual login)
 const AUTH_STATE_FILE = process.env.CRAWLER_AUTH_STATE || './e2e/crawler/.auth-state.json';
 
+// Skip in CI unless explicitly enabled - crawler requires production auth
+const SKIP_IN_CI = process.env.CI === 'true' && process.env.RUN_CRAWLER !== 'true';
+
 test.describe('Website Crawler', () => {
+	test.skip(SKIP_IN_CI, 'Crawler tests require manual auth setup - run locally with ./run-crawl.sh');
 	test.setTimeout(600000); // 10 minute timeout for full crawl
 
 	test('comprehensive crawl of all pages and interactions', async ({ page, context }) => {

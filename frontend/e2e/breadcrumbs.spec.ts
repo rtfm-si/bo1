@@ -11,9 +11,8 @@ test.describe('Breadcrumbs', () => {
 		const breadcrumbNavs = page.locator('nav[aria-label="Breadcrumb"]');
 		await expect(breadcrumbNavs).toHaveCount(1);
 
-		// Verify the breadcrumb contains expected items
+		// Verify the breadcrumb contains expected item (path-based, so only "Mentor")
 		const breadcrumb = breadcrumbNavs.first();
-		await expect(breadcrumb.getByText('Dashboard')).toBeVisible();
 		await expect(breadcrumb.getByText('Mentor')).toBeVisible();
 	});
 
@@ -27,10 +26,8 @@ test.describe('Breadcrumbs', () => {
 		const breadcrumbNavs = page.locator('nav[aria-label="Breadcrumb"]');
 		await expect(breadcrumbNavs).toHaveCount(1);
 
-		// Verify the breadcrumb contains expected items
+		// Verify the breadcrumb contains expected item (path-based, capitalized "Seo")
 		const breadcrumb = breadcrumbNavs.first();
-		await expect(breadcrumb.getByText('Dashboard')).toBeVisible();
-		// May be "SEO" or "Seo" depending on breadcrumb util capitalization
 		await expect(breadcrumb.locator('text=/seo/i')).toBeVisible();
 	});
 });

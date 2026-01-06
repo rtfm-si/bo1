@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, isLoading, user } from '$lib/stores/auth';
@@ -40,21 +41,26 @@
 	// Check for active impersonation session from user store data
 	function checkImpersonation() {
 		// Impersonation metadata is now included in /me response
-		if ($user?.is_impersonation) {
+		// Read user data without tracking to avoid effect dependencies
+		const userData = untrack(() => $user);
+		if (userData?.is_impersonation) {
 			// Build session data from user store
-			const remainingSeconds = $user.impersonation_remaining_seconds ?? 1800;
-			const expiresAt = $user.impersonation_expires_at ?? new Date(Date.now() + remainingSeconds * 1000).toISOString();
-			impersonationSession = {
-				admin_user_id: $user.real_admin_id || '',
-				target_user_id: $user.id,
-				target_email: $user.email,
-				reason: '', // Not stored in /me response, not critical for banner
-				is_write_mode: $user.impersonation_write_mode ?? false,
-				started_at: new Date().toISOString(), // Approximate, not critical
-				remaining_seconds: remainingSeconds,
-				expires_at: expiresAt
-			};
-			log.log('Active impersonation session detected:', $user.email);
+			const remainingSeconds = userData.impersonation_remaining_seconds ?? 1800;
+			const expiresAt = userData.impersonation_expires_at ?? new Date(Date.now() + remainingSeconds * 1000).toISOString();
+			// Defer state mutation to avoid any reactive cycle issues
+			setTimeout(() => {
+				impersonationSession = {
+					admin_user_id: userData.real_admin_id || '',
+					target_user_id: userData.id,
+					target_email: userData.email,
+					reason: '', // Not stored in /me response, not critical for banner
+					is_write_mode: userData.impersonation_write_mode ?? false,
+					started_at: new Date().toISOString(), // Approximate, not critical
+					remaining_seconds: remainingSeconds,
+					expires_at: expiresAt
+				};
+				log.log('Active impersonation session detected:', userData.email);
+			}, 0);
 		}
 	}
 
@@ -78,7 +84,8 @@
 	}
 
 	// React to auth state changes using $effect
-	// This properly defers state mutations outside the reactive cycle
+	// Only track $isLoading and $isAuthenticated - use untrack for authChecked
+	// to prevent circular dependency when authChecked is set
 	$effect(() => {
 		const loading = $isLoading;
 		const authenticated = $isAuthenticated;
@@ -89,12 +96,17 @@
 			if (!authenticated) {
 				// Not authenticated - redirect to login
 				goto('/login');
-			} else if (!authChecked) {
-				// Authenticated - defer state mutation outside reactive cycle
-				setTimeout(() => {
-					authChecked = true;
-					loadBackgroundData();
-				}, 0);
+			} else {
+				// Use untrack to read authChecked without creating a dependency
+				// This prevents the effect from re-running when authChecked changes
+				const alreadyChecked = untrack(() => authChecked);
+				if (!alreadyChecked) {
+					// Authenticated - defer state mutation outside reactive cycle
+					setTimeout(() => {
+						authChecked = true;
+						loadBackgroundData();
+					}, 0);
+				}
 			}
 		}
 	});

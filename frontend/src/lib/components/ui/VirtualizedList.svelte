@@ -64,9 +64,12 @@
 			containerClientHeight = containerRef.clientHeight;
 
 			const resizeObserver = new ResizeObserver((entries) => {
-				for (const entry of entries) {
-					containerClientHeight = entry.contentRect.height;
-				}
+				// Defer state mutation to avoid state_unsafe_mutation during render
+				setTimeout(() => {
+					for (const entry of entries) {
+						containerClientHeight = entry.contentRect.height;
+					}
+				}, 0);
 			});
 
 			resizeObserver.observe(containerRef);

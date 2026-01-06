@@ -1159,6 +1159,9 @@ export function isStateTransitionEvent(event: SSEEvent): event is SSEEvent<'stat
  * Returns the index or undefined if not present
  */
 export function getSubProblemIndex(event: SSEEvent): number | undefined {
+	if (!event.data || typeof event.data !== 'object') {
+		return undefined;
+	}
 	const data = event.data as { sub_problem_index?: number };
 	return data.sub_problem_index;
 }

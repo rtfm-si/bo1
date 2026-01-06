@@ -411,7 +411,10 @@
 	$effect(() => {
 		if (!gridContainer) return;
 		const observer = new ResizeObserver((entries) => {
-			containerWidth = entries[0].contentRect.width;
+			// Defer state mutation to avoid state_unsafe_mutation during render
+			setTimeout(() => {
+				containerWidth = entries[0].contentRect.width;
+			}, 0);
 		});
 		observer.observe(gridContainer);
 		return () => observer.disconnect();

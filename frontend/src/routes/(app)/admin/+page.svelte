@@ -6,6 +6,7 @@
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse, type RuntimeConfigItem } from '$lib/api/admin';
 	import { onMount } from 'svelte';
+	import { user } from '$lib/stores/auth';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -40,6 +41,9 @@
 
 	// Fetch email, cache stats, and observability links in parallel
 	onMount(async () => {
+		// Guard: only fetch if user is admin (layout handles redirect, but this prevents 403 errors)
+		if (!$user?.is_admin) return;
+
 		const fetchEmailStats = async () => {
 			try {
 				emailStats = await adminApi.getEmailStats(30);

@@ -42,7 +42,7 @@ const SKIP_IN_CI = process.env.CI === 'true' && process.env.RUN_CRAWLER !== 'tru
 
 test.describe('Website Crawler', () => {
 	test.skip(SKIP_IN_CI, 'Crawler tests require manual auth setup - run locally with ./run-crawl.sh');
-	test.setTimeout(600000); // 10 minute timeout for full crawl
+	test.setTimeout(7200000); // 2 hour timeout for full crawl
 
 	test('comprehensive crawl of all pages and interactions', async ({ page, context }) => {
 		console.log(`\nStarting comprehensive crawl of ${BASE_URL}`);
@@ -54,6 +54,10 @@ test.describe('Website Crawler', () => {
 		console.log('Successfully authenticated');
 
 		// Configure crawler
+		// Build external link skip pattern based on BASE_URL
+		const baseHost = new URL(BASE_URL).host;
+		const externalLinkPattern = new RegExp(`^https?:\\/\\/(?!${baseHost.replace(/\./g, '\\.')})`);
+
 		const config: Partial<CrawlConfig> = {
 			baseUrl: BASE_URL,
 			maxPages: MAX_PAGES,
@@ -71,8 +75,8 @@ test.describe('Website Crawler', () => {
 				/signout/i,
 				/^#$/,
 				/^#[a-zA-Z]/,
-				// Skip external links
-				/^https?:\/\/(?!boardof\.one)/,
+				// Skip external links (dynamically based on BASE_URL)
+				externalLinkPattern,
 				// Skip admin if not admin user
 				/\/admin/,
 				// Skip auth callback routes
@@ -240,6 +244,112 @@ test.describe('Website Crawler', () => {
 		const report = await crawler.crawl();
 
 		const generator = new ReportGenerator(report, './e2e/crawler/reports/datasets');
+		await generator.generate();
+
+		expect(report.summary.totalPages).toBeGreaterThan(0);
+	});
+
+	test('crawl context pages', async ({ page, context }) => {
+		test.setTimeout(300000); // 5 minute timeout
+
+		await authenticate(page, context);
+
+		const config: Partial<CrawlConfig> = {
+			baseUrl: BASE_URL,
+			maxPages: 30,
+			maxDepth: 3,
+			runNewMeeting: false,
+			verbose: VERBOSE,
+			includePatterns: [
+				/\/context/,
+				/\/dashboard/
+			]
+		};
+
+		const crawler = new WebsiteCrawler(page, context, config);
+		const report = await crawler.crawl();
+
+		const generator = new ReportGenerator(report, './e2e/crawler/reports/context');
+		await generator.generate();
+
+		expect(report.summary.totalPages).toBeGreaterThan(0);
+	});
+
+	test('crawl reports pages', async ({ page, context }) => {
+		test.setTimeout(300000); // 5 minute timeout
+
+		await authenticate(page, context);
+
+		const config: Partial<CrawlConfig> = {
+			baseUrl: BASE_URL,
+			maxPages: 30,
+			maxDepth: 3,
+			runNewMeeting: false,
+			verbose: VERBOSE,
+			includePatterns: [
+				/\/reports/,
+				/\/dashboard/
+			]
+		};
+
+		const crawler = new WebsiteCrawler(page, context, config);
+		const report = await crawler.crawl();
+
+		const generator = new ReportGenerator(report, './e2e/crawler/reports/reports');
+		await generator.generate();
+
+		expect(report.summary.totalPages).toBeGreaterThan(0);
+	});
+
+	test('crawl projects pages', async ({ page, context }) => {
+		test.setTimeout(180000); // 3 minute timeout
+
+		await authenticate(page, context);
+
+		const config: Partial<CrawlConfig> = {
+			baseUrl: BASE_URL,
+			maxPages: 20,
+			maxDepth: 2,
+			runNewMeeting: false,
+			verbose: VERBOSE,
+			includePatterns: [
+				/\/projects/,
+				/\/dashboard/
+			]
+		};
+
+		const crawler = new WebsiteCrawler(page, context, config);
+		const report = await crawler.crawl();
+
+		const generator = new ReportGenerator(report, './e2e/crawler/reports/projects');
+		await generator.generate();
+
+		expect(report.summary.totalPages).toBeGreaterThan(0);
+	});
+
+	test('crawl onboarding and welcome pages', async ({ page, context }) => {
+		test.setTimeout(180000); // 3 minute timeout
+
+		await authenticate(page, context);
+
+		const config: Partial<CrawlConfig> = {
+			baseUrl: BASE_URL,
+			maxPages: 15,
+			maxDepth: 2,
+			runNewMeeting: false,
+			verbose: VERBOSE,
+			includePatterns: [
+				/\/welcome/,
+				/\/onboarding/,
+				/\/mentor/,
+				/\/dashboard/
+			]
+		};
+
+		const crawler = new WebsiteCrawler(page, context, config);
+		const report = await crawler.crawl();
+
+		const generator = new ReportGenerator(report, './e2e/crawler/reports/onboarding');
 		await generator.generate();
 
 		expect(report.summary.totalPages).toBeGreaterThan(0);

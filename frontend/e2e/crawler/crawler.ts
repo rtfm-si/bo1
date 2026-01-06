@@ -122,18 +122,54 @@ export class WebsiteCrawler {
 	private addKnownRoutes(): void {
 		// These routes must match actual app routes in src/routes/(app)/
 		const knownRoutes = [
+			// Core navigation
 			'/dashboard',
+			'/welcome',
+			'/onboarding',
+			'/help',
+
+			// Meetings
 			'/meeting',           // meetings list (singular, not /meetings)
+
+			// Actions
 			'/actions',
+
+			// Datasets
 			'/datasets',
+
+			// Settings - all sub-routes
 			'/settings',
-			'/settings/account',  // actual settings sub-routes
+			'/settings/account',
 			'/settings/workspace',
+			'/settings/workspace/billing',
 			'/settings/privacy',
 			'/settings/billing',
+			'/settings/integrations',
+
+			// Context - all sub-routes
+			'/context',
 			'/context/overview',
 			'/context/metrics',
-			'/help'
+			'/context/insights',
+			'/context/strategic',
+			'/context/key-metrics',
+			'/context/peer-benchmarks',
+
+			// Reports - all sub-routes
+			'/reports',
+			'/reports/meetings',
+			'/reports/competitors',
+			'/reports/trends',
+			'/reports/benchmarks',
+
+			// Projects
+			'/projects',
+			'/projects/new',
+
+			// Other app pages
+			'/mentor',
+			'/seo',
+			'/analysis'
 		];
 
 		for (const route of knownRoutes) {
@@ -843,8 +879,15 @@ export class WebsiteCrawler {
 		this.page.on('response', (response: Response) => {
 			const status = response.status();
 			if (status >= 400) {
+				const url = response.url();
+				// Skip auth-related 401s - these are expected during session refresh cycles
+				const isAuthEndpoint = /\/api\/(v1\/)?auth\//.test(url) ||
+					/\/session\/(refresh|signout)/.test(url);
+				if (status === 401 && isAuthEndpoint) {
+					return; // Don't count auth 401s as errors
+				}
 				this.networkErrors.push({
-					url: response.url(),
+					url,
 					status,
 					statusText: response.statusText(),
 					resourceType: response.request().resourceType()

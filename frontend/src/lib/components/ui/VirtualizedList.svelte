@@ -61,15 +61,20 @@
 	// Initialize container height on mount
 	$effect(() => {
 		if (containerRef) {
-			containerClientHeight = containerRef.clientHeight;
+			// Defer initial measurement to avoid state_unsafe_mutation during effect
+			queueMicrotask(() => {
+				if (containerRef) {
+					containerClientHeight = containerRef.clientHeight;
+				}
+			});
 
 			const resizeObserver = new ResizeObserver((entries) => {
 				// Defer state mutation to avoid state_unsafe_mutation during render
-				setTimeout(() => {
+				queueMicrotask(() => {
 					for (const entry of entries) {
 						containerClientHeight = entry.contentRect.height;
 					}
-				}, 0);
+				});
 			});
 
 			resizeObserver.observe(containerRef);

@@ -34,10 +34,16 @@
 	let unit = $state(progress?.unit || '');
 
 	// Reset form when progress changes
+	// Defer mutations to avoid state_unsafe_mutation during effect
 	$effect(() => {
-		current = progress?.current || '';
-		target = progress?.target || '';
-		unit = progress?.unit || '';
+		const newCurrent = progress?.current || '';
+		const newTarget = progress?.target || '';
+		const newUnit = progress?.unit || '';
+		queueMicrotask(() => {
+			current = newCurrent;
+			target = newTarget;
+			unit = newUnit;
+		});
 	});
 
 	// Common unit presets

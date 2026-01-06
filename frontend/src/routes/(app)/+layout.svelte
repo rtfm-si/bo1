@@ -32,9 +32,10 @@
 	let currentLabels = $state<Record<string, string>>({});
 
 	// Subscribe to breadcrumb labels store and update local state
+	// Use queueMicrotask to defer mutation, avoiding state_unsafe_mutation during effect
 	$effect(() => {
 		const unsub = breadcrumbLabels.subscribe(labels => {
-			currentLabels = labels;
+			queueMicrotask(() => { currentLabels = labels; });
 		});
 		return unsub;
 	});

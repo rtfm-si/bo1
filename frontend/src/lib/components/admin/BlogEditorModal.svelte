@@ -27,15 +27,26 @@
 	let metaDescription = $state('');
 
 	// Sync form state when post prop changes
+	// Defer mutations to avoid state_unsafe_mutation during effect
 	$effect(() => {
-		title = post?.title || '';
-		content = post?.content || '';
-		excerpt = post?.excerpt || '';
-		status = post?.status || 'draft';
-		publishedAt = post?.published_at ? post.published_at.slice(0, 16) : '';
-		seoKeywords = post?.seo_keywords?.join(', ') || '';
-		metaTitle = post?.meta_title || '';
-		metaDescription = post?.meta_description || '';
+		const newTitle = post?.title || '';
+		const newContent = post?.content || '';
+		const newExcerpt = post?.excerpt || '';
+		const newStatus = post?.status || 'draft';
+		const newPublishedAt = post?.published_at ? post.published_at.slice(0, 16) : '';
+		const newSeoKeywords = post?.seo_keywords?.join(', ') || '';
+		const newMetaTitle = post?.meta_title || '';
+		const newMetaDescription = post?.meta_description || '';
+		queueMicrotask(() => {
+			title = newTitle;
+			content = newContent;
+			excerpt = newExcerpt;
+			status = newStatus;
+			publishedAt = newPublishedAt;
+			seoKeywords = newSeoKeywords;
+			metaTitle = newMetaTitle;
+			metaDescription = newMetaDescription;
+		});
 	});
 
 	let isSubmitting = $state(false);

@@ -50,6 +50,7 @@
 	);
 
 	// Check snooze status on mount
+	// Defer mutations to avoid state_unsafe_mutation during effect
 	$effect(() => {
 		if (browser) {
 			const dismissedAt = localStorage.getItem(DISMISS_KEY);
@@ -59,7 +60,7 @@
 				const daysSinceDismiss =
 					(now.getTime() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24);
 				if (daysSinceDismiss < SNOOZE_DAYS) {
-					isDismissedLocally = true;
+					queueMicrotask(() => { isDismissedLocally = true; });
 				} else {
 					localStorage.removeItem(DISMISS_KEY);
 				}
@@ -68,9 +69,10 @@
 	});
 
 	// Show modal when needed
+	// Defer mutation to avoid state_unsafe_mutation during effect
 	$effect(() => {
 		if ($passwordUpgradeNeeded && !isDismissedLocally && !successMessage) {
-			isOpen = true;
+			queueMicrotask(() => { isOpen = true; });
 		}
 	});
 

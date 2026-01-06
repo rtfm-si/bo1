@@ -41,14 +41,17 @@
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				for (const entry of entries) {
-					if (entry.isIntersecting) {
-						isVisible = true;
-						hasBeenVisible = true;
-					} else {
-						isVisible = false;
+				// Defer state mutations to avoid state_unsafe_mutation
+				queueMicrotask(() => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) {
+							isVisible = true;
+							hasBeenVisible = true;
+						} else {
+							isVisible = false;
+						}
 					}
-				}
+				});
 			},
 			{
 				rootMargin,

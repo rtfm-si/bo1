@@ -86,14 +86,17 @@
 	}
 
 	// Load terms when modal opens
+	// Defer state mutations to avoid state_unsafe_mutation during effect
 	$effect(() => {
 		if (open) {
 			loadTerms();
-			hasScrolledToBottom = false;
-			scrollTimeoutReached = false;
-			tcChecked = false;
-			gdprChecked = false;
-			privacyChecked = false;
+			queueMicrotask(() => {
+				hasScrolledToBottom = false;
+				scrollTimeoutReached = false;
+				tcChecked = false;
+				gdprChecked = false;
+				privacyChecked = false;
+			});
 
 			// Fallback: enable scroll requirement after timeout
 			const timeout = setTimeout(() => {

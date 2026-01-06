@@ -35,15 +35,16 @@
 
 	// Reset form when progress changes
 	// Defer mutations to avoid state_unsafe_mutation during effect
+	// Use setTimeout(0) not queueMicrotask - microtasks can still be in same render batch
 	$effect(() => {
 		const newCurrent = progress?.current || '';
 		const newTarget = progress?.target || '';
 		const newUnit = progress?.unit || '';
-		queueMicrotask(() => {
+		setTimeout(() => {
 			current = newCurrent;
 			target = newTarget;
 			unit = newUnit;
-		});
+		}, 0);
 	});
 
 	// Common unit presets

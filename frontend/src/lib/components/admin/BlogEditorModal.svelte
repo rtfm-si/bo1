@@ -28,6 +28,7 @@
 
 	// Sync form state when post prop changes
 	// Defer mutations to avoid state_unsafe_mutation during effect
+	// Use setTimeout(0) not queueMicrotask - microtasks can still be in same render batch
 	$effect(() => {
 		const newTitle = post?.title || '';
 		const newContent = post?.content || '';
@@ -37,7 +38,7 @@
 		const newSeoKeywords = post?.seo_keywords?.join(', ') || '';
 		const newMetaTitle = post?.meta_title || '';
 		const newMetaDescription = post?.meta_description || '';
-		queueMicrotask(() => {
+		setTimeout(() => {
 			title = newTitle;
 			content = newContent;
 			excerpt = newExcerpt;
@@ -46,7 +47,7 @@
 			seoKeywords = newSeoKeywords;
 			metaTitle = newMetaTitle;
 			metaDescription = newMetaDescription;
-		});
+		}, 0);
 	});
 
 	let isSubmitting = $state(false);

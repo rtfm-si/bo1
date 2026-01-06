@@ -42,7 +42,8 @@
 		const observer = new IntersectionObserver(
 			(entries) => {
 				// Defer state mutations to avoid state_unsafe_mutation
-				queueMicrotask(() => {
+				// Use setTimeout(0) not queueMicrotask - microtasks can still be in same render batch
+				setTimeout(() => {
 					for (const entry of entries) {
 						if (entry.isIntersecting) {
 							isVisible = true;
@@ -51,7 +52,7 @@
 							isVisible = false;
 						}
 					}
-				});
+				}, 0);
 			},
 			{
 				rootMargin,

@@ -62,19 +62,20 @@
 	$effect(() => {
 		if (containerRef) {
 			// Defer initial measurement to avoid state_unsafe_mutation during effect
-			queueMicrotask(() => {
+			// Use setTimeout(0) not queueMicrotask - microtasks can still be in same render batch
+			setTimeout(() => {
 				if (containerRef) {
 					containerClientHeight = containerRef.clientHeight;
 				}
-			});
+			}, 0);
 
 			const resizeObserver = new ResizeObserver((entries) => {
 				// Defer state mutation to avoid state_unsafe_mutation during render
-				queueMicrotask(() => {
+				setTimeout(() => {
 					for (const entry of entries) {
 						containerClientHeight = entry.contentRect.height;
 					}
-				});
+				}, 0);
 			});
 
 			resizeObserver.observe(containerRef);

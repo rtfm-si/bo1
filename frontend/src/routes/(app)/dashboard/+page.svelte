@@ -75,10 +75,10 @@
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
 
-	// Show toast when error changes
+	// Show toast when error changes - defer to avoid state mutation during render
 	$effect(() => {
 		if (error) {
-			toast.error(error);
+			setTimeout(() => toast.error(error), 0);
 		}
 	});
 

@@ -26,10 +26,10 @@
 	let isEnding = $state(false);
 
 	// Sync remaining seconds when session prop changes
-	// Defer mutation to avoid state_unsafe_mutation during effect
+	// Use setTimeout(0) to defer mutation outside reactive cycle (queueMicrotask is not enough)
 	$effect(() => {
 		const newValue = session.remaining_seconds;
-		queueMicrotask(() => { remainingSeconds = newValue; });
+		setTimeout(() => { remainingSeconds = newValue; }, 0);
 	});
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 

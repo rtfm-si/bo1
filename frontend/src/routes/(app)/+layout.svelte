@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { get } from 'svelte/store';
 	import { isAuthenticated, isLoading, user } from '$lib/stores/auth';
 	import { loadWorkspaces } from '$lib/stores/workspace';
 	import { loadPreferences } from '$lib/stores/preferences';
@@ -28,6 +26,7 @@
 	let { children }: Props = $props();
 
 	let authChecked = $state(false);
+	let dataLoaded = $state(false);
 	let impersonationSession = $state<ImpersonationSessionResponse | null>(null);
 
 	// Generate breadcrumbs from current path with dynamic labels
@@ -66,34 +65,38 @@
 		window.location.reload();
 	}
 
-	onMount(() => {
-		log.log('Checking authentication...');
+	// Load background data (workspaces, preferences, impersonation check)
+	function loadBackgroundData() {
+		if (dataLoaded) return;
+		dataLoaded = true;
+		// Load workspaces in background (non-blocking)
+		loadWorkspaces().catch((e) => log.warn('Failed to load workspaces:', e));
+		// Load user preferences (currency, etc.)
+		loadPreferences().catch((e) => log.warn('Failed to load preferences:', e));
+		// Check for active impersonation (admin only)
+		checkImpersonation();
+	}
 
-		// Subscribe to auth loading state
-		const unsubscribe = isLoading.subscribe(async (loading) => {
-			// Once auth check completes (isLoading becomes false)
-			if (!loading) {
-				log.log('Auth check complete. Authenticated:', get(isAuthenticated));
+	// React to auth state changes using $effect
+	// This properly defers state mutations outside the reactive cycle
+	$effect(() => {
+		const loading = $isLoading;
+		const authenticated = $isAuthenticated;
 
-				if (!get(isAuthenticated)) {
-					// Not authenticated - redirect to login
-					goto('/login');
-				} else {
-					// Defer state mutation to avoid unsafe mutation during render/subscription
-					await tick();
-					// Authenticated - allow rendering and load workspaces
+		log.log('Auth state changed - loading:', loading, 'authenticated:', authenticated);
+
+		if (!loading) {
+			if (!authenticated) {
+				// Not authenticated - redirect to login
+				goto('/login');
+			} else if (!authChecked) {
+				// Authenticated - defer state mutation outside reactive cycle
+				setTimeout(() => {
 					authChecked = true;
-					// Load workspaces in background (non-blocking)
-					loadWorkspaces().catch((e) => log.warn('Failed to load workspaces:', e));
-					// Load user preferences (currency, etc.)
-					loadPreferences().catch((e) => log.warn('Failed to load preferences:', e));
-					// Check for active impersonation (admin only)
-					checkImpersonation();
-				}
+					loadBackgroundData();
+				}, 0);
 			}
-		});
-
-		return unsubscribe;
+		}
 	});
 </script>
 

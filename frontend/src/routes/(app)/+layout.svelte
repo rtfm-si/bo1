@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { get } from 'svelte/store';
 	import { isAuthenticated, isLoading, user } from '$lib/stores/auth';
 	import { loadWorkspaces } from '$lib/stores/workspace';
 	import { loadPreferences } from '$lib/stores/preferences';
@@ -28,9 +29,18 @@
 
 	let authChecked = $state(false);
 	let impersonationSession = $state<ImpersonationSessionResponse | null>(null);
+	let currentLabels = $state<Record<string, string>>({});
+
+	// Subscribe to breadcrumb labels store and update local state
+	$effect(() => {
+		const unsub = breadcrumbLabels.subscribe(labels => {
+			currentLabels = labels;
+		});
+		return unsub;
+	});
 
 	// Generate breadcrumbs from current path with dynamic labels
-	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, $breadcrumbLabels));
+	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, currentLabels));
 
 	// Pages where we don't show breadcrumbs (top-level pages accessible from nav)
 	const hideBreadcrumbPaths = ['/dashboard', '/actions', '/projects', '/datasets', '/settings'];
@@ -71,12 +81,14 @@
 		const unsubscribe = isLoading.subscribe(async (loading) => {
 			// Once auth check completes (isLoading becomes false)
 			if (!loading) {
-				log.log('Auth check complete. Authenticated:', $isAuthenticated);
+				log.log('Auth check complete. Authenticated:', get(isAuthenticated));
 
-				if (!$isAuthenticated) {
+				if (!get(isAuthenticated)) {
 					// Not authenticated - redirect to login
 					goto('/login');
 				} else {
+					// Defer state mutation to avoid unsafe mutation during render/subscription
+					await tick();
 					// Authenticated - allow rendering and load workspaces
 					authChecked = true;
 					// Load workspaces in background (non-blocking)

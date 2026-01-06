@@ -25,19 +25,67 @@
 
 	let { event, subProblemIndex }: Props = $props();
 
+	/**
+	 * Extract JSON from content using string-aware brace counting.
+	 * Handles braces inside quoted strings correctly.
+	 */
+	function extractJSON(content: string): string | null {
+		const trimmed = content.trim();
+
+		// Find the start of JSON
+		const jsonStart = trimmed.indexOf('{');
+		if (jsonStart === -1) return null;
+
+		// Look for footer delimiter first (most reliable)
+		const delimiterIndex = trimmed.indexOf('\n\n---');
+		if (delimiterIndex > jsonStart) {
+			const candidate = trimmed.substring(jsonStart, delimiterIndex).trim();
+			if (candidate.endsWith('}')) return candidate;
+		}
+
+		// String-aware brace counting
+		let braceCount = 0;
+		let inString = false;
+		let escapeNext = false;
+
+		for (let i = jsonStart; i < trimmed.length; i++) {
+			const char = trimmed[i];
+
+			if (escapeNext) {
+				escapeNext = false;
+				continue;
+			}
+			if (char === '\\' && inString) {
+				escapeNext = true;
+				continue;
+			}
+			if (char === '"') {
+				inString = !inString;
+				continue;
+			}
+			if (!inString) {
+				if (char === '{') braceCount++;
+				else if (char === '}') {
+					braceCount--;
+					if (braceCount === 0) {
+						return trimmed.substring(jsonStart, i + 1);
+					}
+				}
+			}
+		}
+		return null;
+	}
+
 	// Parse action plan from event data
 	const actionPlan = $derived.by((): ActionPlanData | null => {
 		try {
-			// Try to parse as JSON first
 			const synthesis = event.data.synthesis as string;
+			if (!synthesis || !synthesis.includes('recommended_actions')) return null;
 
-			// Look for JSON structure in the synthesis
-			const jsonMatch = synthesis.match(/\{[\s\S]*"recommended_actions"[\s\S]*\}/);
-			if (jsonMatch) {
-				return JSON.parse(jsonMatch[0]) as ActionPlanData;
-			}
+			const jsonStr = extractJSON(synthesis);
+			if (!jsonStr) return null;
 
-			return null;
+			return JSON.parse(jsonStr) as ActionPlanData;
 		} catch (error) {
 			console.error('Failed to parse action plan:', error);
 			return null;

@@ -98,8 +98,8 @@ export function createSessionStore() {
 
 		// Event management
 		addEvent(newEvent: SSEEvent) {
-			// Safe access to common event properties
-			const data = newEvent.data as Record<string, unknown>;
+			// Safe access to common event properties (defensive: data may be undefined for malformed events)
+			const data = (newEvent.data ?? {}) as Record<string, unknown>;
 			const subProblemIndex = getSubProblemIndex(newEvent) ?? 'global';
 			const personaOrId = (data.persona_code as string) || (data.sub_problem_id as string) || '';
 
@@ -149,8 +149,8 @@ export function createSessionStore() {
 				events = [...events, newEvent];
 			}
 
-			// Debug convergence events
-			if (isConvergenceEvent(newEvent)) {
+			// Debug convergence events (defensive: historical events may have incomplete data)
+			if (isConvergenceEvent(newEvent) && newEvent.data) {
 				log.log('Convergence event:', {
 					sequence: eventSequence - 1,
 					event_type: newEvent.event_type,
@@ -160,12 +160,12 @@ export function createSessionStore() {
 					round: newEvent.data.round
 				});
 			}
-			// Debug contribution events
-			if (isContributionEvent(newEvent)) {
+			// Debug contribution events (defensive: historical events may have incomplete data)
+			if (isContributionEvent(newEvent) && newEvent.data) {
 				log.log('Contribution event:', {
-					persona_name: newEvent.data.persona_name,
-					persona_code: newEvent.data.persona_code,
-					archetype: newEvent.data.archetype,
+					persona_name: newEvent.data.persona_name ?? 'unknown',
+					persona_code: newEvent.data.persona_code ?? 'unknown',
+					archetype: newEvent.data.archetype ?? 'unknown',
 					has_summary: !!newEvent.data.summary
 				});
 			}

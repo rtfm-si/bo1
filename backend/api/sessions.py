@@ -1644,6 +1644,7 @@ async def extract_tasks(
             all_sections_analyzed: list[str] = []
             total_confidence_sum = 0.0
             tasks_by_sp: dict[int | None, int] = {}  # Track task count per sub-problem
+            extraction_errors: list[str] = []  # Track failed extractions
 
             for synthesis, sub_problem_index in synthesis_events:
                 logger.info(
@@ -1658,28 +1659,42 @@ async def extract_tasks(
                     if idx != sub_problem_index
                 ]
 
-                result = sync_extract_tasks_from_synthesis(
-                    synthesis=synthesis,
-                    session_id=session_id,
-                    anthropic_api_key=api_key,
-                    sub_problem_index=sub_problem_index,
-                    total_sub_problems=total_sub_problems,
-                    other_sub_problem_goals=other_goals,
-                )
+                try:
+                    result = sync_extract_tasks_from_synthesis(
+                        synthesis=synthesis,
+                        session_id=session_id,
+                        anthropic_api_key=api_key,
+                        sub_problem_index=sub_problem_index,
+                        total_sub_problems=total_sub_problems,
+                        other_sub_problem_goals=other_goals,
+                        timeout_seconds=60.0,  # 60s timeout per extraction
+                    )
 
-                # Tag each task with its sub_problem_index
-                task_count = 0
-                for task in result.tasks:
-                    task_dict = task.model_dump() if hasattr(task, "model_dump") else task
-                    task_dict["sub_problem_index"] = sub_problem_index
-                    all_tasks.append(task_dict)
-                    task_count += 1
+                    # Tag each task with its sub_problem_index
+                    task_count = 0
+                    for task in result.tasks:
+                        task_dict = task.model_dump() if hasattr(task, "model_dump") else task
+                        task_dict["sub_problem_index"] = sub_problem_index
+                        all_tasks.append(task_dict)
+                        task_count += 1
 
-                # Track task count per sub-problem for validation
-                tasks_by_sp[sub_problem_index] = task_count
+                    # Track task count per sub-problem for validation
+                    tasks_by_sp[sub_problem_index] = task_count
 
-                all_sections_analyzed.extend(result.synthesis_sections_analyzed)
-                total_confidence_sum += result.extraction_confidence
+                    all_sections_analyzed.extend(result.synthesis_sections_analyzed)
+                    total_confidence_sum += result.extraction_confidence
+
+                except Exception as e:
+                    # Log and continue - don't fail the whole endpoint for one bad extraction
+                    sp_label = (
+                        f"sub-problem {sub_problem_index}"
+                        if sub_problem_index is not None
+                        else "meta-synthesis"
+                    )
+                    error_msg = f"Failed to extract tasks from {sp_label}: {type(e).__name__}: {str(e)[:100]}"
+                    logger.error(f"{error_msg} for session {session_id}")
+                    extraction_errors.append(error_msg)
+                    tasks_by_sp[sub_problem_index] = 0  # Mark as attempted but failed
 
             # ISSUE #2 FIX: Validation that all sub-problems have tasks extracted
             sp_indices_with_tasks = {idx for idx in tasks_by_sp.keys() if idx is not None}
@@ -1696,23 +1711,36 @@ async def extract_tasks(
             # Log task distribution for debugging
             logger.info(f"Task distribution by sub-problem for session {session_id}: {tasks_by_sp}")
 
-            # Calculate average confidence across all syntheses
+            # Calculate average confidence across successful syntheses only
+            successful_extractions = len(synthesis_events) - len(extraction_errors)
             avg_confidence = (
-                total_confidence_sum / len(synthesis_events) if synthesis_events else 0.0
+                total_confidence_sum / successful_extractions if successful_extractions > 0 else 0.0
             )
 
             logger.info(
-                f"Extracted {len(all_tasks)} tasks total from {len(synthesis_events)} "
+                f"Extracted {len(all_tasks)} tasks from {successful_extractions}/{len(synthesis_events)} "
                 f"synthesis events for session {session_id} (avg confidence: {avg_confidence:.2f})"
             )
+            if extraction_errors:
+                logger.warning(f"Extraction errors for session {session_id}: {extraction_errors}")
 
-            # Prepare result dictionary
-            result_dict = {
+            # If ALL extractions failed, raise an error
+            if not all_tasks and extraction_errors:
+                raise http_error(
+                    ErrorCode.SERVICE_EXECUTION_ERROR,
+                    f"All task extractions failed: {'; '.join(extraction_errors[:3])}",
+                    500,
+                )
+
+            # Prepare result dictionary (include warnings for partial failures)
+            result_dict: dict[str, Any] = {
                 "tasks": all_tasks,
                 "total_tasks": len(all_tasks),
                 "extraction_confidence": avg_confidence,
                 "synthesis_sections_analyzed": list(set(all_sections_analyzed)),
             }
+            if extraction_errors:
+                result_dict["extraction_warnings"] = extraction_errors
 
             # 1. Save to PostgreSQL for long-term persistence (PRIMARY storage)
             try:

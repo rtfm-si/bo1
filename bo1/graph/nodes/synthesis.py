@@ -890,7 +890,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         # Fallback to plain content
         meta_synthesis = json_content
 
-    # Add deliberation summary footer
+    # Add deliberation summary footer (costs excluded - admin-only via phase_cost_breakdown event)
     footer = f"""
 
 ---
@@ -900,9 +900,6 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 - **Original problem**: {_get_problem_attr(problem, "description", "")}
 - **Sub-problems deliberated**: {len(sub_problem_results)}
 - **Total contributions**: {sum(r.contribution_count for r in sub_problem_results)}
-- **Total cost**: ${total_cost:.4f}
-- **Meta-synthesis cost**: ${response.cost_total:.4f}
-- **Grand total cost**: ${total_cost + response.cost_total:.4f}
 
 Warning: This content is AI-generated for learning and knowledge purposes only, not professional advisory.
 Always verify recommendations using licensed legal/financial professionals for your location.

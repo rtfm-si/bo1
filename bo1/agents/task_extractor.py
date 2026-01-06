@@ -175,6 +175,7 @@ def sync_extract_tasks_from_synthesis(
     sub_problem_index: int | None = None,
     total_sub_problems: int = 1,
     other_sub_problem_goals: list[str] | None = None,
+    timeout_seconds: float = 60.0,
 ) -> TaskExtractionResult:
     """Synchronous version of extract_tasks_from_synthesis.
 
@@ -187,6 +188,7 @@ def sync_extract_tasks_from_synthesis(
         sub_problem_index: Index of this sub-problem (for cross-sp dependencies)
         total_sub_problems: Total number of sub-problems in session
         other_sub_problem_goals: Goals of other sub-problems for context
+        timeout_seconds: Timeout for LLM API call (default 60s)
 
     Returns:
         TaskExtractionResult with extracted tasks
@@ -194,7 +196,13 @@ def sync_extract_tasks_from_synthesis(
     if not synthesis or not synthesis.strip():
         raise ValueError("Synthesis cannot be empty")
 
-    client = Anthropic(api_key=anthropic_api_key)
+    import httpx
+
+    # Explicit timeout to prevent hanging API calls (default SDK timeout is 10 min)
+    client = Anthropic(
+        api_key=anthropic_api_key,
+        timeout=httpx.Timeout(timeout_seconds, connect=10.0),
+    )
 
     # Format sub-problem context for cross-sub-problem dependencies
     sp_index_str = (

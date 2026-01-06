@@ -225,30 +225,63 @@ export function isJSONFormatted(content: string): boolean {
 }
 
 /**
- * Extract JSON portion from content that may have trailing markdown footer
+ * Extract JSON portion from content that may have trailing markdown footer.
+ * Uses string-aware brace counting to handle braces inside quoted strings.
  */
 function extractJSONFromContent(content: string): string {
 	const trimmed = content.trim();
-	// If pure JSON, return as-is
-	if (trimmed.endsWith('}')) return trimmed;
+
+	// Quick check: if pure JSON ending with }, return as-is
+	if (trimmed.endsWith('}') && !trimmed.includes('\n\n---')) {
+		return trimmed;
+	}
+
 	// Look for JSON + footer pattern: {...}\n\n---
 	const delimiterIndex = trimmed.indexOf('\n\n---');
 	if (delimiterIndex > 0) {
-		return trimmed.substring(0, delimiterIndex).trim();
+		const candidate = trimmed.substring(0, delimiterIndex).trim();
+		// Validate it looks like complete JSON
+		if (candidate.startsWith('{') && candidate.endsWith('}')) {
+			return candidate;
+		}
 	}
-	// Fallback: try to find balanced JSON by counting braces
+
+	// Fallback: string-aware brace counting (handles braces inside strings)
 	let braceCount = 0;
 	let jsonEnd = -1;
+	let inString = false;
+	let escapeNext = false;
+
 	for (let i = 0; i < trimmed.length; i++) {
-		if (trimmed[i] === '{') braceCount++;
-		else if (trimmed[i] === '}') {
-			braceCount--;
-			if (braceCount === 0) {
-				jsonEnd = i + 1;
-				break;
+		const char = trimmed[i];
+
+		if (escapeNext) {
+			escapeNext = false;
+			continue;
+		}
+
+		if (char === '\\' && inString) {
+			escapeNext = true;
+			continue;
+		}
+
+		if (char === '"') {
+			inString = !inString;
+			continue;
+		}
+
+		if (!inString) {
+			if (char === '{') braceCount++;
+			else if (char === '}') {
+				braceCount--;
+				if (braceCount === 0) {
+					jsonEnd = i + 1;
+					break;
+				}
 			}
 		}
 	}
+
 	return jsonEnd > 0 ? trimmed.substring(0, jsonEnd) : trimmed;
 }
 

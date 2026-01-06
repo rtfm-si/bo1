@@ -22,6 +22,11 @@
 	let isOpen = $state(false);
 	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
 
+	// Pre-read stores to ensure subscriptions happen outside reactive context
+	$currentWorkspace;
+	$workspaces;
+	$isWorkspaceLoading;
+
 	// Current display name
 	const displayName = $derived($currentWorkspace?.name || 'Personal');
 

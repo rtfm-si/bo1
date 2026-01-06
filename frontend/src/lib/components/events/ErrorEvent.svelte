@@ -22,6 +22,9 @@
 
 	let { event }: Props = $props();
 	let showTechnicalDetails = $state(false);
+
+	// Pre-read store to ensure subscription happens outside reactive context
+	$user;
 	const isAdmin = $derived($user?.is_admin ?? false);
 
 	// Get specific error info if we have an error_code from backend

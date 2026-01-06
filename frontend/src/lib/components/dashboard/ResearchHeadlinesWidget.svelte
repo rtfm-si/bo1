@@ -24,9 +24,9 @@
 		insightsData.fetch();
 	}
 
-	// Derived state
+	// Derived state - spread to copy array before .sort() to avoid mutating inside $derived
 	const insights = $derived<ClarificationInsight[]>(
-		(insightsData.data?.clarifications ?? [])
+		[...(insightsData.data?.clarifications ?? [])]
 			.sort((a, b) => new Date(b.answered_at ?? 0).getTime() - new Date(a.answered_at ?? 0).getTime())
 			.slice(0, 8)
 	);

@@ -30,6 +30,12 @@
 	let dataLoaded = $state(false);
 	let impersonationSession = $state<ImpersonationSessionResponse | null>(null);
 
+	// Pre-read stores to ensure subscriptions happen outside reactive context
+	// This prevents state_unsafe_mutation when stores are first accessed in $derived
+	$breadcrumbLabels;
+	$isLoading;
+	$isAuthenticated;
+
 	// Generate breadcrumbs from current path with dynamic labels
 	// Use $breadcrumbLabels auto-subscription directly instead of copying to state
 	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, $breadcrumbLabels));

@@ -25,7 +25,9 @@
 		children,
 	}: Props = $props();
 
-	const fieldId = $derived(id || `field-${Math.random().toString(36).substring(7)}`);
+	// Generate stable ID if not provided - avoid Math.random() in $derived
+	const generatedId = `field-${Math.random().toString(36).substring(7)}`;
+	const fieldId = $derived(id || generatedId);
 </script>
 
 <div class="w-full {className}">

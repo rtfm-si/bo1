@@ -13,6 +13,9 @@
 
 	let { event }: Props = $props();
 	let showDetails = $state(false);
+
+	// Pre-read store to ensure subscription happens outside reactive context
+	$user;
 	const isAdmin = $derived($user?.is_admin ?? false);
 
 	// Derive values from event.data to stay reactive

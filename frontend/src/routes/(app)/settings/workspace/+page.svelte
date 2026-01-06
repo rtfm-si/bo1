@@ -13,6 +13,11 @@
 	import JoinRequestsPanel from '$lib/components/workspace/JoinRequestsPanel.svelte';
 	import type { WorkspaceMemberResponse, WorkspaceDiscoverability, RoleChangeResponse } from '$lib/api/types';
 
+	// Pre-read stores to ensure subscriptions happen outside reactive context
+	$currentWorkspace;
+	$workspaces;
+	$user;
+
 	let members = $state<WorkspaceMemberResponse[]>([]);
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);

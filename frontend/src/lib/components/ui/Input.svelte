@@ -42,8 +42,10 @@
 		onkeydown?: (event: KeyboardEvent) => void;
 	} = $props();
 
-	// Generate ID if not provided
-	const inputId = $derived(id || `input-${Math.random().toString(36).substring(7)}`);
+	// Generate stable ID if not provided - use $state to avoid side effects in reactive context
+	// Math.random() in $derived causes state_unsafe_mutation errors
+	const generatedId = `input-${Math.random().toString(36).substring(7)}`;
+	const inputId = $derived(id || generatedId);
 </script>
 
 <div class="w-full">

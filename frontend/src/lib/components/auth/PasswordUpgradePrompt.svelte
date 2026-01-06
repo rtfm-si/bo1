@@ -25,6 +25,9 @@
 	const DISMISS_KEY = 'bo1_password_upgrade_dismissed';
 	const SNOOZE_DAYS = 7;
 
+	// Pre-read store to ensure subscription happens outside reactive context
+	$passwordUpgradeNeeded;
+
 	// State
 	let isOpen = $state(false);
 	let isDismissedLocally = $state(false);

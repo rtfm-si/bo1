@@ -10,6 +10,10 @@
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
 	import { Menu, X, ChevronDown, ChevronRight, HelpCircle, MessageSquarePlus } from 'lucide-svelte';
 
+	// Pre-read stores to ensure subscriptions happen outside reactive context
+	$isAuthenticated;
+	$user;
+
 	// Check if a nav link is active (supports prefix matching for nested routes)
 	function isActive(href: string): boolean {
 		const pathname = $page.url.pathname;

@@ -12,6 +12,10 @@
 	let needsConsent = $state(false);
 	const CONSENT_COOKIE = 'bo1_cookie_consent';
 
+	// Pre-read store to ensure subscription happens outside reactive context
+	// This prevents state_unsafe_mutation when store is first accessed in $derived
+	$activeMeeting;
+
 	// Derived: show banner only if consent needed AND no active meeting
 	let shouldShow = $derived(needsConsent && !$activeMeeting.isActive);
 

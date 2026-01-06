@@ -21,6 +21,10 @@
 		width,
 		height
 	}: Props = $props();
+
+	// Pre-generate bar heights to avoid Math.random() during render
+	// This prevents potential state_unsafe_mutation errors in template expressions
+	const chartBarHeights = [45, 72, 38, 85, 55, 68, 42];
 </script>
 
 {#if type === 'text'}
@@ -106,10 +110,10 @@
 				</div>
 			</div>
 			<div class="flex-1 flex items-end gap-2 pt-4">
-				{#each Array(7) as _, i (i)}
+				{#each chartBarHeights as barHeight, i (i)}
 					<div
 						class="flex-1 rounded-t bg-neutral-200/50 dark:bg-neutral-700/50"
-						style:height="{20 + Math.random() * 60}%"
+						style:height="{barHeight}%"
 					></div>
 				{/each}
 			</div>

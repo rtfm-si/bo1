@@ -85,18 +85,18 @@
 		}
 	}
 
-	// Load terms when modal opens
-	// Defer state mutations to avoid state_unsafe_mutation during effect
+	// Load terms when modal opens - defer all mutations outside reactive cycle
 	$effect(() => {
 		if (open) {
-			loadTerms();
-			queueMicrotask(() => {
+			// Use setTimeout(0) to defer state mutations outside reactive cycle
+			setTimeout(() => {
 				hasScrolledToBottom = false;
 				scrollTimeoutReached = false;
 				tcChecked = false;
 				gdprChecked = false;
 				privacyChecked = false;
-			});
+				loadTerms();
+			}, 0);
 
 			// Fallback: enable scroll requirement after timeout
 			const timeout = setTimeout(() => {

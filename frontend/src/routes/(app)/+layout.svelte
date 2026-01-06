@@ -29,19 +29,10 @@
 
 	let authChecked = $state(false);
 	let impersonationSession = $state<ImpersonationSessionResponse | null>(null);
-	let currentLabels = $state<Record<string, string>>({});
-
-	// Subscribe to breadcrumb labels store and update local state
-	// Use queueMicrotask to defer mutation, avoiding state_unsafe_mutation during effect
-	$effect(() => {
-		const unsub = breadcrumbLabels.subscribe(labels => {
-			queueMicrotask(() => { currentLabels = labels; });
-		});
-		return unsub;
-	});
 
 	// Generate breadcrumbs from current path with dynamic labels
-	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, currentLabels));
+	// Use $breadcrumbLabels auto-subscription directly instead of copying to state
+	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, $breadcrumbLabels));
 
 	// Pages where we don't show breadcrumbs (top-level pages accessible from nav)
 	const hideBreadcrumbPaths = ['/dashboard', '/actions', '/projects', '/datasets', '/settings'];

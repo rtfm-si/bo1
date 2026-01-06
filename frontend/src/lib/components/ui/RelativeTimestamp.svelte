@@ -4,6 +4,7 @@
 	 * Displays time relative to now (e.g., "2 minutes ago")
 	 * with hover tooltip showing absolute time
 	 */
+	import { onMount } from 'svelte';
 	import { formatRelativeTime, formatAbsoluteTime } from '$lib/utils/time-formatting';
 
 	interface Props {
@@ -12,18 +13,21 @@
 
 	let { timestamp }: Props = $props();
 
-	let relativeTime = $state('');
+	// Counter to trigger periodic recalculation of relative time
+	let refreshCounter = $state(0);
 
-	// Update on timestamp change and every minute
-	$effect(() => {
-		// Initial update - reactive to timestamp changes
-		relativeTime = formatRelativeTime(timestamp);
-
+	// Set up periodic updates every minute
+	onMount(() => {
 		const interval = setInterval(() => {
-			relativeTime = formatRelativeTime(timestamp);
-		}, 60000); // 60 seconds
-
+			refreshCounter++;
+		}, 60000);
 		return () => clearInterval(interval);
+	});
+
+	// Derive relative time - recalculates when timestamp or refreshCounter changes
+	const relativeTime = $derived.by(() => {
+		void refreshCounter; // Create dependency on refresh counter
+		return formatRelativeTime(timestamp);
 	});
 </script>
 

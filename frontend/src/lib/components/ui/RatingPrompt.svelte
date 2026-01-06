@@ -5,6 +5,7 @@
 	 * Shows a prompt asking for user feedback with thumbs up/down buttons.
 	 * Once rated, shows a thank you message.
 	 */
+	import { onMount } from 'svelte';
 	import { ThumbsUp, ThumbsDown } from 'lucide-svelte';
 	import { toast } from '$lib/stores/toast';
 	import { apiClient } from '$lib/api/client';
@@ -30,8 +31,8 @@
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
-	// Load existing rating on mount
-	$effect(() => {
+	// Load existing rating on mount - use onMount for one-time initialization
+	onMount(() => {
 		loadExistingRating();
 	});
 

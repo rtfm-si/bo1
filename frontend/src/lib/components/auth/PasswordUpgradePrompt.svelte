@@ -11,6 +11,7 @@
 	 * - Contains at least one digit (0-9)
 	 */
 
+	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { env } from '$env/dynamic/public';
 	import { passwordUpgradeNeeded, clearPasswordUpgradeFlag } from '$lib/stores/auth';
@@ -49,30 +50,29 @@
 			passwordRequirements.matches
 	);
 
-	// Check snooze status on mount
-	// Defer mutations to avoid state_unsafe_mutation during effect
-	$effect(() => {
-		if (browser) {
-			const dismissedAt = localStorage.getItem(DISMISS_KEY);
-			if (dismissedAt) {
-				const dismissedDate = new Date(dismissedAt);
-				const now = new Date();
-				const daysSinceDismiss =
-					(now.getTime() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24);
-				if (daysSinceDismiss < SNOOZE_DAYS) {
-					queueMicrotask(() => { isDismissedLocally = true; });
-				} else {
-					localStorage.removeItem(DISMISS_KEY);
-				}
+	// Check snooze status on mount (one-time initialization)
+	onMount(() => {
+		const dismissedAt = localStorage.getItem(DISMISS_KEY);
+		if (dismissedAt) {
+			const dismissedDate = new Date(dismissedAt);
+			const now = new Date();
+			const daysSinceDismiss =
+				(now.getTime() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24);
+			if (daysSinceDismiss < SNOOZE_DAYS) {
+				isDismissedLocally = true;
+			} else {
+				localStorage.removeItem(DISMISS_KEY);
 			}
 		}
 	});
 
-	// Show modal when needed
-	// Defer mutation to avoid state_unsafe_mutation during effect
+	// Show modal when needed - derive from store and local state
+	const shouldShowModal = $derived($passwordUpgradeNeeded && !isDismissedLocally && !successMessage);
+
+	// Sync modal open state with shouldShowModal - use setTimeout to defer outside reactive cycle
 	$effect(() => {
-		if ($passwordUpgradeNeeded && !isDismissedLocally && !successMessage) {
-			queueMicrotask(() => { isOpen = true; });
+		if (shouldShowModal && !isOpen) {
+			setTimeout(() => { isOpen = true; }, 0);
 		}
 	});
 

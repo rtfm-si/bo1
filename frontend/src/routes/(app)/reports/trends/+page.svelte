@@ -1,19 +1,15 @@
 <script lang="ts">
 	/**
-	 * Market Trends - Trend forecasts, market analysis, and trend insights
+	 * Market Trends - Trend forecasts and market analysis
 	 *
-	 * Consolidated from context/strategic:
 	 * - TrendSummaryCard (AI-generated industry summary with timeframe)
 	 * - Market Trends (real-time trend refresh)
-	 * - Trend Insights (URL analysis)
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient, getCsrfToken, type MarketTrend } from '$lib/api/client';
-	import type { TrendInsight } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
-	import TrendInsightCard from '$lib/components/context/TrendInsightCard.svelte';
 	import TrendSummaryCard from '$lib/components/context/TrendSummaryCard.svelte';
 
 	// Trend Summary types
@@ -38,13 +34,6 @@
 	let isRefreshingTrends = $state(false);
 	let trendsError = $state<string | null>(null);
 
-	// Trend Insights state
-	let trendInsights = $state<TrendInsight[]>([]);
-	let trendUrlInput = $state('');
-	let isAnalyzingTrend = $state(false);
-	let isLoadingTrendInsights = $state(false);
-	let trendInsightsError = $state<string | null>(null);
-
 	// Trend Summary state (AI-generated industry summary with timeframe support)
 	let trendSummary = $state<TrendSummary | null>(null);
 	let trendSummaryStale = $state(false);
@@ -60,7 +49,7 @@
 
 	onMount(async () => {
 		try {
-			await Promise.all([loadTrendInsights(), loadTrendSummary()]);
+			await loadTrendSummary();
 		} finally {
 			isLoading = false;
 		}
@@ -147,77 +136,6 @@
 		if (newTimeframe === selectedTimeframe) return;
 		selectedTimeframe = newTimeframe;
 		await loadTrendForecast(newTimeframe);
-	}
-
-	// Trend Insight functions
-	async function loadTrendInsights() {
-		isLoadingTrendInsights = true;
-		trendInsightsError = null;
-		try {
-			const response = await apiClient.listTrendInsights();
-			if (response.success) {
-				trendInsights = response.insights;
-			} else {
-				trendInsightsError = response.error || 'Failed to load trend insights';
-			}
-		} catch (error) {
-			console.error('Failed to load trend insights:', error);
-			trendInsightsError = error instanceof Error ? error.message : 'Failed to load trend insights';
-		} finally {
-			isLoadingTrendInsights = false;
-		}
-	}
-
-	async function handleAnalyzeTrend() {
-		const url = trendUrlInput.trim();
-		if (!url) return;
-
-		isAnalyzingTrend = true;
-		trendInsightsError = null;
-
-		try {
-			const response = await apiClient.analyzeTrendUrl(url);
-			if (response.success && response.insight) {
-				await loadTrendInsights();
-				trendUrlInput = '';
-			} else {
-				trendInsightsError = response.error || 'Failed to analyze trend';
-			}
-		} catch (error) {
-			console.error('Failed to analyze trend:', error);
-			trendInsightsError = error instanceof Error ? error.message : 'Failed to analyze trend';
-		} finally {
-			isAnalyzingTrend = false;
-		}
-	}
-
-	async function handleRefreshTrendInsight(url: string) {
-		isAnalyzingTrend = true;
-		trendInsightsError = null;
-
-		try {
-			const response = await apiClient.analyzeTrendUrl(url, true);
-			if (response.success && response.insight) {
-				await loadTrendInsights();
-			} else {
-				trendInsightsError = response.error || 'Failed to refresh trend insight';
-			}
-		} catch (error) {
-			console.error('Failed to refresh trend insight:', error);
-			trendInsightsError = error instanceof Error ? error.message : 'Failed to refresh trend insight';
-		} finally {
-			isAnalyzingTrend = false;
-		}
-	}
-
-	async function handleDeleteTrendInsight(url: string) {
-		try {
-			await apiClient.deleteTrendInsight(url);
-			await loadTrendInsights();
-		} catch (error) {
-			console.error('Failed to delete trend insight:', error);
-			trendInsightsError = error instanceof Error ? error.message : 'Failed to delete trend insight';
-		}
 	}
 
 	async function handleRefreshTrends() {
@@ -345,68 +263,6 @@
 				{/if}
 			</div>
 
-			<!-- Trend Insights Section -->
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<div class="flex items-center gap-3 mb-4">
-					<span class="text-2xl">🔍</span>
-					<div>
-						<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-							Trend Insights
-						</h3>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
-							Paste article URLs to get AI-powered analysis of market trends
-						</p>
-					</div>
-				</div>
-
-				{#if trendInsightsError}
-					<Alert variant="warning" class="mb-4">
-						{trendInsightsError}
-					</Alert>
-				{/if}
-
-				<!-- URL Input -->
-				<div class="flex gap-2 mb-6">
-					<input
-						type="url"
-						bind:value={trendUrlInput}
-						placeholder="Paste a trend article URL (e.g., https://techcrunch.com/...)"
-						class="flex-1 px-4 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors duration-200"
-						onkeydown={(e) => e.key === 'Enter' && handleAnalyzeTrend()}
-					/>
-					<Button
-						onclick={handleAnalyzeTrend}
-						disabled={isAnalyzingTrend || !trendUrlInput.trim()}
-						loading={isAnalyzingTrend}
-					>
-						{isAnalyzingTrend ? 'Analyzing...' : 'Analyze'}
-					</Button>
-				</div>
-
-				<!-- Trend Insights Grid -->
-				{#if isLoadingTrendInsights}
-					<div class="flex items-center justify-center py-8">
-						<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full"></div>
-					</div>
-				{:else if trendInsights.length > 0}
-					<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-						{#each trendInsights as insight}
-							<TrendInsightCard
-								{insight}
-								isGenerating={isAnalyzingTrend}
-								onRefresh={() => handleRefreshTrendInsight(insight.url)}
-								onDelete={() => handleDeleteTrendInsight(insight.url)}
-							/>
-						{/each}
-					</div>
-				{:else}
-					<div class="text-center py-8 text-slate-500 dark:text-slate-400">
-						<p class="text-sm">No trend insights yet.</p>
-						<p class="text-xs mt-1">Paste a URL above to analyze a market trend article.</p>
-					</div>
-				{/if}
-			</div>
-
 			<!-- Info Box -->
 			<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
 				<div class="flex gap-3">
@@ -428,7 +284,6 @@
 						<ul class="text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
 							<li>Set your industry in <a href="/context/overview" class="underline">Context → Overview</a> for relevant forecasts</li>
 							<li>Use timeframe selector to see predictions for different horizons</li>
-							<li>Analyze specific articles to extract key insights for your business</li>
 							<li>Trends inform your Board meetings for better recommendations</li>
 						</ul>
 					</div>

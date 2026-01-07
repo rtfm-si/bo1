@@ -32,7 +32,9 @@ class TestWorkspaceAccessValidation:
                 require_workspace_access(fake_workspace_id, fake_user_id)
 
             assert exc_info.value.status_code == 404
-            assert "not found" in exc_info.value.detail.lower()
+            detail = exc_info.value.detail
+            message = detail["message"].lower() if isinstance(detail, dict) else detail.lower()
+            assert "not found" in message
 
     def test_workspace_id_validated_returns_403_not_member(self):
         """Access check should return 403 if user is not a member."""
@@ -50,7 +52,9 @@ class TestWorkspaceAccessValidation:
                 require_workspace_access(fake_workspace_id, fake_user_id)
 
             assert exc_info.value.status_code == 403
-            assert "access" in exc_info.value.detail.lower()
+            detail = exc_info.value.detail
+            message = detail["message"].lower() if isinstance(detail, dict) else detail.lower()
+            assert "access" in message
 
     def test_workspace_id_validated_allows_member(self):
         """Access check should succeed if user is a member."""
@@ -104,4 +108,6 @@ class TestWorkspaceRoleValidation:
                 require_workspace_role(fake_workspace_id, fake_user_id, MemberRole.ADMIN)
 
             assert exc_info.value.status_code == 403
-            assert "role" in exc_info.value.detail.lower()
+            detail = exc_info.value.detail
+            message = detail["message"].lower() if isinstance(detail, dict) else detail.lower()
+            assert "role" in message

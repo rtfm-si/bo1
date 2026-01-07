@@ -286,7 +286,7 @@ class TestImpersonationSecurityE2E:
         )
 
         assert response.status_code == 400
-        assert "yourself" in response.json()["detail"].lower()
+        assert "yourself" in response.json()["detail"]["message"].lower()
 
     def test_cannot_impersonate_other_admin(self, client: TestClient, target_user_id: str) -> None:
         """Test that admin cannot impersonate another admin."""
@@ -306,7 +306,7 @@ class TestImpersonationSecurityE2E:
             )
 
             assert response.status_code == 400
-            assert "admin" in response.json()["detail"].lower()
+            assert "admin" in response.json()["detail"]["message"].lower()
 
     def test_cannot_impersonate_nonexistent_user(self, client: TestClient) -> None:
         """Test that impersonating non-existent user returns 404."""
@@ -319,7 +319,7 @@ class TestImpersonationSecurityE2E:
             )
 
             assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+            assert "not found" in response.json()["detail"]["message"].lower()
 
 
 class TestImpersonationMiddlewareE2E:

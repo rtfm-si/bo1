@@ -28,8 +28,7 @@
 		{ href: '/meeting', label: 'Meetings' },
 		{ href: '/actions', label: 'Actions' },
 		{ href: '/projects', label: 'Projects' },
-		{ href: '/mentor', label: 'Mentor' },
-		{ href: '/seo', label: 'SEO Tools' },
+		{ href: '/mentor', label: 'Assistant' },
 	];
 
 	// Context navigation (business context settings)

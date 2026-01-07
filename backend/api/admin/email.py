@@ -6,14 +6,14 @@ Provides:
 
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from backend.api.admin.helpers import AdminQueryService, AdminUserService
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.email import send_email
 from backend.services.email_templates import render_admin_custom_email, render_welcome_email
 from bo1.logging.errors import ErrorCode, log_error
@@ -105,17 +105,15 @@ async def send_user_email(
     # Validate custom template requirements
     if body.template_type == EmailTemplateType.custom:
         if not body.subject or not body.body:
-            raise HTTPException(
-                status_code=400,
-                detail="subject and body are required for custom template",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "subject and body are required for custom template",
+                status=400,
             )
 
     # Check if user exists and get email
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Get user email
     from backend.api.utils.db_helpers import execute_query
@@ -127,9 +125,8 @@ async def send_user_email(
     )
 
     if not row or not row.get("email"):
-        raise HTTPException(
-            status_code=400,
-            detail="User does not have a valid email address",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "User does not have a valid email address", status=400
         )
 
     user_email = row["email"]
@@ -137,9 +134,8 @@ async def send_user_email(
 
     # Check for placeholder email
     if user_email.endswith("@placeholder.local"):
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot send email to placeholder address",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Cannot send email to placeholder address", status=400
         )
 
     # Render email based on template

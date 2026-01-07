@@ -12,7 +12,7 @@ Provides:
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.helpers import (
     USER_WITH_METRICS_GROUP_BY,
@@ -40,8 +40,9 @@ from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.db_helpers import execute_query
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.pagination import make_page_pagination_fields
+from bo1.logging.errors import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -164,9 +165,10 @@ async def update_user(
     """Update user subscription tier or admin status."""
     # Validate at least one field is provided
     if body.subscription_tier is None and body.is_admin is None:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one field (subscription_tier or is_admin) must be provided",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "At least one field (subscription_tier or is_admin) must be provided",
+            status=400,
         )
 
     # Validate subscription_tier if provided
@@ -175,10 +177,7 @@ async def update_user(
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Build dynamic UPDATE query
     update_fields = []
@@ -207,9 +206,8 @@ async def update_user(
     row = execute_query(fetch_query, (user_id,), fetch="one")
 
     if not row:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to fetch updated user",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to fetch updated user", status=500
         )
 
     user = _row_to_user_info(row)
@@ -243,24 +241,17 @@ async def lock_user(
     """Lock a user account and revoke their sessions."""
     # Prevent admin from locking themselves
     if user_id == admin_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot lock your own account",
-        )
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Cannot lock your own account", status=400)
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Lock the user
     result = AdminUserService.lock_user(user_id, admin_id, body.reason)
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found or already deleted: {user_id}",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"User not found or already deleted: {user_id}", status=404
         )
 
     # Revoke all sessions
@@ -311,18 +302,12 @@ async def unlock_user(
     """Unlock a user account."""
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Unlock the user
     result = AdminUserService.unlock_user(user_id)
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Log the action
     AdminUserService.log_admin_action(
@@ -369,17 +354,11 @@ async def delete_user(
     """Delete a user account."""
     # Prevent admin from deleting themselves
     if user_id == admin_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot delete your own account",
-        )
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Cannot delete your own account", status=400)
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Revoke sessions if requested
     sessions_revoked = 0
@@ -397,10 +376,7 @@ async def delete_user(
         message = f"User {user_id} soft deleted."
 
     if not deleted:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to delete user",
-        )
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to delete user", status=500)
 
     # Log the action
     AdminUserService.log_admin_action(
@@ -450,10 +426,7 @@ async def get_tier_override(
     """Get the current tier override for a user."""
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Get user's tier info
     row = execute_query(
@@ -463,7 +436,7 @@ async def get_tier_override(
     )
 
     if not row:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
     base_tier = row["subscription_tier"]
     tier_override = row["tier_override"]
@@ -518,17 +491,15 @@ async def set_tier_override(
     # Validate tier
     valid_tiers = ["free", "starter", "pro", "enterprise"]
     if body.tier.lower() not in valid_tiers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid tier: {body.tier}. Must be one of: {', '.join(valid_tiers)}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid tier: {body.tier}. Must be one of: {', '.join(valid_tiers)}",
+            status=400,
         )
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Build override object
     override = {
@@ -589,10 +560,7 @@ async def delete_tier_override(
     """Remove the tier override for a user."""
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Get base tier before clearing
     row = execute_query(
@@ -602,7 +570,7 @@ async def delete_tier_override(
     )
 
     if not row:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
     base_tier = row["subscription_tier"]
 
@@ -665,18 +633,16 @@ async def set_nonprofit_status(
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Validate promo code if provided
     if body.apply_promo_code:
         code = body.apply_promo_code.upper()
         if code not in ("NONPROFIT80", "NONPROFIT100"):
-            raise HTTPException(
-                status_code=400,
-                detail="Promo code must be NONPROFIT80 or NONPROFIT100",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Promo code must be NONPROFIT80 or NONPROFIT100",
+                status=400,
             )
 
     # Set nonprofit status
@@ -757,10 +723,7 @@ async def remove_nonprofit_status(
     """Remove nonprofit status from a user."""
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Remove nonprofit status
     execute_query(

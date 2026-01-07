@@ -146,6 +146,20 @@ class DataState(TypedDict, total=False):
     data_analysis_results: list[dict[str, Any]]
 
 
+class SubproblemFailure(TypedDict, total=False):
+    """Failure tracking for sub-problems that failed to complete.
+
+    Used by routers to signal failures to EventCollector without
+    importing API layer dependencies.
+    """
+
+    failed_ids: list[str]  # IDs of sub-problems that failed
+    failed_goals: list[str]  # Goal descriptions of failed sub-problems
+    failed_count: int  # Number of failed sub-problems
+    total_count: int  # Total sub-problems expected
+    reason: str  # Human-readable failure reason
+
+
 class CoreState(TypedDict, total=False):
     """Core identity fields for session tracking and access control."""
 
@@ -378,6 +392,9 @@ class DeliberationGraphState(TypedDict, total=False):
     # RESUME SUPPORT: Flag indicating this is a resumed session from checkpoint
     is_resumed_session: bool
 
+    # SUBPROBLEM FAILURE TRACKING (for EventCollector to publish meeting_failed event)
+    subproblem_failures: SubproblemFailure | None  # Set by router when sub-problems fail
+
 
 def create_initial_state(
     session_id: str,
@@ -489,6 +506,8 @@ def create_initial_state(
         # RESUME SUPPORT
         prior_expert_summaries=None,  # Will be populated on resume
         is_resumed_session=False,  # Will be set to True on resume
+        # SUBPROBLEM FAILURE TRACKING
+        subproblem_failures=None,  # Set by router when sub-problems fail
     )
 
 
@@ -983,3 +1002,107 @@ def prune_contributions_for_phase(
         )
 
     return pruned
+
+
+def prune_contributions_after_round(
+    contributions: list[ContributionMessage],
+    round_summaries: list[str],
+    current_round: int,
+    session_id: str | None = None,
+    retain_count: int | None = None,
+    rounds_to_retain: int | None = None,
+) -> tuple[list[ContributionMessage], int]:
+    """Prune old contributions after a round summary is generated.
+
+    Called at end of each round after summary is created. Safe because
+    round summaries capture the content of pruned contributions.
+
+    Pruning strategy:
+    - Only prune contributions from rounds older than `rounds_to_retain`
+    - Keep at least `retain_count` contributions for synthesis fallback
+    - Only prune if round summary exists for the round being pruned
+    - Log pruning metrics for observability
+
+    Safety:
+    - Never prune if round_summaries is empty for older rounds
+    - Always retain RETENTION_COUNT contributions minimum
+    - Only prune rounds older than ROUNDS_TO_RETAIN
+
+    Args:
+        contributions: Full list of contributions
+        round_summaries: List of round summaries (index = round-1)
+        current_round: Current round number (1-indexed)
+        session_id: Session ID for logging
+        retain_count: Minimum contributions to retain (default: from config)
+        rounds_to_retain: Rounds to keep raw contributions for (default: from config)
+
+    Returns:
+        Tuple of (pruned_contributions, pruned_count)
+    """
+    from bo1.constants import ContributionPruning
+
+    if retain_count is None:
+        retain_count = ContributionPruning.RETENTION_COUNT
+    if rounds_to_retain is None:
+        rounds_to_retain = ContributionPruning.ROUNDS_TO_RETAIN
+
+    # Check if pruning is enabled
+    if not ContributionPruning.PRUNE_AFTER_ROUND_SUMMARY:
+        return contributions, 0
+
+    # Safety: Don't prune if already small enough
+    if len(contributions) <= retain_count:
+        logger.debug(
+            f"prune_contributions_after_round: No pruning needed "
+            f"(contributions={len(contributions)} <= retain_count={retain_count})"
+        )
+        return contributions, 0
+
+    # Calculate cutoff round: prune contributions from rounds older than this
+    cutoff_round = current_round - rounds_to_retain
+    if cutoff_round < 1:
+        logger.debug(
+            f"prune_contributions_after_round: No pruning needed "
+            f"(current_round={current_round}, cutoff_round={cutoff_round})"
+        )
+        return contributions, 0
+
+    # Check if we have summaries for rounds we want to prune
+    # round_summaries is 0-indexed (index 0 = round 1 summary)
+    if len(round_summaries) < cutoff_round:
+        logger.debug(
+            f"prune_contributions_after_round: Skipping - missing summaries for pruned rounds "
+            f"(summaries={len(round_summaries)}, need={cutoff_round})"
+        )
+        return contributions, 0
+
+    # Separate contributions by whether they should be pruned
+    # Handle both ContributionMessage objects and dicts
+    to_retain = []
+    to_prune = []
+    for c in contributions:
+        # Defensive: handle both ContributionMessage objects and dicts (e.g., from deserialization)
+        c_round = c.round_number if hasattr(c, "round_number") else c.get("round_number", 0)  # type: ignore[attr-defined]
+        if c_round > cutoff_round:
+            to_retain.append(c)
+        else:
+            to_prune.append(c)
+
+    # Ensure we keep at least retain_count contributions
+    if len(to_retain) < retain_count:
+        # Keep some from to_prune (most recent first)
+        need = retain_count - len(to_retain)
+        to_retain = to_prune[-need:] + to_retain
+        to_prune = to_prune[:-need] if need < len(to_prune) else []
+
+    pruned_count = len(to_prune)
+    if pruned_count > 0:
+        # Estimate bytes saved (~200 tokens/contribution, ~4 chars/token)
+        bytes_saved_estimate = pruned_count * 200 * 4
+        logger.info(
+            f"prune_contributions_after_round: session={session_id}, "
+            f"round={current_round}, pruned={pruned_count}, retained={len(to_retain)}, "
+            f"cutoff_round={cutoff_round}, bytes_saved_est={bytes_saved_estimate}"
+        )
+
+    return to_retain, pruned_count

@@ -11,7 +11,7 @@ Admin-only endpoints for template management:
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import (
@@ -20,7 +20,7 @@ from backend.api.models import (
     MeetingTemplateListResponse,
     MeetingTemplateUpdate,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.template_repository import template_repository
 
@@ -110,9 +110,10 @@ async def create_template(
 
     # Check for duplicate slug
     if template_repository.slug_exists(template_data.slug):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Template with slug '{template_data.slug}' already exists",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Template with slug '{template_data.slug}' already exists",
+            status=400,
         )
 
     try:
@@ -133,7 +134,11 @@ async def create_template(
             f"Failed to create template: {e}",
             slug=template_data.slug,
         )
-        raise HTTPException(status_code=500, detail="Failed to create template") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to create template",
+            status=500,
+        ) from None
 
 
 @router.patch(
@@ -176,7 +181,7 @@ async def update_template(
     )
 
     if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", status=404)
 
     return _format_template_response(template)
 
@@ -214,19 +219,19 @@ async def delete_template(
     # Get template to check if builtin
     template = template_repository.get_by_id(template_id)
     if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", status=404)
 
     if hard_delete and not template.get("is_builtin", False):
         # Hard delete non-builtin templates
         if template_repository.delete(template_id):
             return {"message": "Template deleted successfully", "template_id": template_id}
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", status=404)
     else:
         # Soft delete (deactivate)
         result = template_repository.deactivate(template_id)
         if result:
             return {"message": "Template deactivated successfully", "template_id": template_id}
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", status=404)
 
 
 @router.post(
@@ -257,7 +262,7 @@ async def activate_template(
 
     template = template_repository.activate(template_id)
     if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", status=404)
 
     return _format_template_response(template)
 

@@ -84,7 +84,7 @@
 			<div class="space-y-4">
 				{#each sessions as session (session.id)}
 					<a
-						href="/meeting/{session.id}"
+						href="/meeting/{session.id}/report"
 						class="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
 					>
 						<div class="flex items-start justify-between gap-4">

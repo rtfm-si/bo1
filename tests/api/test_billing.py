@@ -37,7 +37,9 @@ class TestWebhookTimestampValidation:
         with pytest.raises(HTTPException) as exc:
             _validate_webhook_timestamp(sig)
         assert exc.value.status_code == 400
-        assert "too old" in exc.value.detail.lower()
+        detail = exc.value.detail
+        message = detail["message"].lower() if isinstance(detail, dict) else detail.lower()
+        assert "too old" in message
 
     def test_missing_timestamp(self):
         """Missing timestamp raises error."""

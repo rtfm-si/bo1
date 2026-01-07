@@ -24,6 +24,9 @@ from backend.api.constants import (
     COST_EVENT_TYPES,
     COST_FIELDS,
     SSE_MIN_SUPPORTED_VERSION,
+    SSE_RECONNECT_BACKOFF_BASE_SECONDS,
+    SSE_RECONNECT_BACKOFF_MAX_SECONDS,
+    SSE_RECONNECT_BURST_THRESHOLD,
     SSE_RECONNECT_TRACKING_ENABLED,
     SSE_RECONNECT_TTL_SECONDS,
     SSE_RETRY_BACKOFF_MULTIPLIER,
@@ -114,6 +117,34 @@ def format_sse_with_retry(event_str: str, retry_ms: int) -> str:
         SSE event string with retry: field prepended
     """
     return f"retry: {retry_ms}\n{event_str}"
+
+
+def calculate_sse_reconnect_backoff(reconnect_count: int) -> int:
+    """Calculate server-side backoff delay for rapid SSE reconnects.
+
+    Uses exponential backoff: min(base * 2^(count-threshold), max)
+    Only applies when reconnect_count exceeds burst threshold.
+
+    Args:
+        reconnect_count: Total reconnection attempts for this session
+
+    Returns:
+        Backoff delay in seconds (for Retry-After header)
+
+    Examples:
+        >>> calculate_sse_reconnect_backoff(4)  # 1 over threshold
+        5  # base
+        >>> calculate_sse_reconnect_backoff(5)  # 2 over threshold
+        10  # base * 2
+        >>> calculate_sse_reconnect_backoff(10)  # 7 over threshold
+        60  # capped at max
+    """
+    if reconnect_count <= SSE_RECONNECT_BURST_THRESHOLD:
+        return 0  # No backoff needed
+
+    excess = reconnect_count - SSE_RECONNECT_BURST_THRESHOLD
+    delay = SSE_RECONNECT_BACKOFF_BASE_SECONDS * (2 ** (excess - 1))
+    return min(int(delay), SSE_RECONNECT_BACKOFF_MAX_SECONDS)
 
 
 async def _reset_reconnect_count(redis_manager: RedisManager, session_id: str) -> None:
@@ -1263,6 +1294,35 @@ async def stream_deliberation(
 
         # Status is "running" or "completed" - proceed to streaming
         # Events flow through Redis PubSub, and history is available via /events endpoint
+
+        # BURST PROTECTION: Check reconnect count and reject rapid reconnects
+        if last_event_id and SSE_RECONNECT_TRACKING_ENABLED:
+            redis_manager = get_redis_manager()
+            if redis_manager.is_available:
+                try:
+                    reconnect_key = f"{session_id}:reconnects"
+                    count_data = redis_manager.redis.hget(reconnect_key, "count")
+                    reconnect_count = int(count_data) if count_data else 0
+
+                    if reconnect_count > SSE_RECONNECT_BURST_THRESHOLD:
+                        backoff_seconds = calculate_sse_reconnect_backoff(reconnect_count)
+                        from backend.api.middleware.metrics import record_sse_reconnect_rejected
+
+                        record_sse_reconnect_rejected(session_id)
+                        logger.warning(
+                            f"[SSE BURST] Rejecting rapid reconnect for session {session_id}, "
+                            f"count={reconnect_count}, backoff={backoff_seconds}s"
+                        )
+                        raise HTTPException(
+                            status_code=429,
+                            detail=f"Too many reconnection attempts. Retry after {backoff_seconds} seconds.",
+                            headers={"Retry-After": str(backoff_seconds)},
+                        )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    # Fail-open: don't reject if we can't check Redis
+                    logger.warning(f"Failed to check reconnect burst for {session_id}: {e}")
 
         # Parse and validate version negotiation
         requested_version = parse_accept_sse_version(accept_sse_version)

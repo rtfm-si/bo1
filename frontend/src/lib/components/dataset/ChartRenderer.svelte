@@ -245,8 +245,9 @@
 			const isDark = document.documentElement.classList.contains('dark');
 
 			// Deep clone to prevent Plotly mutations from triggering Svelte reactivity
-			const chartData = structuredClone(figureJson.data) as import('plotly.js-basic-dist').Data[];
-			const inputLayout = figureJson.layout ? structuredClone(figureJson.layout) : {};
+			// Use JSON.parse/stringify instead of structuredClone to handle Svelte 5 proxies
+			const chartData = JSON.parse(JSON.stringify(figureJson.data)) as import('plotly.js-basic-dist').Data[];
+			const inputLayout = figureJson.layout ? JSON.parse(JSON.stringify(figureJson.layout)) : {};
 
 			// Stephen Few-inspired defaults: maximize data-ink ratio, minimize chartjunk
 			const layoutDefaults = {

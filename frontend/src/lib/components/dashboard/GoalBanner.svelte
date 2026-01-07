@@ -96,7 +96,7 @@
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
 						</svg>
-						Track progress
+						Update
 					</a>
 				</div>
 
@@ -134,7 +134,7 @@
 												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 												</svg>
-												Track progress
+												Update
 											</button>
 										{/if}
 									</div>
@@ -152,32 +152,6 @@
 					</div>
 				{/if}
 			</div>
-		</div>
-	</div>
-{:else}
-	<!-- Empty state - prompt to set goal -->
-	<div class="mb-6 bg-neutral-50 dark:bg-neutral-800/50 border border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg p-5">
-		<div class="flex items-center gap-4">
-			<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700">
-				<svg class="w-6 h-6 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-				</svg>
-			</div>
-			<div class="flex-1 min-w-0">
-				<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">Set your company goal</h3>
-				<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-					Define your north star to align meetings and actions with your strategic direction.
-				</p>
-			</div>
-			<a
-				href="/context/overview"
-				class="flex-shrink-0 inline-flex items-center px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"
-			>
-				<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-				</svg>
-				Set goal
-			</a>
 		</div>
 	</div>
 {/if}

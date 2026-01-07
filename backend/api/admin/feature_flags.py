@@ -11,15 +11,16 @@ All endpoints require admin authentication.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.auth_helpers import require_admin_role
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services import feature_flags as ff
+from bo1.logging import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ async def create_flag(
             tiers=body.tiers,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from e
 
     logger.info("Admin %s created feature flag: %s", current_user.get("id"), body.name)
     return _flag_to_item(flag)
@@ -210,7 +211,7 @@ async def get_flag(
 
     flag = ff.get_flag(name)
     if not flag:
-        raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Flag '{name}' not found", status=404)
 
     return _flag_to_item(flag)
 
@@ -255,7 +256,7 @@ async def update_flag(
     )
 
     if not flag:
-        raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Flag '{name}' not found", status=404)
 
     logger.info("Admin %s updated feature flag: %s", current_user.get("id"), name)
     return _flag_to_item(flag)
@@ -291,7 +292,7 @@ async def delete_flag(
 
     deleted = ff.delete_flag(name)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Flag '{name}' not found", status=404)
 
     logger.info("Admin %s deleted feature flag: %s", current_user.get("id"), name)
     return {"message": f"Flag '{name}' deleted"}
@@ -330,7 +331,7 @@ async def set_override(
 
     success = ff.set_user_override(name, body.user_id, body.enabled)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Flag '{name}' not found", status=404)
 
     logger.info(
         "Admin %s set override for flag %s, user %s: %s",
@@ -375,9 +376,10 @@ async def delete_override(
 
     deleted = ff.delete_user_override(name, body.user_id)
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Override not found for flag '{name}', user '{body.user_id}'",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            f"Override not found for flag '{name}', user '{body.user_id}'",
+            status=404,
         )
 
     logger.info(

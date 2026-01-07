@@ -6,9 +6,8 @@ and improve overall deliberation quality.
 
 from bo1.config import TokenBudgets
 from bo1.prompts.protocols import (
-    BEHAVIORAL_GUIDELINES,
     CITATION_REQUIREMENTS,
-    EVIDENCE_PROTOCOL,
+    CORE_PROTOCOL,
     SECURITY_PROTOCOL,
 )
 from bo1.prompts.sanitizer import sanitize_user_input
@@ -39,9 +38,7 @@ Discussion so far: {discussion_excerpt}
 Why you're being invoked: {trigger_reason}
 </intervention_context>
 
-{behavioral_guidelines}
-
-{evidence_protocol}
+{core_protocol}
 
 <communication_protocol>
 Format your intervention:
@@ -91,8 +88,7 @@ def compose_moderator_prompt(
         problem_statement=safe_problem_statement,
         discussion_excerpt=discussion_excerpt,
         trigger_reason=trigger_reason,
-        behavioral_guidelines=BEHAVIORAL_GUIDELINES,
-        evidence_protocol=EVIDENCE_PROTOCOL,
+        core_protocol=CORE_PROTOCOL,
         citation_requirements=CITATION_REQUIREMENTS,
         security_protocol=SECURITY_PROTOCOL,
     )

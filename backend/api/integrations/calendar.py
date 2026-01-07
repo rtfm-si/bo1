@@ -9,7 +9,7 @@ Provides:
 import logging
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from supertokens_python.recipe.session import SessionContainer
@@ -17,7 +17,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.oauth_session_manager import SessionManager
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.google_calendar import (
     CalendarError,
     exchange_code,
@@ -121,10 +121,10 @@ async def initiate_calendar_connect(
     user_id = session.get_user_id()
 
     if not settings.google_calendar_enabled:
-        raise HTTPException(status_code=403, detail="Calendar integration is disabled")
+        raise http_error(ErrorCode.FEATURE_DISABLED, "Calendar integration is disabled", 403)
 
     if not settings.google_oauth_client_id:
-        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+        raise http_error(ErrorCode.CONFIG_ERROR, "Google OAuth not configured", 500)
 
     # Create OAuth state for CSRF protection
     session_manager = get_session_manager()
@@ -293,7 +293,7 @@ async def toggle_calendar_sync(
     user_id = session.get_user_id()
 
     if not settings.google_calendar_enabled:
-        raise HTTPException(status_code=403, detail="Calendar integration is disabled")
+        raise http_error(ErrorCode.FEATURE_DISABLED, "Calendar integration is disabled", 403)
 
     # Update preference
     user_repository.set_calendar_sync_enabled(user_id, body.enabled)

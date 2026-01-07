@@ -10,7 +10,7 @@ Provides:
 - GET /api/admin/blog/topics - Discover topics
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
@@ -26,7 +26,7 @@ from backend.api.models import (
     TopicsResponse,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.content_generator import generate_blog_post
 from backend.services.topic_discovery import TopicDiscoveryError, discover_topics, filter_topics
 from bo1.logging.errors import ErrorCode, log_error
@@ -133,10 +133,7 @@ async def get_post(
     post = blog_repository.get_by_id(post_id)
 
     if not post:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post {post_id} not found"},
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Blog post {post_id} not found", status=404)
 
     return BlogPostResponse(id=str(post["id"]), **{k: v for k, v in post.items() if k != "id"})
 
@@ -168,10 +165,7 @@ async def update_post(
     post = blog_repository.update(post_id, **updates)
 
     if not post:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post {post_id} not found"},
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Blog post {post_id} not found", status=404)
 
     logger.info(f"Admin: Updated blog post {post_id} (fields: {list(updates.keys())})")
 
@@ -200,10 +194,7 @@ async def delete_post(
     deleted = blog_repository.delete(post_id)
 
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post {post_id} not found"},
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Blog post {post_id} not found", status=404)
 
     logger.info(f"Admin: Deleted blog post {post_id}")
 
@@ -303,14 +294,8 @@ async def discover_blog_topics(
             error=str(e),
         )
         if e.error_type == "rate_limit":
-            raise HTTPException(
-                status_code=429,
-                detail={"error": "Rate limit exceeded", "message": str(e)},
-            ) from e
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "Topic discovery failed", "message": str(e)},
-        ) from e
+            raise http_error(ErrorCode.API_RATE_LIMIT, str(e), status=429) from e
+        raise http_error(ErrorCode.SERVICE_EXECUTION_ERROR, str(e), status=500) from e
 
     filtered = filter_topics(topics, min_relevance=0.4, max_topics=10)
 
@@ -353,10 +338,7 @@ async def publish_post(
     post = blog_repository.publish(post_id)
 
     if not post:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post {post_id} not found"},
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Blog post {post_id} not found", status=404)
 
     logger.info(f"Admin: Published blog post {post_id}")
 
@@ -386,21 +368,16 @@ async def schedule_post(
 ) -> BlogPostResponse:
     """Schedule a blog post for publication."""
     if not body.published_at:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Bad request",
-                "message": "published_at datetime is required for scheduling",
-            },
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "published_at datetime is required for scheduling",
+            status=400,
         )
 
     post = blog_repository.schedule(post_id, body.published_at)
 
     if not post:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post {post_id} not found"},
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Blog post {post_id} not found", status=404)
 
     logger.info(f"Admin: Scheduled blog post {post_id} for {body.published_at}")
 

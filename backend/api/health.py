@@ -21,6 +21,8 @@ from anthropic import Anthropic
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.api.utils.errors import http_error
+from bo1.logging.errors import ErrorCode
 from bo1.state.repositories.session_repository import session_repository
 
 router = APIRouter()
@@ -277,14 +279,14 @@ async def readiness_check() -> ReadinessResponse:
     from backend.api.main import is_shutting_down
 
     if is_shutting_down():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "shutting_down",
-                "ready": False,
-                "checks": {},
-                "timestamp": datetime.now(UTC).isoformat(),
-            },
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "Service is shutting down",
+            status=503,
+            status_detail="shutting_down",
+            ready=False,
+            checks={},
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     checks: dict[str, bool] = {}
@@ -393,7 +395,12 @@ async def readiness_check() -> ReadinessResponse:
     )
 
     if not ready:
-        raise HTTPException(status_code=503, detail=response.model_dump())
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "Service not ready",
+            status=503,
+            **response.model_dump(exclude={"status"}),
+        )
 
     return response
 
@@ -582,9 +589,10 @@ async def health_check_db() -> ComponentHealthResponse:
     try:
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            raise HTTPException(
-                status_code=500,
-                detail="DATABASE_URL environment variable not set",
+            raise http_error(
+                ErrorCode.SERVICE_CONFIG_ERROR,
+                "DATABASE_URL environment variable not set",
+                status=500,
             )
 
         conn = psycopg2.connect(database_url)
@@ -601,15 +609,14 @@ async def health_check_db() -> ComponentHealthResponse:
             timestamp=datetime.utcnow().isoformat(),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "postgresql",
-                "healthy": False,
-                "message": f"Database connection failed: {str(e)}",
-                "timestamp": datetime.utcnow().isoformat(),
-            },
+        raise http_error(
+            ErrorCode.DB_QUERY_ERROR,
+            f"Database connection failed: {str(e)}",
+            status=503,
+            status_detail="unhealthy",
+            component="postgresql",
+            healthy=False,
+            timestamp=datetime.utcnow().isoformat(),
         ) from e
 
 
@@ -848,15 +855,14 @@ async def health_check_redis() -> ComponentHealthResponse:
             timestamp=datetime.utcnow().isoformat(),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "redis",
-                "healthy": False,
-                "message": f"Redis connection failed: {str(e)}",
-                "timestamp": datetime.utcnow().isoformat(),
-            },
+        raise http_error(
+            ErrorCode.REDIS_CONNECTION_ERROR,
+            f"Redis connection failed: {str(e)}",
+            status=503,
+            status_detail="unhealthy",
+            component="redis",
+            healthy=False,
+            timestamp=datetime.utcnow().isoformat(),
         ) from e
 
 
@@ -1085,9 +1091,10 @@ async def health_check_anthropic() -> ComponentHealthResponse:
     try:
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="ANTHROPIC_API_KEY environment variable not set",
+            raise http_error(
+                ErrorCode.SERVICE_CONFIG_ERROR,
+                "ANTHROPIC_API_KEY environment variable not set",
+                status=500,
             )
 
         # Test API key with a minimal request
@@ -1104,15 +1111,14 @@ async def health_check_anthropic() -> ComponentHealthResponse:
             timestamp=datetime.utcnow().isoformat(),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "anthropic",
-                "healthy": False,
-                "message": f"Anthropic API check failed: {str(e)}",
-                "timestamp": datetime.utcnow().isoformat(),
-            },
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Anthropic API check failed: {str(e)}",
+            status=503,
+            status_detail="unhealthy",
+            component="anthropic",
+            healthy=False,
+            timestamp=datetime.utcnow().isoformat(),
         ) from e
 
 
@@ -1201,27 +1207,25 @@ async def health_check_voyage() -> ComponentHealthResponse:
     timestamp = datetime.now(UTC).isoformat()
 
     if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "voyage",
-                "healthy": False,
-                "message": "VOYAGE_API_KEY environment variable not set",
-                "timestamp": timestamp,
-            },
+        raise http_error(
+            ErrorCode.SERVICE_CONFIG_ERROR,
+            "VOYAGE_API_KEY environment variable not set",
+            status=503,
+            status_detail="unhealthy",
+            component="voyage",
+            healthy=False,
+            timestamp=timestamp,
         )
 
     if not _validate_voyage_api_key(api_key):
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "voyage",
-                "healthy": False,
-                "message": "VOYAGE_API_KEY has invalid format (expected 'pa-' prefix)",
-                "timestamp": timestamp,
-            },
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "VOYAGE_API_KEY has invalid format (expected 'pa-' prefix)",
+            status=503,
+            status_detail="unhealthy",
+            component="voyage",
+            healthy=False,
+            timestamp=timestamp,
         )
 
     return ComponentHealthResponse(
@@ -1296,27 +1300,25 @@ async def health_check_brave() -> ComponentHealthResponse:
     timestamp = datetime.now(UTC).isoformat()
 
     if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "brave",
-                "healthy": False,
-                "message": "BRAVE_API_KEY environment variable not set",
-                "timestamp": timestamp,
-            },
+        raise http_error(
+            ErrorCode.SERVICE_CONFIG_ERROR,
+            "BRAVE_API_KEY environment variable not set",
+            status=503,
+            status_detail="unhealthy",
+            component="brave",
+            healthy=False,
+            timestamp=timestamp,
         )
 
     if not _validate_brave_api_key(api_key):
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "component": "brave",
-                "healthy": False,
-                "message": "BRAVE_API_KEY has invalid format",
-                "timestamp": timestamp,
-            },
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "BRAVE_API_KEY has invalid format",
+            status=503,
+            status_detail="unhealthy",
+            component="brave",
+            healthy=False,
+            timestamp=timestamp,
         )
 
     return ComponentHealthResponse(
@@ -1495,9 +1497,10 @@ async def health_check_persistence() -> PersistenceHealthResponse:
         database_url = os.getenv("DATABASE_URL")
 
         if not database_url:
-            raise HTTPException(
-                status_code=500,
-                detail="DATABASE_URL environment variable not set",
+            raise http_error(
+                ErrorCode.SERVICE_CONFIG_ERROR,
+                "DATABASE_URL environment variable not set",
+                status=500,
             )
 
         # Get recent sessions from PostgreSQL (last 2 hours)
@@ -1628,9 +1631,11 @@ async def health_check_persistence() -> PersistenceHealthResponse:
         )
 
         if not healthy:
-            raise HTTPException(
-                status_code=503,
-                detail=response.model_dump(),
+            raise http_error(
+                ErrorCode.SERVICE_UNAVAILABLE,
+                "Persistence health check failed",
+                status=503,
+                **response.model_dump(exclude={"status"}),
             )
 
         return response
@@ -1639,15 +1644,14 @@ async def health_check_persistence() -> PersistenceHealthResponse:
         raise
     except Exception as e:
         logger.exception("Persistence health check failed")
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "error",
-                "component": "persistence",
-                "healthy": False,
-                "message": f"Persistence health check failed: {str(e)}",
-                "timestamp": datetime.now(UTC).isoformat(),
-            },
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Persistence health check failed: {str(e)}",
+            status=503,
+            status_detail="error",
+            component="persistence",
+            healthy=False,
+            timestamp=datetime.now(UTC).isoformat(),
         ) from e
 
 
@@ -1879,7 +1883,12 @@ async def health_check_checkpoint() -> CheckpointHealthResponse:
     )
 
     if not health["healthy"]:
-        raise HTTPException(status_code=503, detail=response.model_dump())
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "Checkpoint backend unhealthy",
+            status=503,
+            **response.model_dump(exclude={"status"}),
+        )
 
     return response
 
@@ -2069,7 +2078,12 @@ async def health_check_detailed() -> DetailedHealthResponse:
     )
 
     if not overall_healthy:
-        raise HTTPException(status_code=503, detail=response.model_dump())
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "Critical health issues detected",
+            status=503,
+            **response.model_dump(exclude={"status"}),
+        )
 
     return response
 

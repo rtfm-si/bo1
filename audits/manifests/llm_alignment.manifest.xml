@@ -49,6 +49,19 @@
     2. Analyze for injection patterns (user input interpolation)
     3. Check output format enforcement
     4. Review persona constraint definitions
-    5. Output report to /audits/reports/llm_alignment.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/llm_alignment.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Sanitization: Check bo1/llm/sanitizer.py or similar for input sanitization functions
+    - Injection tests: Check tests/test_sanitizer.py or tests/llm/ for injection test vectors
+    - Output validation: Check if pydantic model validation exists for LLM outputs
+    - Guardrails: Check for content filtering or safety checks in prompt handling
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

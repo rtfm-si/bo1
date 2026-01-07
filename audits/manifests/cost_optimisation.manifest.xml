@@ -50,6 +50,19 @@
     2. Estimate token usage per prompt type
     3. Review cache configuration and patterns
     4. Identify redundant LLM calls
-    5. Output report to /audits/reports/cost_optimisation.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/cost_optimisation.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Prompt caching: Check for cache_control or prompt_caching in LLM calls
+    - Context window: Check persona_executor.py for contribution history limits (already set?)
+    - Aggregation caching: Check if Redis caching exists for get_session_costs() etc.
+    - Token compression: Check if protocol boilerplate is already consolidated
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

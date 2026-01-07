@@ -27,7 +27,7 @@ except ImportError:
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.utils import RATE_LIMIT_RESPONSE
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.email import validate_unsubscribe_token
 from bo1.config import get_settings
 from bo1.logging.errors import ErrorCode, log_error
@@ -287,7 +287,7 @@ async def get_email_preferences(
             f"Failed to get email preferences for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get email preferences") from None
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to get email preferences", 500) from None
 
 
 @router.patch(
@@ -324,7 +324,7 @@ async def update_email_preferences(
         if row:
             return EmailPreferencesResponse(preferences=preferences)
         else:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise http_error(ErrorCode.USER_NOT_FOUND, "User not found", 404)
 
     except HTTPException:
         raise
@@ -335,7 +335,9 @@ async def update_email_preferences(
             f"Failed to update email preferences for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update email preferences") from None
+        raise http_error(
+            ErrorCode.DB_QUERY_ERROR, "Failed to update email preferences", 500
+        ) from None
 
 
 @router.get(
@@ -525,7 +527,9 @@ async def resend_webhook(request: Request) -> WebhookResponse:
             wh.verify(payload, headers)
         except WebhookVerificationError as e:
             logger.warning(f"Webhook signature verification failed: {e}")
-            raise HTTPException(status_code=400, detail="Invalid webhook signature") from None
+            raise http_error(
+                ErrorCode.EXT_WEBHOOK_ERROR, "Invalid webhook signature", 400
+            ) from None
     else:
         logger.warning("RESEND_WEBHOOK_SECRET not configured - skipping signature verification")
 
@@ -534,7 +538,7 @@ async def resend_webhook(request: Request) -> WebhookResponse:
         event_data = json.loads(payload)
     except json.JSONDecodeError as e:
         log_error(logger, ErrorCode.VALIDATION_ERROR, "Invalid webhook JSON payload", error=str(e))
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Invalid JSON payload", 400) from None
 
     event_type = event_data.get("type", "")
     data = event_data.get("data", {})

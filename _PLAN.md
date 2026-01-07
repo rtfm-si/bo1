@@ -1,37 +1,32 @@
-# Plan: No Actionable Tasks
-
-_Last checked: 2026-01-05_
+# Plan: Fix Pre-commit Lint Errors
 
 ## Summary
 
-- All tasks in `_TASK.md` are either completed, blocked, or deferred
-- Items in `_TODO.md` have been migrated to `_TASK.md` and are marked complete
-- No immediate implementation work available
+- Fix 23 Ruff lint errors blocking pre-commit
+- 19 auto-fixable with `--fix`, 4 require manual review
+- Issues in `bo1/graph/routers/__init__.py` (E402) and `bo1/prompts/__init__.py` (F401)
 
-## Status
+## Implementation Steps
 
-### Blocked on User Action
-- `[LAUNCH][P1]` Stripe live mode switch
-- `[EMAIL][P4]` Payment receipt (depends on Stripe)
-- `[SOCIAL][P3]` Direct social posting (awaiting user decision)
+1. Run `ruff check --fix` to auto-fix 19 errors
+2. Review `bo1/graph/routers/__init__.py` E402 errors (module imports not at top)
+   - Restructure imports to comply with E402 or add appropriate `# noqa` if intentional
+3. Review `bo1/prompts/__init__.py` F401 error (unused import CORE_PROTOCOL)
+   - Add to `__all__` if intended for re-export, or remove if unused
+4. Run `make pre-commit` to verify all errors resolved
+5. Verify test suite passes after fixes
 
-### Needs Clarification
-- `[MONITORING][P1]` Kubernetes deployment manifests
-- `[MONITORING]` Grafana logs "value A" requirement
-- `[DATA][P2]` Data retention soft-delete behavior
+## Tests
 
-### Deferred by Design
-- `[DATA][P2]` DuckDB for large datasets (defer until >100K rows)
-- `[BILLING][P4]` Upgrade prompts near usage limit
-- `[COST][P2]` Persona count A/B test (need more users)
+- Unit tests: `make test` - ensure no regressions
+- Integration: `make pre-commit` - must pass cleanly
+- Manual validation: None required
 
-### User-Owned
-- `[DOCS][P3]` Help pages content review
+## Dependencies & Risks
 
-## Next Steps
+- Dependencies: None
+- Risks: Auto-fix may change import order; verify no circular import issues
 
-Choose one:
-1. **Add new tasks** to `_TASK.md` from recent work or new requirements
-2. **Unblock** a blocked task (e.g., decide on social posting approach)
-3. **Clarify** a pending requirement (e.g., k8s vs SSH deploy, data retention rules)
-4. **Run `/full_audit`** to discover new issues/improvements
+---
+
+Ready for implementation.

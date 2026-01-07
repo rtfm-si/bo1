@@ -140,7 +140,9 @@ class TestSendUserEmail:
                 },
             )
             assert response.status_code == 400
-            assert "subject" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "subject" in message.lower()
 
             # Missing body
             response = client.post(
@@ -151,7 +153,9 @@ class TestSendUserEmail:
                 },
             )
             assert response.status_code == 400
-            assert "body" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "body" in message.lower()
 
     def test_user_not_found(self, client: TestClient):
         """Sending to non-existent user should return 404."""
@@ -164,7 +168,9 @@ class TestSendUserEmail:
             )
 
             assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "not found" in message.lower()
 
     def test_user_without_email(self, client: TestClient):
         """User without valid email should return 400."""
@@ -181,7 +187,9 @@ class TestSendUserEmail:
             )
 
             assert response.status_code == 400
-            assert "email" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "email" in message.lower()
 
     def test_placeholder_email_rejected(self, client: TestClient):
         """Placeholder emails should be rejected."""
@@ -201,7 +209,9 @@ class TestSendUserEmail:
             )
 
             assert response.status_code == 400
-            assert "placeholder" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "placeholder" in message.lower()
 
     def test_email_send_failure_logged(self, client: TestClient):
         """Failed email send should be logged and return sent=False."""

@@ -25,10 +25,11 @@ import logging
 import os
 from typing import Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
+from backend.api.utils.errors import http_error
 from bo1.config import get_settings
 from bo1.feature_flags import ENABLE_SUPERTOKENS_AUTH
 from bo1.logging.errors import ErrorCode, log_error
@@ -146,10 +147,7 @@ async def _get_current_user_with_session(
             f"Failed to get user from SuperTokens session: {e}",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication failed",
-        ) from e
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication failed", status=401) from e
 
 
 async def _get_current_user_mvp() -> dict[str, Any]:
@@ -160,9 +158,8 @@ async def _get_current_user_mvp() -> dict[str, Any]:
             ErrorCode.AUTH_TOKEN_ERROR,
             "Auth bypass attempted in non-DEBUG mode - rejecting",
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Authentication misconfigured. Contact support.",
+        raise http_error(
+            ErrorCode.API_UNAUTHORIZED, "Authentication misconfigured. Contact support.", status=500
         )
     logger.debug("SuperTokens auth disabled (MVP/DEBUG mode), using hardcoded user")
     return {
@@ -216,10 +213,7 @@ def require_auth(user: dict[str, Any]) -> dict[str, Any]:
         HTTPException: 401 if not authenticated
     """
     if not user or not user.get("user_id"):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication required", status=401)
     return user
 
 
@@ -230,17 +224,11 @@ async def _require_admin_with_session(
     user = await _get_current_user_with_session(session)
 
     if not user or not user.get("user_id"):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication required", status=401)
 
     if not user.get("is_admin", False):
         logger.warning(f"Non-admin user {user.get('user_id')} attempted to access admin endpoint")
-        raise HTTPException(
-            status_code=403,
-            detail="Admin access required",
-        )
+        raise http_error(ErrorCode.API_FORBIDDEN, "Admin access required", status=403)
 
     logger.info(f"Admin access granted to {user.get('user_id')}")
     return user
@@ -251,10 +239,7 @@ async def _require_admin_mvp() -> dict[str, Any]:
     user = await _get_current_user_mvp()
 
     if not user or not user.get("user_id"):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication required", status=401)
 
     # In MVP mode, allow admin access (for testing)
     logger.info(f"Admin access granted to {user.get('user_id')} (MVP mode)")
@@ -266,10 +251,7 @@ async def _require_admin_e2e() -> dict[str, Any]:
     user = await _get_current_user_e2e()
 
     if not user or not user.get("user_id"):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication required", status=401)
 
     # E2E test user has is_admin=True
     logger.info(f"Admin access granted to {user.get('user_id')} (E2E mode)")

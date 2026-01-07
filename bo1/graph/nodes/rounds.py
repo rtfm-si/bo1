@@ -35,6 +35,7 @@ from bo1.graph.state import (
     get_phase_state,
     get_problem_state,
     get_research_state,
+    prune_contributions_after_round,
 )
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.problem import SubProblem
@@ -1035,6 +1036,23 @@ def _build_round_state_update(
     experts_per_round.append(round_experts)
 
     next_round = round_number + 1
+
+    # Prune old contributions after round summary is generated (memory optimization)
+    core_state = get_core_state(state)
+    all_contributions, pruned_count = prune_contributions_after_round(
+        contributions=all_contributions,
+        round_summaries=round_summaries,
+        current_round=round_number,
+        session_id=core_state.get("session_id"),
+    )
+    if pruned_count > 0:
+        from backend.api.middleware.metrics import record_contributions_pruned
+
+        record_contributions_pruned(
+            session_id=core_state.get("session_id") or "",
+            round_number=round_number,
+            pruned_count=pruned_count,
+        )
 
     # Count meta-discussion contributions for context sufficiency detection
     meta_discussion_count = metrics_state.get("meta_discussion_count", 0)

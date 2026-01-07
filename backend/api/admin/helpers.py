@@ -12,8 +12,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from fastapi import HTTPException
-
 from backend.api.admin.models import (
     AdminStatsResponse,
     BetaWhitelistEntry,
@@ -21,6 +19,8 @@ from backend.api.admin.models import (
     WaitlistEntry,
 )
 from backend.api.utils.db_helpers import count_rows, execute_query, exists, get_single_value
+from backend.api.utils.errors import http_error
+from bo1.logging import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -171,10 +171,7 @@ class AdminQueryService:
         row = execute_query(query, (user_id,), fetch="one")
 
         if not row:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User not found: {user_id}",
-            )
+            raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
         return _row_to_user_info(row)
 
@@ -261,9 +258,8 @@ class AdminValidationService:
 
         # Basic validation - must have @ and domain with .
         if "@" not in normalized or "." not in normalized.split("@")[1]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid email address: {email}",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, f"Invalid email address: {email}", status=400
             )
 
         return normalized
@@ -283,9 +279,10 @@ class AdminValidationService:
         """
         valid_tiers = ["free", "pro", "enterprise"]
         if tier not in valid_tiers:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid subscription_tier. Must be one of: {', '.join(valid_tiers)}",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Invalid subscription_tier. Must be one of: {', '.join(valid_tiers)}",
+                status=400,
             )
         return tier
 
@@ -336,15 +333,13 @@ class AdminApprovalService:
         )
 
         if not waitlist_row:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Email not found on waitlist: {email}",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, f"Email not found on waitlist: {email}", status=400
             )
 
         if waitlist_row["status"] == "invited":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Email already approved: {email}",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, f"Email already approved: {email}", status=400
             )
 
         # Check if already on whitelist

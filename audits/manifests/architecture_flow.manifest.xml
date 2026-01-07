@@ -45,6 +45,19 @@
     2. Trace node execution order
     3. Validate state transitions match expected flow
     4. Check event propagation paths
-    5. Output report to /audits/reports/architecture_flow.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/architecture_flow.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - State accessors: Check bo1/graph/state.py for get_problem_state(), get_phase_state() etc.
+    - Event handlers: Check if EventCollector error handlers exist in backend/api/
+    - Router registry: Check bo1/graph/routers/ for __init__.py with router imports
+    - State pruning: Check for prune_contributions_for_phase() usage beyond synthesis
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

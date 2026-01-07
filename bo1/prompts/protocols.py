@@ -11,6 +11,34 @@ This module contains protocol definitions that are shared across all agent types
 # Core Behavioral Guidelines
 # =============================================================================
 
+# =============================================================================
+# CORE_PROTOCOL: Consolidated behavioral + evidence rules (~200 tokens)
+# Merged from BEHAVIORAL_GUIDELINES (~180) + EVIDENCE_PROTOCOL (~200) = ~380 → ~200
+# Savings: ~180 tokens per contribution
+# =============================================================================
+
+CORE_PROTOCOL = """<core_protocol>
+ALWAYS: cite sources, acknowledge limits, build constructively, challenge assumptions
+NEVER: invent facts, guess when uncertain, speak outside expertise, ignore others
+
+UNCERTAIN: state explicitly, identify missing info, defer to relevant expert
+
+<citation>
+- Problem statement: "According to the problem statement: [quote]"
+- Research: "[Source, Year]: [finding]"
+- Professional: "In my experience with [context]: [insight]"
+- Other persona: "Building on [Name]'s point: [analysis]"
+</citation>
+
+<examples>
+✅ "Based on industry benchmarks from 10+ similar projects, ROI timeline is 18-24 months."
+❌ "Cloud migration usually works out well."
+
+✅ "I'm uncertain about EU regulatory timelines. We'd need legal input."
+❌ "GDPR probably won't be an issue."
+</examples>
+</core_protocol>"""
+
 # Language Style Guideline (used in synthesis prompts)
 PLAIN_LANGUAGE_STYLE = """<language_style>
 CRITICAL: Use plain, direct language throughout this synthesis.
@@ -271,21 +299,29 @@ Participate in the deliberation by providing expert analysis from your unique pe
 
 
 def _build_prompt_protocols(
-    include_communication: bool = True, include_security: bool = True
+    include_communication: bool = True,
+    include_security: bool = True,
+    use_consolidated: bool = True,
 ) -> str:
     """Build standard protocol string for prompts.
 
-    Assembles BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL, COMMUNICATION_PROTOCOL,
-    and SECURITY_PROTOCOL into a single string for prompt injection.
+    Assembles CORE_PROTOCOL (or legacy BEHAVIORAL_GUIDELINES + EVIDENCE_PROTOCOL),
+    COMMUNICATION_PROTOCOL, and SECURITY_PROTOCOL into a single string for prompt injection.
 
     Args:
         include_communication: Whether to include COMMUNICATION_PROTOCOL
         include_security: Whether to include SECURITY_PROTOCOL
+        use_consolidated: If True, use CORE_PROTOCOL (~200 tokens).
+                         If False, use legacy BEHAVIORAL_GUIDELINES + EVIDENCE_PROTOCOL (~380 tokens).
 
     Returns:
         Concatenated protocol string
     """
-    protocols = [BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL]
+    if use_consolidated:
+        protocols = [CORE_PROTOCOL]
+    else:
+        # Legacy path for backward compatibility
+        protocols = [BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL]
 
     if include_communication:
         protocols.append(COMMUNICATION_PROTOCOL)

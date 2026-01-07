@@ -383,7 +383,7 @@ class TrendSummaryGenerator:
 
             response = await broker.call(request)
             result = self._parse_summary(
-                response.text, industry, timeframe, available_timeframes, sources_enriched
+                response.content, industry, timeframe, available_timeframes, sources_enriched
             )
             return result
 

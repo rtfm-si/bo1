@@ -96,7 +96,9 @@ class TestListFeedback:
             response = client.get("/api/admin/feedback?sentiment=invalid")
 
         assert response.status_code == 400
-        assert "Invalid sentiment filter" in response.json()["detail"]
+        detail = response.json()["detail"]
+        message = detail["message"] if isinstance(detail, dict) else detail
+        assert "Invalid sentiment filter" in message
 
     def test_list_feedback_includes_analysis(self, client, sample_feedback):
         """Should include analysis in response."""

@@ -14,14 +14,14 @@ import time
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from stripe import SignatureVerificationError
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_email, extract_user_id
 from backend.api.utils.db_helpers import get_single_value
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.billing import PlanConfig
 from bo1.config import get_settings
 from bo1.logging.errors import ErrorCode, log_error
@@ -160,20 +160,22 @@ def _validate_webhook_timestamp(signature_header: str) -> None:
     """Validate webhook timestamp to prevent replay attacks.
 
     Raises:
-        HTTPException: If timestamp is too old
+        http_error: If timestamp is too old
     """
     # Extract timestamp from Stripe signature header (format: t=timestamp,v1=signature)
     parts = dict(part.split("=", 1) for part in signature_header.split(",") if "=" in part)
     timestamp_str = parts.get("t")
 
     if not timestamp_str:
-        raise HTTPException(status_code=400, detail="Missing timestamp in webhook signature")
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Missing timestamp in webhook signature", status=400
+        )
 
     try:
         timestamp = int(timestamp_str)
     except ValueError:
-        raise HTTPException(
-            status_code=400, detail="Invalid timestamp in webhook signature"
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Invalid timestamp in webhook signature", status=400
         ) from None
 
     # Check if event is too old (replay attack prevention)
@@ -182,7 +184,7 @@ def _validate_webhook_timestamp(signature_header: str) -> None:
         logger.warning(
             f"Rejected old webhook event (timestamp: {timestamp}, age: {current_time - timestamp}s)"
         )
-        raise HTTPException(status_code=400, detail="Webhook timestamp too old")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Webhook timestamp too old", status=400)
 
 
 # =============================================================================
@@ -351,17 +353,19 @@ async def purchase_bundle(
 
     bundle = PlanConfig.get_meeting_bundle(request.bundle_size)
     if not bundle:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid bundle size. Choose from: 1, 3, 5, or 9 meetings",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid bundle size. Choose from: 1, 3, 5, or 9 meetings",
+            status=400,
         )
 
     # Get price ID from environment
     price_id = os.environ.get(bundle.price_id_env_var)
     if not price_id:
-        raise HTTPException(
-            status_code=503,
-            detail="Meeting bundles not configured. Contact support.",
+        raise http_error(
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "Meeting bundles not configured. Contact support.",
+            status=503,
         )
 
     settings = get_settings()
@@ -514,7 +518,7 @@ async def handle_stripe_webhook(request: Request) -> dict[str, str]:
     signature = request.headers.get("Stripe-Signature", "")
 
     if not signature:
-        raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Missing Stripe-Signature header", status=400)
 
     # Validate timestamp to prevent replay attacks
     _validate_webhook_timestamp(signature)
@@ -524,14 +528,14 @@ async def handle_stripe_webhook(request: Request) -> dict[str, str]:
         event = stripe_service.construct_webhook_event(payload, signature)
     except SignatureVerificationError as e:
         logger.warning(f"Invalid webhook signature: {e}")
-        raise HTTPException(status_code=400, detail="Invalid signature") from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Invalid signature", status=400) from None
     except Exception as e:
         log_error(
             logger,
             ErrorCode.EXT_STRIPE_ERROR,
             f"Failed to construct webhook event: {e}",
         )
-        raise HTTPException(status_code=400, detail="Invalid payload") from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Invalid payload", status=400) from None
 
     # Idempotency check - skip if already processed
     if _is_event_processed(event.id):
@@ -579,7 +583,9 @@ async def handle_stripe_webhook(request: Request) -> dict[str, str]:
             event_type=event.type,
         )
         # Don't record failed events - they'll be retried by Stripe
-        raise HTTPException(status_code=500, detail="Event processing failed") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Event processing failed", status=500
+        ) from None
 
 
 # =============================================================================

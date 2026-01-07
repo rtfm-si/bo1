@@ -140,13 +140,17 @@ class TestTrendSummaryGenerator:
         """Test successful summary generation."""
         with (
             patch.object(generator, "_brave_search", new_callable=AsyncMock) as mock_search,
+            patch.object(
+                generator, "_enrich_search_results", new_callable=AsyncMock
+            ) as mock_enrich,
             patch.object(generator, "_get_broker") as mock_get_broker,
         ):
             mock_search.return_value = mock_brave_response["web"]["results"]
+            mock_enrich.return_value = (mock_brave_response["web"]["results"], 2)
 
             mock_broker = MagicMock()
             mock_response = MagicMock()
-            mock_response.text = mock_llm_response
+            mock_response.content = mock_llm_response
             mock_broker.call = AsyncMock(return_value=mock_response)
             mock_get_broker.return_value = mock_broker
 

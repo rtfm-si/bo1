@@ -1862,6 +1862,40 @@ export interface HeatmapHistoryDepthUpdate {
 }
 
 // =============================================================================
+// Recent Research (Dashboard Widget)
+// =============================================================================
+
+/**
+ * A source/citation from research.
+ */
+export interface ResearchSource {
+	url?: string | null;
+	title?: string | null;
+	snippet?: string | null;
+}
+
+/**
+ * A recent research item for dashboard display.
+ */
+export interface RecentResearchItem {
+	id: number;
+	question: string;
+	summary?: string | null;
+	sources: ResearchSource[];
+	category?: string | null;
+	created_at: string;
+}
+
+/**
+ * Response containing user's recent research for dashboard widget.
+ */
+export interface RecentResearchResponse {
+	success: boolean;
+	research: RecentResearchItem[];
+	total_count: number;
+	error?: string | null;
+}
+
 // Research Embeddings Visualization
 // =============================================================================
 

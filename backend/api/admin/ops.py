@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
+from backend.api.utils.errors import http_error
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
@@ -206,7 +207,9 @@ async def list_error_patterns(
             error_type=error_type,
             enabled_only=enabled_only,
         )
-        raise HTTPException(status_code=500, detail="Failed to list error patterns") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to list error patterns", status=500
+        ) from None
 
 
 @router.get("/remediations", response_model=RemediationHistoryResponse)
@@ -288,7 +291,9 @@ async def list_remediations(
             offset=offset,
             outcome_filter=outcome,
         )
-        raise HTTPException(status_code=500, detail="Failed to list remediations") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to list remediations", status=500
+        ) from None
 
 
 @router.post("/patterns", response_model=PatternCreateResponse)
@@ -308,7 +313,7 @@ async def create_pattern(
     try:
         re.compile(body.pattern_regex)
     except re.error as e:
-        raise HTTPException(status_code=400, detail=f"Invalid regex: {e}") from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, f"Invalid regex: {e}", status=400) from None
 
     try:
         with db_session() as conn:
@@ -344,9 +349,10 @@ async def create_pattern(
 
     except Exception as e:
         if "unique constraint" in str(e).lower():
-            raise HTTPException(
-                status_code=409,
-                detail=f"Pattern with name '{body.pattern_name}' already exists",
+            raise http_error(
+                ErrorCode.API_CONFLICT,
+                f"Pattern with name '{body.pattern_name}' already exists",
+                status=409,
             ) from None
         log_error(
             logger,
@@ -355,7 +361,9 @@ async def create_pattern(
             pattern_name=body.pattern_name,
             error_type=body.error_type,
         )
-        raise HTTPException(status_code=500, detail="Failed to create pattern") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to create pattern", status=500
+        ) from None
 
 
 @router.patch("/patterns/{pattern_id}")
@@ -374,7 +382,9 @@ async def update_pattern(
         try:
             re.compile(body.pattern_regex)
         except re.error as e:
-            raise HTTPException(status_code=400, detail=f"Invalid regex: {e}") from None
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, f"Invalid regex: {e}", status=400
+            ) from None
 
     # Build update query dynamically
     updates = []
@@ -409,7 +419,7 @@ async def update_pattern(
         params.append(body.cooldown_minutes)
 
     if not updates:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise http_error(ErrorCode.VALIDATION_ERROR, "No fields to update", status=400)
 
     updates.append("updated_at = now()")
     params.append(pattern_id)
@@ -426,7 +436,7 @@ async def update_pattern(
                     params,
                 )
                 if cur.rowcount == 0:
-                    raise HTTPException(status_code=404, detail="Pattern not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "Pattern not found", status=404)
             conn.commit()
 
         return {"message": "Pattern updated successfully"}
@@ -440,7 +450,9 @@ async def update_pattern(
             f"Failed to update pattern: {e}",
             pattern_id=pattern_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to update pattern") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update pattern", status=500
+        ) from None
 
 
 @router.get("/health", response_model=SystemHealthResponse)
@@ -509,7 +521,9 @@ async def trigger_check(
             f"Manual check failed: {e}",
             execute_fixes=execute_fixes,
         )
-        raise HTTPException(status_code=500, detail=f"Check failed: {e}") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Check failed: {e}", status=500
+        ) from None
 
 
 # =============================================================================
@@ -636,7 +650,9 @@ async def list_client_errors(
 
     except Exception as e:
         log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to list client errors: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list client errors") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to list client errors", status=500
+        ) from None
 
 
 @router.get("/api-errors", response_model=ApiErrorListResponse)
@@ -716,7 +732,9 @@ async def list_api_errors(
 
     except Exception as e:
         log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to list API errors: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list API errors") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to list API errors", status=500
+        ) from None
 
 
 @router.get("/error-summary", response_model=ErrorSummaryResponse)
@@ -799,7 +817,9 @@ async def get_error_summary(
 
     except Exception as e:
         log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get error summary: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get error summary") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get error summary", status=500
+        ) from None
 
 
 # =============================================================================
@@ -935,7 +955,9 @@ async def get_performance_metrics(
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Failed to get performance metrics: {e}",
         )
-        raise HTTPException(status_code=500, detail="Failed to get performance metrics") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get performance metrics", status=500
+        ) from None
 
 
 @router.get("/performance-trends", response_model=PerformanceTrendsResponse)
@@ -985,7 +1007,9 @@ async def get_performance_trends(
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Failed to get performance trends: {e}",
         )
-        raise HTTPException(status_code=500, detail="Failed to get performance trends") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get performance trends", status=500
+        ) from None
 
 
 @router.get("/performance-thresholds", response_model=ThresholdListResponse)
@@ -1027,8 +1051,8 @@ async def get_performance_thresholds(
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Failed to get performance thresholds: {e}",
         )
-        raise HTTPException(
-            status_code=500, detail="Failed to get performance thresholds"
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to get performance thresholds", status=500
         ) from None
 
 
@@ -1061,7 +1085,9 @@ async def update_performance_threshold(
         )
 
         if result is None:
-            raise HTTPException(status_code=500, detail="Failed to update threshold")
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update threshold", status=500
+            )
 
         return {"message": f"Threshold for {metric_name} updated successfully"}
 
@@ -1074,4 +1100,6 @@ async def update_performance_threshold(
             f"Failed to update threshold: {e}",
             metric_name=metric_name,
         )
-        raise HTTPException(status_code=500, detail="Failed to update threshold") from None
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update threshold", status=500
+        ) from None

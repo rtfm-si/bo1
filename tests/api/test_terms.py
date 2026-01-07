@@ -529,7 +529,9 @@ class TestAdminTermsVersionsEndpoints:
             )
 
         assert response.status_code == 409
-        assert "already exists" in response.json()["detail"]
+        detail = response.json()["detail"]
+        message = detail["message"] if isinstance(detail, dict) else detail
+        assert "already exists" in message
 
     def test_update_version_success(self, client, mock_draft_version):
         """PUT /terms/versions/{id} updates draft content."""

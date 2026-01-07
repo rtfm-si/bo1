@@ -1151,3 +1151,140 @@ async def test_collect_with_custom_events_emits_transitions():
     # Second transition: decompose -> select_personas
     assert transition_calls[1][0][2]["from_node"] == "decompose"
     assert transition_calls[1][0][2]["to_node"] == "select_personas"
+
+
+@pytest.mark.unit
+def test_check_and_publish_subproblem_failures_detects_incomplete_results():
+    """Test that _check_and_publish_subproblem_failures detects incomplete sub-problems.
+
+    ARCH P3: This test verifies that the EventCollector (not the router)
+    is responsible for publishing meeting_failed events when sub-problems
+    fail to complete.
+    """
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Create final state with incomplete results (2 sub-problems, 1 result)
+    final_state = {
+        "session_id": "test-session",
+        "problem": {
+            "sub_problems": [
+                {"id": "sp-1", "goal": "Goal 1"},
+                {"id": "sp-2", "goal": "Goal 2"},
+            ]
+        },
+        "current_sub_problem": None,  # Loop terminated
+        "sub_problem_results": [{"sub_problem_id": "sp-1", "synthesis": "Result 1"}],  # Only 1 of 2
+    }
+
+    # Call the method
+    result = collector._check_and_publish_subproblem_failures("test-session", final_state)
+
+    # Should return True (failure detected)
+    assert result is True
+
+    # Should publish meeting_failed event
+    mock_publisher.publish_event.assert_called_once()
+    call_args = mock_publisher.publish_event.call_args
+    assert call_args[0][0] == "test-session"
+    assert call_args[0][1] == "meeting_failed"
+    event_data = call_args[0][2]
+    assert event_data["failed_count"] == 1
+    assert event_data["total_count"] == 2
+    assert "sp-2" in event_data["failed_ids"]
+    assert "Goal 2" in event_data["failed_goals"]
+
+    # Should update session status to failed
+    mock_session_repo.update_status.assert_called_once_with(
+        session_id="test-session", status="failed"
+    )
+
+
+@pytest.mark.unit
+def test_check_and_publish_subproblem_failures_ignores_successful_completion():
+    """Test that _check_and_publish_subproblem_failures returns False on success."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Create final state with all results present
+    final_state = {
+        "session_id": "test-session",
+        "problem": {
+            "sub_problems": [
+                {"id": "sp-1", "goal": "Goal 1"},
+                {"id": "sp-2", "goal": "Goal 2"},
+            ]
+        },
+        "current_sub_problem": None,  # Loop terminated
+        "sub_problem_results": [
+            {"sub_problem_id": "sp-1", "synthesis": "Result 1"},
+            {"sub_problem_id": "sp-2", "synthesis": "Result 2"},
+        ],  # All 2 present
+    }
+
+    # Call the method
+    result = collector._check_and_publish_subproblem_failures("test-session", final_state)
+
+    # Should return False (no failure)
+    assert result is False
+
+    # Should NOT publish any events
+    mock_publisher.publish_event.assert_not_called()
+
+    # Should NOT update session status
+    mock_session_repo.update_status.assert_not_called()
+
+
+@pytest.mark.unit
+def test_check_and_publish_subproblem_failures_ignores_single_subproblem():
+    """Test that _check_and_publish_subproblem_failures skips single sub-problem sessions."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Create final state with single sub-problem (atomic problem)
+    final_state = {
+        "session_id": "test-session",
+        "problem": {
+            "sub_problems": [
+                {"id": "sp-1", "goal": "Goal 1"},
+            ]
+        },
+        "current_sub_problem": None,
+        "sub_problem_results": [],  # Even with 0 results, single SP is not multi-SP failure
+    }
+
+    # Call the method
+    result = collector._check_and_publish_subproblem_failures("test-session", final_state)
+
+    # Should return False (single SP session, not a multi-SP failure)
+    assert result is False
+
+    # Should NOT publish any events
+    mock_publisher.publish_event.assert_not_called()

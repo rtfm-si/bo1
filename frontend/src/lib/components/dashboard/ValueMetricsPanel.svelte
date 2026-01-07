@@ -78,9 +78,15 @@
 	const hasMetrics = $derived(metrics.length > 0);
 
 	// Filter to show "now" (Focus Now) metrics prominently, with a few "later" as secondary
-	const focusMetrics = $derived(metrics.filter((m) => m.importance === 'now').slice(0, 4));
+	// If no 'now' metrics exist, fall back to showing 'monitor' metrics (default importance)
+	const nowMetrics = $derived(metrics.filter((m) => m.importance === 'now'));
+	const focusMetrics = $derived(
+		nowMetrics.length > 0
+			? nowMetrics.slice(0, 4)
+			: metrics.filter((m) => m.importance === 'monitor' || !m.importance).slice(0, 4)
+	);
 	const secondaryMetrics = $derived(metrics.filter((m) => m.importance === 'later').slice(0, 2));
-	const hasAnyMetrics = $derived(focusMetrics.length > 0 || secondaryMetrics.length > 0);
+	const hasAnyMetrics = $derived(metrics.length > 0);
 
 	// Format display value with appropriate scaling (currency-aware)
 	function formatValue(value: string | number | null, metricName?: string): string {
@@ -174,9 +180,9 @@
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
 			</svg>
 			<h2 class="text-base font-semibold text-neutral-900 dark:text-white">Key Metrics</h2>
-			{#if focusMetrics.length > 0}
+			{#if nowMetrics.length > 0}
 				<span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full bg-error-100 dark:bg-error-900/30 text-error-700 dark:text-error-400">
-					{focusMetrics.length} focus
+					{nowMetrics.length} focus
 				</span>
 			{/if}
 		</div>

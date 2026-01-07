@@ -1,11 +1,11 @@
 <script lang="ts">
 	/**
-	 * Unified Mentor Page
+	 * Unified Assistant Page
 	 *
-	 * Consolidated interface for:
-	 * - AI mentor chat with history
-	 * - Data analysis Q&A
-	 * - Dataset management (upload, import, list)
+	 * Three tabs:
+	 * - Chat: AI assistant with conversation history
+	 * - Data & Analysis: Dataset management and analysis
+	 * - SEO: SEO tools and content generation
 	 */
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
@@ -14,17 +14,17 @@
 	import type { Dataset, MentorPersonaId } from '$lib/api/types';
 	import MentorChat from '$lib/components/mentor/MentorChat.svelte';
 	import MentorChatHistory from '$lib/components/mentor/MentorChatHistory.svelte';
-	import AnalysisChat from '$lib/components/analysis/AnalysisChat.svelte';
-		import { Button } from '$lib/components/ui';
+	import { Button } from '$lib/components/ui';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { toast } from '$lib/stores/toast';
-	import { MessageSquare, BarChart3, Database } from 'lucide-svelte';
+	import { MessageSquare, Database, Search } from 'lucide-svelte';
+	import SeoTools from '$lib/components/seo/SeoTools.svelte';
 
 	// Tab state - read from URL or default to 'chat'
-	type TabId = 'chat' | 'analysis' | 'data';
+	type TabId = 'chat' | 'data' | 'seo';
 	const tabParam = $page.url.searchParams.get('tab');
 	let activeTab = $state<TabId>(
-		tabParam === 'analysis' ? 'analysis' : tabParam === 'data' ? 'data' : 'chat'
+		tabParam === 'data' ? 'data' : tabParam === 'seo' ? 'seo' : 'chat'
 	);
 
 	// Read query params for mentor pre-filling
@@ -35,7 +35,7 @@
 	let selectedConversationId = $state<string | null>(null);
 	let historyComponent: { refresh: () => void } | undefined;
 
-	// Datasets state (shared between Analysis and Data tabs)
+	// Datasets state (Data & Analysis tab)
 	let datasets = $state<Dataset[]>([]);
 	let datasetsLoading = $state(true);
 
@@ -56,8 +56,8 @@
 
 	const tabs = [
 		{ id: 'chat' as TabId, label: 'Chat', icon: MessageSquare },
-		{ id: 'analysis' as TabId, label: 'Analysis', icon: BarChart3 },
-		{ id: 'data' as TabId, label: 'Data Sources', icon: Database }
+		{ id: 'data' as TabId, label: 'Data & Analysis', icon: Database },
+		{ id: 'seo' as TabId, label: 'SEO', icon: Search }
 	];
 
 	function switchTab(tab: TabId) {
@@ -266,19 +266,19 @@
 </script>
 
 <svelte:head>
-	<title>Mentor | Board of One</title>
+	<title>Assistant | Board of One</title>
 	<meta
 		name="description"
-		content="AI-powered business mentor with data analysis and dataset management"
+		content="AI-powered assistant with chat, data analysis, and SEO tools"
 	/>
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 	<!-- Page Header -->
 	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Mentor</h1>
+		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Assistant</h1>
 		<p class="mt-1 text-neutral-600 dark:text-neutral-400">
-			AI guidance, data analysis, and dataset management in one place.
+			AI chat, data analysis, and SEO tools in one place.
 		</p>
 	</div>
 
@@ -324,28 +324,8 @@
 			</div>
 		</div>
 
-	{:else if activeTab === 'analysis'}
-		<!-- Analysis Tab -->
-		<div class="max-w-4xl">
-			{#if datasetsLoading}
-				<div class="h-[600px] bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4">
-					<ShimmerSkeleton type="chart" />
-				</div>
-			{:else}
-				<AnalysisChat {datasets} />
-			{/if}
-			<div class="mt-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
-				<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Analysis tips</h3>
-				<ul class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
-					<li>Select a dataset above to ask specific questions about your data</li>
-					<li>Without a dataset, get general guidance on data analysis best practices</li>
-					<li>Ask about trends, comparisons, correlations, or specific metrics</li>
-				</ul>
-			</div>
-		</div>
-
 	{:else if activeTab === 'data'}
-		<!-- Data Sources Tab -->
+		<!-- Data & Analysis Tab -->
 		<div>
 			<!-- Upload Zone -->
 			<div
@@ -499,5 +479,9 @@
 				</div>
 			{/if}
 		</div>
+
+	{:else if activeTab === 'seo'}
+		<!-- SEO Tab -->
+		<SeoTools />
 	{/if}
 </div>

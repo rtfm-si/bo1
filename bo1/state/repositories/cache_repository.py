@@ -736,6 +736,40 @@ class CacheRepository(BaseRepository):
                 result = cur.fetchone()
                 return result["count"] if result else 0
 
+    def get_user_recent_research(
+        self,
+        user_id: str,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Get user's recent research entries for dashboard display.
+
+        Args:
+            user_id: User identifier
+            limit: Maximum entries to return
+
+        Returns:
+            List of research entries with question, summary, sources, category, date
+        """
+        with db_session() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        question,
+                        answer_summary,
+                        sources,
+                        category,
+                        research_date::text AS created_at
+                    FROM research_cache
+                    WHERE user_id = %s
+                    ORDER BY research_date DESC
+                    LIMIT %s
+                    """,
+                    (user_id, limit),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
 
 # Singleton instance for convenience
 cache_repository = CacheRepository()

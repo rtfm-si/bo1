@@ -463,6 +463,12 @@ bo1_sse_active_connections = Gauge(
     "Number of active SSE connections (alias for sse_connections)",
 )
 
+bo1_sse_reconnect_rejected_total = Counter(
+    "bo1_sse_reconnect_rejected_total",
+    "Total SSE reconnection attempts rejected due to burst protection (429 responses)",
+    ["session_id"],
+)
+
 # Database statement timeout metrics
 bo1_db_statement_timeout_total = Counter(
     "bo1_db_statement_timeout_total",
@@ -531,6 +537,13 @@ bo1_challenge_retry_total = Counter(
     "bo1_challenge_retry_total",
     "Challenge phase retry outcomes",
     ["result", "round_number", "expert_type"],  # result: success/failure
+)
+
+# Contribution pruning metrics (memory optimization)
+bo1_contributions_pruned_total = Counter(
+    "bo1_contributions_pruned_total",
+    "Contributions pruned after round summary to reduce memory",
+    ["round_number"],
 )
 
 
@@ -1058,6 +1071,17 @@ def record_sse_reconnect(session_id: str, gap_seconds: float | None = None) -> N
         bo1_sse_reconnect_gap_seconds.observe(gap_seconds)
 
 
+def record_sse_reconnect_rejected(session_id: str) -> None:
+    """Record an SSE reconnection rejection due to burst protection.
+
+    Args:
+        session_id: Session identifier (truncated for cardinality)
+    """
+    from bo1.utils.metrics import truncate_label
+
+    bo1_sse_reconnect_rejected_total.labels(session_id=truncate_label(session_id)).inc()
+
+
 def record_model_tier_selected(tier: str, round_number: int, ab_group: str) -> None:
     """Record model tier selection for A/B test analysis.
 
@@ -1148,3 +1172,17 @@ def record_challenge_retry(success: bool, round_number: int, expert_type: str) -
     bo1_challenge_retry_total.labels(
         result=result, round_number=str(round_number), expert_type=expert_type
     ).inc()
+
+
+def record_contributions_pruned(session_id: str, round_number: int, pruned_count: int) -> None:
+    """Record contributions pruned after round summary.
+
+    Called at end of each round when old contributions are pruned
+    to reduce memory/checkpoint size.
+
+    Args:
+        session_id: Session identifier (for logging context)
+        round_number: Round number when pruning occurred
+        pruned_count: Number of contributions pruned
+    """
+    bo1_contributions_pruned_total.labels(round_number=str(round_number)).inc(pruned_count)

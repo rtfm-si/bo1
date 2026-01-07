@@ -8,10 +8,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import require_admin
+from backend.api.utils.errors import http_error
+from bo1.logging import ErrorCode
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -268,7 +270,11 @@ async def create_product(
             # Check slug uniqueness
             cur.execute("SELECT id FROM billing_products WHERE slug = %s", (data.slug,))
             if cur.fetchone():
-                raise HTTPException(400, f"Product with slug '{data.slug}' already exists")
+                raise http_error(
+                    ErrorCode.VALIDATION_ERROR,
+                    f"Product with slug '{data.slug}' already exists",
+                    status=400,
+                )
 
             # Insert product
             cur.execute(
@@ -336,7 +342,7 @@ async def update_product(
             # Check exists
             cur.execute("SELECT id FROM billing_products WHERE id = %s", (str(product_id),))
             if not cur.fetchone():
-                raise HTTPException(404, "Product not found")
+                raise http_error(ErrorCode.API_NOT_FOUND, "Product not found", status=404)
 
             # Build update
             updates = []
@@ -393,7 +399,7 @@ async def update_product(
         if p.id == product_id:
             return p
 
-    raise HTTPException(404, "Product not found after update")
+    raise http_error(ErrorCode.API_NOT_FOUND, "Product not found after update", status=404)
 
 
 @router.delete(
@@ -419,7 +425,7 @@ async def delete_product(
             conn.commit()
 
             if not result:
-                raise HTTPException(404, "Product not found")
+                raise http_error(ErrorCode.API_NOT_FOUND, "Product not found", status=404)
 
             logger.info(f"Deleted billing product: {result['slug']}")
             return {"success": True, "slug": result["slug"]}
@@ -440,7 +446,7 @@ async def create_price(
             # Check product exists
             cur.execute("SELECT id FROM billing_products WHERE id = %s", (str(data.product_id),))
             if not cur.fetchone():
-                raise HTTPException(404, "Product not found")
+                raise http_error(ErrorCode.API_NOT_FOUND, "Product not found", status=404)
 
             cur.execute(
                 """
@@ -503,11 +509,11 @@ async def update_price(
                 conn.commit()
 
                 if not row:
-                    raise HTTPException(404, "Price not found")
+                    raise http_error(ErrorCode.API_NOT_FOUND, "Price not found", status=404)
 
                 return BillingPrice(**row)
 
-            raise HTTPException(400, "No updates provided")
+            raise http_error(ErrorCode.VALIDATION_ERROR, "No updates provided", status=400)
 
 
 @router.post(

@@ -81,11 +81,38 @@
 	}
 
 	async function fetchInsights(regenerate = false) {
-		insightsLoading = true;
 		insightsError = null;
+
+		// Stale-while-revalidate: try to show cached data immediately
+		const cacheKey = `insights:${datasetId}`;
+		if (!regenerate && typeof sessionStorage !== 'undefined') {
+			try {
+				const cached = sessionStorage.getItem(cacheKey);
+				if (cached) {
+					insights = JSON.parse(cached);
+					// Don't show loading if we have cached data
+				}
+			} catch {
+				// Ignore cache errors
+			}
+		}
+
+		// Only show loading if we have no cached data
+		if (!insights) {
+			insightsLoading = true;
+		}
+
 		try {
 			const response = await apiClient.getDatasetInsights(datasetId, regenerate);
 			insights = response.insights;
+			// Cache for future visits
+			if (response.insights && typeof sessionStorage !== 'undefined') {
+				try {
+					sessionStorage.setItem(cacheKey, JSON.stringify(response.insights));
+				} catch {
+					// Ignore storage errors
+				}
+			}
 		} catch (err: unknown) {
 			// Check for 422 status (not profiled yet) - silently skip, not an error
 			const status = (err as { status?: number }).status;

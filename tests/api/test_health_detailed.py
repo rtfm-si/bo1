@@ -87,8 +87,9 @@ class TestDetailedHealthQueueCritical:
         response = client.get("/api/health/detailed")
 
         assert response.status_code == 503
-        data = response.json()  # Custom handler returns dict directly, not wrapped in "detail"
-        assert data["status"] == "critical"
+        data = response.json()
+        # http_error() returns error_code, message, and health data fields directly
+        assert data["error_code"] == "SERVICE_UNAVAILABLE"
         assert data["healthy"] is False
         assert data["event_queue"]["status"] == "critical"
         assert data["event_queue"]["healthy"] is False
@@ -115,8 +116,9 @@ class TestDetailedHealthCircuitOpen:
         response = client.get("/api/health/detailed")
 
         assert response.status_code == 503
-        data = response.json()  # Custom handler returns dict directly, not wrapped in "detail"
-        assert data["status"] == "critical"
+        data = response.json()
+        # http_error() returns error_code, message, and health data fields directly
+        assert data["error_code"] == "SERVICE_UNAVAILABLE"
         assert data["healthy"] is False
         assert data["circuit_breakers"]["healthy"] is False
         assert "anthropic" in data["circuit_breakers"]["open_circuits"]

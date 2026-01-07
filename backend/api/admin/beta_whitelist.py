@@ -6,7 +6,7 @@ Provides:
 - DELETE /api/admin/beta-whitelist/{email} - Remove email from whitelist
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.admin.helpers import (
     AdminValidationService,
@@ -21,7 +21,8 @@ from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.db_helpers import execute_query, exists
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
+from bo1.logging import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -92,9 +93,8 @@ async def add_to_beta_whitelist(
 
     # Check if email already exists
     if exists("beta_whitelist", where="email = %s", params=(email,)):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Email already whitelisted: {email}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, f"Email already whitelisted: {email}", status=400
         )
 
     # Insert new entry
@@ -145,9 +145,8 @@ async def remove_from_beta_whitelist(
     )
 
     if not row:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Email not found in whitelist: {email}",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"Email not found in whitelist: {email}", status=404
         )
 
     logger.info(f"Admin: Removed {email} from beta whitelist")

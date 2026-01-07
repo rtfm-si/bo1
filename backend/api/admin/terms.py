@@ -5,7 +5,7 @@ Provides:
 - Consent audit with time-period filtering
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.models import (
     ConsentAuditItem,
@@ -19,8 +19,9 @@ from backend.api.admin.models import (
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.pagination import make_pagination_fields
+from bo1.logging import ErrorCode
 from bo1.state.repositories.terms_repository import terms_repository
 from bo1.utils.logging import get_logger
 
@@ -127,9 +128,10 @@ async def create_terms_version(
         )
     except Exception as e:
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-            raise HTTPException(
-                status_code=409,
-                detail=f"Version '{body.version}' already exists",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Version '{body.version}' already exists",
+                status=409,
             ) from e
         raise
 
@@ -168,9 +170,10 @@ async def update_terms_version(
     record = terms_repository.update_version(version_id=version_id, content=body.content)
 
     if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Version not found or already published (cannot edit active versions)",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Version not found or already published (cannot edit active versions)",
+            status=404,
         )
 
     logger.info(f"Admin: Updated T&C version {version_id}")
@@ -207,7 +210,7 @@ async def publish_terms_version(
     record = terms_repository.publish_version(version_id=version_id)
 
     if not record:
-        raise HTTPException(status_code=404, detail="Version not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Version not found", status=404)
 
     logger.info(f"Admin: Published T&C version {record['version']} (id={version_id})")
 

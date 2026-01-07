@@ -221,6 +221,8 @@ import type {
 	// Heatmap History Depth types
 	HeatmapHistoryDepthResponse,
 	HeatmapHistoryDepthUpdate,
+	// Recent Research types
+	RecentResearchResponse,
 	// Research Embeddings types
 	ResearchEmbeddingsResponse
 } from './types';
@@ -805,7 +807,7 @@ export class ApiClient {
 				} catch {
 					error = { detail: response.statusText, status: response.status };
 				}
-				const apiError = new ApiClientError(error.detail || 'Unknown error', response.status, error);
+				const apiError = new ApiClientError(error.detail || error.message || 'Unknown error', response.status, error);
 				operationTracker.failOp(opId, apiError.message, { status: response.status });
 				throw apiError;
 			}
@@ -1723,7 +1725,7 @@ export class ApiClient {
 				} catch {
 					error = { detail: response.statusText, status: response.status };
 				}
-				const apiError = new ApiClientError(error.detail || 'Unknown error', response.status, error);
+				const apiError = new ApiClientError(error.detail || error.message || 'Unknown error', response.status, error);
 				operationTracker.failOp(opId, apiError.message, { status: response.status });
 				throw apiError;
 			}
@@ -3710,6 +3712,17 @@ export class ApiClient {
 		return this.put<HeatmapHistoryDepthResponse>('/api/v1/context/heatmap-depth', {
 			history_months: historyMonths
 		});
+	}
+
+	// =========================================================================
+	// Recent Research (Dashboard Widget)
+	// =========================================================================
+
+	/**
+	 * Get user's recent research for dashboard widget
+	 */
+	async getRecentResearch(limit: number = 10): Promise<RecentResearchResponse> {
+		return this.fetch<RecentResearchResponse>(`/api/v1/context/recent-research?limit=${limit}`);
 	}
 
 	// =========================================================================

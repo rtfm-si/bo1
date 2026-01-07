@@ -50,6 +50,21 @@
     2. Check health endpoint coverage
     3. Verify error propagation includes context
     4. Assess cost tracking completeness
-    5. Output report to /audits/reports/observability.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/observability.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Redis metrics: Check backend/api/middleware/metrics.py and health.py for redis_pool_* metrics
+    - Prometheus metrics: Grep for prometheus_client or Counter/Gauge/Histogram in target files
+    - Structured logging: Check if structlog or JSON logging already configured in target component
+    - Correlation IDs: Grep for correlation_id or request_id in middleware and handlers
+    - Health endpoints: Check /health and /readyz endpoints in backend/api/health.py
+    - Error metrics: Check for error_rate or *_errors_total metrics in metrics.py
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

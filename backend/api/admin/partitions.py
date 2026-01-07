@@ -9,11 +9,12 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
+from backend.api.utils.errors import http_error
 from backend.jobs.partition_retention_job import run_retention_job
 from backend.services.partition_manager import (
     PARTITIONED_TABLES,
@@ -141,8 +142,8 @@ async def list_partitions(request: Request) -> AllPartitionsResponse:
             f"Failed to list partitions: {e}",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve partition information"
+        raise http_error(
+            ErrorCode.DB_QUERY_ERROR, "Failed to retrieve partition information", status=500
         ) from None
 
 
@@ -187,4 +188,6 @@ async def trigger_cleanup(request: Request, body: CleanupRequest) -> CleanupResu
             months_ahead=body.months_ahead,
             dry_run=body.dry_run,
         )
-        raise HTTPException(status_code=500, detail="Failed to run partition cleanup") from None
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Failed to run partition cleanup", status=500
+        ) from None

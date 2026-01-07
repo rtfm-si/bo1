@@ -10,9 +10,10 @@ import logging
 import uuid
 from typing import Annotated, Any
 
-from fastapi import Depends, Header, HTTPException, Path
+from fastapi import Depends, Header, Path
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.utils.errors import http_error
 
 # Import MemberRole at module level to avoid circular imports
 # This is safe because models.py has no imports from this module
@@ -23,6 +24,7 @@ from backend.services.workspace_auth import (
     check_role,
     is_member,
 )
+from bo1.logging.errors import ErrorCode
 from bo1.state.repositories.workspace_repository import workspace_repository
 
 logger = logging.getLogger(__name__)
@@ -56,9 +58,8 @@ async def get_workspace_context(
         try:
             return uuid.UUID(x_workspace_id)
         except ValueError as e:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid X-Workspace-ID header format",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR, "Invalid X-Workspace-ID header format", status=400
             ) from e
 
     return None
@@ -81,14 +82,13 @@ def require_workspace_access(
     # Check workspace exists
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
     # Check membership
     if not is_member(workspace_id, user_id):
         logger.warning(f"Access denied: user {user_id} is not a member of workspace {workspace_id}")
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this workspace",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN, "You do not have access to this workspace", status=403
         )
 
 
@@ -111,16 +111,17 @@ def require_workspace_role(
     # Check workspace exists
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
     # Check role
     if not check_role(workspace_id, user_id, min_role):
         logger.warning(
             f"Insufficient role: user {user_id} needs {min_role.value} in workspace {workspace_id}"
         )
-        raise HTTPException(
-            status_code=403,
-            detail=f"This action requires {min_role.value} role or higher",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            f"This action requires {min_role.value} role or higher",
+            status=403,
         )
 
 
@@ -143,7 +144,7 @@ def require_workspace_permission(
     # Check workspace exists
     workspace = workspace_repository.get_workspace(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Workspace not found", status=404)
 
     # Check permission
     if not check_permission(workspace_id, user_id, permission):
@@ -151,9 +152,8 @@ def require_workspace_permission(
             f"Permission denied: user {user_id} lacks {permission.value} "
             f"in workspace {workspace_id}"
         )
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have permission to {permission.value}",
+        raise http_error(
+            ErrorCode.API_FORBIDDEN, f"You do not have permission to {permission.value}", status=403
         )
 
 

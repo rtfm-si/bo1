@@ -1,6 +1,6 @@
-"""Router functions for LangGraph conditional edges.
+"""Synthesis and sub-problem routing for LangGraph conditional edges.
 
-Routers determine the next node to execute based on the current state.
+Routes for synthesis, next sub-problem transitions, and parallel execution.
 """
 
 import logging
@@ -17,118 +17,6 @@ from bo1.logging import ErrorCode, log_error
 from bo1.models.state import SubProblemResult
 
 logger = logging.getLogger(__name__)
-
-
-# Re-export for backwards compatibility (private names)
-_validate_state_field = validate_state_field
-_get_problem_attr = get_problem_attr
-_get_subproblem_attr = get_subproblem_attr
-
-
-@log_routing_decision("route_phase")
-def route_phase(
-    state: DeliberationGraphState,
-) -> Literal["select_personas", "initial_round", "facilitator_decide", "END"]:
-    """Route based on current deliberation phase.
-
-    Updated in Week 5 to route to facilitator after initial round.
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        Next node name to execute
-    """
-    phase = state.get("phase")
-
-    if phase == "decomposition":
-        return "select_personas"
-    elif phase == "selection":
-        return "initial_round"
-    elif phase == "discussion":
-        return "facilitator_decide"
-    else:
-        logger.warning(f"route_phase: Unknown phase {phase}")
-        return "END"
-
-
-@log_routing_decision("route_facilitator_decision")
-def route_facilitator_decision(
-    state: DeliberationGraphState,
-) -> Literal[
-    "vote",
-    "persona_contribute",
-    "research",
-    "moderator_intervene",
-    "clarification",
-    "data_analysis",
-    "END",
-]:
-    """Route based on facilitator's decision.
-
-    Routes to different nodes based on the facilitator's action:
-    - "vote" → Move to voting phase
-    - "continue" → Persona contributes next round
-    - "research" → Execute external research
-    - "moderator" → Moderator intervenes (premature consensus only)
-    - "clarify" → Request clarification from user
-    - "analyze_data" → Execute dataset analysis
-
-    Args:
-        state: Current graph state with facilitator_decision
-
-    Returns:
-        Next node name to execute
-    """
-    decision = validate_state_field(state, "facilitator_decision", "route_facilitator_decision")
-    if not decision:
-        return "END"
-
-    action = decision["action"]
-
-    if action == "vote":
-        return "vote"
-    elif action == "continue":
-        return "persona_contribute"
-    elif action == "research":
-        return "research"
-    elif action == "moderator":
-        return "moderator_intervene"
-    elif action == "clarify":
-        return "clarification"
-    elif action == "analyze_data":
-        return "data_analysis"
-    else:
-        log_error(
-            logger,
-            ErrorCode.GRAPH_STATE_ERROR,
-            f"route_facilitator_decision: Unknown action {action}, falling back to persona_contribute",
-        )
-        return "persona_contribute"
-
-
-@log_routing_decision("route_convergence_check")
-def route_convergence_check(
-    state: DeliberationGraphState,
-) -> Literal["facilitator_decide", "vote"]:
-    """Route after convergence check based on should_stop flag.
-
-    This router is called after persona_contribute or moderator_intervene nodes.
-    It checks if convergence has been reached or round limits exceeded.
-
-    Args:
-        state: Current graph state with should_stop flag
-
-    Returns:
-        - "facilitator_decide" if deliberation should continue
-        - "vote" if stopping condition met (max rounds, convergence, etc.) - Day 31
-    """
-    should_stop = state.get("should_stop", False)
-
-    if should_stop:
-        return "vote"
-    else:
-        return "facilitator_decide"
 
 
 @log_routing_decision("route_after_synthesis")
@@ -182,13 +70,17 @@ def route_after_next_subproblem(
     1. Saved the current sub-problem result to sub_problem_results
     2. Either set current_sub_problem to next SP, or None if all complete
 
+    Note: Sub-problem failure detection is handled by EventCollector which checks
+    the final state for incomplete results and publishes the meeting_failed event.
+    This keeps the router as a pure function without API layer dependencies.
+
     Args:
         state: Current graph state (result already saved)
 
     Returns:
         - "select_personas" if more sub-problems to process
         - "meta_synthesis" if all sub-problems complete
-        - "END" if validation fails
+        - "END" if validation fails or sub-problems incomplete
     """
     problem = validate_state_field(state, "problem", "route_after_next_subproblem")
     if not problem:
@@ -220,37 +112,9 @@ def route_after_next_subproblem(
                 f"Expected {total_sub_problems} results, got {len(sub_problem_results)}.",
             )
 
-            # Emit error event to UI
-            from backend.api.dependencies import get_event_publisher
-
-            try:
-                event_publisher = get_event_publisher()
-                session_id = state.get("session_id")
-
-                if event_publisher and session_id:
-                    failed_goals = [
-                        get_subproblem_attr(sp, "goal")
-                        for sp in sub_problems
-                        if get_subproblem_attr(sp, "id") in failed_ids
-                    ]
-                    event_publisher.publish_event(
-                        session_id,
-                        "meeting_failed",
-                        {
-                            "reason": f"{failed_count} sub-problem(s) failed to complete",
-                            "failed_count": failed_count,
-                            "failed_ids": failed_ids,
-                            "failed_goals": failed_goals,
-                            "completed_count": len(sub_problem_results),
-                            "total_count": total_sub_problems,
-                        },
-                    )
-            except Exception as e:
-                log_error(
-                    logger,
-                    ErrorCode.SERVICE_EXECUTION_ERROR,
-                    f"Failed to publish meeting_failed event: {e}",
-                )
+            # Note: meeting_failed event is published by EventCollector._handle_completion
+            # when it detects incomplete sub_problem_results in the final state.
+            # This avoids importing API layer dependencies in the graph router.
 
             return "END"
 
@@ -259,31 +123,6 @@ def route_after_next_subproblem(
 
     # More sub-problems to process → continue loop
     return "select_personas"
-
-
-@log_routing_decision("route_clarification")
-def route_clarification(
-    state: DeliberationGraphState,
-) -> Literal["persona_contribute", "END"]:
-    """Route after clarification based on should_stop flag.
-
-    This router determines whether to:
-    - Continue deliberation (if clarification answered or skipped)
-    - Pause session (if user requested pause)
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        - "persona_contribute" if continuing deliberation
-        - "END" if session paused
-    """
-    should_stop = state.get("should_stop", False)
-
-    if should_stop:
-        return "END"
-    else:
-        return "persona_contribute"
 
 
 @log_routing_decision("route_subproblem_execution")
@@ -366,30 +205,3 @@ def route_on_resume(
 
     # Default: fresh start
     return "decompose"
-
-
-@log_routing_decision("route_after_identify_gaps")
-def route_after_identify_gaps(state: DeliberationGraphState) -> Literal["END", "continue"]:
-    """Route based on whether critical information gaps require user input.
-
-    After clarification answers are submitted, the checkpoint is updated with:
-    - clarification_answers: dict of question->answer pairs
-    - should_stop: False (reset to continue)
-    - stop_reason: None (cleared)
-
-    The router then sees should_stop=False and routes to "continue".
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        - "END" if clarification needed (pause for Q&A)
-        - "continue" if ready to proceed with deliberation
-    """
-    should_stop = state.get("should_stop")
-    stop_reason = state.get("stop_reason")
-
-    if should_stop and stop_reason == "clarification_needed":
-        return "END"
-
-    return "continue"

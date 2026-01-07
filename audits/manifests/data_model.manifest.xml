@@ -50,6 +50,19 @@
     2. Compare against Pydantic model fields
     3. Check state serialization functions
     4. Validate API model alignment
-    5. Output report to /audits/reports/data_model.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/data_model.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Missing fields: Check both model AND latest migrations for field existence
+    - Nullable consistency: Verify Column() and Field() defaults match before flagging
+    - Schema drift: Check if recent migration already fixed the drift
+    - Serialization: Verify serialize/deserialize functions handle the field before flagging
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

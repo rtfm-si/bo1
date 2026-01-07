@@ -116,7 +116,9 @@ class TestStartImpersonation:
             )
 
             assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "not found" in message.lower()
 
     def test_cannot_impersonate_another_admin(self, client: TestClient):
         """Should return 400 when trying to impersonate another admin."""
@@ -130,7 +132,9 @@ class TestStartImpersonation:
             )
 
             assert response.status_code == 400
-            assert "admin" in response.json()["detail"].lower()
+            detail = response.json()["detail"]
+            message = detail["message"] if isinstance(detail, dict) else detail
+            assert "admin" in message.lower()
 
     def test_cannot_impersonate_self(self, client: TestClient):
         """Should return 400 when trying to impersonate self."""
@@ -140,7 +144,9 @@ class TestStartImpersonation:
         )
 
         assert response.status_code == 400
-        assert "yourself" in response.json()["detail"].lower()
+        detail = response.json()["detail"]
+        message = detail["message"] if isinstance(detail, dict) else detail
+        assert "yourself" in message.lower()
 
 
 class TestEndImpersonation:

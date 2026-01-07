@@ -50,6 +50,21 @@
     2. Identify retry/backoff implementations
     3. Check state persistence and recovery
     4. Assess transaction boundaries
-    5. Output report to /audits/reports/reliability.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/reliability.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Retry decorator: Check bo1/state/database.py for @retry_db or tenacity decorators
+    - Circuit breaker: Grep for CircuitBreaker or circuit_breaker in target files
+    - Deadlock handling: Check if 40P01 error code is handled in retry logic
+    - SSE reconnection: Check backend/api/streaming.py for reconnection logic or Retry-After
+    - Redis fallback: Check if PostgreSQL fallback exists for Redis operations
+    - State recovery: Check checkpoint system for recovery mechanisms
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

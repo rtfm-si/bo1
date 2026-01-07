@@ -13,7 +13,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import MENTOR_RATE_LIMIT, limiter
 from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
 from backend.api.utils import RATE_LIMIT_RESPONSE
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.honeypot import HoneypotMixin, validate_honeypot_fields
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
@@ -497,7 +497,7 @@ async def mentor_chat(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Record mentor usage for tier tracking
     try:
@@ -582,11 +582,13 @@ async def search_mentions(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     if type not in ("meeting", "action", "dataset", "chat"):
-        raise HTTPException(
-            status_code=400, detail="Invalid type. Must be: meeting, action, dataset, chat"
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid type. Must be: meeting, action, dataset, chat",
+            status=400,
         )
 
     suggestions: list[MentionSuggestion] = []
@@ -709,7 +711,7 @@ async def list_mentor_conversations(
     """List recent mentor conversations for the current user."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     mentor_conv_repo = get_mentor_conversation_repo()
     conversations = mentor_conv_repo.list_by_user(user_id, limit)
@@ -747,13 +749,13 @@ async def get_mentor_conversation(
     """Get a mentor conversation with full message history."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     mentor_conv_repo = get_mentor_conversation_repo()
     conversation = mentor_conv_repo.get(conversation_id, user_id)
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)
 
     return MentorConversationDetailResponse(
         id=conversation["id"],
@@ -791,18 +793,18 @@ async def update_mentor_conversation(
     """Update a mentor conversation label."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     mentor_conv_repo = get_mentor_conversation_repo()
     updated = mentor_conv_repo.update_label(conversation_id, user_id, request.label)
 
     if not updated:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)
 
     # Fetch updated conversation for response
     conversation = mentor_conv_repo.get(conversation_id, user_id)
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)
 
     return MentorConversationResponse(
         id=conversation["id"],
@@ -831,13 +833,13 @@ async def delete_mentor_conversation(
     """Delete a mentor conversation."""
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     mentor_conv_repo = get_mentor_conversation_repo()
     deleted = mentor_conv_repo.delete(conversation_id, user_id)
 
     if not deleted:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Conversation not found", status=404)
 
 
 @router.get(
@@ -869,7 +871,7 @@ async def get_repeated_topics(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     # Get user's messages from mentor conversations
     mentor_conv_repo = get_mentor_conversation_repo()
@@ -928,7 +930,7 @@ async def get_failure_patterns(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     detector = get_action_failure_detector()
     summary = detector.detect_failure_patterns(
@@ -996,7 +998,7 @@ async def get_improvement_plan(
 
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
     generator = get_improvement_plan_generator()
     plan = await generator.generate_plan(

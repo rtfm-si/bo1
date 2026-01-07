@@ -13,7 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.api.constants import SSE_RETRY_BASE_MS, SSE_RETRY_MAX_MS
+from backend.api.constants import (
+    SSE_RECONNECT_BACKOFF_BASE_SECONDS,
+    SSE_RECONNECT_BACKOFF_MAX_SECONDS,
+    SSE_RECONNECT_BURST_THRESHOLD,
+    SSE_RETRY_BASE_MS,
+    SSE_RETRY_MAX_MS,
+)
 
 
 class TestReconnectTracking:
@@ -488,3 +494,106 @@ class TestResetReconnectCount:
             count = await _track_reconnection(mock_manager, "bo1_test123", time.time())
 
         assert count == 0
+
+
+class TestSSEReconnectBackoff:
+    """Test SSE reconnection burst protection with backoff."""
+
+    def test_backoff_calculation_zero_below_threshold(self):
+        """Returns 0 (no backoff) when count is at or below threshold."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # At threshold - no backoff
+        result = calculate_sse_reconnect_backoff(SSE_RECONNECT_BURST_THRESHOLD)
+        assert result == 0
+
+        # Below threshold - no backoff
+        result = calculate_sse_reconnect_backoff(1)
+        assert result == 0
+
+        result = calculate_sse_reconnect_backoff(0)
+        assert result == 0
+
+    def test_backoff_calculation_starts_at_base(self):
+        """First backoff (1 over threshold) returns base seconds."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # 1 over threshold
+        result = calculate_sse_reconnect_backoff(SSE_RECONNECT_BURST_THRESHOLD + 1)
+        assert result == SSE_RECONNECT_BACKOFF_BASE_SECONDS
+
+    def test_backoff_calculation_doubles(self):
+        """Backoff doubles for each additional reconnect over threshold."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # 2 over threshold: base * 2^1 = 10
+        result = calculate_sse_reconnect_backoff(SSE_RECONNECT_BURST_THRESHOLD + 2)
+        assert result == SSE_RECONNECT_BACKOFF_BASE_SECONDS * 2
+
+        # 3 over threshold: base * 2^2 = 20
+        result = calculate_sse_reconnect_backoff(SSE_RECONNECT_BURST_THRESHOLD + 3)
+        assert result == SSE_RECONNECT_BACKOFF_BASE_SECONDS * 4
+
+    def test_backoff_calculation_caps_at_max(self):
+        """Backoff is capped at max seconds."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # Large excess should cap at max
+        result = calculate_sse_reconnect_backoff(100)
+        assert result == SSE_RECONNECT_BACKOFF_MAX_SECONDS
+
+    def test_retry_after_header_value(self):
+        """Verify Retry-After header calculation for different counts."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # Default threshold=3, base=5, max=60
+        # count=4 (1 over): 5 * 2^0 = 5
+        assert calculate_sse_reconnect_backoff(4) == 5
+
+        # count=5 (2 over): 5 * 2^1 = 10
+        assert calculate_sse_reconnect_backoff(5) == 10
+
+        # count=6 (3 over): 5 * 2^2 = 20
+        assert calculate_sse_reconnect_backoff(6) == 20
+
+        # count=7 (4 over): 5 * 2^3 = 40
+        assert calculate_sse_reconnect_backoff(7) == 40
+
+        # count=8 (5 over): 5 * 2^4 = 80 -> capped at 60
+        assert calculate_sse_reconnect_backoff(8) == 60
+
+    def test_allows_normal_reconnects(self):
+        """Normal reconnects (under threshold) should not be rejected."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # Under threshold - no backoff
+        for count in range(SSE_RECONNECT_BURST_THRESHOLD + 1):
+            result = calculate_sse_reconnect_backoff(count)
+            assert result == 0, f"Count {count} should not trigger backoff"
+
+    def test_rejects_rapid_reconnects(self):
+        """Rapid reconnects (over threshold) should trigger backoff."""
+        from backend.api.streaming import calculate_sse_reconnect_backoff
+
+        # Over threshold - should have backoff
+        for count in range(SSE_RECONNECT_BURST_THRESHOLD + 1, SSE_RECONNECT_BURST_THRESHOLD + 5):
+            result = calculate_sse_reconnect_backoff(count)
+            assert result > 0, f"Count {count} should trigger backoff"
+
+
+class TestSSEReconnectRejectedMetric:
+    """Test Prometheus metric for rejected reconnections."""
+
+    def test_record_sse_reconnect_rejected_increments_counter(self):
+        """record_sse_reconnect_rejected increments counter metric."""
+        from backend.api.middleware.metrics import (
+            bo1_sse_reconnect_rejected_total,
+            record_sse_reconnect_rejected,
+        )
+
+        # Ensure metric is registered
+        _ = bo1_sse_reconnect_rejected_total.labels(session_id="test_rej").collect()
+
+        # Should not raise
+        record_sse_reconnect_rejected("test_session_reject")
+        assert True

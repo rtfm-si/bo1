@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2026-01-05_
+_Last updated: 2026-01-07 (test fixes for http_error response format)_
 
 ---
 
@@ -17,6 +17,43 @@ _Last updated: 2026-01-05_
 - [ ] [MONITORING][P1] Kubernetes deployment manifest - are we using k8s? (current: SSH to droplet)
 - [ ] [MONITORING] Clarify "grafana logs: value A" requirement
 - [ ] [DATA][P2] Clarify data retention soft-delete behavior
+
+---
+
+## Audit-derived tasks (2026-01-06)
+
+### P1 - High
+
+- [x] [PERF][P1] Add composite indexes for partitioned tables - z15_add_covering_indexes.py migration (2026-01-06)
+- [x] [PERF][P1] Optimize action tag filtering query - CTE + JOIN pattern in action_repository.py:185-186 (2026-01-06)
+- [x] [PERF][P1] Enable pg_stat_statements monitoring - z16_enable_pg_stat_statements.py migration (2026-01-06)
+- [x] [OBS][P1] Add Redis connection pool metrics - metrics.py:311-332, health.py (2026-01-06)
+- [x] [API][P1] Standardize error response format Phase 2 - migrated 10 high-priority files: mentor.py, business_metrics.py, admin/users.py, admin/ops.py, health.py, middleware/auth.py, middleware/workspace_auth.py, admin/experiments.py, billing.py, admin/blog.py (2026-01-06)
+- [x] [API][P2] Standardize error response format Phase 3 - migrated 15 admin files: templates.py, billing.py, promotions.py, feature_flags.py, feedback.py, helpers.py, impersonation.py, email.py, runtime_config.py, terms.py, session_control.py, costs.py, partitions.py, beta_whitelist.py, research_cache.py (2026-01-06)
+- [x] [API][P2] Standardize error response format Phase 4 - migrated 7 non-admin files: email.py, onboarding.py, integrations/calendar.py, tags.py, analysis.py, auth.py, templates.py; added EXT_WEBHOOK_ERROR, FEATURE_DISABLED, USER_NOT_FOUND error codes (2026-01-06)
+- [x] [API][P1] Add max length validation to text fields - blocking_reason/cancellation_reason (2000 chars), what_and_how items (1000 chars, max 20), success/kill_criteria items (500 chars, max 20) (2026-01-06)
+
+### P2 - Medium
+
+- [x] [PERF][P2] Implement session metadata caching - redis_manager.py:740-827 with PostgreSQL fallback (2026-01-06)
+- [x] [PERF][P2] Implement aggregation result caching - get_session_costs uses Redis (2026-01-06)
+- [x] [PERF][P2] Add contribution pruning in graph state - prune_contributions_after_round() prunes contributions older than 2 rounds after summary generated; reduces memory 60-80% during deliberation (2026-01-06)
+- [x] [DATA][P2] Fix Recommendation model missing fields - session_id, sub_problem_index, id, created_at, user_id in recommendations.py:22-27 (2026-01-06)
+- [x] [DATA][P2] Fix ContributionMessage schema drift - user_id, status fields in bo1/models/state.py:166-169 (2026-01-07)
+- [x] [DATA][P2] Fix Session nullable field consistency - phase, total_cost, round_number defaults in bo1/models/session.py:34-36 (2026-01-07)
+- [x] [REL][P2] Add Redis metadata fallback to PostgreSQL - dual-write in redis_manager.py (2026-01-06)
+- [x] [REL][P2] Add SSE reconnection backoff - burst protection with 429+Retry-After after >3 rapid reconnects, exponential backoff 5s-60s (2026-01-06)
+- [x] [REL][P2] Add deadlock retry to @retry_db decorator - retry.py:33-68 handles 40P01 errors (2026-01-06)
+- [x] [COST][P2] Compress persona protocol boilerplate - consolidated BEHAVIORAL_GUIDELINES + EVIDENCE_PROTOCOL into CORE_PROTOCOL (~180 tokens savings per contribution) (2026-01-06)
+- [x] [COST][P2] Reduce persona context window from 5 to 3 contributions - bo1/prompts/persona.py:130-134 (2026-01-07)
+- [x] [LLM][P2] Add unit tests for sanitization - 1184 lines across tests/test_sanitizer.py + tests/prompts/test_sanitizer.py (2026-01-06)
+
+### P3 - Low
+
+- [x] [ARCH][P3] Move event publishing out of routers - extracted meeting_failed from route_after_next_subproblem to EventCollector._check_and_publish_subproblem_failures(); added SubproblemFailure TypedDict; 6 new unit tests (2026-01-07)
+- [x] [ARCH][P3] Create bo1/graph/routers/__init__.py with router registry - split into phase.py, facilitator.py, synthesis.py; added get_router()/list_routers() (2026-01-06)
+- [x] [OBS][P3] Add query timeout to long-running database operations - statement_timeout in database.py:262,322-324 (2026-01-06)
+- [x] [OBS][P3] Add error rate metrics by component - already in metrics.py (2026-01-06)
 
 ---
 
@@ -133,6 +170,13 @@ _Last updated: 2026-01-05_
 ---
 
 ## Completed Summary
+
+### January 2026 (Week of 01/06)
+
+**Audit Task Verification**: Verified and marked 12 audit-derived tasks as complete:
+- P1: Composite indexes (z15_add_covering_indexes.py), action tag CTE+JOIN optimization, pg_stat_statements (z16 migration), Redis pool metrics
+- P2: Session metadata caching, aggregation caching, Recommendation model fields, Redis PostgreSQL fallback, deadlock retry, sanitization tests (1184 lines)
+- P3: Statement timeout, error rate metrics
 
 ### January 2026 (Week of 01/02)
 

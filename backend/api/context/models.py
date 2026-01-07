@@ -1513,6 +1513,42 @@ class HeatmapHistoryDepthUpdate(BaseModel):
 
 
 # =============================================================================
+# Recent Research Models (Dashboard Widget)
+# =============================================================================
+
+
+class ResearchSource(BaseModel):
+    """A source/citation from research."""
+
+    url: str | None = Field(None, description="Source URL")
+    title: str | None = Field(None, description="Source title")
+    snippet: str | None = Field(None, description="Relevant snippet from source")
+
+
+class RecentResearchItem(BaseModel):
+    """A recent research item for dashboard display."""
+
+    id: int = Field(..., description="Research cache ID")
+    question: str = Field(..., description="Research question/query")
+    summary: str | None = Field(None, description="AI-generated summary of findings")
+    sources: list[ResearchSource] = Field(default_factory=list, description="Source citations")
+    category: str | None = Field(None, description="Research category")
+    created_at: str = Field(..., description="ISO datetime when research was created")
+
+
+class RecentResearchResponse(BaseModel):
+    """Response containing user's recent research for dashboard widget."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    research: list[RecentResearchItem] = Field(
+        default_factory=list,
+        description="Recent research items",
+    )
+    total_count: int = Field(0, description="Total research items available")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
 # Research Embeddings Visualization Models
 # =============================================================================
 

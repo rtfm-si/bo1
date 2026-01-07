@@ -1462,6 +1462,138 @@ class EventCollector:
             f"batch_count={len(execution_batches)}, current_sub_problem_index={sub_problem_index}"
         )
 
+    def _check_and_publish_subproblem_failures(
+        self,
+        session_id: str,
+        final_state: dict[str, Any],
+    ) -> bool:
+        """Check for incomplete sub-problem results and publish meeting_failed event.
+
+        This method detects when a multi-sub-problem session terminates with
+        incomplete results (e.g., due to LLM errors, timeouts, or other failures).
+
+        ARCH P3: This logic was moved from route_after_next_subproblem to here
+        to eliminate cross-layer coupling (graph router importing API dependencies).
+
+        Detection criteria:
+        - current_sub_problem is None (indicates loop termination)
+        - sub_problem_results count < total sub_problems (incomplete)
+        - Only applies to multi-sub-problem sessions (total > 1)
+
+        Args:
+            session_id: Session identifier
+            final_state: Final deliberation state
+
+        Returns:
+            True if failure detected and event published, False otherwise
+        """
+        # Extract problem and sub-problem data
+        problem = final_state.get("problem")
+        if not problem:
+            return False
+
+        # Get sub-problems list
+        if hasattr(problem, "sub_problems"):
+            sub_problems = problem.sub_problems
+        elif isinstance(problem, dict):
+            sub_problems = problem.get("sub_problems", [])
+        else:
+            sub_problems = []
+
+        total_sub_problems = len(sub_problems)
+
+        # Skip for single sub-problem sessions (atomic problems)
+        if total_sub_problems <= 1:
+            return False
+
+        # Check if we're in a failure state:
+        # - current_sub_problem is None (loop terminated)
+        # - sub_problem_results count < total (incomplete)
+        current_sub_problem = final_state.get("current_sub_problem")
+        sub_problem_results = final_state.get("sub_problem_results", [])
+
+        if current_sub_problem is not None:
+            # Still processing - not a failure case
+            return False
+
+        if len(sub_problem_results) >= total_sub_problems:
+            # All results present - success, not failure
+            return False
+
+        # Sub-problem failure detected - calculate details
+        failed_count = total_sub_problems - len(sub_problem_results)
+
+        # Build set of completed sub-problem IDs
+        completed_ids: set[str] = set()
+        for r in sub_problem_results:
+            if isinstance(r, dict):
+                sp_id = r.get("sub_problem_id")
+            elif hasattr(r, "sub_problem_id"):
+                sp_id = r.sub_problem_id
+            else:
+                sp_id = None
+            if sp_id:
+                completed_ids.add(sp_id)
+
+        # Get expected IDs and find failed ones
+        failed_ids: list[str] = []
+        failed_goals: list[str] = []
+        for sp in sub_problems:
+            if isinstance(sp, dict):
+                sp_id = sp.get("id")
+                sp_goal = sp.get("goal", "")
+            elif hasattr(sp, "id"):
+                sp_id = sp.id
+                sp_goal = getattr(sp, "goal", "")
+            else:
+                sp_id = None
+                sp_goal = ""
+
+            if sp_id and sp_id not in completed_ids:
+                failed_ids.append(sp_id)
+                failed_goals.append(sp_goal)
+
+        # Log the failure
+        log_error(
+            logger,
+            ErrorCode.GRAPH_EXECUTION_ERROR,
+            f"[SUBPROBLEM_FAILURE] Session {session_id}: {failed_count} sub-problem(s) failed. "
+            f"Failed IDs: {failed_ids}. "
+            f"Expected {total_sub_problems} results, got {len(sub_problem_results)}.",
+        )
+
+        # Publish meeting_failed event to UI
+        self.publisher.publish_event(
+            session_id,
+            "meeting_failed",
+            {
+                "reason": f"{failed_count} sub-problem(s) failed to complete",
+                "failed_count": failed_count,
+                "failed_ids": failed_ids,
+                "failed_goals": failed_goals,
+                "completed_count": len(sub_problem_results),
+                "total_count": total_sub_problems,
+            },
+        )
+
+        # Update session status to 'failed'
+        try:
+            self.session_repo.update_status(
+                session_id=session_id,
+                status="failed",
+            )
+            # Invalidate cached metadata on status change
+            get_session_metadata_cache().invalidate(session_id)
+        except Exception as db_error:
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to update session {session_id} status to failed: {db_error}",
+                session_id=session_id,
+            )
+
+        return True
+
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
         """Handle deliberation completion - orchestrates cost breakdown, completion event, status update, and verification.
 
@@ -1482,6 +1614,15 @@ class EventCollector:
             await self._persist_partial_costs(session_id, final_state)
 
             # Still verify event persistence
+            await self._verify_event_persistence(session_id)
+            return
+
+        # Check for sub-problem failures (ARCH P3: moved from router to EventCollector)
+        # This keeps graph routers as pure functions without API layer dependencies
+        if self._check_and_publish_subproblem_failures(session_id, final_state):
+            # Sub-problem failure detected and event published
+            # Mark session as failed and return (don't proceed with normal completion)
+            await self._persist_partial_costs(session_id, final_state)
             await self._verify_event_persistence(session_id)
             return
 

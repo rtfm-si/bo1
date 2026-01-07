@@ -15,7 +15,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.context.auto_detect import (
     get_auto_detect_status,
@@ -69,11 +69,14 @@ from backend.api.context.models import (
     ObjectiveProgressResponse,
     ObjectiveProgressUpdate,
     PendingUpdatesResponse,
+    RecentResearchItem,
+    RecentResearchResponse,
     RefreshCheckResponse,
     RelevanceFlags,
     ResearchCategory,
     ResearchEmbeddingsResponse,
     ResearchPoint,
+    ResearchSource,
     StaleFieldSummary,
     StaleMetricResponse,
     StaleMetricsResponse,
@@ -3308,6 +3311,78 @@ async def update_heatmap_depth(
 
     depth = HeatmapHistoryDepth(history_months=body.history_months)
     return HeatmapHistoryDepthResponse(success=True, depth=depth)
+
+
+# =============================================================================
+# Recent Research (Dashboard Widget)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/recent-research",
+    response_model=RecentResearchResponse,
+    summary="Get recent research",
+    description="Returns user's recent research items for dashboard widget display.",
+    responses={403: ERROR_403_RESPONSE, 429: RATE_LIMIT_RESPONSE},
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("get recent research")
+async def get_recent_research(
+    request: Request,
+    limit: int = Query(default=10, ge=1, le=50, description="Maximum items to return"),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RecentResearchResponse:
+    """Get user's recent research items for dashboard display."""
+    user_id = extract_user_id(user)
+
+    # Get recent research from cache
+    research_entries = cache_repository.get_user_recent_research(user_id, limit=limit)
+
+    if not research_entries:
+        return RecentResearchResponse(
+            success=True,
+            research=[],
+            total_count=0,
+        )
+
+    # Get total count
+    total_count = cache_repository.get_user_research_total_count(user_id)
+
+    # Transform to response model
+    research_items = []
+    for entry in research_entries:
+        # Parse sources from JSON if present
+        sources = []
+        if entry.get("sources"):
+            for src in entry["sources"]:
+                if isinstance(src, dict):
+                    sources.append(
+                        ResearchSource(
+                            url=src.get("url"),
+                            title=src.get("title"),
+                            snippet=src.get("snippet"),
+                        )
+                    )
+                elif isinstance(src, str):
+                    # Legacy format: just URLs
+                    sources.append(ResearchSource(url=src))
+
+        research_items.append(
+            RecentResearchItem(
+                id=entry["id"],
+                question=entry.get("question", ""),
+                summary=entry.get("answer_summary"),
+                sources=sources,
+                category=entry.get("category"),
+                created_at=entry.get("created_at", ""),
+            )
+        )
+
+    return RecentResearchResponse(
+        success=True,
+        research=research_items,
+        total_count=total_count,
+    )
 
 
 # =============================================================================

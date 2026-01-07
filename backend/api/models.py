@@ -820,9 +820,9 @@ class ActionCreate(BaseModel):
     Attributes:
         title: Short action title
         description: Full action description
-        what_and_how: Steps to complete
-        success_criteria: Success measures
-        kill_criteria: Abandonment conditions
+        what_and_how: Steps to complete (max 20 items, max 1000 chars each)
+        success_criteria: Success measures (max 20 items, max 500 chars each)
+        kill_criteria: Abandonment conditions (max 20 items, max 500 chars each)
         priority: Priority level
         category: Action category
         timeline: Human-readable timeline
@@ -833,9 +833,16 @@ class ActionCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=500, description="Action title")
     description: str = Field(..., min_length=1, max_length=10000, description="Action description")
-    what_and_how: list[str] = Field(default_factory=list, description="Steps to complete")
-    success_criteria: list[str] = Field(default_factory=list, description="Success measures")
-    kill_criteria: list[str] = Field(default_factory=list, description="Abandonment conditions")
+    what_and_how: list[str] = Field(
+        default_factory=list, description="Steps to complete (max 20 items, max 1000 chars each)"
+    )
+    success_criteria: list[str] = Field(
+        default_factory=list, description="Success measures (max 20 items, max 500 chars each)"
+    )
+    kill_criteria: list[str] = Field(
+        default_factory=list,
+        description="Abandonment conditions (max 20 items, max 500 chars each)",
+    )
     priority: str = Field(
         default="medium", pattern="^(high|medium|low)$", description="Priority level"
     )
@@ -849,6 +856,39 @@ class ActionCreate(BaseModel):
     target_start_date: str | None = Field(None, description="Target start date (ISO)")
     target_end_date: str | None = Field(None, description="Target end date (ISO)")
 
+    @field_validator("what_and_how")
+    @classmethod
+    def validate_what_and_how(cls, v: list[str]) -> list[str]:
+        """Validate what_and_how list: max 20 items, max 1000 chars each."""
+        if len(v) > 20:
+            raise ValueError("what_and_how cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 1000:
+                raise ValueError(f"what_and_how item {i + 1} exceeds 1000 characters")
+        return v
+
+    @field_validator("success_criteria")
+    @classmethod
+    def validate_success_criteria(cls, v: list[str]) -> list[str]:
+        """Validate success_criteria list: max 20 items, max 500 chars each."""
+        if len(v) > 20:
+            raise ValueError("success_criteria cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 500:
+                raise ValueError(f"success_criteria item {i + 1} exceeds 500 characters")
+        return v
+
+    @field_validator("kill_criteria")
+    @classmethod
+    def validate_kill_criteria(cls, v: list[str]) -> list[str]:
+        """Validate kill_criteria list: max 20 items, max 500 chars each."""
+        if len(v) > 20:
+            raise ValueError("kill_criteria cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 500:
+                raise ValueError(f"kill_criteria item {i + 1} exceeds 500 characters")
+        return v
+
 
 class ActionUpdate(BaseModel):
     """Request model for updating an action.
@@ -856,9 +896,9 @@ class ActionUpdate(BaseModel):
     Attributes:
         title: Updated title
         description: Updated description
-        what_and_how: Updated steps
-        success_criteria: Updated success measures
-        kill_criteria: Updated abandonment conditions
+        what_and_how: Updated steps (max 20 items, max 1000 chars each)
+        success_criteria: Updated success measures (max 20 items, max 500 chars each)
+        kill_criteria: Updated abandonment conditions (max 20 items, max 500 chars each)
         priority: Updated priority
         category: Updated category
         timeline: Updated timeline
@@ -871,9 +911,15 @@ class ActionUpdate(BaseModel):
     description: str | None = Field(
         None, min_length=1, max_length=10000, description="Updated description"
     )
-    what_and_how: list[str] | None = Field(None, description="Updated steps")
-    success_criteria: list[str] | None = Field(None, description="Updated success measures")
-    kill_criteria: list[str] | None = Field(None, description="Updated abandonment conditions")
+    what_and_how: list[str] | None = Field(
+        None, description="Updated steps (max 20 items, max 1000 chars each)"
+    )
+    success_criteria: list[str] | None = Field(
+        None, description="Updated success measures (max 20 items, max 500 chars each)"
+    )
+    kill_criteria: list[str] | None = Field(
+        None, description="Updated abandonment conditions (max 20 items, max 500 chars each)"
+    )
     priority: str | None = Field(
         None, pattern="^(high|medium|low)$", description="Updated priority"
     )
@@ -887,15 +933,54 @@ class ActionUpdate(BaseModel):
     target_start_date: str | None = Field(None, description="Updated target start (ISO)")
     target_end_date: str | None = Field(None, description="Updated target end (ISO)")
 
+    @field_validator("what_and_how")
+    @classmethod
+    def validate_what_and_how(cls, v: list[str] | None) -> list[str] | None:
+        """Validate what_and_how list: max 20 items, max 1000 chars each."""
+        if v is None:
+            return v
+        if len(v) > 20:
+            raise ValueError("what_and_how cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 1000:
+                raise ValueError(f"what_and_how item {i + 1} exceeds 1000 characters")
+        return v
+
+    @field_validator("success_criteria")
+    @classmethod
+    def validate_success_criteria(cls, v: list[str] | None) -> list[str] | None:
+        """Validate success_criteria list: max 20 items, max 500 chars each."""
+        if v is None:
+            return v
+        if len(v) > 20:
+            raise ValueError("success_criteria cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 500:
+                raise ValueError(f"success_criteria item {i + 1} exceeds 500 characters")
+        return v
+
+    @field_validator("kill_criteria")
+    @classmethod
+    def validate_kill_criteria(cls, v: list[str] | None) -> list[str] | None:
+        """Validate kill_criteria list: max 20 items, max 500 chars each."""
+        if v is None:
+            return v
+        if len(v) > 20:
+            raise ValueError("kill_criteria cannot exceed 20 items")
+        for i, item in enumerate(v):
+            if len(item) > 500:
+                raise ValueError(f"kill_criteria item {i + 1} exceeds 500 characters")
+        return v
+
 
 class ActionStatusUpdate(BaseModel):
     """Request model for updating action status.
 
     Attributes:
         status: New status
-        blocking_reason: Reason for blocked status (required if status is 'blocked')
+        blocking_reason: Reason for blocked status (required if status is 'blocked', max 2000 chars)
         auto_unblock: Auto-unblock when dependencies complete
-        cancellation_reason: Reason for cancelled status (required if status is 'cancelled')
+        cancellation_reason: Reason for cancelled status (required if status is 'cancelled', max 2000 chars)
         failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)
         replan_suggested_at: Timestamp when replanning suggestion was shown
     """
@@ -905,9 +990,13 @@ class ActionStatusUpdate(BaseModel):
         pattern="^(todo|in_progress|blocked|in_review|done|cancelled|failed|abandoned|replanned)$",
         description="New status",
     )
-    blocking_reason: str | None = Field(None, description="Reason for blocked status")
+    blocking_reason: str | None = Field(
+        None, max_length=2000, description="Reason for blocked status (max 2000 chars)"
+    )
     auto_unblock: bool = Field(default=False, description="Auto-unblock when dependencies complete")
-    cancellation_reason: str | None = Field(None, description="Reason for cancelled status")
+    cancellation_reason: str | None = Field(
+        None, max_length=2000, description="Reason for cancelled status (max 2000 chars)"
+    )
     failure_reason_category: str | None = Field(
         None,
         pattern="^(blocker|scope_creep|dependency|unknown)$",
@@ -1119,12 +1208,12 @@ class BlockActionRequest(BaseModel):
     """Request model for blocking an action.
 
     Attributes:
-        blocking_reason: Why the action is blocked
+        blocking_reason: Why the action is blocked (max 2000 chars for detailed reasons)
         auto_unblock: Whether to auto-unblock when dependencies complete
     """
 
     blocking_reason: str = Field(
-        ..., min_length=1, max_length=500, description="Why the action is blocked"
+        ..., min_length=1, max_length=2000, description="Why the action is blocked (max 2000 chars)"
     )
     auto_unblock: bool = Field(default=False, description="Auto-unblock when dependencies complete")
 

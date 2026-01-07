@@ -9,13 +9,14 @@ Provides:
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services import experiments as exp_service
+from bo1.logging.errors import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ async def create_experiment(
         )
         return _to_response(experiment)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.get(
@@ -176,7 +177,7 @@ async def get_experiment(
     """Get experiment by ID."""
     experiment = exp_service.get_experiment(experiment_id)
     if not experiment:
-        raise HTTPException(status_code=404, detail="Experiment not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
     return _to_response(experiment)
 
 
@@ -206,10 +207,10 @@ async def update_experiment(
             metrics=body.metrics,
         )
         if not experiment:
-            raise HTTPException(status_code=404, detail="Experiment not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
         return _to_response(experiment)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.delete(
@@ -228,10 +229,10 @@ async def delete_experiment(
     try:
         deleted = exp_service.delete_experiment(experiment_id)
         if not deleted:
-            raise HTTPException(status_code=404, detail="Experiment not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
         return {"status": "deleted", "id": str(experiment_id)}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.post(
@@ -251,10 +252,10 @@ async def start_experiment(
     try:
         experiment = exp_service.start_experiment(experiment_id)
         if not experiment:
-            raise HTTPException(status_code=404, detail="Experiment not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
         return _to_response(experiment)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.post(
@@ -274,10 +275,10 @@ async def pause_experiment(
     try:
         experiment = exp_service.pause_experiment(experiment_id)
         if not experiment:
-            raise HTTPException(status_code=404, detail="Experiment not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
         return _to_response(experiment)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.post(
@@ -297,10 +298,10 @@ async def conclude_experiment(
     try:
         experiment = exp_service.conclude_experiment(experiment_id)
         if not experiment:
-            raise HTTPException(status_code=404, detail="Experiment not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Experiment not found", status=404)
         return _to_response(experiment)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=400) from None
 
 
 @router.get(

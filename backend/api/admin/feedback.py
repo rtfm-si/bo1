@@ -9,7 +9,7 @@ Provides:
 - PATCH /api/admin/feedback/{id} - Update feedback status
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
@@ -24,7 +24,8 @@ from backend.api.models import (
     FeedbackType,
     ThemeCount,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
+from bo1.logging import ErrorCode
 from bo1.state.repositories.feedback_repository import feedback_repository
 from bo1.utils.logging import get_logger
 
@@ -65,9 +66,10 @@ async def list_feedback(
     """List all feedback (admin view)."""
     # Validate type filter
     if type and type not in {FeedbackType.FEATURE_REQUEST, FeedbackType.PROBLEM_REPORT}:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid type filter. Must be one of: feature_request, problem_report",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid type filter. Must be one of: feature_request, problem_report",
+            status=400,
         )
 
     # Validate status filter
@@ -77,16 +79,18 @@ async def list_feedback(
         FeedbackStatus.RESOLVED,
         FeedbackStatus.CLOSED,
     }:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid status filter. Must be one of: new, reviewing, resolved, closed",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid status filter. Must be one of: new, reviewing, resolved, closed",
+            status=400,
         )
 
     # Validate sentiment filter
     if sentiment and sentiment not in {"positive", "negative", "neutral", "mixed"}:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid sentiment filter. Must be one of: positive, negative, neutral, mixed",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid sentiment filter. Must be one of: positive, negative, neutral, mixed",
+            status=400,
         )
 
     items = feedback_repository.list_feedback(
@@ -209,7 +213,7 @@ async def get_feedback(
     """Get a single feedback item."""
     item = feedback_repository.get_feedback_by_id(feedback_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Feedback not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Feedback not found", status=404)
 
     return FeedbackResponse(**item)
 
@@ -239,11 +243,11 @@ async def update_feedback_status(
     # Verify exists
     existing = feedback_repository.get_feedback_by_id(feedback_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Feedback not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Feedback not found", status=404)
 
     updated = feedback_repository.update_status(feedback_id, body.status)
     if not updated:
-        raise HTTPException(status_code=404, detail="Feedback not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Feedback not found", status=404)
 
     logger.info(
         f"Admin: Updated feedback {feedback_id} status to {body.status} (was {existing['status']})"

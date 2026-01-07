@@ -201,7 +201,9 @@ class TestWebhookEndpoint:
         )
 
         assert response.status_code == 400
-        assert "Invalid JSON" in response.json()["detail"]
+        data = response.json()
+        assert data["error_code"] == "VALIDATION_ERROR"
+        assert "Invalid JSON" in data["message"]
 
     @pytest.mark.skipif(not HAS_SVIX, reason="svix library not installed")
     def test_webhook_signature_verification_enabled(
@@ -217,7 +219,7 @@ class TestWebhookEndpoint:
             response = client.post("/api/v1/email/webhook", json=webhook_payload)
 
             assert response.status_code == 400
-            assert "Invalid webhook signature" in response.json()["detail"]
+            assert "Invalid webhook signature" in response.json()["detail"]["message"]
 
     def test_webhook_signature_verification_with_valid_signature(
         self, client: TestClient, webhook_payload, mock_db_session, mock_settings_with_secret

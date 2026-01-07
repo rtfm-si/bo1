@@ -12,7 +12,7 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.api.admin.models import (
     AggregatedCacheMetrics,
@@ -46,8 +46,9 @@ from backend.api.admin.models import (
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services import fixed_costs as fc
+from bo1.logging import ErrorCode
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -152,7 +153,7 @@ async def update_fixed_cost(
     )
 
     if not cost:
-        raise HTTPException(status_code=404, detail="Fixed cost not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Fixed cost not found", status=404)
 
     return FixedCostItem(
         id=cost.id,
@@ -180,7 +181,7 @@ async def delete_fixed_cost(
     """Delete (deactivate) a fixed cost."""
     deleted = fc.delete_fixed_cost(cost_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Fixed cost not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Fixed cost not found", status=404)
     return {"deleted": True, "cost_id": cost_id}
 
 

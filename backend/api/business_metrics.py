@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.metrics_repository import metrics_repository
 
@@ -295,9 +295,8 @@ async def get_metrics(
             f"Database error getting metrics: {e}",
             user_id=user_id,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while retrieving metrics",
+        raise http_error(
+            ErrorCode.DB_QUERY_ERROR, "Database error while retrieving metrics", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -309,9 +308,8 @@ async def get_metrics(
             exc_info=True,
             user_id=user_id,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get metrics: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get metrics: {str(e)}", status=500
         ) from e
 
 
@@ -341,9 +339,8 @@ async def get_templates(
 
     except (DatabaseError, OperationalError) as e:
         log_error(logger, ErrorCode.DB_QUERY_ERROR, f"Database error getting templates: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while retrieving templates",
+        raise http_error(
+            ErrorCode.DB_QUERY_ERROR, "Database error while retrieving templates", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -354,9 +351,8 @@ async def get_templates(
             f"Unexpected error getting templates: {e}",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get templates: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to get templates: {str(e)}", status=500
         ) from e
 
 
@@ -393,14 +389,15 @@ async def update_metric(
                 source=request.source.value,
             )
             if not result:
-                raise HTTPException(status_code=404, detail="Metric not found")
+                raise http_error(ErrorCode.API_NOT_FOUND, "Metric not found", status=404)
         else:
             # Check if it's a template
             template = metrics_repository.get_template(metric_key)
             if not template:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Metric '{metric_key}' not found. Create it first with POST /v1/business-metrics",
+                raise http_error(
+                    ErrorCode.API_NOT_FOUND,
+                    f"Metric '{metric_key}' not found. Create it first with POST /v1/business-metrics",
+                    status=404,
                 )
 
             # Create from template
@@ -425,9 +422,8 @@ async def update_metric(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while updating metric",
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Database error while updating metric", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -440,9 +436,8 @@ async def update_metric(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update metric: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to update metric: {str(e)}", status=500
         ) from e
 
 
@@ -470,12 +465,13 @@ async def set_metric_relevance(
         # Check if it exists
         existing = metrics_repository.get_user_metric(user_id, metric_key)
         if not existing:
-            raise HTTPException(status_code=404, detail="Metric not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Metric not found", status=404)
 
         if not existing.get("is_predefined"):
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot set relevance for custom metrics. Use DELETE instead.",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Cannot set relevance for custom metrics. Use DELETE instead.",
+                status=400,
             )
 
         result = metrics_repository.set_metric_relevance(
@@ -485,7 +481,9 @@ async def set_metric_relevance(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="Failed to update metric")
+            raise http_error(
+                ErrorCode.SERVICE_EXECUTION_ERROR, "Failed to update metric", status=500
+            )
 
         logger.info(
             f"Set metric {metric_key} relevance to {request.is_relevant} for user {user_id}"
@@ -502,9 +500,8 @@ async def set_metric_relevance(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while updating metric",
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Database error while updating metric", status=500
         ) from e
     except asyncio.CancelledError:
         raise
@@ -517,9 +514,8 @@ async def set_metric_relevance(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update metric: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to update metric: {str(e)}", status=500
         ) from e
 
 
@@ -548,18 +544,20 @@ async def create_metric(
         # Check for conflicts with templates
         template = metrics_repository.get_template(request.metric_key)
         if template:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Metric key '{request.metric_key}' conflicts with predefined template. "
+            raise http_error(
+                ErrorCode.API_CONFLICT,
+                f"Metric key '{request.metric_key}' conflicts with predefined template. "
                 "Use PUT /v1/business-metrics/{key} to set its value instead.",
+                status=409,
             )
 
         # Check for existing user metric
         existing = metrics_repository.get_user_metric(user_id, request.metric_key)
         if existing:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Metric '{request.metric_key}' already exists",
+            raise http_error(
+                ErrorCode.API_CONFLICT,
+                f"Metric '{request.metric_key}' already exists",
+                status=409,
             )
 
         # Create the metric
@@ -588,9 +586,8 @@ async def create_metric(
             user_id=user_id,
             metric_key=request.metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while creating metric",
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Database error while creating metric", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -603,9 +600,8 @@ async def create_metric(
             user_id=user_id,
             metric_key=request.metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create metric: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to create metric: {str(e)}", status=500
         ) from e
 
 
@@ -632,17 +628,18 @@ async def delete_metric(
         # Check if it exists and is custom
         existing = metrics_repository.get_user_metric(user_id, metric_key)
         if not existing:
-            raise HTTPException(status_code=404, detail="Metric not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Metric not found", status=404)
 
         if existing.get("is_predefined"):
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete predefined metrics. Set value to null instead.",
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Cannot delete predefined metrics. Set value to null instead.",
+                status=400,
             )
 
         deleted = metrics_repository.delete_metric(user_id, metric_key)
         if not deleted:
-            raise HTTPException(status_code=404, detail="Metric not found")
+            raise http_error(ErrorCode.API_NOT_FOUND, "Metric not found", status=404)
 
         logger.info(f"Deleted metric {metric_key} for user {user_id}")
         return {"status": "deleted"}
@@ -657,9 +654,8 @@ async def delete_metric(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while deleting metric",
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Database error while deleting metric", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -672,9 +668,8 @@ async def delete_metric(
             user_id=user_id,
             metric_key=metric_key,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete metric: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to delete metric: {str(e)}", status=500
         ) from e
 
 
@@ -717,9 +712,8 @@ async def initialize_metrics(
             f"Database error initializing metrics: {e}",
             user_id=user_id,
         )
-        raise HTTPException(
-            status_code=500,
-            detail="Database error while initializing metrics",
+        raise http_error(
+            ErrorCode.DB_WRITE_ERROR, "Database error while initializing metrics", status=500
         ) from e
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
@@ -731,7 +725,6 @@ async def initialize_metrics(
             exc_info=True,
             user_id=user_id,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to initialize metrics: {str(e)}",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to initialize metrics: {str(e)}", status=500
         ) from e

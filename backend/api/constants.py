@@ -117,3 +117,13 @@ SSE_RECONNECT_TTL_SECONDS: int = int(
 SSE_RETRY_BASE_MS: int = int(os.environ.get("SSE_RETRY_BASE_MS", "1000"))  # 1 second base
 SSE_RETRY_MAX_MS: int = int(os.environ.get("SSE_RETRY_MAX_MS", "30000"))  # 30 second cap
 SSE_RETRY_BACKOFF_MULTIPLIER: float = float(os.environ.get("SSE_RETRY_BACKOFF_MULTIPLIER", "2.0"))
+
+# SSE Reconnect Burst Protection
+# Rejects rapid reconnects with 429 + Retry-After header
+SSE_RECONNECT_BURST_THRESHOLD: int = int(os.environ.get("SSE_RECONNECT_BURST_THRESHOLD", "3"))
+SSE_RECONNECT_BACKOFF_BASE_SECONDS: int = int(
+    os.environ.get("SSE_RECONNECT_BACKOFF_BASE_SECONDS", "5")
+)
+SSE_RECONNECT_BACKOFF_MAX_SECONDS: int = int(
+    os.environ.get("SSE_RECONNECT_BACKOFF_MAX_SECONDS", "60")
+)

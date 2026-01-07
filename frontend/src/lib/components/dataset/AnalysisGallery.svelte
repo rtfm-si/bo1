@@ -106,30 +106,37 @@
 			<button
 				type="button"
 				onclick={() => handleAnalysisClick(analysis)}
-				class="group aspect-[4/3] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
+				class="group relative aspect-[4/3] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
 			>
 				{#if analysis.chart_url}
 					<img
 						src={analysis.chart_url}
 						alt={analysis.title || 'Chart'}
-						class="w-full h-full object-contain bg-neutral-50 dark:bg-neutral-900"
+						class="w-full h-3/4 object-contain bg-neutral-50 dark:bg-neutral-900"
 					/>
 				{:else}
-					<div class="w-full h-full flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
+					<div class="w-full h-3/4 flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
 						<svg class="w-8 h-8 text-neutral-300 dark:text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={getChartTypeIcon(analysis.chart_spec?.chart_type)} />
 						</svg>
 					</div>
 				{/if}
 
-				<!-- Overlay with title -->
-				<div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-					<p class="text-white text-xs font-medium truncate">
+				<!-- Info section - always visible -->
+				<div class="absolute bottom-0 inset-x-0 h-1/4 bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 p-2">
+					<p class="text-neutral-900 dark:text-white text-xs font-medium truncate">
 						{analysis.title || analysis.chart_spec?.chart_type || 'Analysis'}
 					</p>
-					<p class="text-white/70 text-xs">
-						{formatDate(analysis.created_at)}
-					</p>
+					<div class="flex items-center gap-2 mt-0.5">
+						{#if analysis.chart_spec?.chart_type}
+							<span class="text-[10px] px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 capitalize">
+								{analysis.chart_spec.chart_type}
+							</span>
+						{/if}
+						<span class="text-neutral-500 dark:text-neutral-400 text-[10px]">
+							{formatDate(analysis.created_at)}
+						</span>
+					</div>
 				</div>
 			</button>
 		{/each}

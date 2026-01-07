@@ -7,13 +7,14 @@ Provides:
 - GET /api/admin/research-cache/stale - Get stale research cache entries
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.models import CacheMetricsResponse, ResearchCacheStats, StaleEntriesResponse
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
+from bo1.logging import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -102,9 +103,8 @@ async def delete_research_cache_entry(
     deleted = cache_repository.delete(cache_id)
 
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Research cache entry not found: {cache_id}",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"Research cache entry not found: {cache_id}", status=404
         )
 
     logger.info(f"Admin: Deleted research cache entry {cache_id}")

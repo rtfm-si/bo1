@@ -123,7 +123,26 @@ Before writing to `_TASK.md`:
    - `P1` – high-value within next sprint
    - `P2` – nice-to-have / later
 
-You don’t need complex scoring; just note priority in the task text.
+You don't need complex scoring; just note priority in the task text.
+
+---
+
+## STEP 3.5 – VERIFY IMPLEMENTATIONS BEFORE WRITING
+
+**CRITICAL:** Before writing ANY task to `_TASK.md`, verify it is not already implemented:
+
+1. For each candidate task, check the `<verification_checks>` section of the originating manifest
+2. Run the relevant verification (grep for function, check migrations, etc.)
+3. **Skip** tasks where implementation already exists
+4. **Modify** task scope if partial implementation exists (e.g., "migrate remaining 50 endpoints" not "migrate all endpoints")
+
+Common verification patterns:
+- **Indexes**: Check `migrations/versions/` for `*_index*.py` or `z15_*`, `z16_*` naming
+- **Metrics**: Grep `backend/api/middleware/metrics.py` and `health.py`
+- **Error handling**: Grep for `http_error(` usage count
+- **Caching**: Check for Redis cache patterns in target files
+
+If a task was generated but implementation exists, log it as "Already implemented: [task]" in audit output but do NOT add to `_TASK.md`.
 
 ---
 
@@ -171,11 +190,17 @@ Before finalising:
    - New tasks follow the existing style and structure.
    - No obvious duplicates.
    - Tags correctly reflect the originating audit (`[ARCH]`, `[PERF]`, etc.).
+   - **CRITICAL**: Every task was verified against codebase before inclusion (Step 3.5).
 
 3. If any audit produced ambiguous or speculative issues:
    - Do not create tasks for those.
    - Or, group them under a single meta-task like:
      - `- [ ] [TAG][P2] Human review of ambiguous issues from {{audit_type}} audit.`
+
+4. Confirm implementation verification:
+   - Tasks for indexes, metrics, error handling were verified against migrations/ and middleware/
+   - No tasks were added for already-implemented features
+   - Partial implementations result in scoped tasks (e.g., "remaining N endpoints")
 
 ---
 

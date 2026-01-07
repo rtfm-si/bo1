@@ -12,13 +12,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query, get_single_value
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
@@ -229,7 +229,7 @@ async def complete_step(
     )
 
     if not row:
-        raise HTTPException(status_code=500, detail="Failed to update step")
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to update step", 500)
 
     context_setup = _check_context_setup(user_id)
     tour_done = row.get("tour_completed", False)
@@ -298,7 +298,7 @@ async def complete_tour(
         )
 
     if not row:
-        raise HTTPException(status_code=500, detail="Failed to complete tour")
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to complete tour", 500)
 
     context_setup = _check_context_setup(user_id)
 
@@ -347,7 +347,7 @@ async def skip_onboarding(
     )
 
     if not row:
-        raise HTTPException(status_code=500, detail="Failed to skip onboarding")
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to skip onboarding", 500)
 
     context_setup = _check_context_setup(user_id)
 
@@ -397,7 +397,7 @@ async def reset_onboarding(
     )
 
     if not row:
-        raise HTTPException(status_code=500, detail="Failed to reset onboarding")
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to reset onboarding", 500)
 
     context_setup = _check_context_setup(user_id)
 

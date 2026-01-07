@@ -144,6 +144,12 @@ class ContributionPruning:
     PRUNE_AFTER_PHASE = "convergence"
     """Phase after which pruning is applied (synthesis uses round_summaries)"""
 
+    PRUNE_AFTER_ROUND_SUMMARY = True
+    """Enable pruning at end of each round (after summary generated). Safe because summaries capture content."""
+
+    ROUNDS_TO_RETAIN = 2
+    """Number of recent rounds to retain raw contributions for (older rounds are summarized)"""
+
 
 class PersonaContextConfig:
     """Persona context window configuration for token optimization.
@@ -1418,6 +1424,25 @@ class ModelSelectionConfig:
         if percentage < ModelSelectionConfig.get_ab_test_percentage():
             return "test"
         return "control"
+
+
+class ActionValidationLimits:
+    """Validation limits for action text fields.
+
+    Prevents DB overflow and DoS via oversized payloads.
+    """
+
+    MAX_BLOCKING_REASON_LENGTH = 2000
+    """Maximum length for blocking_reason and cancellation_reason fields"""
+
+    MAX_STEP_LENGTH = 1000
+    """Maximum length for what_and_how items"""
+
+    MAX_CRITERION_LENGTH = 500
+    """Maximum length for success_criteria and kill_criteria items"""
+
+    MAX_LIST_ITEMS = 20
+    """Maximum items in what_and_how, success_criteria, kill_criteria lists"""
 
 
 class CostAnomalyConfig:

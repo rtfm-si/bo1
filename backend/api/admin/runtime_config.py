@@ -11,15 +11,16 @@ All changes are audit logged.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.auth_helpers import require_admin_role
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services import runtime_config
+from bo1.logging import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -125,17 +126,19 @@ async def set_runtime_config(
 
     # Validate key is allowed
     if key not in runtime_config.ALLOWED_OVERRIDES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Key '{key}' is not configurable. Allowed keys: {list(runtime_config.ALLOWED_OVERRIDES.keys())}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Key '{key}' is not configurable. Allowed keys: {list(runtime_config.ALLOWED_OVERRIDES.keys())}",
+            status=400,
         )
 
     # Set the override
     success = runtime_config.set_override(key, body.value)
     if not success:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to set override. Check Redis connectivity.",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to set override. Check Redis connectivity.",
+            status=500,
         )
 
     # Audit log
@@ -190,17 +193,19 @@ async def clear_runtime_config(
 
     # Validate key is allowed
     if key not in runtime_config.ALLOWED_OVERRIDES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Key '{key}' is not configurable. Allowed keys: {list(runtime_config.ALLOWED_OVERRIDES.keys())}",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Key '{key}' is not configurable. Allowed keys: {list(runtime_config.ALLOWED_OVERRIDES.keys())}",
+            status=400,
         )
 
     # Clear the override
     success = runtime_config.clear_override(key)
     if not success:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to clear override. Check Redis connectivity.",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to clear override. Check Redis connectivity.",
+            status=500,
         )
 
     # Audit log

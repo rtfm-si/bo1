@@ -181,10 +181,10 @@ class TestReadyEndpoint:
         response = client.get("/api/ready")
         assert response.status_code == 503
         data = response.json()
-        assert data["status"] == "shutting_down"
+        # http_error() returns structured response with error_code
+        assert data["error_code"] == "SERVICE_UNAVAILABLE"
+        assert data["status_detail"] == "shutting_down"
         assert data["ready"] is False
-        # Verify error_code is present (structured error response)
-        assert "error_code" in data
 
 
 class TestHSTSEndpoint:
@@ -267,7 +267,8 @@ class TestVoyageHealthEndpoint:
                 response = client.get("/api/health/voyage")
                 assert response.status_code == 503
                 data = response.json()
-                assert data["status"] == "unhealthy"
+                # http_error() uses status_detail to avoid conflict with status param
+                assert data["status_detail"] == "unhealthy"
                 assert data["component"] == "voyage"
                 assert data["healthy"] is False
                 assert "not set" in data["message"]
@@ -282,7 +283,8 @@ class TestVoyageHealthEndpoint:
             response = client.get("/api/health/voyage")
             assert response.status_code == 503
             data = response.json()
-            assert data["status"] == "unhealthy"
+            # http_error() uses status_detail to avoid conflict with status param
+            assert data["status_detail"] == "unhealthy"
             assert data["component"] == "voyage"
             assert data["healthy"] is False
             assert "invalid format" in data["message"]
@@ -319,7 +321,8 @@ class TestBraveHealthEndpoint:
             response = client.get("/api/health/brave")
             assert response.status_code == 503
             data = response.json()
-            assert data["status"] == "unhealthy"
+            # http_error() uses status_detail to avoid conflict with status param
+            assert data["status_detail"] == "unhealthy"
             assert data["component"] == "brave"
             assert data["healthy"] is False
             assert "not set" in data["message"]
@@ -334,7 +337,8 @@ class TestBraveHealthEndpoint:
             response = client.get("/api/health/brave")
             assert response.status_code == 503
             data = response.json()
-            assert data["status"] == "unhealthy"
+            # http_error() uses status_detail to avoid conflict with status param
+            assert data["status_detail"] == "unhealthy"
             assert data["component"] == "brave"
             assert data["healthy"] is False
             assert "invalid format" in data["message"]

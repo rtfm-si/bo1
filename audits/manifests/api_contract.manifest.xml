@@ -50,6 +50,20 @@
     2. Map authentication requirements per endpoint
     3. Validate request/response model coverage
     4. Check SSE event schemas
-    5. Output report to /audits/reports/api_contract.report.md
+    5. VERIFY existing implementations before generating tasks (see verification_checks)
+    6. Output report to /audits/reports/api_contract.report.md
   </run_pattern>
+
+  <verification_checks>
+    Before generating any task, verify it is NOT already implemented:
+
+    - Error format: Check backend/api/utils/http_error.py for http_error() function; grep for its usage
+    - Validation: Check if pydantic Field(..., max_length=) or validators exist on target models
+    - SSE versioning: Check backend/api/events.py for SSE_EVENT_VERSION constant
+    - Rate limiting: Check middleware/ for rate limit decorators or RetryAfter headers
+    - OpenAPI: Check if openapi.json exists and is up-to-date with routes
+
+    Skip generating tasks for items that already have implementations.
+    If partial implementation exists, generate task for remaining work only.
+  </verification_checks>
 </audit_manifest>

@@ -12,7 +12,7 @@ Provides:
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
@@ -21,7 +21,7 @@ from backend.api.models import (
     TagResponse,
     TagUpdate,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.tag_repository import tag_repository
 
@@ -111,9 +111,8 @@ async def create_tag(
         return _format_tag_response(tag)
     except Exception as e:
         if "uq_tags_user_name" in str(e) or "duplicate key" in str(e).lower():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Tag '{tag_data.name}' already exists",
+            raise http_error(
+                ErrorCode.API_CONFLICT, f"Tag '{tag_data.name}' already exists", 400
             ) from None
         log_error(
             logger,
@@ -122,7 +121,7 @@ async def create_tag(
             user_id=user_id,
             tag_name=tag_data.name,
         )
-        raise HTTPException(status_code=500, detail="Failed to create tag") from None
+        raise http_error(ErrorCode.DB_QUERY_ERROR, "Failed to create tag", 500) from None
 
 
 @router.patch(
@@ -162,7 +161,7 @@ async def update_tag(
     )
 
     if not tag:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Tag not found", 404)
 
     return _format_tag_response(tag)
 
@@ -194,6 +193,6 @@ async def delete_tag(
     logger.info(f"Deleting tag {tag_id} for user {user_id}")
 
     if not tag_repository.delete(tag_id, user_id):
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Tag not found", 404)
 
     return {"message": "Tag deleted successfully", "tag_id": tag_id}

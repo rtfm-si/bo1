@@ -10,7 +10,7 @@ Provides:
 import asyncio
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.helpers import AdminQueryService, AdminUserService
 from backend.api.admin.models import (
@@ -26,7 +26,7 @@ from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.ntfy import notify_admin_impersonation
 from backend.api.utils import RATE_LIMIT_RESPONSE
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.admin_impersonation import (
     ImpersonationSession,
     end_impersonation,
@@ -34,6 +34,7 @@ from backend.services.admin_impersonation import (
     get_impersonation_history,
     start_impersonation,
 )
+from bo1.logging import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -83,24 +84,17 @@ async def start_impersonation_endpoint(
     """Start impersonating a target user."""
     # Cannot impersonate self
     if user_id == admin_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot impersonate yourself",
-        )
+        raise http_error(ErrorCode.VALIDATION_ERROR, "Cannot impersonate yourself", status=400)
 
     # Check if target user exists
     if not AdminQueryService.user_exists(user_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found: {user_id}",
-        )
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
 
     # Cannot impersonate another admin (security measure)
     target_user = AdminQueryService.get_user(user_id)
     if target_user.is_admin:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot impersonate another admin user",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Cannot impersonate another admin user", status=400
         )
 
     # Start impersonation
@@ -113,9 +107,10 @@ async def start_impersonation_endpoint(
     )
 
     if not session:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to start impersonation session",
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            "Failed to start impersonation session",
+            status=500,
         )
 
     # Log admin action

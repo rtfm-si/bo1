@@ -465,6 +465,7 @@ class TestFieldCount:
             "research_sharing_consented",
             "is_resumed_session",
             "prior_expert_summaries",
+            "subproblem_failures",
         }
 
         # Combine all fields

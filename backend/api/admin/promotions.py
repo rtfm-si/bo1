@@ -9,7 +9,7 @@ Provides:
 - GET /api/admin/promotions/users - List users with active promotions
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
@@ -21,8 +21,9 @@ from backend.api.models import (
     UserPromotionBrief,
     UserWithPromotionsResponse,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
+from bo1.logging import ErrorCode
 from bo1.state.repositories.promotion_repository import promotion_repository
 from bo1.utils.logging import get_logger
 
@@ -77,12 +78,10 @@ async def create_promotion(
     # Check if code already exists
     existing = promotion_repository.get_promotion_by_code(body.code)
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Code already exists",
-                "message": f"Promotion code '{body.code}' already exists",
-            },
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Promotion code '{body.code}' already exists",
+            status=400,
         )
 
     promo = promotion_repository.create_promotion(
@@ -119,11 +118,13 @@ async def deactivate_promotion(
     # Verify exists
     promo = promotion_repository.get_promotion_by_id(promotion_id)
     if not promo:
-        raise HTTPException(status_code=404, detail="Promotion not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Promotion not found", status=404)
 
     result = promotion_repository.deactivate_promotion(promotion_id)
     if not result:
-        raise HTTPException(status_code=404, detail="Promotion not found or already deactivated")
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, "Promotion not found or already deactivated", status=404
+        )
 
     logger.info(f"Admin: Deactivated promotion {promotion_id} ({promo['code']})")
     return {"status": "deactivated", "promotion_id": promotion_id}
@@ -150,7 +151,7 @@ async def restore_promotion(
     """Restore a soft-deleted promotion."""
     result = promotion_repository.restore_promotion(promotion_id)
     if not result:
-        raise HTTPException(status_code=404, detail="Promotion not found or not deleted")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Promotion not found or not deleted", status=404)
 
     logger.info(f"Admin: Restored promotion {promotion_id}")
     return {"status": "restored", "promotion_id": promotion_id}
@@ -185,9 +186,11 @@ async def apply_promotion_to_user(
             "promotion_code": body.code,
         }
     except PromoValidationError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": e.code, "message": e.message},
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            e.message,
+            status=400,
+            promo_error_code=e.code,
         ) from None
 
 
@@ -212,7 +215,7 @@ async def remove_user_promotion(
     """Remove a promotion from a user account."""
     result = promotion_repository.remove_user_promotion(user_promotion_id)
     if not result:
-        raise HTTPException(status_code=404, detail="User promotion not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "User promotion not found", status=404)
 
     logger.info(f"Admin: Removed user promotion {user_promotion_id}")
     return {"status": "removed", "user_promotion_id": user_promotion_id}

@@ -10,12 +10,13 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
+from backend.api.utils.errors import http_error
 from backend.services.mentor_context import MentorContext, get_mentor_context_service
 from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
 from backend.services.usage_tracking import UsageResult
@@ -213,7 +214,7 @@ async def ask_analysis(
     """
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
+        raise http_error(ErrorCode.AUTH_TOKEN_ERROR, "User ID not found", 401)
 
     # Record usage for tier tracking (only for non-dataset queries)
     if not request.dataset_id:

@@ -11,13 +11,14 @@ decision scenarios like product launches, pricing changes, etc.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from backend.api.models import (
     MeetingTemplate,
     MeetingTemplateListResponse,
 )
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
+from bo1.logging import ErrorCode
 from bo1.state.repositories.template_repository import template_repository
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,6 @@ async def get_template(
 
     template = template_repository.get_by_slug(slug)
     if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise http_error(ErrorCode.API_NOT_FOUND, "Template not found", 404)
 
     return _format_template_response(template)

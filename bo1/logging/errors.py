@@ -88,6 +88,13 @@ class ErrorCode(str, Enum):
     EXT_STRIPE_ERROR = "EXT_STRIPE_ERROR"
     EXT_EMAIL_ERROR = "EXT_EMAIL_ERROR"
     EXT_CALENDAR_ERROR = "EXT_CALENDAR_ERROR"
+    EXT_WEBHOOK_ERROR = "EXT_WEBHOOK_ERROR"  # Webhook signature/payload validation
+
+    # Feature access errors
+    FEATURE_DISABLED = "FEATURE_DISABLED"  # Disabled feature access attempt
+
+    # User errors
+    USER_NOT_FOUND = "USER_NOT_FOUND"  # User lookup failed
     EXT_SPACES_ERROR = "EXT_SPACES_ERROR"
     EXT_SHEETS_ERROR = "EXT_SHEETS_ERROR"
     EXT_NTFY_ERROR = "EXT_NTFY_ERROR"

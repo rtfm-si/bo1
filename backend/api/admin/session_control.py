@@ -10,7 +10,7 @@ Provides:
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.models import (
     ActiveSessionInfo,
@@ -28,8 +28,9 @@ from backend.api.dependencies import (
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.validation import validate_session_id
+from bo1.logging import ErrorCode
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -191,9 +192,10 @@ async def admin_kill_session(
     killed = await session_manager.admin_kill_session(session_id, "admin", reason)
 
     if not killed:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session not found or not running: {session_id}",
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            f"Session not found or not running: {session_id}",
+            status=404,
         )
 
     logger.warning(f"Admin: Killed session {session_id}. Reason: {reason}")
@@ -227,9 +229,8 @@ async def admin_kill_all_sessions(
 ) -> KillAllResponse:
     """Emergency shutdown - kill all active sessions."""
     if not confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="Must set confirm=true to kill all sessions",
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR, "Must set confirm=true to kill all sessions", status=400
         )
 
     session_manager = get_session_manager()

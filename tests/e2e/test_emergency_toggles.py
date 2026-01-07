@@ -211,7 +211,7 @@ class TestRuntimeConfigSecurityE2E:
             )
 
             assert response.status_code == 400
-            assert "not configurable" in response.json()["detail"].lower()
+            assert "not configurable" in response.json()["detail"]["message"].lower()
 
     def test_cannot_clear_non_whitelisted_key(self, admin_client: TestClient) -> None:
         """Test that non-whitelisted keys cannot be cleared."""
@@ -221,7 +221,7 @@ class TestRuntimeConfigSecurityE2E:
             response = admin_client.delete("/api/admin/runtime-config/not_allowed_key")
 
             assert response.status_code == 400
-            assert "not configurable" in response.json()["detail"].lower()
+            assert "not configurable" in response.json()["detail"]["message"].lower()
 
 
 class TestToggleBehaviorE2E:

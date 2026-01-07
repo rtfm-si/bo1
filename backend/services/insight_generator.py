@@ -506,6 +506,7 @@ async def generate_dataset_insights(
     dataset_id = profile_dict.get("dataset_id", "unknown")
     profile_hash = _compute_insight_hash(profile_dict)
     cache_key = f"{INSIGHT_CACHE_PREFIX}:{dataset_id}:{profile_hash}"
+    logger.info(f"[Insights] dataset={dataset_id[:8]}... hash={profile_hash} use_cache={use_cache}")
 
     metadata = {"tokens_used": 0, "model_used": "sonnet", "cached": False}
 
@@ -515,12 +516,18 @@ async def generate_dataset_insights(
         try:
             if redis.client is not None:
                 cached = redis.client.get(cache_key)
-                if cached and isinstance(cached, bytes):
-                    logger.debug(f"Cache hit for dataset insights {dataset_id}")
-                    cached_data = json.loads(cached.decode("utf-8"))
+                if cached:
+                    # decode_responses=True means we get str, not bytes
+                    cached_str = cached if isinstance(cached, str) else cached.decode("utf-8")
+                    logger.info(f"[Insights] CACHE HIT for {dataset_id[:8]}...")
+                    cached_data = json.loads(cached_str)
                     insights = DatasetInsights(**cached_data)
                     metadata["cached"] = True
                     return insights, metadata
+                else:
+                    logger.info(f"[Insights] CACHE MISS for {dataset_id[:8]}... (key not found)")
+            else:
+                logger.warning("[Insights] Redis client is None - cache disabled")
         except Exception as e:
             logger.warning(f"Redis cache read failed: {e}")
 
@@ -596,7 +603,9 @@ async def generate_dataset_insights(
             if redis.client is not None:
                 cache_data = insights.model_dump(mode="json")
                 redis.client.setex(cache_key, INSIGHT_CACHE_TTL, json.dumps(cache_data))
-                logger.debug(f"Cached insights for dataset {dataset_id}")
+                logger.info(
+                    f"[Insights] CACHED insights for {dataset_id[:8]}... (TTL={INSIGHT_CACHE_TTL}s)"
+                )
         except Exception as e:
             logger.warning(f"Redis cache write failed: {e}")
 

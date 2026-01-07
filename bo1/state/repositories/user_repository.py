@@ -198,6 +198,8 @@ class UserRepository(BaseRepository):
         "action_metric_triggers",
         # Strategic objective progress tracking
         "strategic_objectives_progress",
+        # AI-generated market trend summary
+        "trend_summary",
     ]
 
     @classmethod
@@ -378,6 +380,7 @@ class UserRepository(BaseRepository):
             "managed_competitors",
             "trend_insights",
             "action_metric_triggers",
+            "trend_summary",
         }
 
         values = []

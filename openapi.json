@@ -1239,7 +1239,7 @@
         "type": "object"
       },
       "ActionStatusUpdate": {
-        "description": "Request model for updating action status.\n\nAttributes:\n    status: New status\n    blocking_reason: Reason for blocked status (required if status is 'blocked')\n    auto_unblock: Auto-unblock when dependencies complete\n    cancellation_reason: Reason for cancelled status (required if status is 'cancelled')\n    failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)\n    replan_suggested_at: Timestamp when replanning suggestion was shown",
+        "description": "Request model for updating action status.\n\nAttributes:\n    status: New status\n    blocking_reason: Reason for blocked status (required if status is 'blocked', max 2000 chars)\n    auto_unblock: Auto-unblock when dependencies complete\n    cancellation_reason: Reason for cancelled status (required if status is 'cancelled', max 2000 chars)\n    failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)\n    replan_suggested_at: Timestamp when replanning suggestion was shown",
         "properties": {
           "auto_unblock": {
             "default": false,
@@ -1250,25 +1250,27 @@
           "blocking_reason": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Reason for blocked status",
+            "description": "Reason for blocked status (max 2000 chars)",
             "title": "Blocking Reason"
           },
           "cancellation_reason": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Reason for cancelled status",
+            "description": "Reason for cancelled status (max 2000 chars)",
             "title": "Cancellation Reason"
           },
           "failure_reason_category": {
@@ -3663,7 +3665,7 @@
         "type": "object"
       },
       "BlockActionRequest": {
-        "description": "Request model for blocking an action.\n\nAttributes:\n    blocking_reason: Why the action is blocked\n    auto_unblock: Whether to auto-unblock when dependencies complete",
+        "description": "Request model for blocking an action.\n\nAttributes:\n    blocking_reason: Why the action is blocked (max 2000 chars for detailed reasons)\n    auto_unblock: Whether to auto-unblock when dependencies complete",
         "properties": {
           "auto_unblock": {
             "default": false,
@@ -3672,8 +3674,8 @@
             "type": "boolean"
           },
           "blocking_reason": {
-            "description": "Why the action is blocked",
-            "maxLength": 500,
+            "description": "Why the action is blocked (max 2000 chars)",
+            "maxLength": 2000,
             "minLength": 1,
             "title": "Blocking Reason",
             "type": "string"
@@ -20859,6 +20861,106 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecentResearchItem": {
+        "description": "A recent research item for dashboard display.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Research category",
+            "title": "Category"
+          },
+          "created_at": {
+            "description": "ISO datetime when research was created",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "description": "Research cache ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "question": {
+            "description": "Research question/query",
+            "title": "Question",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Source citations",
+            "items": {
+              "$ref": "#/components/schemas/ResearchSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AI-generated summary of findings",
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "created_at"
+        ],
+        "title": "RecentResearchItem",
+        "type": "object"
+      },
+      "RecentResearchResponse": {
+        "description": "Response containing user's recent research for dashboard widget.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "research": {
+            "description": "Recent research items",
+            "items": {
+              "$ref": "#/components/schemas/RecentResearchItem"
+            },
+            "title": "Research",
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "total_count": {
+            "default": 0,
+            "description": "Total research items available",
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "RecentResearchResponse",
+        "type": "object"
+      },
       "RedisPoolHealthResponse": {
         "description": "Redis connection pool health response.\n\nAttributes:\n    status: Component health status\n    component: Component name (redis_pool)\n    healthy: Whether pool is healthy\n    used_connections: Connections currently in use\n    free_connections: Connections available in pool\n    max_connections: Maximum pool size\n    pool_utilization_pct: Pool utilization percentage (0-100)\n    message: Status message\n    error: Error message if unhealthy\n    timestamp: ISO 8601 timestamp",
         "properties": {
@@ -21693,6 +21795,49 @@
           "created_at"
         ],
         "title": "ResearchPoint",
+        "type": "object"
+      },
+      "ResearchSource": {
+        "description": "A source/citation from research.",
+        "properties": {
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relevant snippet from source",
+            "title": "Snippet"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source title",
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source URL",
+            "title": "Url"
+          }
+        },
+        "title": "ResearchSource",
         "type": "object"
       },
       "RetentionReminderSettingsResponse": {
@@ -49286,6 +49431,84 @@
           }
         },
         "summary": "Approve a pending context update",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/recent-research": {
+      "get": {
+        "description": "Returns user's recent research items for dashboard widget display.",
+        "operationId": "get_recent_research_api_v1_context_recent_research_get",
+        "parameters": [
+          {
+            "description": "Maximum items to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum items to return",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentResearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get recent research",
         "tags": [
           "context",
           "context"

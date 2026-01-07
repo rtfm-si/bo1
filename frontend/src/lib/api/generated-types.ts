@@ -5671,6 +5671,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/recent-research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get recent research
+         * @description Returns user's recent research items for dashboard widget display.
+         */
+        get: operations["get_recent_research_api_v1_context_recent_research_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/refresh-check": {
         parameters: {
             query?: never;
@@ -10952,9 +10972,9 @@ export interface components {
          *
          *     Attributes:
          *         status: New status
-         *         blocking_reason: Reason for blocked status (required if status is 'blocked')
+         *         blocking_reason: Reason for blocked status (required if status is 'blocked', max 2000 chars)
          *         auto_unblock: Auto-unblock when dependencies complete
-         *         cancellation_reason: Reason for cancelled status (required if status is 'cancelled')
+         *         cancellation_reason: Reason for cancelled status (required if status is 'cancelled', max 2000 chars)
          *         failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)
          *         replan_suggested_at: Timestamp when replanning suggestion was shown
          */
@@ -10967,12 +10987,12 @@ export interface components {
             auto_unblock: boolean;
             /**
              * Blocking Reason
-             * @description Reason for blocked status
+             * @description Reason for blocked status (max 2000 chars)
              */
             blocking_reason?: string | null;
             /**
              * Cancellation Reason
-             * @description Reason for cancelled status
+             * @description Reason for cancelled status (max 2000 chars)
              */
             cancellation_reason?: string | null;
             /**
@@ -12644,7 +12664,7 @@ export interface components {
          * @description Request model for blocking an action.
          *
          *     Attributes:
-         *         blocking_reason: Why the action is blocked
+         *         blocking_reason: Why the action is blocked (max 2000 chars for detailed reasons)
          *         auto_unblock: Whether to auto-unblock when dependencies complete
          */
         BlockActionRequest: {
@@ -12656,7 +12676,7 @@ export interface components {
             auto_unblock: boolean;
             /**
              * Blocking Reason
-             * @description Why the action is blocked
+             * @description Why the action is blocked (max 2000 chars)
              */
             blocking_reason: string;
         };
@@ -23867,6 +23887,69 @@ export interface components {
             vendor_status?: string | null;
         };
         /**
+         * RecentResearchItem
+         * @description A recent research item for dashboard display.
+         */
+        RecentResearchItem: {
+            /**
+             * Category
+             * @description Research category
+             */
+            category?: string | null;
+            /**
+             * Created At
+             * @description ISO datetime when research was created
+             */
+            created_at: string;
+            /**
+             * Id
+             * @description Research cache ID
+             */
+            id: number;
+            /**
+             * Question
+             * @description Research question/query
+             */
+            question: string;
+            /**
+             * Sources
+             * @description Source citations
+             */
+            sources?: components["schemas"]["ResearchSource"][];
+            /**
+             * Summary
+             * @description AI-generated summary of findings
+             */
+            summary?: string | null;
+        };
+        /**
+         * RecentResearchResponse
+         * @description Response containing user's recent research for dashboard widget.
+         */
+        RecentResearchResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Research
+             * @description Recent research items
+             */
+            research?: components["schemas"]["RecentResearchItem"][];
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Total Count
+             * @description Total research items available
+             * @default 0
+             */
+            total_count: number;
+        };
+        /**
          * RedisPoolHealthResponse
          * @description Redis connection pool health response.
          *
@@ -24463,6 +24546,27 @@ export interface components {
              * @description Y coordinate (PCA reduced)
              */
             y: number;
+        };
+        /**
+         * ResearchSource
+         * @description A source/citation from research.
+         */
+        ResearchSource: {
+            /**
+             * Snippet
+             * @description Relevant snippet from source
+             */
+            snippet?: string | null;
+            /**
+             * Title
+             * @description Source title
+             */
+            title?: string | null;
+            /**
+             * Url
+             * @description Source URL
+             */
+            url?: string | null;
         };
         /**
          * RetentionReminderSettingsResponse
@@ -42887,6 +42991,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recent_research_api_v1_context_recent_research_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum items to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecentResearchResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

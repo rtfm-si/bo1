@@ -838,23 +838,26 @@ class ProjectRepository(BaseRepository):
             "actions": [
                 {
                     "id": str(a["id"]),
-                    "title": a["title"],
+                    "name": a["title"],
+                    "start": self._to_iso_string_or_none(a["estimated_start_date"]) or "",
+                    "end": self._to_iso_string_or_none(a["estimated_end_date"]) or "",
+                    "progress": 0,
+                    "dependencies": "",
                     "status": a["status"],
-                    "priority": a["priority"],
-                    "estimated_start_date": self._to_iso_string_or_none(a["estimated_start_date"]),
-                    "estimated_end_date": self._to_iso_string_or_none(a["estimated_end_date"]),
-                    "actual_start_date": self._to_iso_string_or_none(a["actual_start_date"]),
-                    "actual_end_date": self._to_iso_string_or_none(a["actual_end_date"]),
-                    "blocking_reason": a["blocking_reason"],
+                    "priority": a["priority"] or "medium",
+                    "session_id": "",
+                    "status_color": None,
+                    "priority_color": None,
+                    "project_color": None,
                 }
                 for a in actions
             ],
             "dependencies": [
                 {
-                    "from": str(d["depends_on_action_id"]),
-                    "to": str(d["action_id"]),
-                    "type": d["dependency_type"],
-                    "lag_days": d["lag_days"],
+                    "action_id": str(d["action_id"]),
+                    "depends_on_id": str(d["depends_on_action_id"]),
+                    "dependency_type": d["dependency_type"],
+                    "lag_days": d["lag_days"] or 0,
                 }
                 for d in dependencies
             ],

@@ -195,21 +195,20 @@
 
 	async function fetchInvestigation(runNew = false) {
 		investigationError = null;
-
-		// Try to get cached investigation first
-		if (!runNew) {
-			try {
-				investigationLoading = true;
-				investigation = await apiClient.getDatasetInvestigation(datasetId);
-				return;
-			} catch {
-				// No cached investigation, will try to run new one
-			}
-		}
-
-		// Run new investigation
 		investigationLoading = true;
+
 		try {
+			// Try to get cached investigation first
+			if (!runNew) {
+				try {
+					investigation = await apiClient.getDatasetInvestigation(datasetId);
+					return;
+				} catch {
+					// No cached investigation, will try to run new one
+				}
+			}
+
+			// Run new investigation
 			investigation = await apiClient.investigateDataset(datasetId);
 		} catch (err: unknown) {
 			// Check for 422 status (not profiled yet) - silently skip

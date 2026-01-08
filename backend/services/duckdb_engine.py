@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import duckdb
+import pandas as pd
 
 from backend.api.models import (
     FilterSpec,
@@ -584,7 +585,9 @@ def execute_duckdb_query(
     return result
 
 
-def get_duckdb_dataframe(conn: duckdb.DuckDBPyConnection, max_rows: int | None = None):
+def get_duckdb_dataframe(
+    conn: duckdb.DuckDBPyConnection, max_rows: int | None = None
+) -> pd.DataFrame:
     """Get pandas DataFrame from DuckDB table.
 
     Useful for chart generation that requires a DataFrame.

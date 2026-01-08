@@ -8,20 +8,8 @@
 # reason = "Brief justification why this is safe to ignore"
 # expiry = "2025-06-01" # Optional: re-evaluate after this date
 
-# cookie 0.6.0 - SvelteKit transitive dependency, no fix available upstream
-# SvelteKit pins cookie@^0.6.0, vulnerability requires attacker-controlled cookie names
+# urllib3 2.6.2 SSRF vulnerability - requires lockfile regeneration to fix
 [[IgnoredVulns]]
-id = "GHSA-pxg6-pf52-xh8x"
-reason = "SvelteKit transitive dep, low severity, no upstream fix available"
-ignoreUntil = 2026-03-01
-
-# urllib3 2.5.0 - pinned by botocore/langsmith, monitoring for compatible upgrade
-[[IgnoredVulns]]
-id = "GHSA-2xpw-w6gg-jr37"
-reason = "urllib3 pinned by botocore, SSRF requires attacker-controlled URL"
-ignoreUntil = 2026-03-01
-
-[[IgnoredVulns]]
-id = "GHSA-gm62-xv2j-4w53"
-reason = "urllib3 pinned by botocore, proxy bypass requires specific config"
-ignoreUntil = 2026-03-01
+id = "GHSA-38jv-5279-wg99"
+reason = "urllib3 2.6.3 requires lockfile regeneration, no external URLs in SSRF scope"
+ignoreUntil = 2026-02-01

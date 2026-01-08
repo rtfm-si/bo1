@@ -486,7 +486,6 @@ class DatasetRepository(BaseRepository):
         Returns:
             True if updated, False if not found
         """
-
         with db_session() as conn:
             with conn.cursor() as cur:
                 # Use jsonb_set to merge into existing descriptions

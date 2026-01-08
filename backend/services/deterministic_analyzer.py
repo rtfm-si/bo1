@@ -214,15 +214,28 @@ class DatasetInvestigation:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
+
+        def convert_numpy(obj: Any) -> Any:
+            """Recursively convert numpy types to native Python types."""
+            if isinstance(obj, dict):
+                return {k: convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy(v) for v in obj]
+            elif isinstance(obj, (np.bool_, np.generic)):
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return obj
+
         return {
-            "column_roles": asdict(self.column_roles),
-            "missingness": asdict(self.missingness),
-            "descriptive_stats": asdict(self.descriptive_stats),
-            "outliers": asdict(self.outliers),
-            "correlations": asdict(self.correlations),
-            "time_series_readiness": asdict(self.time_series_readiness),
-            "segmentation_suggestions": asdict(self.segmentation_suggestions),
-            "data_quality": asdict(self.data_quality),
+            "column_roles": convert_numpy(asdict(self.column_roles)),
+            "missingness": convert_numpy(asdict(self.missingness)),
+            "descriptive_stats": convert_numpy(asdict(self.descriptive_stats)),
+            "outliers": convert_numpy(asdict(self.outliers)),
+            "correlations": convert_numpy(asdict(self.correlations)),
+            "time_series_readiness": convert_numpy(asdict(self.time_series_readiness)),
+            "segmentation_suggestions": convert_numpy(asdict(self.segmentation_suggestions)),
+            "data_quality": convert_numpy(asdict(self.data_quality)),
         }
 
 

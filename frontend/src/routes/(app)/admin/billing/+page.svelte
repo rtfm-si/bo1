@@ -10,12 +10,14 @@
 		type BillingProduct,
 		type BillingConfigResponse,
 		type SyncStatus,
-		type SyncResult
+		type SyncResult,
+		type StripeConfigStatus
 	} from '$lib/api/admin';
 
 	// State
 	let config = $state<BillingConfigResponse | null>(null);
 	let syncStatus = $state<SyncStatus | null>(null);
+	let stripeConfig = $state<StripeConfigStatus | null>(null);
 	let isLoading = $state(true);
 	let isSyncing = $state(false);
 	let error = $state<string | null>(null);
@@ -43,12 +45,14 @@
 		isLoading = true;
 		error = null;
 		try {
-			const [configRes, statusRes] = await Promise.all([
+			const [configRes, statusRes, stripeRes] = await Promise.all([
 				adminApi.getBillingProducts(),
-				adminApi.getBillingSyncStatus()
+				adminApi.getBillingSyncStatus(),
+				adminApi.getStripeConfigStatus()
 			]);
 			config = configRes;
 			syncStatus = statusRes;
+			stripeConfig = stripeRes;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load billing config';
 		} finally {
@@ -144,12 +148,24 @@
 							Refresh
 						{/snippet}
 					</Button>
-					<Button variant="brand" size="sm" onclick={syncToStripe} disabled={isSyncing}>
-						{#snippet children()}
-							<Cloud class="w-4 h-4 {isSyncing ? 'animate-pulse' : ''}" />
-							{isSyncing ? 'Syncing...' : 'Sync to Stripe'}
-						{/snippet}
-					</Button>
+					<div class="relative group">
+						<Button
+							variant="brand"
+							size="sm"
+							onclick={syncToStripe}
+							disabled={isSyncing || !stripeConfig?.configured}
+						>
+							{#snippet children()}
+								<Cloud class="w-4 h-4 {isSyncing ? 'animate-pulse' : ''}" />
+								{isSyncing ? 'Syncing...' : 'Sync to Stripe'}
+							{/snippet}
+						</Button>
+						{#if stripeConfig && !stripeConfig.configured}
+							<div class="absolute right-0 top-full mt-1 w-64 p-2 bg-neutral-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10">
+								{stripeConfig.error || 'Stripe not configured'}
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
 		</div>
@@ -157,6 +173,38 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Stripe Config Warning Banner -->
+		{#if stripeConfig && !stripeConfig.configured}
+			<div class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4 mb-6">
+				<div class="flex items-start gap-3">
+					<CloudOff class="w-5 h-5 text-warning-500 mt-0.5 flex-shrink-0" />
+					<div>
+						<p class="font-medium text-warning-800 dark:text-warning-200">Stripe not configured</p>
+						<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">
+							{stripeConfig.error || 'STRIPE_SECRET_KEY environment variable is not set.'}
+						</p>
+						<p class="text-sm text-warning-600 dark:text-warning-400 mt-2">
+							To enable Stripe sync, set the <code class="bg-warning-100 dark:bg-warning-900 px-1 rounded">STRIPE_SECRET_KEY</code> environment variable with a valid Stripe secret key.
+						</p>
+					</div>
+				</div>
+			</div>
+		{:else if stripeConfig?.mode === 'test'}
+			<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
+				<div class="flex items-center gap-2">
+					<div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+					<span class="text-sm text-blue-700 dark:text-blue-300">Stripe is in <strong>test mode</strong></span>
+				</div>
+			</div>
+		{:else if stripeConfig?.mode === 'live'}
+			<div class="bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-lg p-3 mb-6">
+				<div class="flex items-center gap-2">
+					<div class="w-2 h-2 bg-success-500 rounded-full"></div>
+					<span class="text-sm text-success-700 dark:text-success-300">Stripe is in <strong>live mode</strong></span>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Sync Status Card -->
 		{#if syncStatus}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4 mb-6">

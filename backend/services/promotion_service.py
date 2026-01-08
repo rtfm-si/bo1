@@ -79,6 +79,33 @@ class PromoValidationError(Exception):
         super().__init__(message)
 
 
+def check_seo_access_promo(user_id: str) -> bool:
+    """Check if user has an active SEO access promotion.
+
+    Args:
+        user_id: The user ID to check
+
+    Returns:
+        True if user has an active seo_access promotion
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM user_promotions up
+                JOIN promotions p ON up.promotion_id = p.id
+                WHERE up.user_id = %s
+                  AND up.status = 'active'
+                  AND p.type = 'seo_access'
+                  AND p.deleted_at IS NULL
+                  AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                LIMIT 1
+                """,
+                (user_id,),
+            )
+            return cur.fetchone() is not None
+
+
 def check_deliberation_allowance(user_id: str) -> AllowanceResult:
     """Check user's total remaining deliberation credits across active promos.
 
@@ -282,6 +309,7 @@ def validate_and_apply_code(user_id: str, code: str) -> dict:
         deliberations_remaining = int(promo["value"])
     elif promo["type"] in ("percentage_discount", "flat_discount"):
         discount_applied = float(promo["value"])
+    # seo_access type: no deliberations or discount, just feature grant via active promo
 
     # Apply the promotion (within a transaction for atomicity)
     with db_session() as conn:

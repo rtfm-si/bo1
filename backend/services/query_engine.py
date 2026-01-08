@@ -2,6 +2,8 @@
 
 Executes structured queries (filter, aggregate, trend, compare, correlate)
 against pandas DataFrames loaded from datasets.
+
+For large datasets (>100K rows), automatically routes to DuckDB backend.
 """
 
 import hashlib
@@ -22,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Cache TTL for query results (5 minutes)
 QUERY_CACHE_TTL = 300
+
+# Threshold for switching to DuckDB backend (100K rows)
+LARGE_DATASET_THRESHOLD = 100_000
 
 
 class QueryError(Exception):
@@ -371,3 +376,75 @@ def execute_query(
     )
 
     return result
+
+
+def should_use_duckdb(row_count: int) -> bool:
+    """Determine if DuckDB backend should be used based on row count.
+
+    Args:
+        row_count: Number of rows in dataset
+
+    Returns:
+        True if DuckDB should be used (row_count >= threshold)
+    """
+    return row_count >= LARGE_DATASET_THRESHOLD
+
+
+def execute_query_auto(
+    file_key: str,
+    spec: QuerySpec,
+    dataset_id: str | None = None,
+    use_cache: bool = True,
+    row_count: int | None = None,
+) -> QueryResult:
+    """Execute query with automatic backend selection.
+
+    Chooses between pandas (small datasets) and DuckDB (large datasets).
+
+    Args:
+        file_key: Spaces object key for the CSV file
+        spec: Query specification
+        dataset_id: Dataset ID for caching
+        use_cache: Whether to use result caching
+        row_count: Pre-computed row count (optional, will be fetched if not provided)
+
+    Returns:
+        QueryResult with rows, columns, count, pagination info
+
+    Raises:
+        QueryError: If query execution fails
+    """
+    from backend.services.dataframe_loader import load_dataframe
+    from backend.services.duckdb_engine import (
+        DuckDBError,
+        execute_duckdb_query,
+        get_row_count,
+        load_csv_to_duckdb,
+    )
+
+    # Get row count if not provided
+    if row_count is None:
+        try:
+            row_count = get_row_count(file_key)
+        except DuckDBError as e:
+            logger.warning(f"Failed to get row count via DuckDB, using pandas: {e}")
+            row_count = 0  # Fall back to pandas
+
+    # Choose backend based on row count
+    if should_use_duckdb(row_count):
+        logger.info(f"Using DuckDB backend for {row_count} rows (>={LARGE_DATASET_THRESHOLD})")
+        try:
+            conn = load_csv_to_duckdb(file_key)
+            try:
+                result = execute_duckdb_query(conn, spec, dataset_id, use_cache)
+                return result
+            finally:
+                conn.close()
+        except DuckDBError as e:
+            logger.error(f"DuckDB query failed, falling back to pandas: {e}")
+            # Fall through to pandas
+
+    # Use pandas for small datasets or as fallback
+    logger.info(f"Using pandas backend for {row_count} rows (<{LARGE_DATASET_THRESHOLD})")
+    df = load_dataframe(file_key, max_rows=None)  # Load all rows
+    return execute_query(df, spec, dataset_id, use_cache)

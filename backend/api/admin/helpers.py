@@ -277,7 +277,7 @@ class AdminValidationService:
         Raises:
             HTTPException: If tier is invalid
         """
-        valid_tiers = ["free", "pro", "enterprise"]
+        valid_tiers = ["free", "starter", "pro", "enterprise"]
         if tier not in valid_tiers:
             raise http_error(
                 ErrorCode.VALIDATION_ERROR,

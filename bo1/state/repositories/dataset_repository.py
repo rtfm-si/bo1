@@ -319,6 +319,123 @@ class DatasetRepository(BaseRepository):
             }
         return None
 
+    def update_dataset(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Update dataset name and/or description.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+            name: New name (optional)
+            description: New description (optional)
+
+        Returns:
+            Updated dataset or None if not found
+        """
+        updates: list[str] = []
+        values: list[str] = []
+        if name is not None:
+            updates.append("name = %s")
+            values.append(name)
+        if description is not None:
+            updates.append("description = %s")
+            values.append(description)
+
+        if not updates:
+            return self.get_by_id(dataset_id, user_id)
+
+        updates.append("updated_at = NOW()")
+        values.extend([str(dataset_id), str(user_id)])
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    UPDATE datasets
+                    SET {", ".join(updates)}
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    RETURNING id, user_id, name, description, source_type, source_uri,
+                              file_key, row_count, column_count, file_size_bytes,
+                              created_at, updated_at
+                    """,
+                    values,
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return {
+                "id": str(row["id"]),
+                "user_id": str(row["user_id"]),
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            }
+        return None
+
+    def acknowledge_pii(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+    ) -> dict[str, Any] | None:
+        """Acknowledge PII warning for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+
+        Returns:
+            Updated dataset or None if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE datasets
+                    SET pii_acknowledged_at = NOW(), updated_at = NOW()
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    RETURNING id, user_id, name, description, source_type, source_uri,
+                              file_key, storage_path, row_count, column_count, file_size_bytes,
+                              pii_acknowledged_at, created_at, updated_at
+                    """,
+                    (str(dataset_id), str(user_id)),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return {
+                "id": str(row["id"]),
+                "user_id": str(row["user_id"]),
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "storage_path": row["storage_path"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "pii_acknowledged_at": (
+                    row["pii_acknowledged_at"].isoformat() if row["pii_acknowledged_at"] else None
+                ),
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            }
+        return None
+
     def update_summary(
         self,
         dataset_id: str | UUID,
@@ -350,6 +467,73 @@ class DatasetRepository(BaseRepository):
                 conn.commit()
 
         return result is not None
+
+    def update_column_description(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+        column_name: str,
+        description: str,
+    ) -> bool:
+        """Update user-editable description for a specific column.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+            column_name: Column to update
+            description: User's description text
+
+        Returns:
+            True if updated, False if not found
+        """
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Use jsonb_set to merge into existing descriptions
+                cur.execute(
+                    """
+                    UPDATE datasets
+                    SET column_descriptions = COALESCE(column_descriptions, '{}'::jsonb)
+                        || jsonb_build_object(%s, %s)
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    RETURNING id
+                    """,
+                    (column_name, description, str(dataset_id), user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def get_column_descriptions(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+    ) -> dict[str, str]:
+        """Get all user-defined column descriptions for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+
+        Returns:
+            Dict mapping column_name to description
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT column_descriptions
+                    FROM datasets
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    """,
+                    (str(dataset_id), user_id),
+                )
+                row = cur.fetchone()
+
+        if row and row["column_descriptions"]:
+            return dict(row["column_descriptions"])
+        return {}
 
     # =========================================================================
     # Dataset Profiles
@@ -702,3 +886,955 @@ class DatasetRepository(BaseRepository):
                 conn.commit()
 
         return result is not None
+
+    # =========================================================================
+    # Dataset Favourites
+    # =========================================================================
+
+    def create_favourite(
+        self,
+        user_id: str,
+        dataset_id: str,
+        favourite_type: str,
+        analysis_id: str | None = None,
+        message_id: str | None = None,
+        insight_data: dict[str, Any] | None = None,
+        title: str | None = None,
+        content: str | None = None,
+        chart_spec: dict[str, Any] | None = None,
+        figure_json: dict[str, Any] | None = None,
+        user_note: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a favourite for a dataset item."""
+        import json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get next sort order
+                cur.execute(
+                    """
+                    SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order
+                    FROM dataset_favourites
+                    WHERE user_id = %s AND dataset_id = %s
+                    """,
+                    (user_id, dataset_id),
+                )
+                next_order = cur.fetchone()["next_order"]
+
+                cur.execute(
+                    """
+                    INSERT INTO dataset_favourites (
+                        user_id, dataset_id, favourite_type,
+                        analysis_id, message_id, insight_data,
+                        title, content, chart_spec, figure_json,
+                        user_note, sort_order
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING id, user_id, dataset_id, favourite_type,
+                              analysis_id, message_id, insight_data,
+                              title, content, chart_spec, figure_json,
+                              user_note, sort_order, created_at
+                    """,
+                    (
+                        user_id,
+                        dataset_id,
+                        favourite_type,
+                        analysis_id,
+                        message_id,
+                        json.dumps(insight_data) if insight_data else None,
+                        title,
+                        content,
+                        json.dumps(chart_spec) if chart_spec else None,
+                        json.dumps(figure_json) if figure_json else None,
+                        user_note,
+                        next_order,
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_favourite(row)
+        return {}
+
+    def _row_to_favourite(self, row: Any) -> dict[str, Any]:
+        """Convert database row to favourite dict."""
+        return {
+            "id": str(row["id"]),
+            "dataset_id": str(row["dataset_id"]),
+            "favourite_type": row["favourite_type"],
+            "analysis_id": str(row["analysis_id"]) if row["analysis_id"] else None,
+            "message_id": str(row["message_id"]) if row["message_id"] else None,
+            "insight_data": row["insight_data"],
+            "title": row["title"],
+            "content": row["content"],
+            "chart_spec": row["chart_spec"],
+            "figure_json": row["figure_json"],
+            "user_note": row["user_note"],
+            "sort_order": row["sort_order"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+        }
+
+    def get_favourite(self, favourite_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get a favourite by ID."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_id, favourite_type,
+                           analysis_id, message_id, insight_data,
+                           title, content, chart_spec, figure_json,
+                           user_note, sort_order, created_at
+                    FROM dataset_favourites
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (favourite_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_favourite(row)
+        return None
+
+    def list_favourites(self, dataset_id: str, user_id: str) -> list[dict[str, Any]]:
+        """List favourites for a dataset, ordered by sort_order."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_id, favourite_type,
+                           analysis_id, message_id, insight_data,
+                           title, content, chart_spec, figure_json,
+                           user_note, sort_order, created_at
+                    FROM dataset_favourites
+                    WHERE dataset_id = %s AND user_id = %s
+                    ORDER BY sort_order ASC
+                    """,
+                    (dataset_id, user_id),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_favourite(row) for row in rows]
+
+    def update_favourite(
+        self,
+        favourite_id: str,
+        user_id: str,
+        user_note: str | None = None,
+        sort_order: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Update a favourite."""
+        updates: list[str] = []
+        values: list[Any] = []
+
+        if user_note is not None:
+            updates.append("user_note = %s")
+            values.append(user_note)
+        if sort_order is not None:
+            updates.append("sort_order = %s")
+            values.append(sort_order)
+
+        if not updates:
+            return self.get_favourite(favourite_id, user_id)
+
+        values.extend([favourite_id, user_id])
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    UPDATE dataset_favourites
+                    SET {", ".join(updates)}
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id, user_id, dataset_id, favourite_type,
+                              analysis_id, message_id, insight_data,
+                              title, content, chart_spec, figure_json,
+                              user_note, sort_order, created_at
+                    """,
+                    values,
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_favourite(row)
+        return None
+
+    def delete_favourite(self, favourite_id: str, user_id: str) -> bool:
+        """Delete a favourite."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_favourites
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (favourite_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def get_favourites_by_ids(self, favourite_ids: list[str], user_id: str) -> list[dict[str, Any]]:
+        """Get multiple favourites by IDs."""
+        if not favourite_ids:
+            return []
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_id, favourite_type,
+                           analysis_id, message_id, insight_data,
+                           title, content, chart_spec, figure_json,
+                           user_note, sort_order, created_at
+                    FROM dataset_favourites
+                    WHERE id = ANY(%s) AND user_id = %s
+                    ORDER BY sort_order ASC
+                    """,
+                    (favourite_ids, user_id),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_favourite(row) for row in rows]
+
+    # =========================================================================
+    # Dataset Reports
+    # =========================================================================
+
+    def create_report(
+        self,
+        user_id: str,
+        dataset_id: str,
+        title: str,
+        report_content: dict[str, Any],
+        favourite_ids: list[str],
+        executive_summary: str | None = None,
+        model_used: str | None = None,
+        tokens_used: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a dataset report."""
+        import json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO dataset_reports (
+                        user_id, dataset_id, title, executive_summary,
+                        report_content, favourite_ids, model_used, tokens_used
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, user_id, dataset_id, title, executive_summary,
+                              report_content, favourite_ids, model_used, tokens_used,
+                              created_at, updated_at
+                    """,
+                    (
+                        user_id,
+                        dataset_id,
+                        title,
+                        executive_summary,
+                        json.dumps(report_content),
+                        favourite_ids,
+                        model_used,
+                        tokens_used,
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_report(row)
+        return {}
+
+    def _row_to_report(self, row: Any) -> dict[str, Any]:
+        """Convert database row to report dict."""
+        return {
+            "id": str(row["id"]),
+            "dataset_id": str(row["dataset_id"]) if row["dataset_id"] else None,
+            "title": row["title"],
+            "executive_summary": row["executive_summary"],
+            "report_content": row["report_content"],
+            "favourite_ids": [str(fid) for fid in row["favourite_ids"]]
+            if row["favourite_ids"]
+            else [],
+            "model_used": row["model_used"],
+            "tokens_used": row["tokens_used"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+
+    def get_report(self, report_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get a report by ID."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_id, title, executive_summary,
+                           report_content, favourite_ids, model_used, tokens_used,
+                           created_at, updated_at
+                    FROM dataset_reports
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (report_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_report(row)
+        return None
+
+    def list_reports(self, dataset_id: str, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        """List reports for a dataset."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_id, title, executive_summary,
+                           report_content, favourite_ids, model_used, tokens_used,
+                           created_at, updated_at
+                    FROM dataset_reports
+                    WHERE dataset_id = %s AND user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (dataset_id, user_id, limit),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_report(row) for row in rows]
+
+    def delete_report(self, report_id: str, user_id: str) -> bool:
+        """Delete a report."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_reports
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (report_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def list_all_reports(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """List all reports for a user across all datasets.
+
+        Includes orphaned reports (where dataset was deleted).
+
+        Args:
+            user_id: User ID
+            limit: Max results
+
+        Returns:
+            List of reports with dataset name attached (or None if deleted), newest first
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT r.id, r.user_id, r.dataset_id, r.title, r.executive_summary,
+                           r.report_content, r.favourite_ids, r.model_used, r.tokens_used,
+                           r.created_at, r.updated_at,
+                           d.name as dataset_name
+                    FROM dataset_reports r
+                    LEFT JOIN datasets d ON d.id = r.dataset_id AND d.deleted_at IS NULL
+                    WHERE r.user_id = %s
+                    ORDER BY r.created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, limit),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_report_with_dataset(row) for row in rows]
+
+    def _row_to_report_with_dataset(self, row: Any) -> dict[str, Any]:
+        """Convert database row to report dict with dataset name."""
+        result = self._row_to_report(row)
+        if "dataset_name" in row.keys():
+            result["dataset_name"] = row["dataset_name"]
+        return result
+
+    # =========================================================================
+    # Dataset Investigations (8 Deterministic Analyses)
+    # =========================================================================
+
+    def save_investigation(
+        self,
+        dataset_id: str,
+        user_id: str,
+        investigation: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Save or update investigation results for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID
+            investigation: Dict with 8 analysis results
+
+        Returns:
+            Saved investigation record
+        """
+        import json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Upsert - one investigation per dataset
+                cur.execute(
+                    """
+                    INSERT INTO dataset_investigations (
+                        dataset_id, user_id,
+                        column_roles, missingness, descriptive_stats, outliers,
+                        correlations, time_series_readiness, segmentation_suggestions, data_quality
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (dataset_id) DO UPDATE SET
+                        column_roles = EXCLUDED.column_roles,
+                        missingness = EXCLUDED.missingness,
+                        descriptive_stats = EXCLUDED.descriptive_stats,
+                        outliers = EXCLUDED.outliers,
+                        correlations = EXCLUDED.correlations,
+                        time_series_readiness = EXCLUDED.time_series_readiness,
+                        segmentation_suggestions = EXCLUDED.segmentation_suggestions,
+                        data_quality = EXCLUDED.data_quality,
+                        computed_at = NOW()
+                    RETURNING id, dataset_id, user_id,
+                              column_roles, missingness, descriptive_stats, outliers,
+                              correlations, time_series_readiness, segmentation_suggestions, data_quality,
+                              computed_at
+                    """,
+                    (
+                        dataset_id,
+                        user_id,
+                        json.dumps(investigation.get("column_roles")),
+                        json.dumps(investigation.get("missingness")),
+                        json.dumps(investigation.get("descriptive_stats")),
+                        json.dumps(investigation.get("outliers")),
+                        json.dumps(investigation.get("correlations")),
+                        json.dumps(investigation.get("time_series_readiness")),
+                        json.dumps(investigation.get("segmentation_suggestions")),
+                        json.dumps(investigation.get("data_quality")),
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_investigation(row)
+        return {}
+
+    def _row_to_investigation(self, row: Any) -> dict[str, Any]:
+        """Convert database row to investigation dict."""
+        return {
+            "id": str(row["id"]),
+            "dataset_id": str(row["dataset_id"]),
+            "column_roles": row["column_roles"],
+            "missingness": row["missingness"],
+            "descriptive_stats": row["descriptive_stats"],
+            "outliers": row["outliers"],
+            "correlations": row["correlations"],
+            "time_series_readiness": row["time_series_readiness"],
+            "segmentation_suggestions": row["segmentation_suggestions"],
+            "data_quality": row["data_quality"],
+            "computed_at": row["computed_at"].isoformat() if row["computed_at"] else None,
+        }
+
+    def get_investigation(self, dataset_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get investigation for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+
+        Returns:
+            Investigation record or None
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT i.id, i.dataset_id, i.user_id,
+                           i.column_roles, i.missingness, i.descriptive_stats, i.outliers,
+                           i.correlations, i.time_series_readiness, i.segmentation_suggestions, i.data_quality,
+                           i.computed_at
+                    FROM dataset_investigations i
+                    JOIN datasets d ON d.id = i.dataset_id
+                    WHERE i.dataset_id = %s AND d.user_id = %s AND d.deleted_at IS NULL
+                    """,
+                    (dataset_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_investigation(row)
+        return None
+
+    def delete_investigation(self, dataset_id: str, user_id: str) -> bool:
+        """Delete investigation for a dataset."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_investigations i
+                    USING datasets d
+                    WHERE i.dataset_id = d.id
+                      AND i.dataset_id = %s
+                      AND d.user_id = %s
+                    RETURNING i.id
+                    """,
+                    (dataset_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    # =========================================================================
+    # Dataset Business Context
+    # =========================================================================
+
+    def save_business_context(
+        self,
+        dataset_id: str,
+        user_id: str,
+        business_goal: str | None = None,
+        key_metrics: list[str] | None = None,
+        kpis: list[str] | None = None,
+        objectives: str | None = None,
+        industry: str | None = None,
+        additional_context: str | None = None,
+    ) -> dict[str, Any]:
+        """Save or update business context for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID
+            business_goal: User's business goal
+            key_metrics: List of key metrics
+            kpis: List of KPIs
+            objectives: Objectives text
+            industry: Industry name
+            additional_context: Any additional context
+
+        Returns:
+            Saved business context record
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Upsert - one context per dataset
+                cur.execute(
+                    """
+                    INSERT INTO dataset_business_context (
+                        dataset_id, user_id,
+                        business_goal, key_metrics, kpis, objectives, industry, additional_context
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (dataset_id) DO UPDATE SET
+                        business_goal = EXCLUDED.business_goal,
+                        key_metrics = EXCLUDED.key_metrics,
+                        kpis = EXCLUDED.kpis,
+                        objectives = EXCLUDED.objectives,
+                        industry = EXCLUDED.industry,
+                        additional_context = EXCLUDED.additional_context,
+                        updated_at = NOW()
+                    RETURNING id, dataset_id, user_id,
+                              business_goal, key_metrics, kpis, objectives, industry, additional_context,
+                              created_at, updated_at
+                    """,
+                    (
+                        dataset_id,
+                        user_id,
+                        business_goal,
+                        key_metrics,
+                        kpis,
+                        objectives,
+                        industry,
+                        additional_context,
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_business_context(row)
+        return {}
+
+    def _row_to_business_context(self, row: Any) -> dict[str, Any]:
+        """Convert database row to business context dict."""
+        return {
+            "id": str(row["id"]),
+            "dataset_id": str(row["dataset_id"]),
+            "business_goal": row["business_goal"],
+            "key_metrics": row["key_metrics"] or [],
+            "kpis": row["kpis"] or [],
+            "objectives": row["objectives"],
+            "industry": row["industry"],
+            "additional_context": row["additional_context"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+
+    def get_business_context(self, dataset_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get business context for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+
+        Returns:
+            Business context record or None
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT bc.id, bc.dataset_id, bc.user_id,
+                           bc.business_goal, bc.key_metrics, bc.kpis, bc.objectives,
+                           bc.industry, bc.additional_context,
+                           bc.created_at, bc.updated_at
+                    FROM dataset_business_context bc
+                    JOIN datasets d ON d.id = bc.dataset_id
+                    WHERE bc.dataset_id = %s AND d.user_id = %s AND d.deleted_at IS NULL
+                    """,
+                    (dataset_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_business_context(row)
+        return None
+
+    def delete_business_context(self, dataset_id: str, user_id: str) -> bool:
+        """Delete business context for a dataset."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_business_context bc
+                    USING datasets d
+                    WHERE bc.dataset_id = d.id
+                      AND bc.dataset_id = %s
+                      AND d.user_id = %s
+                    RETURNING bc.id
+                    """,
+                    (dataset_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    # =========================================================================
+    # Dataset Comparisons
+    # =========================================================================
+
+    def save_comparison(
+        self,
+        user_id: str,
+        dataset_a_id: str,
+        dataset_b_id: str,
+        schema_comparison: dict[str, Any],
+        statistics_comparison: dict[str, Any],
+        key_metrics_comparison: dict[str, Any],
+        insights: list[str],
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Save a dataset comparison result.
+
+        Args:
+            user_id: User performing comparison
+            dataset_a_id: First dataset (baseline)
+            dataset_b_id: Second dataset (comparison)
+            schema_comparison: Schema comparison result
+            statistics_comparison: Statistics comparison result
+            key_metrics_comparison: Key metrics comparison result
+            insights: List of generated insights
+            name: Optional name for the comparison
+
+        Returns:
+            Created comparison record
+        """
+        from psycopg2.extras import Json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO dataset_comparisons (
+                        user_id, dataset_a_id, dataset_b_id, name,
+                        schema_comparison, statistics_comparison,
+                        key_metrics_comparison, insights
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, user_id, dataset_a_id, dataset_b_id, name,
+                              schema_comparison, statistics_comparison,
+                              key_metrics_comparison, insights, created_at, updated_at
+                    """,
+                    (
+                        user_id,
+                        dataset_a_id,
+                        dataset_b_id,
+                        name,
+                        Json(schema_comparison),
+                        Json(statistics_comparison),
+                        Json(key_metrics_comparison),
+                        Json(insights),
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_comparison(row)
+        return {}
+
+    def get_comparison(self, comparison_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get a comparison by ID."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_a_id, dataset_b_id, name,
+                           schema_comparison, statistics_comparison,
+                           key_metrics_comparison, insights, created_at, updated_at
+                    FROM dataset_comparisons
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (comparison_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_comparison(row)
+        return None
+
+    def get_comparison_by_datasets(
+        self, dataset_a_id: str, dataset_b_id: str, user_id: str
+    ) -> dict[str, Any] | None:
+        """Get existing comparison between two datasets (either direction)."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_a_id, dataset_b_id, name,
+                           schema_comparison, statistics_comparison,
+                           key_metrics_comparison, insights, created_at, updated_at
+                    FROM dataset_comparisons
+                    WHERE user_id = %s
+                      AND ((dataset_a_id = %s AND dataset_b_id = %s)
+                           OR (dataset_a_id = %s AND dataset_b_id = %s))
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (user_id, dataset_a_id, dataset_b_id, dataset_b_id, dataset_a_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_comparison(row)
+        return None
+
+    def list_comparisons_for_dataset(
+        self, dataset_id: str, user_id: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """List all comparisons involving a specific dataset."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT c.id, c.user_id, c.dataset_a_id, c.dataset_b_id, c.name,
+                           c.schema_comparison, c.statistics_comparison,
+                           c.key_metrics_comparison, c.insights, c.created_at, c.updated_at,
+                           da.name as dataset_a_name, db.name as dataset_b_name
+                    FROM dataset_comparisons c
+                    JOIN datasets da ON da.id = c.dataset_a_id
+                    JOIN datasets db ON db.id = c.dataset_b_id
+                    WHERE c.user_id = %s
+                      AND (c.dataset_a_id = %s OR c.dataset_b_id = %s)
+                    ORDER BY c.created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, dataset_id, dataset_id, limit),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_comparison(row) for row in rows]
+
+    def delete_comparison(self, comparison_id: str, user_id: str) -> bool:
+        """Delete a comparison."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_comparisons
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (comparison_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def _row_to_comparison(self, row: Any) -> dict[str, Any]:
+        """Convert a database row to comparison dict."""
+        result = {
+            "id": str(row["id"]),
+            "user_id": str(row["user_id"]),
+            "dataset_a_id": str(row["dataset_a_id"]),
+            "dataset_b_id": str(row["dataset_b_id"]),
+            "name": row["name"],
+            "schema_comparison": row["schema_comparison"],
+            "statistics_comparison": row["statistics_comparison"],
+            "key_metrics_comparison": row["key_metrics_comparison"],
+            "insights": row["insights"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+        # Add dataset names if available
+        if "dataset_a_name" in row.keys():
+            result["dataset_a_name"] = row["dataset_a_name"]
+        if "dataset_b_name" in row.keys():
+            result["dataset_b_name"] = row["dataset_b_name"]
+        return result
+
+    # =========================================================================
+    # Multi-Dataset Analyses
+    # =========================================================================
+
+    def save_multi_analysis(
+        self,
+        user_id: str,
+        dataset_ids: list[str],
+        common_schema: dict[str, Any],
+        anomalies: list[dict[str, Any]],
+        dataset_summaries: list[dict[str, Any]],
+        pairwise_comparisons: list[dict[str, Any]],
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Save a multi-dataset analysis result.
+
+        Args:
+            user_id: User performing analysis
+            dataset_ids: List of 2-5 dataset UUIDs
+            common_schema: Schema comparison across all datasets
+            anomalies: List of detected anomalies
+            dataset_summaries: Per-dataset summary stats
+            pairwise_comparisons: Results from pairwise DatasetComparator
+            name: Optional name for the analysis
+
+        Returns:
+            Created analysis record
+        """
+        from psycopg2.extras import Json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO multi_dataset_analyses (
+                        user_id, dataset_ids, name,
+                        common_schema, anomalies, dataset_summaries, pairwise_comparisons
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, user_id, dataset_ids, name,
+                              common_schema, anomalies, dataset_summaries, pairwise_comparisons,
+                              created_at, updated_at
+                    """,
+                    (
+                        user_id,
+                        dataset_ids,
+                        name,
+                        Json(common_schema),
+                        Json(anomalies),
+                        Json(dataset_summaries),
+                        Json(pairwise_comparisons),
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_multi_analysis(row)
+        return {}
+
+    def get_multi_analysis(self, analysis_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get a multi-dataset analysis by ID."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_ids, name,
+                           common_schema, anomalies, dataset_summaries, pairwise_comparisons,
+                           created_at, updated_at
+                    FROM multi_dataset_analyses
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (analysis_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_multi_analysis(row)
+        return None
+
+    def list_multi_analyses(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        """List multi-dataset analyses for a user, newest first."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, dataset_ids, name,
+                           common_schema, anomalies, dataset_summaries, pairwise_comparisons,
+                           created_at, updated_at
+                    FROM multi_dataset_analyses
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, limit),
+                )
+                rows = cur.fetchall()
+
+        return [self._row_to_multi_analysis(row) for row in rows]
+
+    def delete_multi_analysis(self, analysis_id: str, user_id: str) -> bool:
+        """Delete a multi-dataset analysis."""
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM multi_dataset_analyses
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (analysis_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def _row_to_multi_analysis(self, row: Any) -> dict[str, Any]:
+        """Convert a database row to multi-analysis dict."""
+        return {
+            "id": str(row["id"]),
+            "user_id": str(row["user_id"]),
+            "dataset_ids": [str(did) for did in row["dataset_ids"]] if row["dataset_ids"] else [],
+            "name": row["name"],
+            "common_schema": row["common_schema"],
+            "anomalies": row["anomalies"],
+            "dataset_summaries": row["dataset_summaries"],
+            "pairwise_comparisons": row["pairwise_comparisons"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }

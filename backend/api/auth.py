@@ -238,7 +238,7 @@ async def sheets_connect_callback(
     Redirects to datasets page on success or with error param on failure.
     """
     frontend_url = os.getenv("SUPERTOKENS_WEBSITE_DOMAIN", "http://localhost:5173")
-    datasets_url = f"{frontend_url}/datasets"
+    datasets_url = f"{frontend_url}/advisor/analyze"
 
     # Handle OAuth errors (sanitize before exposing to user)
     if error:

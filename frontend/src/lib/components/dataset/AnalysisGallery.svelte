@@ -29,8 +29,8 @@
 		chartPreviewData = null;
 		chartPreviewError = null;
 
-		// If no chart_url but has chart_spec, fetch the preview
-		if (!analysis.chart_url && analysis.chart_spec) {
+		// Always fetch chart preview if we have chart_spec (auto-load for better UX)
+		if (analysis.chart_spec) {
 			chartPreviewLoading = true;
 			try {
 				const result = await apiClient.previewChart(datasetId, analysis.chart_spec as ChartSpec);
@@ -99,9 +99,9 @@
 		<p class="text-xs mt-1">Charts generated from questions will appear here</p>
 	</div>
 
-<!-- Gallery grid -->
+<!-- Gallery grid - full width on mobile for better visibility -->
 {:else}
-	<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+	<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 		{#each analyses as analysis}
 			<button
 				type="button"
@@ -112,10 +112,10 @@
 					<img
 						src={analysis.chart_url}
 						alt={analysis.title || 'Chart'}
-						class="w-full h-3/4 object-contain bg-neutral-50 dark:bg-neutral-900"
+						class="w-full h-[60%] object-contain bg-neutral-50 dark:bg-neutral-900"
 					/>
 				{:else}
-					<div class="w-full h-3/4 flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
+					<div class="w-full h-[60%] flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
 						<svg class="w-8 h-8 text-neutral-300 dark:text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={getChartTypeIcon(analysis.chart_spec?.chart_type)} />
 						</svg>
@@ -123,10 +123,15 @@
 				{/if}
 
 				<!-- Info section - always visible -->
-				<div class="absolute bottom-0 inset-x-0 h-1/4 bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 p-2">
+				<div class="absolute bottom-0 inset-x-0 bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 p-2">
 					<p class="text-neutral-900 dark:text-white text-xs font-medium truncate">
 						{analysis.title || analysis.chart_spec?.chart_type || 'Analysis'}
 					</p>
+					{#if analysis.chart_spec}
+						<p class="text-[10px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+							{analysis.chart_spec.y_field} by {analysis.chart_spec.x_field}
+						</p>
+					{/if}
 					<div class="flex items-center gap-2 mt-0.5">
 						{#if analysis.chart_spec?.chart_type}
 							<span class="text-[10px] px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 capitalize">

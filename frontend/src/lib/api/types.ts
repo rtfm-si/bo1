@@ -1540,50 +1540,6 @@ export interface AssetSuggestionsResponse {
 	article_keywords: string[];
 }
 
-// =============================================================================
-// SEO Autopilot Types
-// =============================================================================
-
-/**
- * SEO Autopilot configuration
- */
-export interface SeoAutopilotConfig {
-	enabled: boolean;
-	frequency_per_week: number;
-	auto_publish: boolean;
-	require_approval: boolean;
-	target_keywords: string[];
-	purchase_intent_only: boolean;
-}
-
-/**
- * SEO Autopilot configuration response
- */
-export interface SeoAutopilotConfigResponse {
-	config: SeoAutopilotConfig;
-	next_run: string | null;
-	articles_this_week: number;
-	articles_pending_review: number;
-}
-
-/**
- * Pending article from autopilot
- */
-export interface SeoPendingArticle {
-	id: number;
-	title: string;
-	excerpt: string | null;
-	keyword: string | null;
-	created_at: string;
-}
-
-/**
- * Pending articles response
- */
-export interface SeoPendingArticlesResponse {
-	articles: SeoPendingArticle[];
-	count: number;
-}
 
 // =============================================================================
 // Peer Benchmarking Types
@@ -1927,4 +1883,515 @@ export interface ResearchEmbeddingsResponse {
 	categories: ResearchCategory[];
 	total_count: number;
 	error?: string | null;
+}
+
+// =============================================================================
+// Dataset Investigation Types (Deterministic Analyses)
+// =============================================================================
+
+/**
+ * Column role classification
+ */
+export type ColumnRole = 'id' | 'timestamp' | 'metric' | 'dimension' | 'unknown';
+
+/**
+ * Column role analysis result
+ */
+export interface ColumnRoleInfo {
+	column: string;
+	role: ColumnRole;
+	confidence: number;
+	reason: string;
+}
+
+/**
+ * Column roles analysis
+ */
+export interface ColumnRolesAnalysis {
+	roles: ColumnRoleInfo[];
+	id_columns: string[];
+	timestamp_columns: string[];
+	metric_columns: string[];
+	dimension_columns: string[];
+}
+
+/**
+ * Missingness analysis for a column
+ */
+export interface ColumnMissingness {
+	column: string;
+	null_count: number;
+	null_percent: number;
+	unique_count: number;
+	unique_percent: number;
+	cardinality_category: 'low' | 'medium' | 'high' | 'unique';
+}
+
+/**
+ * Missingness analysis
+ */
+export interface MissingnessAnalysis {
+	columns: ColumnMissingness[];
+	total_rows: number;
+	columns_with_nulls: number;
+	high_null_columns: string[];
+}
+
+/**
+ * Descriptive stats for a column
+ */
+export interface ColumnDescriptiveStats {
+	column: string;
+	dtype: string;
+	mean?: number | null;
+	median?: number | null;
+	std?: number | null;
+	min?: number | string | null;
+	max?: number | string | null;
+	skew?: number | null;
+	kurtosis?: number | null;
+	top_values?: Array<{ value: string; count: number; percent: number }>;
+}
+
+/**
+ * Descriptive stats analysis
+ */
+export interface DescriptiveStatsAnalysis {
+	numeric_columns: ColumnDescriptiveStats[];
+	categorical_columns: ColumnDescriptiveStats[];
+	datetime_columns: ColumnDescriptiveStats[];
+}
+
+/**
+ * Outlier detection result
+ */
+export interface OutlierInfo {
+	column: string;
+	method: 'iqr' | 'zscore';
+	outlier_count: number;
+	outlier_percent: number;
+	lower_bound?: number | null;
+	upper_bound?: number | null;
+	extreme_values: Array<{ value: number; index: number }>;
+}
+
+/**
+ * Outlier analysis
+ */
+export interface OutliersAnalysis {
+	outliers: OutlierInfo[];
+	columns_with_outliers: number;
+	total_outlier_rows: number;
+}
+
+/**
+ * Correlation pair
+ */
+export interface CorrelationPair {
+	column_a: string;
+	column_b: string;
+	correlation: number;
+	strength: 'weak' | 'moderate' | 'strong' | 'very_strong';
+}
+
+/**
+ * Correlation analysis
+ */
+export interface CorrelationsAnalysis {
+	top_positive: CorrelationPair[];
+	top_negative: CorrelationPair[];
+	potential_leakage: CorrelationPair[];
+	matrix?: Record<string, Record<string, number>> | null;
+}
+
+/**
+ * Time series readiness
+ */
+export interface TimeSeriesReadiness {
+	is_ready: boolean;
+	timestamp_column?: string | null;
+	detected_frequency?: string | null;
+	gap_count: number;
+	gaps?: Array<{ start: string; end: string; missing_periods: number }>;
+	date_range?: { start: string; end: string } | null;
+	recommendations: string[];
+}
+
+/**
+ * Segmentation opportunity
+ */
+export interface SegmentationOpportunity {
+	dimension: string;
+	metric: string;
+	segment_count: number;
+	variance_ratio: number;
+	recommendation: string;
+}
+
+/**
+ * Segmentation builder analysis
+ */
+export interface SegmentationBuilderAnalysis {
+	opportunities: SegmentationOpportunity[];
+	best_dimensions: string[];
+	best_metrics: string[];
+}
+
+/**
+ * Data quality issue
+ */
+export interface DataQualityIssue {
+	column: string;
+	issue_type: string;
+	description: string;
+	severity: 'low' | 'medium' | 'high';
+	affected_rows?: number;
+	examples?: string[];
+}
+
+/**
+ * Data quality analysis
+ */
+export interface DataQualityAnalysis {
+	issues: DataQualityIssue[];
+	overall_score: number;
+	completeness_score: number;
+	consistency_score: number;
+	validity_score: number;
+}
+
+/**
+ * Full dataset investigation result
+ */
+export interface DatasetInvestigation {
+	column_roles: ColumnRolesAnalysis;
+	missingness: MissingnessAnalysis;
+	descriptive_stats: DescriptiveStatsAnalysis;
+	outliers: OutliersAnalysis;
+	correlations: CorrelationsAnalysis;
+	time_series_readiness: TimeSeriesReadiness;
+	segmentation_builder: SegmentationBuilderAnalysis;
+	data_quality: DataQualityAnalysis;
+}
+
+/**
+ * Investigation response from API
+ */
+export interface DatasetInvestigationResponse {
+	investigation: DatasetInvestigation;
+	dataset_id: string;
+	computed_at: string;
+	cached: boolean;
+}
+
+/**
+ * Business context for dataset
+ */
+export interface DatasetBusinessContext {
+	business_goal?: string | null;
+	key_metrics?: string[] | null;
+	kpis?: string[] | null;
+	objectives?: string | null;
+	industry?: string | null;
+	additional_context?: string | null;
+}
+
+/**
+ * Business context response from API
+ */
+export interface DatasetBusinessContextResponse extends DatasetBusinessContext {
+	id: string;
+	dataset_id: string;
+	user_id: string;
+	updated_at: string;
+}
+
+// =============================================================================
+// Dataset Favourites Types
+// =============================================================================
+
+/**
+ * Type of favourite (chart, insight, or message)
+ */
+export type FavouriteType = 'chart' | 'insight' | 'message';
+
+/**
+ * A favourited dataset item
+ */
+export interface DatasetFavourite {
+	id: string;
+	user_id: string;
+	dataset_id: string;
+	favourite_type: FavouriteType;
+	analysis_id?: string | null;
+	message_id?: string | null;
+	insight_data?: Record<string, unknown> | null;
+	title?: string | null;
+	content?: string | null;
+	chart_spec?: Record<string, unknown> | null;
+	figure_json?: Record<string, unknown> | null;
+	user_note?: string | null;
+	sort_order: number;
+	created_at: string;
+}
+
+/**
+ * Response for a single favourite
+ */
+export interface DatasetFavouriteResponse extends DatasetFavourite {}
+
+/**
+ * Response for list of favourites
+ */
+export interface DatasetFavouriteListResponse {
+	favourites: DatasetFavourite[];
+	total: number;
+}
+
+// =============================================================================
+// Dataset Reports Types
+// =============================================================================
+
+/**
+ * A section in a generated report
+ */
+export interface ReportSection {
+	section_type: string;
+	title: string;
+	content: string;
+	chart_refs?: string[];
+}
+
+/**
+ * A generated dataset report
+ */
+export interface DatasetReport {
+	id: string;
+	user_id: string;
+	dataset_id: string | null; // Can be null if dataset was deleted
+	title: string;
+	executive_summary?: string | null;
+	report_content: {
+		title: string;
+		executive_summary?: string;
+		sections: ReportSection[];
+	};
+	favourite_ids: string[];
+	model_used?: string | null;
+	tokens_used?: number | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Response for a single report (includes expanded data from API)
+ */
+export interface DatasetReportResponse extends DatasetReport {
+	sections: ReportSection[]; // Flattened sections from report_content
+	favourites?: DatasetFavourite[]; // Full favourite data for rendering charts
+}
+
+/**
+ * Response for list of reports
+ */
+export interface DatasetReportListResponse {
+	reports: DatasetReport[];
+	total: number;
+}
+
+/**
+ * Report item with dataset info for cross-dataset listing
+ */
+export interface AllReportItem {
+	id: string;
+	dataset_id: string | null; // Can be null if dataset was deleted
+	dataset_name: string | null; // Can be null if dataset was deleted
+	title: string;
+	executive_summary?: string | null;
+	created_at: string;
+}
+
+/**
+ * Response for listing all reports across datasets
+ */
+export interface AllReportsListResponse {
+	reports: AllReportItem[];
+	total: number;
+}
+
+// =============================================================================
+// Dataset Update Types
+// =============================================================================
+
+/**
+ * Request to update dataset metadata (name/description)
+ */
+export interface DatasetUpdate {
+	name?: string;
+	description?: string;
+}
+
+// =============================================================================
+// Dataset Comparison Types
+// =============================================================================
+
+/**
+ * Schema comparison between two datasets
+ */
+export interface SchemaComparison {
+	common_columns: string[];
+	only_in_a: string[];
+	only_in_b: string[];
+	type_mismatches: Array<{
+		column: string;
+		type_a: string;
+		type_b: string;
+	}>;
+}
+
+/**
+ * Column stat delta for statistics comparison
+ */
+export interface ColumnStatDelta {
+	column: string;
+	dtype: string;
+	stat_deltas: Record<
+		string,
+		{
+			value_a: number | string | null;
+			value_b: number | string | null;
+			delta?: number | null;
+			percent_change?: number | null;
+		}
+	>;
+}
+
+/**
+ * Statistics comparison between two datasets
+ */
+export interface StatisticsComparison {
+	row_count_a: number;
+	row_count_b: number;
+	row_count_delta: number;
+	row_count_percent_change: number | null;
+	column_deltas: ColumnStatDelta[];
+}
+
+/**
+ * Key metric comparison
+ */
+export interface KeyMetricComparisonItem {
+	metric_name: string;
+	value_a: number;
+	value_b: number;
+	delta: number;
+	percent_change: number | null;
+	is_significant: boolean;
+}
+
+/**
+ * Key metrics comparison between two datasets
+ */
+export interface KeyMetricsComparison {
+	metrics: KeyMetricComparisonItem[];
+	significant_changes: number;
+}
+
+/**
+ * Full dataset comparison result
+ */
+export interface DatasetComparison {
+	id: string;
+	dataset_a_id: string;
+	dataset_b_id: string;
+	dataset_a_name?: string | null;
+	dataset_b_name?: string | null;
+	name?: string | null;
+	schema_comparison: SchemaComparison;
+	statistics_comparison: StatisticsComparison;
+	key_metrics_comparison: KeyMetricsComparison;
+	insights: string[];
+	created_at: string;
+}
+
+/**
+ * Response for a single comparison
+ */
+export interface DatasetComparisonResponse extends DatasetComparison {}
+
+/**
+ * Response for list of comparisons
+ */
+export interface DatasetComparisonListResponse {
+	comparisons: DatasetComparison[];
+	total_count: number;
+}
+
+// =============================================================================
+// Multi-Dataset Analysis Types
+// =============================================================================
+
+/**
+ * Request to create a multi-dataset analysis
+ */
+export interface MultiDatasetAnalysisCreate {
+	dataset_ids: string[];
+	name?: string | null;
+}
+
+/**
+ * A detected anomaly across datasets
+ */
+export interface MultiDatasetAnomaly {
+	anomaly_type: 'schema_drift' | 'metric_outlier' | 'type_mismatch' | 'no_common_columns';
+	severity: 'high' | 'medium' | 'low';
+	description: string;
+	affected_datasets: string[];
+	column?: string | null;
+	details: Record<string, unknown>;
+}
+
+/**
+ * Summary statistics for a single dataset in multi-analysis
+ */
+export interface MultiDatasetSummary {
+	name: string;
+	row_count: number;
+	column_count: number;
+	columns: string[];
+	numeric_columns: string[];
+	categorical_columns: string[];
+}
+
+/**
+ * Schema information common across all datasets
+ */
+export interface MultiDatasetCommonSchema {
+	common_columns: string[];
+	partial_columns: Record<string, string[]>;
+	type_consensus: Record<string, string>;
+	type_conflicts: Record<string, Record<string, string>>;
+}
+
+/**
+ * Response for a multi-dataset analysis
+ */
+export interface MultiDatasetAnalysisResponse {
+	id: string;
+	dataset_ids: string[];
+	dataset_names: string[];
+	name?: string | null;
+	common_schema: MultiDatasetCommonSchema;
+	anomalies: MultiDatasetAnomaly[];
+	dataset_summaries: MultiDatasetSummary[];
+	pairwise_comparisons: Record<string, unknown>[];
+	created_at: string;
+}
+
+/**
+ * Response for list of multi-dataset analyses
+ */
+export interface MultiDatasetAnalysisListResponse {
+	analyses: MultiDatasetAnalysisResponse[];
+	total_count: number;
 }

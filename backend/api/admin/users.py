@@ -29,6 +29,7 @@ from backend.api.admin.models import (
     LockUserRequest,
     LockUserResponse,
     NonprofitStatusResponse,
+    SeoAccessResponse,
     SetNonprofitRequest,
     SetTierOverrideRequest,
     TierOverrideResponse,
@@ -756,4 +757,260 @@ async def remove_nonprofit_status(
         nonprofit_verified_at=None,
         promo_applied=False,
         message="Nonprofit status removed. Note: Previously applied promos are not revoked.",
+    )
+
+
+# ==============================================================================
+# SEO Access Endpoints
+# ==============================================================================
+
+
+@router.get(
+    "/users/{user_id}/seo-access",
+    response_model=SeoAccessResponse,
+    summary="Get user SEO access status",
+    description="Check whether a user has SEO access and how it was granted.",
+    responses={
+        200: {"description": "SEO access status retrieved successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get seo access")
+async def get_seo_access(
+    request: Request,
+    user_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> SeoAccessResponse:
+    """Get SEO access status for a user."""
+    from backend.api.utils.db_helpers import has_seo_access
+    from backend.services.promotion_service import check_seo_access_promo
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
+
+    # Check if user has SEO access via promotion
+    via_promo = check_seo_access_promo(user_id)
+    has_access = has_seo_access(user_id)
+
+    # Get granted_at from promotion if via promo
+    granted_at = None
+    if via_promo:
+        row = execute_query(
+            """
+            SELECT up.applied_at FROM user_promotions up
+            JOIN promotions p ON up.promotion_id = p.id
+            WHERE up.user_id = %s
+              AND up.status = 'active'
+              AND p.type = 'seo_access'
+              AND p.deleted_at IS NULL
+            ORDER BY up.applied_at DESC
+            LIMIT 1
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        if row and row["applied_at"]:
+            granted_at = row["applied_at"].isoformat()
+
+    return SeoAccessResponse(
+        user_id=user_id,
+        has_seo_access=has_access,
+        granted_at=granted_at,
+        via_promotion=via_promo,
+        message="User has SEO access" if has_access else "User does not have SEO access",
+    )
+
+
+@router.post(
+    "/users/{user_id}/seo-access",
+    response_model=SeoAccessResponse,
+    summary="Grant SEO access to user",
+    description="Grant SEO access to a user via an seo_access promotion.",
+    responses={
+        200: {"description": "SEO access granted successfully"},
+        400: {"description": "User already has SEO access", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("grant seo access")
+async def grant_seo_access(
+    request: Request,
+    user_id: str,
+    admin_id: str = Depends(require_admin_any),
+) -> SeoAccessResponse:
+    """Grant SEO access to a user via promotion."""
+    from datetime import UTC, datetime
+
+    from backend.services.promotion_service import check_seo_access_promo
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
+
+    # Check if user already has SEO access via promo
+    if check_seo_access_promo(user_id):
+        # Idempotent - return current state
+        row = execute_query(
+            """
+            SELECT up.applied_at FROM user_promotions up
+            JOIN promotions p ON up.promotion_id = p.id
+            WHERE up.user_id = %s
+              AND up.status = 'active'
+              AND p.type = 'seo_access'
+              AND p.deleted_at IS NULL
+            ORDER BY up.applied_at DESC
+            LIMIT 1
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        granted_at = row["applied_at"].isoformat() if row and row["applied_at"] else None
+        return SeoAccessResponse(
+            user_id=user_id,
+            has_seo_access=True,
+            granted_at=granted_at,
+            via_promotion=True,
+            message="User already has SEO access",
+        )
+
+    # Find or create the admin SEO access promotion
+    promo_row = execute_query(
+        """
+        SELECT id FROM promotions
+        WHERE code = 'ADMIN_SEO_ACCESS'
+          AND type = 'seo_access'
+          AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (),
+        fetch="one",
+    )
+
+    if not promo_row:
+        # Create the admin SEO access promotion
+        import uuid
+
+        promo_id = str(uuid.uuid4())
+        execute_query(
+            """
+            INSERT INTO promotions (id, code, type, value, max_uses, created_at)
+            VALUES (%s, 'ADMIN_SEO_ACCESS', 'seo_access', 0, NULL, NOW())
+            """,
+            (promo_id,),
+            fetch="none",
+        )
+    else:
+        promo_id = promo_row["id"]
+
+    # Apply promotion to user
+    import uuid
+
+    user_promo_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+    execute_query(
+        """
+        INSERT INTO user_promotions (id, user_id, promotion_id, status, applied_at)
+        VALUES (%s, %s, %s, 'active', %s)
+        """,
+        (user_promo_id, user_id, promo_id, now),
+        fetch="none",
+    )
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="seo_access_granted",
+        resource_type="user",
+        resource_id=user_id,
+    )
+
+    logger.info(f"Admin {admin_id}: Granted SEO access to {user_id}")
+
+    return SeoAccessResponse(
+        user_id=user_id,
+        has_seo_access=True,
+        granted_at=now.isoformat(),
+        via_promotion=True,
+        message="SEO access granted successfully",
+    )
+
+
+@router.delete(
+    "/users/{user_id}/seo-access",
+    response_model=SeoAccessResponse,
+    summary="Revoke SEO access from user",
+    description="Revoke SEO access from a user by deactivating their seo_access promotion.",
+    responses={
+        200: {"description": "SEO access revoked successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("revoke seo access")
+async def revoke_seo_access(
+    request: Request,
+    user_id: str,
+    admin_id: str = Depends(require_admin_any),
+) -> SeoAccessResponse:
+    """Revoke SEO access from a user."""
+    from backend.services.promotion_service import check_seo_access_promo
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise http_error(ErrorCode.API_NOT_FOUND, f"User not found: {user_id}", status=404)
+
+    # Check if user has SEO access via promo
+    if not check_seo_access_promo(user_id):
+        # Idempotent - return current state
+        return SeoAccessResponse(
+            user_id=user_id,
+            has_seo_access=False,
+            granted_at=None,
+            via_promotion=False,
+            message="User does not have SEO access via promotion",
+        )
+
+    # Deactivate all seo_access promotions for this user
+    execute_query(
+        """
+        UPDATE user_promotions up
+        SET status = 'revoked'
+        FROM promotions p
+        WHERE up.promotion_id = p.id
+          AND up.user_id = %s
+          AND up.status = 'active'
+          AND p.type = 'seo_access'
+        """,
+        (user_id,),
+        fetch="none",
+    )
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="seo_access_revoked",
+        resource_type="user",
+        resource_id=user_id,
+    )
+
+    logger.info(f"Admin {admin_id}: Revoked SEO access from {user_id}")
+
+    return SeoAccessResponse(
+        user_id=user_id,
+        has_seo_access=False,
+        granted_at=None,
+        via_promotion=False,
+        message="SEO access revoked successfully",
     )

@@ -28,7 +28,13 @@
 		{ href: '/meeting', label: 'Meetings' },
 		{ href: '/actions', label: 'Actions' },
 		{ href: '/projects', label: 'Projects' },
-		{ href: '/mentor', label: 'Assistant' },
+	];
+
+	// Advisor navigation (promoted to top-level)
+	const advisorLinks = [
+		{ href: '/advisor/discuss', label: 'Discuss' },
+		{ href: '/advisor/analyze', label: 'Analyze' },
+		{ href: '/advisor/grow', label: 'Grow' },
 	];
 
 	// Context navigation (business context settings)
@@ -41,6 +47,7 @@
 	// Reports navigation (intelligence features)
 	const reportsLinks = [
 		{ href: '/reports/meetings', label: 'Meetings' },
+		{ href: '/reports/data', label: 'Data' },
 		{ href: '/reports/competitors', label: 'Competitors' },
 		{ href: '/reports/benchmarks', label: 'Benchmarks' },
 		{ href: '/reports/trends', label: 'Trends' },
@@ -58,6 +65,7 @@
 	// Mobile menu state
 	let mobileMenuOpen = $state(false);
 	let mobileBoardExpanded = $state(false);
+	let mobileAdvisorExpanded = $state(false);
 	let mobileContextExpanded = $state(false);
 	let mobileReportsExpanded = $state(false);
 
@@ -69,6 +77,7 @@
 		// Reset expanded groups when closing
 		if (!mobileMenuOpen) {
 			mobileBoardExpanded = false;
+			mobileAdvisorExpanded = false;
 			mobileContextExpanded = false;
 			mobileReportsExpanded = false;
 		}
@@ -77,6 +86,7 @@
 	function closeMobileMenu() {
 		mobileMenuOpen = false;
 		mobileBoardExpanded = false;
+		mobileAdvisorExpanded = false;
 		mobileContextExpanded = false;
 		mobileReportsExpanded = false;
 	}
@@ -85,6 +95,7 @@
 	beforeNavigate(() => {
 		mobileMenuOpen = false;
 		mobileBoardExpanded = false;
+		mobileAdvisorExpanded = false;
 		mobileContextExpanded = false;
 		mobileReportsExpanded = false;
 	});
@@ -159,6 +170,7 @@
 						Dashboard
 					</a>
 					<NavDropdown label="Board" links={boardLinks} isGroupActive={() => isGroupActive(boardLinks)} dataTour="projects-nav" />
+					<NavDropdown label="Advisor" links={advisorLinks} isGroupActive={() => isGroupActive(advisorLinks)} />
 					<NavDropdown label="Context" links={contextLinks} isGroupActive={() => isGroupActive(contextLinks)} dataTour="context-nav" />
 					<NavDropdown label="Reports" links={reportsLinks} isGroupActive={() => isGroupActive(reportsLinks)} />
 					<a
@@ -269,6 +281,40 @@
 						{#if mobileBoardExpanded}
 							<div class="pl-4 pb-2 space-y-1">
 								{#each boardLinks as link}
+									<a
+										href={link.href}
+										class={isActive(link.href)
+											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
+											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
+										onclick={closeMobileMenu}
+									>
+										{link.label}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Advisor Group (collapsible) -->
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(advisorLinks)
+								? 'text-brand-600 dark:text-brand-400'
+								: 'text-neutral-700 dark:text-neutral-300'}"
+							onclick={() => (mobileAdvisorExpanded = !mobileAdvisorExpanded)}
+							aria-expanded={mobileAdvisorExpanded}
+						>
+							Advisor
+							{#if mobileAdvisorExpanded}
+								<ChevronDown class="w-5 h-5" />
+							{:else}
+								<ChevronRight class="w-5 h-5" />
+							{/if}
+						</button>
+						{#if mobileAdvisorExpanded}
+							<div class="pl-4 pb-2 space-y-1">
+								{#each advisorLinks as link}
 									<a
 										href={link.href}
 										class={isActive(link.href)

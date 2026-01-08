@@ -21,7 +21,7 @@ from backend.api.middleware.rate_limit import (
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.db_helpers import get_user_tier
+from backend.api.utils.db_helpers import get_user_tier, has_seo_access
 from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.agents.researcher import ResearcherAgent
 from bo1.billing import PlanConfig
@@ -421,8 +421,8 @@ async def analyze_trends(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
         raise http_error(
             ErrorCode.API_FORBIDDEN,
             "SEO tools are not available on your plan. Please upgrade to access this feature.",
@@ -671,8 +671,8 @@ async def autogenerate_topics(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
         raise http_error(
             ErrorCode.API_FORBIDDEN,
             "SEO tools are not available on your plan.",
@@ -985,8 +985,8 @@ async def generate_article(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
         raise http_error(
             ErrorCode.API_FORBIDDEN,
             "SEO tools are not available on your plan. Please upgrade to access this feature.",
@@ -1326,8 +1326,8 @@ async def regenerate_article(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
         raise http_error(
             ErrorCode.API_FORBIDDEN,
             "SEO tools are not available on your plan. Please upgrade to access this feature.",
@@ -1470,61 +1470,6 @@ class ArticleEventType(str):
     VIEW = "view"
     CLICK = "click"
     SIGNUP = "signup"
-
-
-# =============================================================================
-# SEO Autopilot Models
-# =============================================================================
-
-
-class SEOAutopilotConfig(BaseModel):
-    """Configuration for SEO autopilot content scheduling.
-
-    Stores user preferences for automated topic discovery and article generation.
-    """
-
-    enabled: bool = Field(default=False, description="Whether autopilot is enabled")
-    frequency_per_week: int = Field(
-        default=1,
-        ge=1,
-        le=7,
-        description="Number of articles to generate per week (1-7)",
-    )
-    auto_publish: bool = Field(
-        default=False,
-        description="Automatically publish generated articles (vs review queue)",
-    )
-    require_approval: bool = Field(
-        default=True,
-        description="Require manual approval before publishing (default: True for new users)",
-    )
-    target_keywords: list[str] = Field(
-        default_factory=list,
-        max_length=20,
-        description="Keywords to focus on for topic discovery",
-    )
-    purchase_intent_only: bool = Field(
-        default=True,
-        description="Only target high-intent keywords (transactional, comparison, etc.)",
-    )
-
-
-class SEOAutopilotConfigResponse(BaseModel):
-    """Response for autopilot config retrieval."""
-
-    config: SEOAutopilotConfig = Field(..., description="Current autopilot configuration")
-    next_run: datetime | None = Field(None, description="Next scheduled autopilot run")
-    articles_this_week: int = Field(0, ge=0, description="Articles generated this week")
-    articles_pending_review: int = Field(0, ge=0, description="Articles awaiting approval")
-
-
-class ArticleStatus(str):
-    """Valid status values for SEO blog articles including autopilot statuses."""
-
-    DRAFT = "draft"
-    PUBLISHED = "published"
-    PENDING_REVIEW = "pending_review"  # Awaiting approval (autopilot-generated)
-    REJECTED = "rejected"  # User rejected the article
 
 
 class ArticleEventCreate(BaseModel):
@@ -1774,383 +1719,6 @@ async def get_all_analytics(
 
 
 # =============================================================================
-# SEO Autopilot Endpoints
-# =============================================================================
-
-
-def _get_autopilot_stats(user_id: str) -> tuple[int, int]:
-    """Get autopilot stats: articles generated this week and pending review count.
-
-    Args:
-        user_id: User ID
-
-    Returns:
-        Tuple of (articles_this_week, articles_pending_review)
-    """
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            # Articles generated this week (by autopilot - status pending_review or via autopilot source)
-            cursor.execute(
-                """
-                SELECT COUNT(*) as count FROM seo_blog_articles
-                WHERE user_id = %s
-                AND created_at >= date_trunc('week', CURRENT_TIMESTAMP)
-                """,
-                (user_id,),
-            )
-            articles_this_week = cursor.fetchone()["count"] or 0
-
-            # Articles pending review
-            cursor.execute(
-                """
-                SELECT COUNT(*) as count FROM seo_blog_articles
-                WHERE user_id = %s
-                AND status = 'pending_review'
-                """,
-                (user_id,),
-            )
-            articles_pending = cursor.fetchone()["count"] or 0
-
-            return articles_this_week, articles_pending
-
-
-@router.get("/autopilot/config", response_model=SEOAutopilotConfigResponse)
-@handle_api_errors("get autopilot config")
-async def get_autopilot_config(
-    request: Request,
-    user: dict = Depends(get_current_user),
-) -> SEOAutopilotConfigResponse:
-    """Get current SEO autopilot configuration.
-
-    Returns autopilot settings and status (next run, articles this week, pending).
-    """
-    user_id = extract_user_id(user)
-    tier = get_user_tier(user_id)
-
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise http_error(
-            ErrorCode.API_FORBIDDEN,
-            "SEO tools are not available on your plan. Please upgrade.",
-            status=403,
-        )
-
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT seo_autopilot_config FROM user_context
-                WHERE user_id = %s
-                """,
-                (user_id,),
-            )
-            row = cursor.fetchone()
-
-    # Parse config or return defaults
-    if row and row["seo_autopilot_config"]:
-        config = SEOAutopilotConfig(**row["seo_autopilot_config"])
-    else:
-        config = SEOAutopilotConfig()
-
-    # Get stats
-    articles_this_week, articles_pending = _get_autopilot_stats(user_id)
-
-    # Calculate next run (if enabled, next Monday at 9am UTC)
-    next_run = None
-    if config.enabled:
-        from datetime import timedelta
-
-        now = datetime.now(UTC)
-        # Next Monday
-        days_until_monday = (7 - now.weekday()) % 7 or 7
-        next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(
-            days=days_until_monday
-        )
-        next_run = next_monday
-
-    return SEOAutopilotConfigResponse(
-        config=config,
-        next_run=next_run,
-        articles_this_week=articles_this_week,
-        articles_pending_review=articles_pending,
-    )
-
-
-@router.put("/autopilot/config", response_model=SEOAutopilotConfigResponse)
-@handle_api_errors("update autopilot config")
-async def update_autopilot_config(
-    request: Request,
-    body: SEOAutopilotConfig,
-    user: dict = Depends(get_current_user),
-) -> SEOAutopilotConfigResponse:
-    """Update SEO autopilot configuration.
-
-    Configure automated topic discovery and article generation settings.
-    """
-    user_id = extract_user_id(user)
-    tier = get_user_tier(user_id)
-
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
-        raise http_error(
-            ErrorCode.API_FORBIDDEN,
-            "SEO tools are not available on your plan. Please upgrade.",
-            status=403,
-        )
-
-    # Check tier limits - autopilot is only available if user has article quota
-    autopilot_limit = PlanConfig.get_seo_articles_limit(tier)
-    if not PlanConfig.is_unlimited(autopilot_limit) and autopilot_limit <= 0:
-        raise http_error(
-            ErrorCode.API_FORBIDDEN,
-            "Autopilot requires SEO article generation quota. Upgrade your plan.",
-            status=403,
-        )
-
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            # Check if user_context exists
-            cursor.execute(
-                "SELECT 1 FROM user_context WHERE user_id = %s",
-                (user_id,),
-            )
-            exists = cursor.fetchone()
-
-            if exists:
-                cursor.execute(
-                    """
-                    UPDATE user_context
-                    SET seo_autopilot_config = %s, updated_at = now()
-                    WHERE user_id = %s
-                    """,
-                    (Json(body.model_dump()), user_id),
-                )
-            else:
-                cursor.execute(
-                    """
-                    INSERT INTO user_context (user_id, seo_autopilot_config)
-                    VALUES (%s, %s)
-                    """,
-                    (user_id, Json(body.model_dump())),
-                )
-            conn.commit()
-
-    logger.info(f"Updated autopilot config for user {user_id[:8]}...: enabled={body.enabled}")
-
-    # Get stats
-    articles_this_week, articles_pending = _get_autopilot_stats(user_id)
-
-    # Calculate next run
-    next_run = None
-    if body.enabled:
-        from datetime import timedelta
-
-        now = datetime.now(UTC)
-        days_until_monday = (7 - now.weekday()) % 7 or 7
-        next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(
-            days=days_until_monday
-        )
-        next_run = next_monday
-
-    return SEOAutopilotConfigResponse(
-        config=body,
-        next_run=next_run,
-        articles_this_week=articles_this_week,
-        articles_pending_review=articles_pending,
-    )
-
-
-# =============================================================================
-# Pending Articles Queue Endpoints
-# =============================================================================
-
-
-class PendingArticle(BaseModel):
-    """An article pending review from autopilot."""
-
-    id: int = Field(..., description="Article ID")
-    title: str = Field(..., description="Article title")
-    excerpt: str | None = Field(None, description="Article excerpt")
-    keyword: str | None = Field(None, description="Source keyword/topic")
-    created_at: datetime = Field(..., description="When article was generated")
-
-
-class PendingArticlesResponse(BaseModel):
-    """Response containing articles pending review."""
-
-    articles: list[PendingArticle] = Field(
-        default_factory=list, description="Articles pending review"
-    )
-    count: int = Field(0, ge=0, description="Number of pending articles")
-
-
-@router.get("/autopilot/pending", response_model=PendingArticlesResponse)
-@handle_api_errors("get pending articles")
-async def get_pending_articles(
-    request: Request,
-    user: dict = Depends(get_current_user),
-) -> PendingArticlesResponse:
-    """Get articles pending review from autopilot.
-
-    Returns all articles with status 'pending_review'.
-    """
-    user_id = extract_user_id(user)
-
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT a.id, a.title, a.excerpt, t.keyword, a.created_at
-                FROM seo_blog_articles a
-                LEFT JOIN seo_topics t ON a.topic_id = t.id
-                WHERE a.user_id = %s AND a.status = 'pending_review'
-                ORDER BY a.created_at DESC
-                """,
-                (user_id,),
-            )
-
-            articles = []
-            for row in cursor.fetchall():
-                articles.append(
-                    PendingArticle(
-                        id=row["id"],
-                        title=row["title"],
-                        excerpt=row["excerpt"],
-                        keyword=row["keyword"],
-                        created_at=row["created_at"],
-                    )
-                )
-
-    return PendingArticlesResponse(articles=articles, count=len(articles))
-
-
-@router.post("/autopilot/articles/{article_id}/approve", response_model=SeoBlogArticle)
-@handle_api_errors("approve article")
-async def approve_article(
-    request: Request,
-    article_id: int,
-    user: dict = Depends(get_current_user),
-) -> SeoBlogArticle:
-    """Approve a pending article for publishing.
-
-    Changes status from 'pending_review' to 'published'.
-    """
-    user_id = extract_user_id(user)
-
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            # Check article exists and is pending
-            cursor.execute(
-                """
-                SELECT id, status, topic_id FROM seo_blog_articles
-                WHERE id = %s AND user_id = %s
-                """,
-                (article_id, user_id),
-            )
-            row = cursor.fetchone()
-
-            if not row:
-                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
-
-            if row["status"] != "pending_review":
-                raise http_error(
-                    ErrorCode.VALIDATION_ERROR,
-                    f"Article is not pending review (status: {row['status']})",
-                    status=400,
-                )
-
-            topic_id = row["topic_id"]
-
-            # Update to published
-            cursor.execute(
-                """
-                UPDATE seo_blog_articles
-                SET status = 'published', updated_at = now()
-                WHERE id = %s AND user_id = %s
-                RETURNING id, topic_id, title, excerpt, content, meta_title, meta_description, status, created_at, updated_at
-                """,
-                (article_id, user_id),
-            )
-            article_row = cursor.fetchone()
-
-            # Update topic status if linked
-            if topic_id:
-                cursor.execute(
-                    """
-                    UPDATE seo_topics SET status = 'published', updated_at = now()
-                    WHERE id = %s AND user_id = %s
-                    """,
-                    (topic_id, user_id),
-                )
-
-            conn.commit()
-
-            logger.info(f"Approved article {article_id} for user {user_id[:8]}...")
-
-            return SeoBlogArticle(
-                id=article_row["id"],
-                topic_id=article_row["topic_id"],
-                title=article_row["title"],
-                excerpt=article_row["excerpt"],
-                content=article_row["content"],
-                meta_title=article_row["meta_title"],
-                meta_description=article_row["meta_description"],
-                status=article_row["status"],
-                created_at=article_row["created_at"],
-                updated_at=article_row["updated_at"],
-            )
-
-
-@router.post("/autopilot/articles/{article_id}/reject", status_code=204, response_model=None)
-@handle_api_errors("reject article")
-async def reject_article(
-    request: Request,
-    article_id: int,
-    user: dict = Depends(get_current_user),
-) -> None:
-    """Reject a pending article.
-
-    Changes status from 'pending_review' to 'rejected'.
-    """
-    user_id = extract_user_id(user)
-
-    with db_session() as conn:
-        with conn.cursor() as cursor:
-            # Check article exists and is pending
-            cursor.execute(
-                """
-                SELECT id, status FROM seo_blog_articles
-                WHERE id = %s AND user_id = %s
-                """,
-                (article_id, user_id),
-            )
-            row = cursor.fetchone()
-
-            if not row:
-                raise http_error(ErrorCode.API_NOT_FOUND, "Article not found", status=404)
-
-            if row["status"] != "pending_review":
-                raise http_error(
-                    ErrorCode.VALIDATION_ERROR,
-                    f"Article is not pending review (status: {row['status']})",
-                    status=400,
-                )
-
-            # Update to rejected
-            cursor.execute(
-                """
-                UPDATE seo_blog_articles
-                SET status = 'rejected', updated_at = now()
-                WHERE id = %s AND user_id = %s
-                """,
-                (article_id, user_id),
-            )
-            conn.commit()
-
-    logger.info(f"Rejected article {article_id} for user {user_id[:8]}...")
-
-
-# =============================================================================
 # Marketing Assets Endpoints
 # =============================================================================
 
@@ -2181,8 +1749,8 @@ async def upload_asset(
     user_id = extract_user_id(user)
     tier = get_user_tier(user_id)
 
-    # Check feature access
-    if not PlanConfig.is_feature_enabled(tier, "seo_tools"):
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
         raise http_error(
             ErrorCode.API_FORBIDDEN,
             "SEO tools are not available on your plan.",

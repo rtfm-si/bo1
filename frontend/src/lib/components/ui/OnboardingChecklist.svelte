@@ -25,7 +25,7 @@
 			id: 'context',
 			title: 'Set up business context',
 			description: 'Help us understand your business for better recommendations',
-			href: '/context',
+			href: '/context/overview',
 			completed: !!(userContext?.business_model || userContext?.product_description),
 		},
 		{
@@ -40,7 +40,7 @@
 			title: 'Review your settings',
 			description: 'Customize notifications and preferences',
 			href: '/settings',
-			completed: !!(userContext?.company_name),
+			completed: !!userContext?.onboarding_completed,
 		},
 	]);
 

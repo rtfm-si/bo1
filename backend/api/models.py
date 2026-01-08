@@ -2367,6 +2367,44 @@ class DatasetProfileResponse(BaseModel):
     sample_values: list[Any] | None = Field(None, description="Sample values")
 
 
+# =============================================================================
+# PII Detection Models
+# =============================================================================
+
+
+class PiiType(str, Enum):
+    """Types of PII that can be detected in datasets."""
+
+    EMAIL = "email"
+    SSN = "ssn"
+    PHONE = "phone"
+    CREDIT_CARD = "credit_card"
+    IP_ADDRESS = "ip_address"
+    NAME = "name"
+    ADDRESS = "address"
+    DATE_OF_BIRTH = "date_of_birth"
+
+
+class PiiWarning(BaseModel):
+    """Warning about potential PII detected in a column.
+
+    Attributes:
+        column_name: Name of the column containing potential PII
+        pii_type: Type of PII detected
+        confidence: Confidence score (0.0-1.0)
+        sample_values: Masked sample values showing the pattern
+        match_count: Number of matches found in sample
+    """
+
+    column_name: str = Field(..., description="Column name with potential PII")
+    pii_type: PiiType = Field(..., description="Type of PII detected")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence")
+    sample_values: list[str] = Field(
+        default_factory=list, description="Masked sample values (max 3)"
+    )
+    match_count: int = Field(..., ge=0, description="Number of matches in sample")
+
+
 class DatasetResponse(BaseModel):
     """Response model for a dataset.
 
@@ -2401,6 +2439,12 @@ class DatasetResponse(BaseModel):
     created_at: str = Field(..., description="Creation timestamp (ISO)")
     updated_at: str = Field(..., description="Last update timestamp (ISO)")
     warnings: list[str] | None = Field(None, description="CSV validation warnings")
+    pii_warnings: list[PiiWarning] | None = Field(
+        None, description="Potential PII detected in columns"
+    )
+    pii_acknowledged_at: str | None = Field(
+        None, description="Timestamp when user acknowledged PII warning (ISO)"
+    )
 
 
 class DatasetDetailResponse(DatasetResponse):
@@ -2847,6 +2891,183 @@ class ConversationListResponse(BaseModel):
     """
 
     conversations: list[ConversationResponse] = Field(..., description="List of conversations")
+    total: int = Field(..., description="Total count")
+
+
+# =============================================================================
+# Dataset Favourites & Reports Models
+# =============================================================================
+
+
+class FavouriteType(str, Enum):
+    """Type of favourited item."""
+
+    chart = "chart"
+    insight = "insight"
+    message = "message"
+
+
+class DatasetFavouriteCreate(BaseModel):
+    """Request to create a favourite.
+
+    Attributes:
+        favourite_type: Type of item being favourited
+        analysis_id: ID of analysis (for chart type)
+        message_id: ID of message (for message type)
+        insight_data: Insight data (for insight type from DataInsightsPanel)
+        title: Display title
+        content: Text content/description
+        chart_spec: Chart specification if applicable
+        figure_json: Plotly figure JSON if applicable
+        user_note: Optional user annotation
+    """
+
+    favourite_type: FavouriteType = Field(..., description="Type of favourited item")
+    analysis_id: str | None = Field(None, description="Analysis ID for chart favourites")
+    message_id: str | None = Field(None, description="Message ID for message favourites")
+    insight_data: dict[str, Any] | None = Field(
+        None, description="Insight data for insight favourites"
+    )
+    title: str | None = Field(None, max_length=500, description="Display title")
+    content: str | None = Field(None, max_length=5000, description="Text content")
+    chart_spec: dict[str, Any] | None = Field(None, description="Chart specification")
+    figure_json: dict[str, Any] | None = Field(None, description="Plotly figure JSON")
+    user_note: str | None = Field(None, max_length=2000, description="User annotation")
+
+
+class DatasetFavouriteUpdate(BaseModel):
+    """Request to update a favourite."""
+
+    user_note: str | None = Field(None, max_length=2000, description="User annotation")
+    sort_order: int | None = Field(None, ge=0, description="Sort order")
+
+
+class DatasetFavouriteResponse(BaseModel):
+    """Response model for a favourite.
+
+    Attributes:
+        id: Favourite UUID
+        dataset_id: Dataset UUID
+        favourite_type: Type of favourited item
+        analysis_id: Analysis ID if chart type
+        message_id: Message ID if message type
+        insight_data: Insight data if insight type
+        title: Display title
+        content: Text content
+        chart_spec: Chart specification
+        figure_json: Plotly figure JSON
+        user_note: User annotation
+        sort_order: Sort order
+        created_at: Creation timestamp
+    """
+
+    id: str = Field(..., description="Favourite UUID")
+    dataset_id: str = Field(..., description="Dataset UUID")
+    favourite_type: FavouriteType = Field(..., description="Type of favourited item")
+    analysis_id: str | None = Field(None, description="Analysis ID")
+    message_id: str | None = Field(None, description="Message ID")
+    insight_data: dict[str, Any] | None = Field(None, description="Insight data")
+    title: str | None = Field(None, description="Display title")
+    content: str | None = Field(None, description="Text content")
+    chart_spec: dict[str, Any] | None = Field(None, description="Chart specification")
+    figure_json: dict[str, Any] | None = Field(None, description="Plotly figure JSON")
+    user_note: str | None = Field(None, description="User annotation")
+    sort_order: int = Field(0, description="Sort order")
+    created_at: str = Field(..., description="Creation timestamp")
+
+
+class DatasetFavouriteListResponse(BaseModel):
+    """Response model for listing favourites."""
+
+    favourites: list[DatasetFavouriteResponse] = Field(..., description="List of favourites")
+    total: int = Field(..., description="Total count")
+
+
+class ReportSection(BaseModel):
+    """A section within a generated report."""
+
+    section_type: str = Field(
+        ...,
+        description="Section type: executive_summary|key_findings|analysis|recommendations|data_notes",
+    )
+    title: str = Field(..., description="Section title")
+    content: str = Field(..., description="Section content (markdown)")
+    chart_refs: list[str] = Field(
+        default_factory=list, description="IDs of charts referenced in this section"
+    )
+
+
+class DatasetReportCreate(BaseModel):
+    """Request to generate a report."""
+
+    favourite_ids: list[str] | None = Field(
+        None, description="Specific favourites to include (all if omitted)"
+    )
+    title: str | None = Field(
+        None, max_length=255, description="Report title (auto-generated if omitted)"
+    )
+
+
+class DatasetReportResponse(BaseModel):
+    """Response model for a generated report.
+
+    Attributes:
+        id: Report UUID
+        dataset_id: Dataset UUID (None if dataset was deleted)
+        title: Report title
+        executive_summary: Brief executive summary
+        sections: Structured report sections
+        favourite_ids: IDs of favourites used
+        model_used: LLM model used for generation
+        tokens_used: Tokens consumed
+        created_at: Creation timestamp
+    """
+
+    id: str = Field(..., description="Report UUID")
+    dataset_id: str | None = Field(None, description="Dataset UUID (null if dataset deleted)")
+    title: str = Field(..., description="Report title")
+    executive_summary: str | None = Field(None, description="Executive summary")
+    sections: list[ReportSection] = Field(..., description="Report sections")
+    favourite_ids: list[str] = Field(..., description="Favourites used in report")
+    favourites: list[DatasetFavouriteResponse] | None = Field(
+        None, description="Full favourite data for rendering"
+    )
+    model_used: str | None = Field(None, description="LLM model used")
+    tokens_used: int | None = Field(None, description="Tokens consumed")
+    created_at: str = Field(..., description="Creation timestamp")
+
+
+class DatasetReportListResponse(BaseModel):
+    """Response model for listing reports."""
+
+    reports: list[DatasetReportResponse] = Field(..., description="List of reports")
+    total: int = Field(..., description="Total count")
+
+
+class AllReportItem(BaseModel):
+    """Report item with dataset information for cross-dataset listing.
+
+    Attributes:
+        id: Report UUID
+        dataset_id: Dataset UUID (None if dataset was deleted)
+        dataset_name: Dataset name for display (None if deleted)
+        title: Report title
+        executive_summary: Brief executive summary
+        created_at: Creation timestamp
+    """
+
+    id: str = Field(..., description="Report UUID")
+    dataset_id: str | None = Field(None, description="Dataset UUID (null if dataset deleted)")
+    dataset_name: str | None = Field(None, description="Dataset name (null if deleted)")
+    title: str = Field(..., description="Report title")
+    executive_summary: str | None = Field(None, description="Executive summary")
+    created_at: str = Field(..., description="Creation timestamp")
+
+
+class AllReportsListResponse(BaseModel):
+    """Response model for listing all reports across datasets."""
+
+    reports: list[AllReportItem] = Field(..., description="List of reports with dataset info")
     total: int = Field(..., description="Total count")
 
 
@@ -4530,6 +4751,17 @@ class ColumnSemantic(BaseModel):
     sample_insight: str | None = Field(default=None, description="Quick insight about this column")
 
 
+class UpdateColumnDescriptionRequest(BaseModel):
+    """Request to update user-defined column description."""
+
+    description: str = Field(
+        ...,
+        min_length=0,
+        max_length=500,
+        description="User's description of what this column represents",
+    )
+
+
 class SuggestedQuestion(BaseModel):
     """A question the user might want to explore."""
 
@@ -4576,3 +4808,195 @@ class DatasetInsightsResponse(BaseModel):
     message: str | None = Field(
         None, description="Status message (e.g., when insights unavailable)"
     )
+
+
+# =============================================================================
+# Dataset Investigation Models (8 Deterministic Analyses)
+# =============================================================================
+
+
+class DatasetInvestigationResponse(BaseModel):
+    """Response for dataset investigation (8 deterministic analyses).
+
+    These analyses are computed locally without LLM and serve as both:
+    1. "Key Insights" displayed to user after dataset loads
+    2. Context fed to LLM for smarter "Next Steps" suggestions
+    """
+
+    id: str = Field(description="Investigation UUID")
+    dataset_id: str = Field(description="Dataset UUID")
+    column_roles: dict[str, Any] = Field(description="Column role inference analysis")
+    missingness: dict[str, Any] = Field(description="Missingness + uniqueness + cardinality")
+    descriptive_stats: dict[str, Any] = Field(description="Descriptive stats + heavy hitters")
+    outliers: dict[str, Any] = Field(description="Outlier detection results")
+    correlations: dict[str, Any] = Field(description="Correlation matrix + leakage hints")
+    time_series_readiness: dict[str, Any] = Field(description="Time-series analysis")
+    segmentation_suggestions: dict[str, Any] = Field(description="Segmentation builder results")
+    data_quality: dict[str, Any] = Field(description="Data quality assessment")
+    computed_at: str = Field(description="When investigation was computed")
+
+
+# =============================================================================
+# Dataset Business Context Models
+# =============================================================================
+
+
+class DatasetBusinessContextCreate(BaseModel):
+    """Request to create/update business context for a dataset."""
+
+    business_goal: str | None = Field(
+        None, max_length=1000, description="User's business goal (e.g., 'Increase conversion rate')"
+    )
+    key_metrics: list[str] | None = Field(
+        None, max_length=20, description="Key metrics to focus on (e.g., ['revenue', 'churn'])"
+    )
+    kpis: list[str] | None = Field(
+        None, max_length=20, description="KPI targets (e.g., ['MRR > $50K', 'Churn < 5%'])"
+    )
+    objectives: str | None = Field(None, max_length=2000, description="Detailed objectives text")
+    industry: str | None = Field(
+        None, max_length=100, description="Industry (e.g., 'SaaS', 'E-commerce')"
+    )
+    additional_context: str | None = Field(
+        None, max_length=5000, description="Any additional context"
+    )
+
+
+class DatasetBusinessContextResponse(BaseModel):
+    """Response for dataset business context."""
+
+    id: str = Field(description="Business context UUID")
+    dataset_id: str = Field(description="Dataset UUID")
+    business_goal: str | None = Field(None, description="User's business goal")
+    key_metrics: list[str] = Field(default_factory=list, description="Key metrics")
+    kpis: list[str] = Field(default_factory=list, description="KPI targets")
+    objectives: str | None = Field(None, description="Detailed objectives")
+    industry: str | None = Field(None, description="Industry")
+    additional_context: str | None = Field(None, description="Additional context")
+    created_at: str = Field(description="Creation timestamp")
+    updated_at: str = Field(description="Last update timestamp")
+
+
+# =============================================================================
+# Dataset Update Models
+# =============================================================================
+
+
+class DatasetUpdate(BaseModel):
+    """Request to update dataset metadata (name/description)."""
+
+    name: str | None = Field(None, min_length=1, max_length=255, description="New dataset name")
+    description: str | None = Field(None, max_length=1000, description="New dataset description")
+
+
+# =============================================================================
+# Dataset Comparison Models
+# =============================================================================
+
+
+class DatasetComparisonCreate(BaseModel):
+    """Request to create a dataset comparison."""
+
+    name: str | None = Field(None, max_length=255, description="Optional name for the comparison")
+
+
+class DatasetComparisonResponse(BaseModel):
+    """Response for a dataset comparison."""
+
+    id: str = Field(description="Comparison UUID")
+    dataset_a_id: str = Field(description="First dataset UUID (baseline)")
+    dataset_b_id: str = Field(description="Second dataset UUID (comparison)")
+    dataset_a_name: str | None = Field(None, description="First dataset name")
+    dataset_b_name: str | None = Field(None, description="Second dataset name")
+    name: str | None = Field(None, description="Comparison name")
+    schema_comparison: dict[str, Any] = Field(description="Schema comparison results")
+    statistics_comparison: dict[str, Any] = Field(description="Statistics comparison results")
+    key_metrics_comparison: dict[str, Any] = Field(description="Key metrics comparison")
+    insights: list[str] = Field(default_factory=list, description="Generated insights")
+    created_at: str = Field(description="When comparison was created")
+
+
+class DatasetComparisonListResponse(BaseModel):
+    """Response for list of comparisons."""
+
+    comparisons: list[DatasetComparisonResponse] = Field(description="List of comparisons")
+    total_count: int = Field(description="Total count")
+
+
+# =============================================================================
+# Multi-Dataset Analysis Models
+# =============================================================================
+
+
+class MultiDatasetAnalysisCreate(BaseModel):
+    """Request to create a multi-dataset analysis."""
+
+    dataset_ids: list[str] = Field(
+        ...,
+        min_length=2,
+        max_length=5,
+        description="List of 2-5 dataset UUIDs to analyze",
+    )
+    name: str | None = Field(None, max_length=255, description="Optional name for the analysis")
+
+
+class MultiDatasetAnomaly(BaseModel):
+    """A detected anomaly across datasets."""
+
+    anomaly_type: str = Field(
+        description="Type: schema_drift, metric_outlier, type_mismatch, no_common_columns"
+    )
+    severity: str = Field(description="Severity: high, medium, low")
+    description: str = Field(description="Human-readable description")
+    affected_datasets: list[str] = Field(description="Names of affected datasets")
+    column: str | None = Field(None, description="Affected column if applicable")
+    details: dict[str, Any] = Field(default_factory=dict, description="Additional details")
+
+
+class MultiDatasetSummary(BaseModel):
+    """Summary statistics for a single dataset in multi-analysis."""
+
+    name: str = Field(description="Dataset name")
+    row_count: int = Field(description="Number of rows")
+    column_count: int = Field(description="Number of columns")
+    columns: list[str] = Field(description="Column names")
+    numeric_columns: list[str] = Field(description="Numeric column names")
+    categorical_columns: list[str] = Field(description="Categorical column names")
+
+
+class MultiDatasetCommonSchema(BaseModel):
+    """Schema information common across all datasets."""
+
+    common_columns: list[str] = Field(description="Columns present in ALL datasets")
+    partial_columns: dict[str, list[str]] = Field(
+        description="Columns with their presence: {column: [datasets]}"
+    )
+    type_consensus: dict[str, str] = Field(description="Most common type for each column")
+    type_conflicts: dict[str, dict[str, str]] = Field(
+        description="Type conflicts: {column: {dataset: type}}"
+    )
+
+
+class MultiDatasetAnalysisResponse(BaseModel):
+    """Response for a multi-dataset analysis."""
+
+    id: str = Field(description="Analysis UUID")
+    dataset_ids: list[str] = Field(description="Analyzed dataset UUIDs")
+    dataset_names: list[str] = Field(default_factory=list, description="Dataset names")
+    name: str | None = Field(None, description="Analysis name")
+    common_schema: MultiDatasetCommonSchema = Field(description="Common schema across datasets")
+    anomalies: list[MultiDatasetAnomaly] = Field(
+        default_factory=list, description="Detected anomalies"
+    )
+    dataset_summaries: list[MultiDatasetSummary] = Field(description="Per-dataset summaries")
+    pairwise_comparisons: list[dict[str, Any]] = Field(
+        default_factory=list, description="Pairwise comparison results"
+    )
+    created_at: str = Field(description="When analysis was created")
+
+
+class MultiDatasetAnalysisListResponse(BaseModel):
+    """Response for list of multi-dataset analyses."""
+
+    analyses: list[MultiDatasetAnalysisResponse] = Field(description="List of analyses")
+    total_count: int = Field(description="Total count")

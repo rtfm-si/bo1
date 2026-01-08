@@ -333,7 +333,7 @@
 	const errorInfo = $derived(error ? parseErrorType(error) : null);
 </script>
 
-<div class="flex flex-col h-[500px] bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+<div class="flex flex-col min-h-[400px] h-[calc(100vh-400px)] max-h-[700px] bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
 	<!-- Header -->
 	<div class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
 		<h3 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
@@ -412,6 +412,21 @@
 					onNextStepClick={handleNextStepClick}
 				/>
 			{/each}
+			<!-- Thinking indicator when streaming but no content yet -->
+			{#if isStreaming && !streamingContent}
+				<div class="flex justify-start mb-4">
+					<div class="max-w-[85%] rounded-lg px-4 py-3 bg-neutral-100 dark:bg-neutral-700">
+						<div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+							<div class="flex gap-1">
+								<span class="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+								<span class="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+								<span class="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+							</div>
+							<span class="text-sm">Analyzing your question...</span>
+						</div>
+					</div>
+				</div>
+			{/if}
 		{/if}
 	</div>
 

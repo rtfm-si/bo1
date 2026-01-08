@@ -516,6 +516,30 @@ async def update_price(
             raise http_error(ErrorCode.VALIDATION_ERROR, "No updates provided", status=400)
 
 
+class StripeConfigStatusResponse(BaseModel):
+    """Stripe configuration status."""
+
+    configured: bool
+    mode: str | None = None  # 'test', 'live', or None
+    error: str | None = None
+
+
+@router.get(
+    "/stripe/status",
+    response_model=StripeConfigStatusResponse,
+    summary="Check Stripe API key configuration",
+)
+async def get_stripe_config_status(
+    _user: dict = Depends(require_admin),
+) -> StripeConfigStatusResponse:
+    """Check if Stripe API key is configured and valid."""
+    from backend.services.billing_sync import BillingSyncService
+
+    sync_service = BillingSyncService()
+    status = sync_service.validate_stripe_key()
+    return StripeConfigStatusResponse(**status.to_dict())
+
+
 @router.post(
     "/sync/stripe",
     response_model=SyncResult,
@@ -525,12 +549,37 @@ async def sync_to_stripe(
     _user: dict = Depends(require_admin),
 ) -> SyncResult:
     """Sync all billing products and prices to Stripe."""
+    import stripe as stripe_lib
+
     from backend.services.billing_sync import BillingSyncService
 
     try:
         sync_service = BillingSyncService()
         result = sync_service.sync_all_to_stripe()
         return result
+    except ValueError as e:
+        # Missing config
+        logger.warning(f"Stripe sync failed: {e}")
+        return SyncResult(
+            success=False,
+            errors=[f"STRIPE_NOT_CONFIGURED: {e}. Set STRIPE_SECRET_KEY environment variable."],
+        )
+    except stripe_lib.error.AuthenticationError as e:
+        # Invalid API key (401)
+        logger.warning(f"Stripe authentication failed: {e}")
+        return SyncResult(
+            success=False,
+            errors=[
+                "STRIPE_AUTH_FAILED: Invalid Stripe API key. "
+                "Check that STRIPE_SECRET_KEY is correct and not expired."
+            ],
+        )
+    except stripe_lib.error.APIConnectionError as e:
+        logger.error(f"Stripe connection failed: {e}")
+        return SyncResult(
+            success=False,
+            errors=[f"STRIPE_CONNECTION_ERROR: Cannot reach Stripe API. {e}"],
+        )
     except Exception as e:
         logger.exception("Stripe sync failed")
         return SyncResult(success=False, errors=[str(e)])

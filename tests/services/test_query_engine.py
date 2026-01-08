@@ -15,9 +15,11 @@ from backend.api.models import (
     TrendSpec,
 )
 from backend.services.query_engine import (
+    LARGE_DATASET_THRESHOLD,
     QueryError,
     QueryResult,
     execute_query,
+    should_use_duckdb,
 )
 
 
@@ -469,3 +471,28 @@ class TestQueryResult:
         assert isinstance(result.total_count, int)
         assert isinstance(result.has_more, bool)
         assert isinstance(result.query_type, str)
+
+
+class TestBackendSelection:
+    """Test DuckDB vs pandas backend selection."""
+
+    def test_should_use_duckdb_small_dataset(self):
+        """Small datasets should use pandas."""
+        assert should_use_duckdb(1000) is False
+        assert should_use_duckdb(50000) is False
+        assert should_use_duckdb(99999) is False
+
+    def test_should_use_duckdb_large_dataset(self):
+        """Large datasets should use DuckDB."""
+        assert should_use_duckdb(100000) is True
+        assert should_use_duckdb(150000) is True
+        assert should_use_duckdb(1000000) is True
+
+    def test_should_use_duckdb_at_threshold(self):
+        """Datasets at threshold should use DuckDB (>= not >)."""
+        assert should_use_duckdb(LARGE_DATASET_THRESHOLD) is True
+        assert should_use_duckdb(LARGE_DATASET_THRESHOLD - 1) is False
+
+    def test_threshold_value(self):
+        """Verify threshold is 100K."""
+        assert LARGE_DATASET_THRESHOLD == 100_000

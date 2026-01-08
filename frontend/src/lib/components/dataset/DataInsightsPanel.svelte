@@ -18,6 +18,7 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import ChartRenderer from './ChartRenderer.svelte';
 	import ChartModal from './ChartModal.svelte';
+	import FavouriteButton from './FavouriteButton.svelte';
 	import { apiClient } from '$lib/api/client';
 
 	interface Props {
@@ -28,6 +29,12 @@
 		onQuestionClick?: (question: string) => void;
 		onChartClick?: (chart: SuggestedChart) => void;
 		onRefresh?: () => void;
+		// Favourite support
+		favouritedInsights?: Set<string>;
+		favouritedCharts?: Set<number>;
+		favouriteLoading?: string | null;
+		onToggleInsightFavourite?: (insight: Insight) => void;
+		onToggleChartFavourite?: (chart: SuggestedChart, index: number) => void;
 	}
 
 	let {
@@ -37,7 +44,12 @@
 		error = null,
 		onQuestionClick,
 		onChartClick,
-		onRefresh
+		onRefresh,
+		favouritedInsights = new Set(),
+		favouritedCharts = new Set(),
+		favouriteLoading = null,
+		onToggleInsightFavourite,
+		onToggleChartFavourite
 	}: Props = $props();
 
 	// Track which chart is being previewed
@@ -50,6 +62,26 @@
 	let modalOpen = $state(false);
 	let modalChartData = $state<ChartResultResponse | null>(null);
 	let modalTitle = $state('');
+
+	// Filter out row/column metrics (already shown in header)
+	const filteredMetrics = $derived(
+		(insights?.headline_metrics ?? []).filter((m) => {
+			const label = m.label.toLowerCase();
+			return !label.includes('row') && !label.includes('column') && !label.includes('record');
+		})
+	);
+
+	// Filter out generic/non-actionable insights (e.g., "data loaded", row/column counts)
+	const filteredInsights = $derived(
+		(insights?.insights ?? []).filter((i) => {
+			const text = `${i.headline} ${i.detail}`.toLowerCase();
+			const isGeneric =
+				text.includes('data loaded') ||
+				text.includes('loaded successfully') ||
+				/\d+\s*(rows?|records?|columns?)/.test(text);
+			return !isGeneric;
+		})
+	);
 
 	// Severity styling
 	function getSeverityClasses(severity: InsightSeverity): string {
@@ -194,45 +226,10 @@
 	</div>
 {:else if insights}
 	<div class="space-y-6">
-		<!-- Data Identity Card -->
-		<div class="bg-gradient-to-r from-brand-50 to-brand-100 dark:from-brand-900/30 dark:to-brand-800/20 rounded-lg border border-brand-200 dark:border-brand-800 p-6">
-			<div class="flex items-start justify-between">
-				<div class="flex-1">
-					<div class="flex items-center gap-2 mb-2">
-						<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-brand-200 dark:bg-brand-800 text-brand-800 dark:text-brand-200">
-							{getDomainLabel(insights.identity.domain)}
-						</span>
-						{#if insights.identity.time_range}
-							<span class="text-xs text-neutral-500 dark:text-neutral-400">
-								{insights.identity.time_range}
-							</span>
-						{/if}
-					</div>
-					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
-						{insights.identity.entity_type}
-					</h3>
-					<p class="text-sm text-neutral-600 dark:text-neutral-300">
-						{insights.identity.description}
-					</p>
-				</div>
-				{#if onRefresh}
-					<button
-						onclick={onRefresh}
-						class="p-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
-						title="Regenerate insights"
-					>
-						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-						</svg>
-					</button>
-				{/if}
-			</div>
-		</div>
-
 		<!-- Headline Metrics -->
-		{#if insights.headline_metrics.length > 0}
+		{#if filteredMetrics.length > 0}
 			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-				{#each insights.headline_metrics as metric (metric.label)}
+				{#each filteredMetrics as metric (metric.label)}
 					<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
 						<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">{metric.label}</div>
 						<div class="text-xl font-bold text-neutral-900 dark:text-white">{metric.value}</div>
@@ -250,7 +247,7 @@
 		{/if}
 
 		<!-- Key Insights -->
-		{#if insights.insights.length > 0}
+		{#if filteredInsights.length > 0}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
 					<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,15 +256,23 @@
 					Key Insights
 				</h3>
 				<div class="space-y-3">
-					{#each insights.insights as insight (insight.headline)}
+					{#each filteredInsights as insight (insight.headline)}
 						<div class="rounded-lg border p-4 {getSeverityClasses(insight.severity)}">
 							<div class="flex items-start gap-3">
 								<svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getSeverityIcon(insight.severity)} />
 								</svg>
 								<div class="flex-1 min-w-0">
-									<div class="flex items-center gap-2 mb-1">
+									<div class="flex items-center justify-between gap-2 mb-1">
 										<span class="text-xs font-medium opacity-70">{getTypeLabel(insight.type)}</span>
+										{#if onToggleInsightFavourite}
+											<FavouriteButton
+												isFavourited={favouritedInsights.has(insight.headline)}
+												loading={favouriteLoading === `insight:${insight.headline}`}
+												size="sm"
+												onclick={() => onToggleInsightFavourite(insight)}
+											/>
+										{/if}
 									</div>
 									<h4 class="font-semibold">{insight.headline}</h4>
 									<p class="text-sm mt-1 opacity-90">{insight.detail}</p>
@@ -340,12 +345,19 @@
 							<div class="p-4 bg-error-50 dark:bg-error-900/20 rounded-lg text-sm text-error-700 dark:text-error-300">
 								{chartPreviewError}
 							</div>
-						{:else if chartPreviewData}
+						{:else if chartPreviewData && previewingChartIndex !== null}
+							{@const chartIndex = previewingChartIndex}
+							{@const chart = insights?.suggested_charts?.[chartIndex]}
 							<ChartRenderer
 								figureJson={chartPreviewData.figure_json}
-								title={insights?.suggested_charts?.[previewingChartIndex]?.title || ''}
+								title={chart?.title || ''}
 								viewMode="simple"
 								onExpand={handleExpandChart}
+								isFavourited={favouritedCharts.has(chartIndex)}
+								favouriteLoading={favouriteLoading === `chart:${chartIndex}`}
+								onToggleFavourite={onToggleChartFavourite && chart
+									? () => onToggleChartFavourite(chart, chartIndex)
+									: undefined}
 							/>
 						{/if}
 					</div>

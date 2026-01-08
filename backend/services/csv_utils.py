@@ -105,6 +105,9 @@ def detect_injection_patterns(content: bytes, max_rows: int = 100) -> list[str]:
     except UnicodeDecodeError:
         return warnings_list
 
+    # Skip leading empty rows before scanning
+    text, _ = skip_leading_empty_rows(text)
+
     lines = text.strip().split("\n")
     if len(lines) < 2:
         return warnings_list
@@ -184,6 +187,33 @@ def detect_delimiter(sample: str) -> str:
         return ","
 
 
+def skip_leading_empty_rows(text: str) -> tuple[str, int]:
+    """Skip leading empty or whitespace-only rows from CSV text.
+
+    Args:
+        text: Decoded CSV text content
+
+    Returns:
+        Tuple of (cleaned_text, skipped_count)
+    """
+    lines = text.split("\n")
+    skipped = 0
+
+    for line in lines:
+        # Check if line is empty or whitespace-only
+        if not line.strip():
+            skipped += 1
+        else:
+            # Found first non-empty line
+            break
+
+    if skipped > 0:
+        cleaned_text = "\n".join(lines[skipped:])
+        return cleaned_text, skipped
+
+    return text, 0
+
+
 def validate_csv_headers(content: bytes) -> CSVMetadata:
     """Validate CSV content and extract headers.
 
@@ -206,6 +236,11 @@ def validate_csv_headers(content: bytes) -> CSVMetadata:
         text = content.decode(encoding)
     except UnicodeDecodeError as e:
         raise CSVValidationError(f"Invalid encoding: {e}", field="file") from e
+
+    # Skip leading empty rows before header detection
+    text, skipped_count = skip_leading_empty_rows(text)
+    if skipped_count > 0:
+        logger.info(f"Skipped {skipped_count} leading empty row(s) before header")
 
     # Need at least one line
     lines = text.strip().split("\n")
@@ -288,6 +323,8 @@ def validate_csv_structure(content: bytes, max_columns: int = 100) -> CSVMetadat
     # Validate a sample of rows have correct column count
     encoding = metadata.encoding
     text = content.decode(encoding)
+    # Skip leading empty rows (same as in validate_csv_headers)
+    text, _ = skip_leading_empty_rows(text)
     reader = csv.reader(io.StringIO(text), delimiter=metadata.delimiter)
 
     # Skip header

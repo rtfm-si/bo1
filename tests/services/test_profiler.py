@@ -7,12 +7,12 @@ import pytest
 
 from backend.services.profiler import (
     ColumnProfile,
+    ColumnStats,
     DatasetProfile,
     ProfileError,
     profile_dataset,
     save_profile,
 )
-from backend.services.statistics import ColumnStats
 from backend.services.type_inference import ColumnType
 
 
@@ -55,11 +55,11 @@ class TestDatasetProfile:
 class TestProfileDataset:
     """Tests for profile_dataset function."""
 
-    @patch("backend.services.profiler.load_dataframe")
-    def test_profile_success(self, mock_load):
-        # Setup mock
+    @patch("backend.services.profiler.get_dataframe_or_connection")
+    def test_profile_success(self, mock_get_data):
+        # Setup mock - returns (DataFrame, None connection, row_count) for small datasets
         df = pd.DataFrame({"num": [1, 2, 3], "text": ["a", "b", "c"]})
-        mock_load.return_value = df
+        mock_get_data.return_value = (df, None, 3)
 
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = {
@@ -76,16 +76,14 @@ class TestProfileDataset:
         assert profile.column_count == 2
         assert len(profile.columns) == 2
 
-    @patch("backend.services.profiler.load_dataframe")
-    def test_profile_not_found(self, mock_load):
+    def test_profile_not_found(self):
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = None
 
         with pytest.raises(ProfileError, match="not found"):
             profile_dataset("missing-id", "user-1", mock_repo)
 
-    @patch("backend.services.profiler.load_dataframe")
-    def test_profile_no_file_key(self, mock_load):
+    def test_profile_no_file_key(self):
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = {"id": "test-id", "file_key": None}
 

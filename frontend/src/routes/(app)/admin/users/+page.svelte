@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail, Heart } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail, Heart, Sparkles } from 'lucide-svelte';
 	import SendEmailModal from '$lib/components/admin/SendEmailModal.svelte';
 	import { getTierColor } from '$lib/utils/colors';
 	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
@@ -42,6 +42,8 @@
 	let promoCode = $state('');
 	let promoError = $state('');
 	let emailModalUser = $state<{ user_id: string; email: string } | null>(null);
+	let seoAccessModalUser = $state<{ user_id: string; email: string; has_seo_access?: boolean } | null>(null);
+	let seoAccessLoading = $state(false);
 
 	// Update local state when data changes
 	$effect(() => {
@@ -183,6 +185,45 @@
 			isSubmitting = false;
 		}
 	}
+
+	async function openSeoAccessModal(user: { user_id: string; email: string }) {
+		seoAccessLoading = true;
+		seoAccessModalUser = { ...user, has_seo_access: undefined };
+		try {
+			const status = await adminApi.getSeoAccess(user.user_id);
+			seoAccessModalUser = { ...user, has_seo_access: status.has_seo_access };
+		} catch (error) {
+			console.error('Failed to get SEO access status:', error);
+			seoAccessModalUser = { ...user, has_seo_access: false };
+		} finally {
+			seoAccessLoading = false;
+		}
+	}
+
+	function closeSeoAccessModal() {
+		seoAccessModalUser = null;
+		seoAccessLoading = false;
+	}
+
+	async function handleToggleSeoAccess() {
+		if (!seoAccessModalUser) return;
+
+		seoAccessLoading = true;
+		try {
+			if (seoAccessModalUser.has_seo_access) {
+				await adminApi.revokeSeoAccess(seoAccessModalUser.user_id);
+				seoAccessModalUser = { ...seoAccessModalUser, has_seo_access: false };
+			} else {
+				await adminApi.grantSeoAccess(seoAccessModalUser.user_id);
+				seoAccessModalUser = { ...seoAccessModalUser, has_seo_access: true };
+			}
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : 'Failed to update SEO access';
+			alert(message);
+		} finally {
+			seoAccessLoading = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -287,6 +328,7 @@
 												class="text-xs px-2 py-1 rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900"
 											>
 												<option value="free">Free</option>
+												<option value="starter">Starter</option>
 												<option value="pro">Pro</option>
 												<option value="enterprise">Enterprise</option>
 											</select>
@@ -448,6 +490,13 @@
 													>
 														<Gift class="w-3 h-3" />
 														Promo
+													</button>
+													<button
+														onclick={() => openSeoAccessModal(user)}
+														class="text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+													>
+														<Sparkles class="w-3 h-3" />
+														SEO
 													</button>
 													<button
 														onclick={() => emailModalUser = { user_id: user.user_id, email: user.email }}
@@ -774,3 +823,60 @@
 	userEmail={emailModalUser?.email ?? ''}
 	onClose={() => emailModalUser = null}
 />
+
+<!-- SEO Access Modal -->
+{#if seoAccessModalUser}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeSeoAccessModal} role="presentation">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+				<Sparkles class="w-5 h-5 text-orange-500" />
+				SEO Tools Access
+			</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Manage SEO tools access for <strong>{seoAccessModalUser.email}</strong>
+			</p>
+
+			{#if seoAccessLoading && seoAccessModalUser.has_seo_access === undefined}
+				<div class="flex items-center justify-center py-4">
+					<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+					<span class="ml-2 text-neutral-600 dark:text-neutral-400">Loading status...</span>
+				</div>
+			{:else}
+				<div class="mb-4 p-4 rounded-lg {seoAccessModalUser.has_seo_access ? 'bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800' : 'bg-neutral-100 dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600'}">
+					<div class="flex items-center gap-2">
+						<span class="text-sm font-medium {seoAccessModalUser.has_seo_access ? 'text-success-800 dark:text-success-200' : 'text-neutral-700 dark:text-neutral-300'}">
+							Current Status:
+						</span>
+						<span class="inline-flex text-xs px-2 py-1 rounded-full {seoAccessModalUser.has_seo_access ? 'bg-success-100 text-success-800 dark:bg-success-800 dark:text-success-200' : 'bg-neutral-200 text-neutral-600 dark:bg-neutral-600 dark:text-neutral-300'}">
+							{seoAccessModalUser.has_seo_access ? 'Has Access' : 'No Access'}
+						</span>
+					</div>
+				</div>
+
+				<div class="flex justify-end gap-3">
+					<Button variant="secondary" size="md" onclick={closeSeoAccessModal} disabled={seoAccessLoading}>
+						{#snippet children()}Close{/snippet}
+					</Button>
+					<Button
+						variant={seoAccessModalUser?.has_seo_access ? 'danger' : 'brand'}
+						size="md"
+						onclick={handleToggleSeoAccess}
+						disabled={seoAccessLoading}
+					>
+						{#snippet children()}
+							{#if seoAccessLoading}
+								{seoAccessModalUser?.has_seo_access ? 'Revoking...' : 'Granting...'}
+							{:else if seoAccessModalUser?.has_seo_access}
+								Revoke Access
+							{:else}
+								Grant Access
+							{/if}
+						{/snippet}
+					</Button>
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}

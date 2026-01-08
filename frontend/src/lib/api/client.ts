@@ -88,10 +88,14 @@ import type {
 	QueryResultResponse,
 	// Dataset types (Data Analysis)
 	Dataset,
+	DatasetResponse,
 	DatasetDetailResponse,
 	DatasetListResponse,
 	DatasetProfile,
 	DatasetInsightsResponse,
+	DatasetInvestigationResponse,
+	DatasetBusinessContext,
+	DatasetBusinessContextResponse,
 	ChartSpec,
 	ChartResultResponse,
 	DatasetAnalysis,
@@ -190,11 +194,6 @@ import type {
 	SeoBlogArticle,
 	SeoBlogArticleUpdate,
 	SeoBlogArticleListResponse,
-	// SEO Autopilot types
-	SeoAutopilotConfig,
-	SeoAutopilotConfigResponse,
-	SeoPendingArticle,
-	SeoPendingArticlesResponse,
 	// Marketing Assets types
 	MarketingAsset,
 	MarketingAssetType,
@@ -224,7 +223,20 @@ import type {
 	// Recent Research types
 	RecentResearchResponse,
 	// Research Embeddings types
-	ResearchEmbeddingsResponse
+	ResearchEmbeddingsResponse,
+	// Dataset Favourites types
+	DatasetFavouriteResponse,
+	DatasetFavouriteListResponse,
+	// Dataset Reports types
+	DatasetReportResponse,
+	DatasetReportListResponse,
+	AllReportsListResponse,
+	// Dataset Comparison types
+	DatasetComparisonResponse,
+	DatasetComparisonListResponse,
+	// Multi-Dataset Analysis types
+	MultiDatasetAnalysisResponse,
+	MultiDatasetAnalysisListResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -2195,6 +2207,24 @@ export class ApiClient {
 	}
 
 	/**
+	 * Update dataset metadata (name/description)
+	 */
+	async updateDataset(
+		datasetId: string,
+		data: { name?: string; description?: string }
+	): Promise<DatasetResponse> {
+		return this.patch<DatasetResponse>(`/api/v1/datasets/${datasetId}`, data);
+	}
+
+	/**
+	 * Acknowledge PII warning for a dataset
+	 * Records that user has reviewed and confirmed no PII is present
+	 */
+	async acknowledgePii(datasetId: string): Promise<DatasetResponse> {
+		return this.post<DatasetResponse>(`/api/v1/datasets/${datasetId}/acknowledge-pii`, {});
+	}
+
+	/**
 	 * Trigger profiling for a dataset
 	 */
 	async profileDataset(datasetId: string): Promise<{ profiles: DatasetProfile[]; summary: string }> {
@@ -2209,6 +2239,60 @@ export class ApiClient {
 		regenerate: boolean = false
 	): Promise<DatasetInsightsResponse> {
 		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/insights`, {
+			regenerate: regenerate ? 'true' : undefined
+		});
+		return this.fetch<DatasetInsightsResponse>(endpoint);
+	}
+
+	/**
+	 * Run deterministic investigation analyses on a dataset
+	 */
+	async investigateDataset(datasetId: string): Promise<DatasetInvestigationResponse> {
+		return this.post<DatasetInvestigationResponse>(
+			`/api/v1/datasets/${datasetId}/investigate`,
+			{}
+		);
+	}
+
+	/**
+	 * Get cached investigation results for a dataset
+	 */
+	async getDatasetInvestigation(datasetId: string): Promise<DatasetInvestigationResponse> {
+		return this.fetch<DatasetInvestigationResponse>(
+			`/api/v1/datasets/${datasetId}/investigation`
+		);
+	}
+
+	/**
+	 * Set business context for a dataset
+	 */
+	async setDatasetBusinessContext(
+		datasetId: string,
+		context: DatasetBusinessContext
+	): Promise<DatasetBusinessContextResponse> {
+		return this.post<DatasetBusinessContextResponse>(
+			`/api/v1/datasets/${datasetId}/business-context`,
+			context
+		);
+	}
+
+	/**
+	 * Get business context for a dataset
+	 */
+	async getDatasetBusinessContext(datasetId: string): Promise<DatasetBusinessContextResponse> {
+		return this.fetch<DatasetBusinessContextResponse>(
+			`/api/v1/datasets/${datasetId}/business-context`
+		);
+	}
+
+	/**
+	 * Get enhanced insights using investigation + business context
+	 */
+	async getEnhancedInsights(
+		datasetId: string,
+		regenerate: boolean = false
+	): Promise<DatasetInsightsResponse> {
+		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/enhanced-insights`, {
 			regenerate: regenerate ? 'true' : undefined
 		});
 		return this.fetch<DatasetInsightsResponse>(endpoint);
@@ -2337,6 +2421,223 @@ export class ApiClient {
 	 */
 	async deleteConversation(datasetId: string, conversationId: string): Promise<void> {
 		await this.delete<void>(`/api/v1/datasets/${datasetId}/conversations/${conversationId}`);
+	}
+
+	/**
+	 * Get user-defined column descriptions for a dataset
+	 */
+	async getColumnDescriptions(datasetId: string): Promise<Record<string, string>> {
+		return this.fetch<Record<string, string>>(`/api/v1/datasets/${datasetId}/columns/descriptions`);
+	}
+
+	/**
+	 * Update user-defined description for a column
+	 */
+	async updateColumnDescription(
+		datasetId: string,
+		columnName: string,
+		description: string
+	): Promise<{ column_name: string; description: string }> {
+		return this.patch<{ column_name: string; description: string }>(
+			`/api/v1/datasets/${datasetId}/columns/${encodeURIComponent(columnName)}/description`,
+			{ description }
+		);
+	}
+
+	// ============================================================================
+	// Favourites Methods
+	// ============================================================================
+
+	/**
+	 * Create a new favourite for a dataset
+	 */
+	async createFavourite(
+		datasetId: string,
+		data: {
+			favourite_type: 'chart' | 'insight' | 'message';
+			analysis_id?: string;
+			message_id?: string;
+			insight_data?: Record<string, unknown>;
+			title?: string;
+			content?: string;
+			chart_spec?: Record<string, unknown>;
+			figure_json?: Record<string, unknown>;
+			user_note?: string;
+		}
+	): Promise<DatasetFavouriteResponse> {
+		return this.post<DatasetFavouriteResponse>(`/api/v1/datasets/${datasetId}/favourites`, data);
+	}
+
+	/**
+	 * List all favourites for a dataset
+	 */
+	async listFavourites(datasetId: string): Promise<DatasetFavouriteListResponse> {
+		return this.fetch<DatasetFavouriteListResponse>(`/api/v1/datasets/${datasetId}/favourites`);
+	}
+
+	/**
+	 * Update a favourite (note or sort order)
+	 */
+	async updateFavourite(
+		datasetId: string,
+		favouriteId: string,
+		data: { user_note?: string; sort_order?: number }
+	): Promise<DatasetFavouriteResponse> {
+		return this.patch<DatasetFavouriteResponse>(
+			`/api/v1/datasets/${datasetId}/favourites/${favouriteId}`,
+			data
+		);
+	}
+
+	/**
+	 * Delete a favourite
+	 */
+	async deleteFavourite(datasetId: string, favouriteId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/${datasetId}/favourites/${favouriteId}`);
+	}
+
+	// ============================================================================
+	// Reports Methods
+	// ============================================================================
+
+	/**
+	 * Generate a report from favourited items
+	 */
+	async generateReport(
+		datasetId: string,
+		data: { favourite_ids?: string[]; title?: string }
+	): Promise<DatasetReportResponse> {
+		return this.post<DatasetReportResponse>(`/api/v1/datasets/${datasetId}/reports`, data);
+	}
+
+	/**
+	 * List all reports for a dataset
+	 */
+	async listReports(datasetId: string): Promise<DatasetReportListResponse> {
+		return this.fetch<DatasetReportListResponse>(`/api/v1/datasets/${datasetId}/reports`);
+	}
+
+	/**
+	 * List all data reports across all datasets
+	 */
+	async listAllReports(limit: number = 50): Promise<AllReportsListResponse> {
+		return this.fetch<AllReportsListResponse>(`/api/v1/datasets/reports?limit=${limit}`);
+	}
+
+	/**
+	 * Get a specific report (legacy - requires dataset_id)
+	 */
+	async getReport(datasetId: string, reportId: string): Promise<DatasetReportResponse> {
+		return this.fetch<DatasetReportResponse>(`/api/v1/datasets/${datasetId}/reports/${reportId}`);
+	}
+
+	/**
+	 * Get a report by ID only (supports orphaned reports where dataset was deleted)
+	 */
+	async getReportById(reportId: string): Promise<DatasetReportResponse> {
+		return this.fetch<DatasetReportResponse>(`/api/v1/datasets/reports/${reportId}`);
+	}
+
+	/**
+	 * Delete a report
+	 */
+	async deleteReport(datasetId: string, reportId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/${datasetId}/reports/${reportId}`);
+	}
+
+	/**
+	 * Delete a report by ID only (for orphaned reports)
+	 */
+	async deleteReportById(reportId: string): Promise<void> {
+		// Use the standalone endpoint - need to add this backend endpoint
+		// For now, throw error as delete requires dataset_id
+		throw new Error('Cannot delete orphaned reports - dataset was deleted');
+	}
+
+	// ============================================================================
+	// Dataset Comparison Methods
+	// ============================================================================
+
+	/**
+	 * Compare two datasets
+	 */
+	async compareDatasets(
+		datasetAId: string,
+		datasetBId: string,
+		name?: string
+	): Promise<DatasetComparisonResponse> {
+		return this.post<DatasetComparisonResponse>(
+			`/api/v1/datasets/${datasetAId}/compare/${datasetBId}`,
+			name ? { name } : {}
+		);
+	}
+
+	/**
+	 * List comparisons involving a dataset
+	 */
+	async listDatasetComparisons(
+		datasetId: string,
+		limit?: number
+	): Promise<DatasetComparisonListResponse> {
+		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/comparisons`, { limit });
+		return this.fetch<DatasetComparisonListResponse>(endpoint);
+	}
+
+	/**
+	 * Get a specific comparison
+	 */
+	async getComparison(datasetId: string, comparisonId: string): Promise<DatasetComparisonResponse> {
+		return this.fetch<DatasetComparisonResponse>(
+			`/api/v1/datasets/${datasetId}/comparisons/${comparisonId}`
+		);
+	}
+
+	/**
+	 * Delete a comparison
+	 */
+	async deleteComparison(datasetId: string, comparisonId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/${datasetId}/comparisons/${comparisonId}`);
+	}
+
+	// ============================================================================
+	// Multi-Dataset Analysis Methods
+	// ============================================================================
+
+	/**
+	 * Run multi-dataset analysis (2-5 datasets)
+	 */
+	async runMultiDatasetAnalysis(
+		datasetIds: string[],
+		name?: string
+	): Promise<MultiDatasetAnalysisResponse> {
+		return this.post<MultiDatasetAnalysisResponse>('/api/v1/datasets/multi-analysis', {
+			dataset_ids: datasetIds,
+			name
+		});
+	}
+
+	/**
+	 * List multi-dataset analyses
+	 */
+	async listMultiDatasetAnalyses(limit?: number): Promise<MultiDatasetAnalysisListResponse> {
+		const endpoint = withQueryString('/api/v1/datasets/multi-analysis', { limit });
+		return this.fetch<MultiDatasetAnalysisListResponse>(endpoint);
+	}
+
+	/**
+	 * Get a specific multi-dataset analysis
+	 */
+	async getMultiDatasetAnalysis(analysisId: string): Promise<MultiDatasetAnalysisResponse> {
+		return this.fetch<MultiDatasetAnalysisResponse>(
+			`/api/v1/datasets/multi-analysis/${analysisId}`
+		);
+	}
+
+	/**
+	 * Delete a multi-dataset analysis
+	 */
+	async deleteMultiDatasetAnalysis(analysisId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/multi-analysis/${analysisId}`);
 	}
 
 	// ============================================================================
@@ -3423,45 +3724,6 @@ export class ApiClient {
 		params: { tone?: string; changes?: string[] }
 	): Promise<SeoBlogArticle> {
 		return this.post<SeoBlogArticle>(`/api/v1/seo/articles/${articleId}/regenerate`, params);
-	}
-
-	// ============================================================================
-	// SEO Autopilot Methods
-	// ============================================================================
-
-	/**
-	 * Get SEO autopilot configuration
-	 */
-	async getSeoAutopilotConfig(): Promise<SeoAutopilotConfigResponse> {
-		return this.fetch<SeoAutopilotConfigResponse>('/api/v1/seo/autopilot/config');
-	}
-
-	/**
-	 * Update SEO autopilot configuration
-	 */
-	async updateSeoAutopilotConfig(data: SeoAutopilotConfig): Promise<SeoAutopilotConfigResponse> {
-		return this.put<SeoAutopilotConfigResponse>('/api/v1/seo/autopilot/config', data);
-	}
-
-	/**
-	 * Get pending articles from autopilot
-	 */
-	async getSeoPendingArticles(): Promise<SeoPendingArticlesResponse> {
-		return this.fetch<SeoPendingArticlesResponse>('/api/v1/seo/autopilot/pending');
-	}
-
-	/**
-	 * Approve a pending article
-	 */
-	async approveSeoArticle(articleId: number): Promise<SeoBlogArticle> {
-		return this.post<SeoBlogArticle>(`/api/v1/seo/autopilot/articles/${articleId}/approve`, {});
-	}
-
-	/**
-	 * Reject a pending article
-	 */
-	async rejectSeoArticle(articleId: number): Promise<void> {
-		return this.post<void>(`/api/v1/seo/autopilot/articles/${articleId}/reject`, {});
 	}
 
 	// ============================================================================

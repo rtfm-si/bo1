@@ -454,23 +454,23 @@
 		communication: { label: 'Communication', color: 'text-teal-600 dark:text-teal-400' }
 	};
 
-	// Build mentor help URL for a specific step
+	// Build advisor help URL for a specific step
 	function getMentorHelpUrl(stepNumber: number, stepText: string): string {
 		const message = `@action:${actionId} Help me with step ${stepNumber}: "${stepText}"`;
 		const params = new URLSearchParams({
 			message,
 			persona: 'action_coach'
 		});
-		return `/mentor?${params.toString()}`;
+		return `/advisor/discuss?${params.toString()}`;
 	}
 
-	// Build mentor URL for general action help
+	// Build advisor URL for general action help
 	function getActionMentorUrl(): string {
 		const params = new URLSearchParams({
 			message: `Help me with @action:${actionId}`,
 			persona: 'task_master'
 		});
-		return `/mentor?${params.toString()}`;
+		return `/advisor/discuss?${params.toString()}`;
 	}
 
 	// Helper functions with fallbacks

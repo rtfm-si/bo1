@@ -299,3 +299,27 @@ def get_user_tier(user_id: str) -> str:
         )
     except Exception:
         return "free"
+
+
+def has_seo_access(user_id: str, tier: str | None = None) -> bool:
+    """Check if user has SEO access via tier or promotion.
+
+    Args:
+        user_id: User ID to check
+        tier: Optional tier (will be looked up if not provided)
+
+    Returns:
+        True if user has SEO access via tier features or active promotion
+    """
+    from backend.services.promotion_service import check_seo_access_promo
+    from bo1.billing import PlanConfig
+
+    if tier is None:
+        tier = get_user_tier(user_id)
+
+    # Check tier feature first
+    if PlanConfig.is_feature_enabled(tier, "seo_tools"):
+        return True
+
+    # Fall back to promotion check
+    return check_seo_access_promo(user_id)

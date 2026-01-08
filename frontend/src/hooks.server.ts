@@ -82,7 +82,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			`default-src 'self'`,
 			`script-src 'self' 'nonce-${nonce}' https://analytics.boardof.one`,
 			`style-src 'self' 'unsafe-inline'`,
-			`img-src 'self' data: https:`,
+			`img-src 'self' data: blob: https:`,
 			`font-src 'self' data:`,
 			`connect-src 'self' https: wss: http://localhost:* ws://localhost:*`,
 			`frame-ancestors 'none'`,

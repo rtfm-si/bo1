@@ -1,18 +1,23 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { apiClient } from '$lib/api/client';
-	import type { DatasetDetailResponse, DatasetAnalysis, DatasetInsights, ColumnSemantic } from '$lib/api/types';
+	import type { DatasetDetailResponse, DatasetAnalysis, DatasetInsights, ColumnSemantic, DatasetResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
-	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import { setBreadcrumbLabel, clearBreadcrumbLabel } from '$lib/stores/breadcrumbLabels';
 	import DatasetChat from '$lib/components/dataset/DatasetChat.svelte';
 	import DatasetChatHistory from '$lib/components/dataset/DatasetChatHistory.svelte';
 	import AnalysisGallery from '$lib/components/dataset/AnalysisGallery.svelte';
 	import DataInsightsPanel from '$lib/components/dataset/DataInsightsPanel.svelte';
+	import KeyInsightsPanel from '$lib/components/dataset/KeyInsightsPanel.svelte';
+	import BusinessContextForm from '$lib/components/dataset/BusinessContextForm.svelte';
 	import ColumnReferenceSidebar from '$lib/components/dataset/ColumnReferenceSidebar.svelte';
 	import QueryTemplates from '$lib/components/dataset/QueryTemplates.svelte';
+	import FavouritesTab from '$lib/components/dataset/FavouritesTab.svelte';
+	import type { DatasetReport, DatasetInvestigation, DatasetBusinessContext } from '$lib/api/types';
 
 	const datasetId = $derived(page.params.dataset_id || '');
 
@@ -33,6 +38,17 @@
 	let insightsLoading = $state(false);
 	let insightsError = $state<string | null>(null);
 
+	// Investigation state (deterministic analyses)
+	let investigation = $state<DatasetInvestigation | null>(null);
+	let investigationLoading = $state(false);
+	let investigationError = $state<string | null>(null);
+
+	// Business context state
+	let businessContext = $state<DatasetBusinessContext | null>(null);
+	let contextLoading = $state(false);
+	let contextSaving = $state(false);
+	let showContextForm = $state(false);
+
 	// Analysis history state
 	let analyses = $state<DatasetAnalysis[]>([]);
 	let analysesLoading = $state(false);
@@ -45,8 +61,53 @@
 	let selectedConversationId = $state<string | null>(null);
 	let historyComponent = $state<{ refresh: () => void } | null>(null);
 
-	// Column sidebar state
-	let showColumnSidebar = $state(true);
+	// Column sidebar state - hidden by default for expanded chat area
+	let showColumnSidebar = $state(false);
+
+	// Mobile history sidebar state
+	let showMobileHistory = $state(false);
+
+	// Tab state for Analysis History / Favourites
+	let activeTab = $state<'history' | 'favourites'>('history');
+
+	// Generated report state
+	let generatedReport = $state<DatasetReport | null>(null);
+
+	// Compare state
+	let showCompareDropdown = $state(false);
+	let otherDatasets = $state<DatasetResponse[]>([]);
+	let loadingOtherDatasets = $state(false);
+
+	function handleReportGenerated(report: DatasetReport) {
+		generatedReport = report;
+		// Navigate to report view
+		window.location.href = `/datasets/${datasetId}/report/${report.id}`;
+	}
+
+	async function loadOtherDatasets() {
+		if (otherDatasets.length > 0) return; // Already loaded
+		loadingOtherDatasets = true;
+		try {
+			const response = await apiClient.getDatasets({ limit: 50 });
+			otherDatasets = (response.datasets ?? []).filter((d) => d.id !== datasetId);
+		} catch (err) {
+			console.error('Failed to load datasets for comparison:', err);
+		} finally {
+			loadingOtherDatasets = false;
+		}
+	}
+
+	function handleCompareClick() {
+		showCompareDropdown = !showCompareDropdown;
+		if (showCompareDropdown) {
+			loadOtherDatasets();
+		}
+	}
+
+	function startComparison(otherDatasetId: string) {
+		showCompareDropdown = false;
+		goto(`/datasets/${datasetId}/compare/${otherDatasetId}`);
+	}
 
 	// Derive column semantics from insights
 	const columnSemantics = $derived<ColumnSemantic[]>(
@@ -132,6 +193,79 @@
 		}
 	}
 
+	async function fetchInvestigation(runNew = false) {
+		investigationError = null;
+
+		// Try to get cached investigation first
+		if (!runNew) {
+			try {
+				investigationLoading = true;
+				const response = await apiClient.getDatasetInvestigation(datasetId);
+				investigation = response.investigation;
+				return;
+			} catch {
+				// No cached investigation, will try to run new one
+			}
+		}
+
+		// Run new investigation
+		investigationLoading = true;
+		try {
+			const response = await apiClient.investigateDataset(datasetId);
+			investigation = response.investigation;
+		} catch (err: unknown) {
+			// Check for 422 status (not profiled yet) - silently skip
+			const status = (err as { status?: number }).status;
+			const errMsg = err instanceof Error ? err.message : String(err);
+			const isNotProfiled = status === 422 || errMsg.includes('profiled') || errMsg.includes('422');
+
+			if (isNotProfiled) {
+				investigation = null;
+				investigationError = null;
+			} else {
+				console.error('[Investigation] Error:', err);
+				investigationError = errMsg || 'Failed to run investigation';
+			}
+		} finally {
+			investigationLoading = false;
+		}
+	}
+
+	async function fetchBusinessContext() {
+		contextLoading = true;
+		try {
+			const response = await apiClient.getDatasetBusinessContext(datasetId);
+			businessContext = {
+				business_goal: response.business_goal,
+				key_metrics: response.key_metrics,
+				kpis: response.kpis,
+				objectives: response.objectives,
+				industry: response.industry,
+				additional_context: response.additional_context
+			};
+		} catch {
+			// No context saved yet - that's fine
+			businessContext = null;
+		} finally {
+			contextLoading = false;
+		}
+	}
+
+	async function saveBusinessContext(context: DatasetBusinessContext) {
+		contextSaving = true;
+		try {
+			await apiClient.setDatasetBusinessContext(datasetId, context);
+			businessContext = context;
+			showContextForm = false;
+			// Regenerate insights with new context
+			await fetchInsights(true);
+		} catch (err) {
+			console.error('Failed to save business context:', err);
+		} finally {
+			contextSaving = false;
+		}
+	}
+
 	async function fetchAnalyses() {
 		analysesLoading = true;
 		analysesError = null;
@@ -160,8 +294,12 @@
 	onMount(() => {
 		datasetData.fetch();
 		fetchAnalyses();
-		// Fetch insights after a small delay to let profile load first
-		setTimeout(() => fetchInsights(), 100);
+		fetchBusinessContext();
+		// Fetch insights and investigation after a small delay to let profile load first
+		setTimeout(() => {
+			fetchInsights();
+			fetchInvestigation();
+		}, 100);
 	});
 
 	function formatDate(dateString: string): string {
@@ -221,8 +359,8 @@
 		try {
 			await apiClient.profileDataset(datasetId);
 			await datasetData.fetch();
-			// Fetch insights after profiling
-			await fetchInsights();
+			// Fetch insights and investigation after profiling
+			await Promise.all([fetchInsights(), fetchInvestigation(true)]);
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Profiling failed';
 		} finally {
@@ -230,10 +368,13 @@
 		}
 	}
 
-	const breadcrumbs = $derived([
-		{ label: 'Datasets', href: '/datasets' },
-		{ label: dataset?.name || 'Loading...', href: `/datasets/${datasetId}`, isCurrent: true }
-	]);
+	// Set breadcrumb label when dataset loads
+	$effect(() => {
+		if (dataset?.name) {
+			setBreadcrumbLabel(`/datasets/${datasetId}`, dataset.name);
+		}
+		return () => clearBreadcrumbLabel(`/datasets/${datasetId}`);
+	});
 </script>
 
 <svelte:head>
@@ -242,11 +383,6 @@
 
 <div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<!-- Breadcrumb -->
-		<div class="mb-6">
-			<Breadcrumb items={breadcrumbs} />
-		</div>
-
 		{#if isLoading}
 			<div class="space-y-6">
 				<ShimmerSkeleton type="card" />
@@ -288,9 +424,56 @@
 							{/if}
 						</div>
 					</div>
-					<span class="px-3 py-1 text-sm font-medium rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase">
-						{dataset.source_type}
-					</span>
+					<div class="flex items-center gap-3">
+						<!-- Compare Button -->
+						<div class="relative">
+							<button
+								onclick={handleCompareClick}
+								class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+								</svg>
+								Compare
+								<svg class="w-4 h-4 transition-transform {showCompareDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+								</svg>
+							</button>
+							{#if showCompareDropdown}
+								<div class="absolute right-0 mt-2 w-64 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg z-50">
+									<div class="p-2 border-b border-neutral-100 dark:border-neutral-700">
+										<p class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Compare with</p>
+									</div>
+									<div class="max-h-64 overflow-y-auto">
+										{#if loadingOtherDatasets}
+											<div class="p-4 text-center">
+												<div class="animate-spin w-5 h-5 border-2 border-neutral-300 border-t-primary-500 rounded-full mx-auto"></div>
+											</div>
+										{:else if otherDatasets.length === 0}
+											<div class="p-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
+												No other datasets available
+											</div>
+										{:else}
+											{#each otherDatasets as otherDataset}
+												<button
+													onclick={() => startComparison(otherDataset.id)}
+													class="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
+												>
+													<span class="font-medium text-neutral-900 dark:text-neutral-100">{otherDataset.name}</span>
+													{#if otherDataset.row_count}
+														<span class="text-neutral-500 dark:text-neutral-400 ml-2">({otherDataset.row_count.toLocaleString()} rows)</span>
+													{/if}
+												</button>
+											{/each}
+										{/if}
+									</div>
+								</div>
+							{/if}
+						</div>
+						<span class="px-3 py-1 text-sm font-medium rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase">
+							{dataset.source_type}
+						</span>
+					</div>
 				</div>
 
 				<!-- Stats Row -->
@@ -333,6 +516,85 @@
 						onQuestionClick={handleQuestionClick}
 						onRefresh={() => fetchInsights(true)}
 					/>
+				</div>
+			{/if}
+
+			<!-- Key Insights (Deterministic Analyses) -->
+			{#if (dataset.profiles?.length ?? 0) > 0}
+				<div class="mb-6">
+					<KeyInsightsPanel
+						{investigation}
+						loading={investigationLoading}
+						error={investigationError}
+						onRefresh={() => fetchInvestigation(true)}
+					/>
+				</div>
+			{/if}
+
+			<!-- Business Context Section -->
+			{#if (dataset.profiles?.length ?? 0) > 0}
+				<div class="mb-6">
+					{#if showContextForm}
+						<BusinessContextForm
+							context={businessContext}
+							loading={contextLoading}
+							saving={contextSaving}
+							onSave={saveBusinessContext}
+							onCancel={() => showContextForm = false}
+						/>
+					{:else}
+						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
+							<div class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<span class="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+										<svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+										</svg>
+									</span>
+									<div>
+										<h3 class="font-medium text-neutral-900 dark:text-white">Business Context</h3>
+										{#if businessContext?.business_goal}
+											<p class="text-sm text-neutral-500 dark:text-neutral-400 truncate max-w-md">
+												{businessContext.business_goal}
+											</p>
+										{:else}
+											<p class="text-sm text-neutral-500 dark:text-neutral-400">
+												Add your goals and KPIs for smarter insights
+											</p>
+										{/if}
+									</div>
+								</div>
+								<Button variant="secondary" size="sm" onclick={() => showContextForm = true}>
+									{#snippet children()}
+										{#if businessContext}
+											Edit Context
+										{:else}
+											Add Context
+										{/if}
+									{/snippet}
+								</Button>
+							</div>
+							{#if businessContext}
+								<div class="mt-3 flex flex-wrap gap-2">
+									{#if businessContext.industry}
+										<span class="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+											{businessContext.industry}
+										</span>
+									{/if}
+									{#if businessContext.key_metrics?.length}
+										{#each businessContext.key_metrics.slice(0, 3) as metric}
+											<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+												{metric}
+											</span>
+										{/each}
+										{#if businessContext.key_metrics.length > 3}
+											<span class="px-2 py-1 text-xs text-neutral-500">+{businessContext.key_metrics.length - 3} more</span>
+										{/if}
+									{/if}
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -437,9 +699,62 @@
 					</div>
 				{/if}
 
-				<div class="flex gap-4">
-					<!-- Chat History Sidebar -->
-					<div class="w-56 flex-shrink-0 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 h-[500px]">
+				<!-- Mobile History Toggle -->
+				<div class="lg:hidden mb-3 flex items-center gap-2">
+					<button
+						onclick={() => showMobileHistory = true}
+						class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+						History
+					</button>
+					<button
+						onclick={handleNewConversation}
+						class="flex items-center gap-1 px-3 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+						</svg>
+						New
+					</button>
+				</div>
+
+				<!-- Mobile History Drawer -->
+				{#if showMobileHistory}
+					<button
+						onclick={() => showMobileHistory = false}
+						class="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 lg:hidden"
+						aria-label="Close history"
+					></button>
+					<div class="fixed left-0 top-0 h-full w-72 z-50 bg-white dark:bg-neutral-800 border-r border-neutral-200 dark:border-neutral-700 shadow-xl lg:hidden">
+						<div class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
+							<h3 class="font-semibold text-neutral-900 dark:text-white">Chat History</h3>
+							<button
+								onclick={() => showMobileHistory = false}
+								class="p-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-500"
+								aria-label="Close history"
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
+						<div class="h-[calc(100%-56px)]">
+							<DatasetChatHistory
+								{datasetId}
+								selectedId={selectedConversationId}
+								onSelect={(id) => { handleConversationSelect(id); showMobileHistory = false; }}
+								onNew={() => { handleNewConversation(); showMobileHistory = false; }}
+							/>
+						</div>
+					</div>
+				{/if}
+
+				<div class="flex gap-4 relative">
+					<!-- Chat History Sidebar - narrower, hidden on mobile -->
+					<div class="hidden lg:block w-48 flex-shrink-0 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 min-h-[400px]">
 						<DatasetChatHistory
 							{datasetId}
 							selectedId={selectedConversationId}
@@ -449,8 +764,8 @@
 						/>
 					</div>
 
-					<!-- Chat Interface -->
-					<div class="flex-1">
+					<!-- Chat Interface - flexible height -->
+					<div class="flex-1 min-w-0">
 						<DatasetChat
 							{datasetId}
 							{selectedConversationId}
@@ -462,28 +777,56 @@
 						/>
 					</div>
 
-					<!-- Column Reference Sidebar -->
+					<!-- Column Reference Sidebar - slide-out drawer on right -->
 					{#if columnSemantics.length > 0}
-						<div class="w-52 flex-shrink-0 h-[500px]">
-							<ColumnReferenceSidebar
-								columns={columnSemantics}
-								isOpen={showColumnSidebar}
-								onToggle={toggleColumnSidebar}
-							/>
-						</div>
+						<ColumnReferenceSidebar
+							columns={columnSemantics}
+							{datasetId}
+							isOpen={showColumnSidebar}
+							onToggle={toggleColumnSidebar}
+						/>
 					{/if}
 				</div>
 			</div>
 
-			<!-- Analysis History Section -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 mt-6">
-				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-					<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-					</svg>
-					Analysis History
-				</h2>
-				<AnalysisGallery {analyses} {datasetId} loading={analysesLoading} error={analysesError} />
+			<!-- Analysis History / Favourites Section with Tabs -->
+			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 mt-6">
+				<!-- Tab Bar -->
+				<div class="flex border-b border-neutral-200 dark:border-neutral-700">
+					<button
+						onclick={() => activeTab = 'history'}
+						class="flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors border-b-2 -mb-px
+							{activeTab === 'history'
+								? 'border-brand-500 text-brand-600 dark:text-brand-400'
+								: 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+						</svg>
+						Analysis History
+					</button>
+					<button
+						onclick={() => activeTab = 'favourites'}
+						class="flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors border-b-2 -mb-px
+							{activeTab === 'favourites'
+								? 'border-brand-500 text-brand-600 dark:text-brand-400'
+								: 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+						</svg>
+						Favourites
+					</button>
+				</div>
+
+				<!-- Tab Content -->
+				<div class="p-6">
+					{#if activeTab === 'history'}
+						<AnalysisGallery {analyses} {datasetId} loading={analysesLoading} error={analysesError} />
+					{:else}
+						<FavouritesTab {datasetId} onReportGenerated={handleReportGenerated} />
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</main>

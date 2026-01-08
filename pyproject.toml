@@ -60,6 +60,9 @@ dependencies = [
     "boto3>=1.35.0,<2.0", # AWS SDK for S3-compatible object storage
     # Data Analysis
     "pandas>=2.2.0,<3.0", # DataFrame operations for dataset profiling
+    "ydata-profiling>=4.6.0,<5.0", # Automated data profiling
+    "duckdb>=1.0.0,<2.0", # In-memory OLAP database for large dataset queries
+    "setuptools>=70.0.0", # Required by ydata-profiling for pkg_resources
     "plotly>=5.18.0,<7.0", # Chart generation (JSON for frontend)
     "matplotlib>=3.8.0", # PNG chart export for PDF embedding (no Chromium needed)
     # Observability

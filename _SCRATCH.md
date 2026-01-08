@@ -6,8 +6,6 @@ change business code on companies house
 grafana logs: value A
 umami funnels etc
 
-check for full audit?
-
 in reports/benchmarks:
 need a 'help me calculate this...' e.g. NRR. ask user questions to build from ground up:
 Q: whats churn rate?
@@ -22,4 +20,6 @@ user clicks a buttin and we populate all the metrics with q&a dialog. start with
 
 in data analytics stuff, theres an 'ask si' option
 
-check we arent regererating actions etc in meetings once complete
+/clean
+/scan
+/secure

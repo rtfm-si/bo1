@@ -30,6 +30,29 @@ class SyncResult:
             self.errors = []
 
 
+class StripeConfigStatus:
+    """Status of Stripe configuration."""
+
+    def __init__(
+        self,
+        configured: bool,
+        mode: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Initialize status."""
+        self.configured = configured
+        self.mode = mode  # 'test', 'live', or None
+        self.error = error
+
+    def to_dict(self) -> dict:
+        """Convert to dict for API response."""
+        return {
+            "configured": self.configured,
+            "mode": self.mode,
+            "error": self.error,
+        }
+
+
 class BillingSyncService:
     """Service for syncing billing products/prices to payment providers."""
 
@@ -43,6 +66,46 @@ class BillingSyncService:
         """Raise error if Stripe is not configured."""
         if not self.stripe_api_key:
             raise ValueError("STRIPE_SECRET_KEY not configured")
+
+    def validate_stripe_key(self) -> StripeConfigStatus:
+        """Validate Stripe API key and return config status.
+
+        Returns:
+            StripeConfigStatus with configured=True if key is valid,
+            or configured=False with error message if invalid/missing.
+        """
+        if not self.stripe_api_key:
+            return StripeConfigStatus(
+                configured=False,
+                error="STRIPE_SECRET_KEY environment variable not set",
+            )
+
+        # Detect mode from key prefix
+        mode: str | None = None
+        if self.stripe_api_key.startswith("sk_test_"):
+            mode = "test"
+        elif self.stripe_api_key.startswith("sk_live_"):
+            mode = "live"
+
+        # Test key validity by making a simple API call
+        try:
+            stripe.Account.retrieve()
+            return StripeConfigStatus(configured=True, mode=mode)
+        except stripe.error.AuthenticationError:
+            return StripeConfigStatus(
+                configured=False,
+                mode=mode,
+                error="Invalid Stripe API key (authentication failed)",
+            )
+        except stripe.error.PermissionError:
+            # Key is valid but may have restricted permissions
+            return StripeConfigStatus(configured=True, mode=mode)
+        except stripe.error.APIConnectionError as e:
+            return StripeConfigStatus(
+                configured=False,
+                mode=mode,
+                error=f"Cannot connect to Stripe API: {e}",
+            )
 
     def sync_all_to_stripe(self) -> SyncResult:
         """Sync all products and prices to Stripe.

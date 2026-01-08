@@ -1506,6 +1506,30 @@ class AdminApiClient {
 	async getBillingSyncStatus(): Promise<SyncStatus> {
 		return this.fetch<SyncStatus>('/api/admin/billing/sync/status');
 	}
+
+	async getStripeConfigStatus(): Promise<StripeConfigStatus> {
+		return this.fetch<StripeConfigStatus>('/api/admin/billing/stripe/status');
+	}
+
+	// =========================================================================
+	// SEO Access Management
+	// =========================================================================
+
+	async getSeoAccess(userId: string): Promise<SeoAccessResponse> {
+		return this.fetch<SeoAccessResponse>(`/api/admin/users/${encodeURIComponent(userId)}/seo-access`);
+	}
+
+	async grantSeoAccess(userId: string): Promise<SeoAccessResponse> {
+		return this.fetch<SeoAccessResponse>(`/api/admin/users/${encodeURIComponent(userId)}/seo-access`, {
+			method: 'POST'
+		});
+	}
+
+	async revokeSeoAccess(userId: string): Promise<SeoAccessResponse> {
+		return this.fetch<SeoAccessResponse>(`/api/admin/users/${encodeURIComponent(userId)}/seo-access`, {
+			method: 'DELETE'
+		});
+	}
 }
 
 // Blog Post Types
@@ -2114,6 +2138,24 @@ export interface SyncStatus {
 	out_of_sync: number;
 	not_synced: number;
 	all_synced: boolean;
+}
+
+export interface StripeConfigStatus {
+	configured: boolean;
+	mode: 'test' | 'live' | null;
+	error: string | null;
+}
+
+// =============================================================================
+// SEO Access Types
+// =============================================================================
+
+export interface SeoAccessResponse {
+	user_id: string;
+	has_seo_access: boolean;
+	granted_at: string | null;
+	via_promotion: boolean;
+	message: string;
 }
 
 export const adminApi = new AdminApiClient();

@@ -11,6 +11,7 @@ from backend.services.csv_utils import (
     detect_encoding,
     detect_injection_patterns,
     sanitize_csv_cell,
+    skip_leading_empty_rows,
     validate_csv_headers,
     validate_csv_structure,
 )
@@ -342,3 +343,106 @@ class TestValidateCSVStructureWithWarnings:
         content = b"name,value\nAlice,100\nBob,-200"
         metadata = validate_csv_structure(content)
         assert metadata.warnings is None
+
+
+class TestSkipLeadingEmptyRows:
+    """Tests for skip_leading_empty_rows function."""
+
+    def test_skip_leading_empty_rows_basic(self):
+        """Test skipping 3 empty rows before header."""
+        text = "\n\n\nname,value\nrow1,1\nrow2,2"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 3
+        assert cleaned == "name,value\nrow1,1\nrow2,2"
+
+    def test_skip_leading_empty_rows_whitespace(self):
+        """Test skipping whitespace-only rows (tabs/spaces)."""
+        text = "   \n\t\n  \t  \nname,value\nrow1,1"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 3
+        assert cleaned == "name,value\nrow1,1"
+
+    def test_skip_leading_empty_rows_mixed(self):
+        """Test skipping mixed empty and whitespace rows."""
+        text = "\n   \n\t\n\nname,value\nrow1,1"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 4
+        assert cleaned == "name,value\nrow1,1"
+
+    def test_skip_leading_empty_rows_none(self):
+        """Test no skipping when header is first row."""
+        text = "name,value\nrow1,1\nrow2,2"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 0
+        assert cleaned == text
+
+    def test_skip_leading_empty_rows_preserves_middle_empty(self):
+        """Test empty rows in middle of data are preserved."""
+        text = "\nname,value\n\nrow1,1\n\nrow2,2"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 1
+        assert cleaned == "name,value\n\nrow1,1\n\nrow2,2"
+
+    def test_skip_leading_empty_rows_all_empty(self):
+        """Test file that's entirely empty rows."""
+        text = "\n\n   \n\t"
+        cleaned, skipped = skip_leading_empty_rows(text)
+        assert skipped == 4
+        assert cleaned == ""
+
+
+class TestValidateCSVHeadersWithEmptyRows:
+    """Tests for validate_csv_headers with leading empty rows."""
+
+    def test_validate_csv_headers_with_leading_empty(self):
+        """Test headers detected correctly after empty rows."""
+        content = b"\n\n\nname,age,city\nalice,30,nyc\nbob,25,la"
+        metadata = validate_csv_headers(content)
+        assert metadata.headers == ["name", "age", "city"]
+        assert metadata.row_count == 2
+        assert metadata.column_count == 3
+
+    def test_validate_csv_headers_with_whitespace_rows(self):
+        """Test headers detected after whitespace-only rows."""
+        content = b"   \n\t\nname,value\nrow1,1"
+        metadata = validate_csv_headers(content)
+        assert metadata.headers == ["name", "value"]
+        assert metadata.row_count == 1
+
+    def test_validate_csv_headers_all_empty_raises_error(self):
+        """Test file with only empty rows raises error."""
+        content = b"\n\n   \n\t\n"
+        with pytest.raises(CSVValidationError) as exc:
+            validate_csv_headers(content)
+        assert "No headers found" in str(exc.value)
+
+
+class TestValidateCSVStructureWithEmptyRows:
+    """Tests for validate_csv_structure with leading empty rows."""
+
+    def test_validate_csv_structure_with_leading_empty(self):
+        """Test full validation works after empty rows."""
+        content = b"\n\nname,value\nrow1,1\nrow2,2"
+        metadata = validate_csv_structure(content)
+        assert metadata.headers == ["name", "value"]
+        assert metadata.row_count == 2
+        assert metadata.column_count == 2
+
+    def test_validate_csv_structure_with_empty_rows_and_injection(self):
+        """Test injection detection works after skipping empty rows."""
+        content = b"\n\nname,value\n=SUM(A1),100"
+        metadata = validate_csv_structure(content)
+        assert metadata.headers == ["name", "value"]
+        assert metadata.warnings is not None
+        assert "formula injection" in metadata.warnings[0]
+
+
+class TestDetectInjectionWithEmptyRows:
+    """Tests for detect_injection_patterns with leading empty rows."""
+
+    def test_detect_injection_after_empty_rows(self):
+        """Test injection detection works after empty rows."""
+        content = b"\n\nname,value\n=SUM(A1),100"
+        warnings = detect_injection_patterns(content)
+        assert len(warnings) == 1
+        assert "1 cell(s)" in warnings[0]

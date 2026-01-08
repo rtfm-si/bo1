@@ -12,8 +12,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install system dependencies
 # curl: required for healthcheck probes
+# build-essential/g++: required for native extensions (e.g., phik from ydata-profiling)
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
+    build-essential \
     postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*

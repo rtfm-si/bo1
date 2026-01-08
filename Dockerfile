@@ -10,10 +10,12 @@ FROM python:3.12-slim AS base
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including build tools for native extensions like phik)
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    build-essential \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager

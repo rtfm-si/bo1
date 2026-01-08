@@ -8,6 +8,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import type { ChartSpec } from '$lib/api/types';
+	import FavouriteButton from './FavouriteButton.svelte';
 
 	// FigureJson can be the typed structure or a loose API response
 	interface FigureJsonData {
@@ -32,6 +33,10 @@
 		height?: number;
 		onModeChange?: (mode: 'detail' | 'simple') => void;
 		onExpand?: () => void;
+		// Favourite support
+		isFavourited?: boolean;
+		favouriteLoading?: boolean;
+		onToggleFavourite?: () => void;
 	}
 
 	let {
@@ -42,7 +47,10 @@
 		width = 400,
 		height = 250,
 		onModeChange,
-		onExpand
+		onExpand,
+		isFavourited = false,
+		favouriteLoading = false,
+		onToggleFavourite
 	}: Props = $props();
 
 	let chartContainer: HTMLDivElement;
@@ -169,13 +177,27 @@
 					});
 				}
 
-				// Low performer warning
-				if (xLabels[minIdx] && min < mean * 0.25 && yValues.length > 2) {
+				// Low performer warning (only for positive metrics where "low" is bad)
+				// Skip if values are negative (like discounts) or if min is close to mean
+				if (xLabels[minIdx] && min >= 0 && mean > 0 && min < mean * 0.25 && yValues.length > 2) {
 					result.push({
 						type: 'warning',
 						text: `${xLabels[minIdx]} underperforming`,
-						detail: `Only ${formatNumber(min)} (${Math.round((min / mean) * 100)}% of avg)`
+						detail: `${formatNumber(min)} (${Math.round((min / mean) * 100)}% of avg)`
 					});
+				}
+
+				// For negative values (e.g., discounts), highlight the largest absolute value
+				if (min < 0) {
+					const absMax = Math.max(...yValues.map(v => Math.abs(v)));
+					const absMaxIdx = yValues.findIndex(v => Math.abs(v) === absMax);
+					if (xLabels[absMaxIdx]) {
+						result.push({
+							type: 'info',
+							text: `Largest: ${xLabels[absMaxIdx]}`,
+							detail: `${formatNumber(yValues[absMaxIdx])}`
+						});
+					}
 				}
 			}
 		}
@@ -473,6 +495,14 @@
 				<span></span>
 			{/if}
 			<div class="flex items-center gap-1">
+				{#if onToggleFavourite}
+					<FavouriteButton
+						{isFavourited}
+						loading={favouriteLoading}
+						size="sm"
+						onclick={onToggleFavourite}
+					/>
+				{/if}
 				<button
 					type="button"
 					onclick={toggleMode}

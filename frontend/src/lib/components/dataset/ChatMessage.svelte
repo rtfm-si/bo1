@@ -6,6 +6,7 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import ChartRenderer from './ChartRenderer.svelte';
 	import ChartModal from './ChartModal.svelte';
+	import FavouriteButton from './FavouriteButton.svelte';
 	import { apiClient } from '$lib/api/client';
 
 	interface Props {
@@ -13,9 +14,21 @@
 		datasetId?: string;
 		isStreaming?: boolean;
 		onNextStepClick?: (question: string) => void;
+		// Favourite support
+		isFavourited?: boolean;
+		favouriteLoading?: boolean;
+		onToggleFavourite?: () => void;
 	}
 
-	let { message, datasetId, isStreaming = false, onNextStepClick }: Props = $props();
+	let {
+		message,
+		datasetId,
+		isStreaming = false,
+		onNextStepClick,
+		isFavourited = false,
+		favouriteLoading = false,
+		onToggleFavourite
+	}: Props = $props();
 
 	// Chart preview state
 	let chartLoading = $state(false);
@@ -47,6 +60,18 @@
 
 	const isUser = $derived(message.role === 'user');
 
+	// Strip markdown formatting from text
+	function stripMarkdown(text: string): string {
+		return text
+			.replace(/\*\*(.+?)\*\*/g, '$1')  // **bold**
+			.replace(/\*(.+?)\*/g, '$1')       // *italic*
+			.replace(/__(.+?)__/g, '$1')       // __bold__
+			.replace(/_(.+?)_/g, '$1')         // _italic_
+			.replace(/`(.+?)`/g, '$1')         // `code`
+			.replace(/^#+\s*/gm, '')           // # headers
+			.trim();
+	}
+
 	// Parse next steps from message content
 	const parsedContent = $derived(() => {
 		if (isUser || !message.content) return { content: message.content, nextSteps: [] };
@@ -67,7 +92,7 @@
 				const listText = match[1] || match[0];
 				const items = listText
 					.split(/\n/)
-					.map((line: string) => line.replace(/^[-•*\d.]\s*/, '').trim())
+					.map((line: string) => stripMarkdown(line.replace(/^[-•*\d.]\s*/, '')))
 					.filter((line: string) => line.length > 0 && line.length < 200);
 
 				if (items.length > 0) {
@@ -119,6 +144,9 @@
 						title={(message.chart_spec as ChartSpec).title || ''}
 						viewMode="simple"
 						onExpand={handleExpand}
+						{isFavourited}
+						{favouriteLoading}
+						onToggleFavourite={onToggleFavourite}
 					/>
 				{:else if chartLoading}
 					<!-- Loading state -->
@@ -151,15 +179,25 @@
 								{/if}
 							</div>
 						</div>
-						{#if datasetId}
-							<button
-								type="button"
-								onclick={loadChartPreview}
-								class="px-3 py-1.5 text-xs rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-800/40 transition-colors"
-							>
-								Preview
-							</button>
-						{/if}
+						<div class="flex items-center gap-2">
+							{#if onToggleFavourite}
+								<FavouriteButton
+									{isFavourited}
+									loading={favouriteLoading}
+									size="sm"
+									onclick={onToggleFavourite}
+								/>
+							{/if}
+							{#if datasetId}
+								<button
+									type="button"
+									onclick={loadChartPreview}
+									class="px-3 py-1.5 text-xs rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-800/40 transition-colors"
+								>
+									Preview
+								</button>
+							{/if}
+						</div>
 					</div>
 				{/if}
 			</div>

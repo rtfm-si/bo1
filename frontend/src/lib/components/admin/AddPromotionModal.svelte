@@ -26,7 +26,8 @@
 		{ value: 'goodwill_credits', label: 'Goodwill Credits', hint: 'Number of free deliberations' },
 		{ value: 'extra_deliberations', label: 'Extra Deliberations', hint: 'Additional deliberations beyond tier limit' },
 		{ value: 'percentage_discount', label: 'Percentage Discount', hint: 'Discount percentage (1-100)' },
-		{ value: 'flat_discount', label: 'Flat Discount', hint: 'Fixed dollar amount off' }
+		{ value: 'flat_discount', label: 'Flat Discount', hint: 'Fixed dollar amount off' },
+		{ value: 'seo_access', label: 'SEO Access', hint: 'Grant SEO tools access to user' }
 	];
 
 	function resetForm() {
@@ -47,7 +48,8 @@
 		if (!code.trim()) return 'Code is required';
 		if (!/^[A-Z0-9_]+$/.test(code)) return 'Code must be uppercase letters, numbers, and underscores only';
 		if (code.length < 3 || code.length > 50) return 'Code must be 3-50 characters';
-		if (value <= 0) return 'Value must be greater than 0';
+		// seo_access type doesn't require a numeric value (uses 1 as placeholder)
+		if (type !== 'seo_access' && value <= 0) return 'Value must be greater than 0';
 		if (type === 'percentage_discount' && value > 100) return 'Percentage cannot exceed 100';
 		if (maxUses !== null && maxUses <= 0) return 'Max uses must be greater than 0';
 		if (expiresAt) {

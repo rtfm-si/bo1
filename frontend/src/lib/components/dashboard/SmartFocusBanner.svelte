@@ -194,6 +194,7 @@
 					<a
 						href={config.secondaryHref}
 						class="text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+						data-tour={config.secondaryCta === 'Start Meeting' ? 'new-meeting' : undefined}
 					>
 						{config.secondaryCta}
 					</a>
@@ -201,6 +202,7 @@
 				<a
 					href={config.href}
 					class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-colors {styles.button}"
+					data-tour={config.cta === 'Start Meeting' ? 'new-meeting' : undefined}
 				>
 					{config.cta}
 					<svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

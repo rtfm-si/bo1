@@ -490,7 +490,7 @@
 				</div>
 			</div>
 		{:else if actionsNeedingAttention.length > 0}
-			<div class="mb-8">
+			<div class="mb-8" data-tour={outstandingActions.length === 0 ? 'actions-view' : undefined}>
 				<div class="flex items-center justify-between mb-4">
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
 						<svg class="w-5 h-5 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -566,7 +566,7 @@
 
 		<!-- Outstanding Actions Section (at top per UX best practices) -->
 		{#if outstandingActions.length > 0}
-			<div class="mb-8">
+			<div class="mb-8" data-tour="actions-view">
 				<div class="flex items-center justify-between mb-4">
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
 						<svg class="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

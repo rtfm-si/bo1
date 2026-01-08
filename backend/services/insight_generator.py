@@ -35,21 +35,49 @@ logger = logging.getLogger(__name__)
 INSIGHT_CACHE_TTL = 86400  # 24 hours
 INSIGHT_CACHE_PREFIX = "dataset_insights"
 
-INSIGHT_SYSTEM_PROMPT = """You are a friendly business advisor helping startup founders understand their data. Your job is to look at their numbers and explain what they mean in plain English - like a smart colleague who's good with spreadsheets.
+INSIGHT_SYSTEM_PROMPT = """You are a sharp business analyst helping founders understand their data. Your job is to find the actual story in their numbers - patterns, anomalies, opportunities they might miss.
+
+CONTEXT EXTRACTION - Before analyzing, infer from:
+- Dataset name: "sales_2024" → sales data, likely revenue focus
+- Column names: "customer_id", "mrr", "churn_date" → SaaS metrics
+- Value patterns: dates, currencies, percentages reveal business type
+- Row meaning: each row is likely an order/customer/transaction/event
+
+INSIGHT QUALITY RULES:
+- NEVER state obvious facts ("data loaded", "X rows exist", "Y columns present")
+- NEVER restate row/column counts as insights
+- Every insight must reveal something non-obvious or actionable
+- Focus on: trends, correlations, outliers, segments, benchmarks
+- Compare to typical benchmarks when domain is clear (e.g., "30% churn is high for SaaS")
 
 COMMUNICATION STYLE:
-- Write like you're talking to a smart friend, not a data scientist
-- Use everyday language: "your best customers" not "high-value cohort"
-- Focus on what matters to a founder: customers, money, growth, problems to fix
-- Be specific with numbers but explain what they mean
+- Plain English, not jargon
+- Specific numbers with context ("$47 average order, which is healthy for e-commerce")
+- Personal tone: "your revenue" not "the revenue"
 
-WHAT TO FOCUS ON:
-1. The story this data tells about their business
-2. Things that look good (celebrate wins!)
-3. Things that might need attention (flag gently)
-4. Questions they should probably ask next
+You output ONLY valid JSON. No markdown, no explanation."""
 
-You output ONLY valid JSON matching the schema provided. No markdown, no explanation, just JSON."""
+ENHANCED_INSIGHT_SYSTEM_PROMPT = """You are a sharp business analyst helping founders understand their data and take action. You have access to:
+1. The dataset profile (columns, types, statistics)
+2. Pre-computed investigation findings (column roles, outliers, correlations, data quality)
+3. The user's business context (goals, KPIs, objectives)
+
+Your job is to synthesize ALL of this information to provide highly personalized, actionable insights and next steps.
+
+CRITICAL RULES:
+- Prioritize insights relevant to the user's stated goals and KPIs
+- Connect investigation findings to business impact
+- Suggest specific questions they should ask based on their objectives
+- Compare metrics to industry benchmarks when industry is known
+- Be specific about column names and actual values found
+
+COMMUNICATION STYLE:
+- Personal: "your data shows" not "the data shows"
+- Actionable: every insight should have a clear next step
+- Specific: use actual column names and values from the investigation
+- Honest: flag data quality issues that might affect reliability
+
+You output ONLY valid JSON. No markdown, no explanation."""
 
 INSIGHT_USER_PROMPT = """Analyze this dataset and provide structured business intelligence.
 
@@ -60,10 +88,19 @@ COLUMNS: {column_count}
 COLUMN DETAILS:
 {column_details}
 
-SAMPLE DATA (first 5 rows):
+SAMPLE DATA (first rows):
 {sample_data}
 
-Respond with ONLY this JSON structure (no markdown, no explanation):
+STEP 1 - CONTEXT INFERENCE (do this mentally first):
+- What business domain does "{dataset_name}" suggest?
+- What does each row likely represent based on column names?
+- What metrics/KPIs can be calculated from these columns?
+- What time period does this cover (if dates exist)?
+- What business questions could this data answer?
+
+STEP 2 - Generate insights that would genuinely help a founder understand their business.
+
+Respond with ONLY this JSON structure:
 
 {{
   "identity": {{
@@ -86,10 +123,10 @@ Respond with ONLY this JSON structure (no markdown, no explanation):
     {{
       "type": "trend|pattern|anomaly|risk|opportunity|benchmark",
       "severity": "positive|neutral|warning|critical",
-      "headline": "Short headline (max 10 words)",
-      "detail": "Full explanation with specific numbers",
-      "metric": "Related metric if applicable, or null",
-      "action": "Suggested action to take, or null"
+      "headline": "Short headline revealing a finding (max 10 words)",
+      "detail": "Specific numbers + what they mean for the business",
+      "metric": "The actual metric value discussed, or null",
+      "action": "Concrete next step the founder could take, or null"
     }}
   ],
   "quality": {{
@@ -121,16 +158,23 @@ Respond with ONLY this JSON structure (no markdown, no explanation):
   "narrative_summary": "2-3 paragraph prose summary for users who prefer reading"
 }}
 
-Generate 3-5 headline metrics, 4-6 insights, and 3-5 suggested questions.
+Generate 3-5 headline metrics (business KPIs, not row/column counts).
+Generate 4-6 insights that reveal actual findings (trends, patterns, anomalies, opportunities).
+Generate 3-5 suggested questions for deeper exploration.
 Provide column_semantics for ALL columns.
 
-IMPORTANT TONE GUIDELINES:
-- Write headlines and descriptions like you're talking to a friend
-- Use "you/your" - make it personal: "Your top customers..." not "The top customers..."
-- Celebrate good things: "Nice! Your revenue is growing" not just "Revenue increased"
-- Be gentle with problems: "Worth keeping an eye on..." not "Critical issue detected"
-- Suggest questions that feel natural: "Who are your best customers?" not "Segment by customer value"
-- Keep it encouraging - founders need support, not more stress"""
+CRITICAL - INSIGHT QUALITY CHECK:
+Before including an insight, ask: "Would a founder say 'I didn't know that' or 'that's useful'?"
+✗ BAD: "Data loaded successfully" / "Dataset has 1,775 rows" / "6 columns present"
+✓ GOOD: "Your average order value of $47 is 20% above e-commerce benchmarks"
+✓ GOOD: "Revenue peaked in March - worth investigating what drove that spike"
+✓ GOOD: "15% of orders have no customer_id - you're losing attribution data"
+
+TONE:
+- Personal: "your revenue" not "the revenue"
+- Specific: include actual numbers
+- Actionable: suggest what to do about findings
+- Encouraging but honest"""
 
 
 def _format_column_details(profile_dict: dict[str, Any]) -> str:
@@ -639,3 +683,359 @@ def invalidate_insight_cache(
     except Exception as e:
         logger.warning(f"Failed to invalidate insight cache: {e}")
         return 0
+
+
+# Enhanced prompt for insights informed by investigation and business context
+ENHANCED_USER_PROMPT = """Analyze this dataset with the provided investigation findings and business context.
+
+DATASET: {dataset_name}
+ROWS: {row_count:,}
+COLUMNS: {column_count}
+
+=== COLUMN DETAILS ===
+{column_details}
+
+=== INVESTIGATION FINDINGS ===
+{investigation_summary}
+
+=== BUSINESS CONTEXT ===
+{business_context}
+
+Based on ALL the above, generate insights that:
+1. Directly address the user's business goals and KPIs
+2. Highlight investigation findings relevant to their objectives
+3. Suggest specific questions tied to their industry and context
+4. Flag any data quality issues that could affect their analysis
+
+Respond with ONLY this JSON structure:
+
+{{
+  "identity": {{
+    "domain": "ecommerce|saas|services|marketing|finance|operations|hr|product|unknown",
+    "confidence": 0.0-1.0,
+    "entity_type": "what each row represents",
+    "description": "Plain English description tailored to their stated goals",
+    "time_range": "detected time span or null"
+  }},
+  "headline_metrics": [
+    {{
+      "label": "Metric name - PRIORITIZE their stated key_metrics",
+      "value": "Formatted value",
+      "context": "How this relates to their goals",
+      "trend": "Trend if detectable",
+      "is_good": true/false/null based on their KPIs
+    }}
+  ],
+  "insights": [
+    {{
+      "type": "trend|pattern|anomaly|risk|opportunity|benchmark",
+      "severity": "positive|neutral|warning|critical",
+      "headline": "Short headline connecting finding to their goal",
+      "detail": "Specific numbers + what they mean for THEIR business",
+      "metric": "The actual metric value",
+      "action": "Concrete next step aligned with their objectives"
+    }}
+  ],
+  "quality": {{
+    "overall_score": 0-100,
+    "completeness": 0-100,
+    "consistency": 0-100,
+    "freshness": 0-100 or null,
+    "issues": ["Issues that could affect their analysis"],
+    "missing_data": ["Data they need for their stated goals"],
+    "suggestions": ["How to improve data for their use case"]
+  }},
+  "suggested_questions": [
+    {{
+      "question": "Question directly tied to their objectives",
+      "category": "performance|trend|segment|comparison|prediction",
+      "why_relevant": "Why this matters for their specific goal"
+    }}
+  ],
+  "column_semantics": [
+    {{
+      "column_name": "exact column name",
+      "technical_type": "from investigation",
+      "semantic_type": "from investigation column roles",
+      "confidence": 0.0-1.0,
+      "business_meaning": "What this means for their business",
+      "sample_insight": "Quick insight relevant to their goals"
+    }}
+  ],
+  "narrative_summary": "2-3 paragraph summary focused on their specific business context and goals"
+}}
+
+CRITICAL: Generate insights that would genuinely help THIS user with THEIR stated goals.
+- If they want to reduce churn, focus on churn-related findings
+- If they want to increase revenue, highlight revenue opportunities
+- If they specified KPIs, compare their data against those targets"""
+
+
+def _format_investigation_summary(investigation: dict[str, Any] | None) -> str:
+    """Format investigation findings for the enhanced prompt."""
+    if not investigation:
+        return "No investigation data available."
+
+    lines = []
+
+    # Column roles
+    roles = investigation.get("column_roles", {})
+    if roles:
+        id_cols = roles.get("id_columns", [])
+        ts_cols = roles.get("timestamp_columns", [])
+        metric_cols = roles.get("metric_columns", [])
+        dim_cols = roles.get("dimension_columns", [])
+        if id_cols:
+            lines.append(f"- ID columns: {', '.join(id_cols)}")
+        if ts_cols:
+            lines.append(f"- Timestamp columns: {', '.join(ts_cols)}")
+        if metric_cols:
+            lines.append(f"- Metric columns: {', '.join(metric_cols)}")
+        if dim_cols:
+            lines.append(f"- Dimension columns: {', '.join(dim_cols)}")
+
+    # Missingness
+    missingness = investigation.get("missingness", {})
+    if missingness:
+        high_null = missingness.get("high_null_columns", [])
+        if high_null:
+            lines.append(f"- HIGH NULL COLUMNS (>20%): {', '.join(high_null)}")
+        cols_with_nulls = missingness.get("columns_with_nulls", 0)
+        if cols_with_nulls:
+            lines.append(f"- {cols_with_nulls} columns have some null values")
+
+    # Outliers
+    outliers = investigation.get("outliers", {})
+    if outliers:
+        outlier_list = outliers.get("outliers", [])
+        if outlier_list:
+            outlier_summary = [
+                f"{o['column']} ({o['outlier_count']} outliers)" for o in outlier_list[:5]
+            ]
+            lines.append(f"- OUTLIERS DETECTED: {', '.join(outlier_summary)}")
+
+    # Correlations
+    correlations = investigation.get("correlations", {})
+    if correlations:
+        leakage = correlations.get("potential_leakage", [])
+        if leakage:
+            leak_summary = [
+                f"{p['column_a']} <-> {p['column_b']} ({p['correlation']:.2f})" for p in leakage[:3]
+            ]
+            lines.append(f"- POTENTIAL LEAKAGE: {', '.join(leak_summary)}")
+        strong_pos = correlations.get("top_positive", [])
+        if strong_pos:
+            pos_summary = [
+                f"{p['column_a']} <-> {p['column_b']} (+{p['correlation']:.2f})"
+                for p in strong_pos[:3]
+            ]
+            lines.append(f"- Strong positive correlations: {', '.join(pos_summary)}")
+
+    # Time series readiness
+    ts = investigation.get("time_series_readiness", {})
+    if ts:
+        if ts.get("is_ready"):
+            lines.append(
+                f"- TIME SERIES READY: column={ts.get('timestamp_column')}, "
+                f"frequency={ts.get('detected_frequency')}"
+            )
+            if ts.get("gap_count", 0) > 0:
+                lines.append(f"  WARNING: {ts['gap_count']} gaps detected in time series")
+        else:
+            lines.append("- Not suitable for time series analysis")
+
+    # Segmentation opportunities
+    seg = investigation.get("segmentation_builder", {})
+    if seg:
+        opps = seg.get("opportunities", [])
+        if opps:
+            seg_summary = [f"{o['dimension']} x {o['metric']}" for o in opps[:3]]
+            lines.append(f"- SEGMENTATION OPPORTUNITIES: {', '.join(seg_summary)}")
+
+    # Data quality
+    dq = investigation.get("data_quality", {})
+    if dq:
+        score = dq.get("overall_score", 0)
+        lines.append(f"- DATA QUALITY SCORE: {score}/100")
+        issues = dq.get("issues", [])
+        if issues:
+            for issue in issues[:3]:
+                lines.append(f"  - {issue.get('column')}: {issue.get('description')}")
+
+    return "\n".join(lines) if lines else "No significant findings from investigation."
+
+
+def _format_business_context(context: dict[str, Any] | None) -> str:
+    """Format business context for the enhanced prompt."""
+    if not context:
+        return "No business context provided. Infer from data patterns."
+
+    lines = []
+
+    if context.get("business_goal"):
+        lines.append(f"GOAL: {context['business_goal']}")
+
+    if context.get("industry"):
+        lines.append(f"INDUSTRY: {context['industry']}")
+
+    if context.get("key_metrics"):
+        metrics = context["key_metrics"]
+        if isinstance(metrics, list):
+            lines.append(f"KEY METRICS: {', '.join(metrics)}")
+        else:
+            lines.append(f"KEY METRICS: {metrics}")
+
+    if context.get("kpis"):
+        kpis = context["kpis"]
+        if isinstance(kpis, list):
+            lines.append(f"KPI TARGETS: {', '.join(kpis)}")
+        else:
+            lines.append(f"KPI TARGETS: {kpis}")
+
+    if context.get("objectives"):
+        lines.append(f"OBJECTIVES: {context['objectives']}")
+
+    if context.get("additional_context"):
+        lines.append(f"ADDITIONAL CONTEXT: {context['additional_context']}")
+
+    return "\n".join(lines) if lines else "No business context provided."
+
+
+async def generate_enhanced_insights(
+    profile_dict: dict[str, Any],
+    dataset_name: str,
+    investigation: dict[str, Any] | None = None,
+    business_context: dict[str, Any] | None = None,
+    use_cache: bool = True,
+    redis_manager: RedisManager | None = None,
+) -> tuple[DatasetInsights, dict[str, Any]]:
+    """Generate enhanced insights using investigation findings and business context.
+
+    This is an upgraded version of generate_dataset_insights that incorporates:
+    - Pre-computed investigation findings (column roles, outliers, correlations, etc.)
+    - User-provided business context (goals, KPIs, objectives)
+
+    Args:
+        profile_dict: Profile data from DatasetProfile.to_dict()
+        dataset_name: Name of the dataset
+        investigation: Investigation findings from DeterministicAnalyzer
+        business_context: User's business context (goals, KPIs, industry, etc.)
+        use_cache: Whether to use Redis cache
+        redis_manager: Optional Redis manager instance
+
+    Returns:
+        Tuple of (DatasetInsights, metadata dict with tokens/cost)
+    """
+    # If no investigation or context, fall back to standard insights
+    if not investigation and not business_context:
+        return await generate_dataset_insights(profile_dict, dataset_name, use_cache, redis_manager)
+
+    dataset_id = profile_dict.get("dataset_id", "unknown")
+    # Include investigation and context in cache hash
+    cache_content = {
+        "profile": profile_dict,
+        "investigation": investigation,
+        "context": business_context,
+    }
+    import json as _json
+
+    cache_hash = hashlib.md5(
+        _json.dumps(cache_content, sort_keys=True, default=str).encode(),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
+    cache_key = f"{INSIGHT_CACHE_PREFIX}:enhanced:{dataset_id}:{cache_hash}"
+    logger.info(
+        f"[EnhancedInsights] dataset={dataset_id[:8]}... hash={cache_hash} "
+        f"has_investigation={investigation is not None} has_context={business_context is not None}"
+    )
+
+    metadata = {"tokens_used": 0, "model_used": "sonnet", "cached": False, "enhanced": True}
+
+    # Check cache
+    if use_cache:
+        redis = redis_manager or RedisManager()
+        try:
+            if redis.client is not None:
+                cached = redis.client.get(cache_key)
+                if cached:
+                    cached_str = cached if isinstance(cached, str) else cached.decode("utf-8")
+                    logger.info(f"[EnhancedInsights] CACHE HIT for {dataset_id[:8]}...")
+                    cached_data = json.loads(cached_str)
+                    insights = DatasetInsights(**cached_data)
+                    metadata["cached"] = True
+                    return insights, metadata
+        except Exception as e:
+            logger.warning(f"Redis cache read failed: {e}")
+
+    # Format prompt components
+    column_details = _format_column_details(profile_dict)
+    investigation_summary = _format_investigation_summary(investigation)
+    context_summary = _format_business_context(business_context)
+
+    user_prompt = ENHANCED_USER_PROMPT.format(
+        dataset_name=dataset_name,
+        row_count=profile_dict.get("row_count", 0),
+        column_count=profile_dict.get("column_count", 0),
+        column_details=column_details,
+        investigation_summary=investigation_summary,
+        business_context=context_summary,
+    )
+
+    # Call Claude with enhanced system prompt
+    client = ClaudeClient()
+    response = None
+    llm_timeout = 45  # Slightly longer timeout for enhanced analysis
+
+    try:
+
+        async def _call_llm() -> tuple[str, Any]:
+            return await client.call(
+                model="sonnet",
+                system=ENHANCED_INSIGHT_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}],
+                max_tokens=4000,  # More tokens for richer insights
+                temperature=0.2,
+            )
+
+        response, usage = await asyncio.wait_for(_call_llm(), timeout=llm_timeout)
+        metadata["tokens_used"] = usage.total_tokens
+        metadata["cost"] = usage.calculate_cost("sonnet")
+
+        # Parse response
+        parsed = _parse_llm_response(response)
+        # Add chart suggestions
+        parsed["suggested_charts"] = [
+            chart.model_dump() for chart in _generate_chart_suggestions(profile_dict)
+        ]
+        insights = DatasetInsights(**parsed)
+
+        logger.info(
+            f"Generated enhanced insights for dataset {dataset_id} "
+            f"({usage.total_tokens} tokens, ${metadata['cost']:.4f})"
+        )
+
+    except TimeoutError:
+        logger.warning(f"Enhanced LLM call timed out after {llm_timeout}s")
+        # Fall back to standard insights
+        return await generate_dataset_insights(profile_dict, dataset_name, use_cache, redis_manager)
+
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.error(f"Failed to parse enhanced insight JSON: {e}")
+        return await generate_dataset_insights(profile_dict, dataset_name, use_cache, redis_manager)
+
+    except Exception as e:
+        logger.error(f"Failed to generate enhanced insights: {e}", exc_info=True)
+        return await generate_dataset_insights(profile_dict, dataset_name, use_cache, redis_manager)
+
+    # Cache result
+    if use_cache and insights:
+        redis = redis_manager or RedisManager()
+        try:
+            if redis.client is not None:
+                cache_data = insights.model_dump(mode="json")
+                redis.client.setex(cache_key, INSIGHT_CACHE_TTL, json.dumps(cache_data))
+                logger.info(f"[EnhancedInsights] CACHED for {dataset_id[:8]}...")
+        except Exception as e:
+            logger.warning(f"Redis cache write failed: {e}")
+
+    return insights, metadata

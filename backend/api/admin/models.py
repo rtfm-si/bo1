@@ -1550,6 +1550,29 @@ class NonprofitStatusResponse(BaseModel):
 
 
 # ==============================================================================
+# SEO Access Models
+# ==============================================================================
+
+
+class SeoAccessResponse(BaseModel):
+    """Response model for SEO access operations.
+
+    Attributes:
+        user_id: User identifier
+        has_seo_access: Whether user currently has SEO access
+        granted_at: When SEO access was granted (ISO 8601, null if no access)
+        via_promotion: Whether access is via promotion (vs direct grant)
+        message: Human-readable message
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    has_seo_access: bool = Field(..., description="Whether user has SEO access")
+    granted_at: str | None = Field(None, description="When access was granted (ISO 8601)")
+    via_promotion: bool = Field(False, description="Whether access is via promotion")
+    message: str = Field(..., description="Human-readable message")
+
+
+# ==============================================================================
 # Unified Cache Metrics Models
 # ==============================================================================
 

@@ -2,12 +2,14 @@
 
 Generates line, bar, pie, and scatter charts from DataFrames.
 Returns JSON specs for frontend rendering, with optional PNG export for PDFs.
+
+Supports both pandas DataFrames and DuckDB connections for large datasets.
 """
 
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import plotly.express as px
@@ -15,6 +17,9 @@ import plotly.graph_objects as go
 
 from backend.api.models import ChartSpec, FilterSpec
 from backend.services.query_engine import _apply_filters
+
+if TYPE_CHECKING:
+    import duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +59,105 @@ def _apply_chart_filters(df: pd.DataFrame, filters: list[FilterSpec] | None) -> 
     if not filters:
         return df
     return _apply_filters(df, filters)
+
+
+def _get_dataframe_for_chart(
+    conn: "duckdb.DuckDBPyConnection",
+    spec: ChartSpec,
+    max_rows: int = MAX_CHART_ROWS,
+) -> pd.DataFrame:
+    """Get sampled DataFrame from DuckDB for chart generation.
+
+    Args:
+        conn: DuckDB connection with 'dataset' table
+        spec: Chart specification
+        max_rows: Maximum rows to return
+
+    Returns:
+        pandas DataFrame with chart data
+    """
+    # Build column list
+    columns = [f'"{spec.x_field}"', f'"{spec.y_field}"']
+    if spec.group_field:
+        columns.append(f'"{spec.group_field}"')
+
+    select_clause = ", ".join(columns)
+
+    # Build filter clause
+    where_clauses = []
+    params = []
+
+    if spec.filters:
+        for f in spec.filters:
+            col = f'"{f.field}"'
+            if f.operator == "eq":
+                where_clauses.append(f"{col} = ?")
+                params.append(f.value)
+            elif f.operator == "ne":
+                where_clauses.append(f"{col} != ?")
+                params.append(f.value)
+            elif f.operator == "gt":
+                where_clauses.append(f"{col} > ?")
+                params.append(f.value)
+            elif f.operator == "lt":
+                where_clauses.append(f"{col} < ?")
+                params.append(f.value)
+            elif f.operator == "gte":
+                where_clauses.append(f"{col} >= ?")
+                params.append(f.value)
+            elif f.operator == "lte":
+                where_clauses.append(f"{col} <= ?")
+                params.append(f.value)
+            elif f.operator == "contains":
+                where_clauses.append(f"LOWER(CAST({col} AS VARCHAR)) LIKE ?")
+                params.append(f"%{str(f.value).lower()}%")
+            elif f.operator == "in":
+                values = f.value if isinstance(f.value, list) else [f.value]
+                placeholders = ", ".join(["?" for _ in values])
+                where_clauses.append(f"{col} IN ({placeholders})")
+                params.extend(values)
+
+    # Build SQL query with sampling
+    sql = f"SELECT {select_clause} FROM dataset"
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
+
+    # Use TABLESAMPLE or LIMIT for sampling
+    sql += f" LIMIT {max_rows}"
+
+    result = conn.execute(sql, params)
+    df = result.df()
+
+    logger.debug(f"Fetched {len(df)} rows from DuckDB for chart")
+    return df
+
+
+def generate_chart_from_duckdb(
+    conn: "duckdb.DuckDBPyConnection",
+    spec: ChartSpec,
+) -> ChartResult:
+    """Generate a chart from DuckDB connection.
+
+    Samples data from the DuckDB table (max 10K rows for charting).
+
+    Args:
+        conn: DuckDB connection with 'dataset' table
+        spec: Chart specification
+
+    Returns:
+        ChartResult with Plotly JSON spec for frontend rendering
+
+    Raises:
+        ChartError: If chart generation fails
+    """
+    # Get sampled DataFrame from DuckDB
+    df = _get_dataframe_for_chart(conn, spec)
+
+    if df.empty:
+        raise ChartError("No data available for chart")
+
+    # Generate chart using existing logic
+    return generate_chart(df, spec)
 
 
 def _generate_line_chart(df: pd.DataFrame, spec: ChartSpec) -> go.Figure:

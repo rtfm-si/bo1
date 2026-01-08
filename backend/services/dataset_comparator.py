@@ -38,6 +38,7 @@ class SchemaComparison:
     column_count_b: int
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert schema comparison to dictionary."""
         return {
             "common_columns": self.common_columns,
             "only_in_a": self.only_in_a,
@@ -71,6 +72,7 @@ class ColumnStatsDelta:
     null_delta: int
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert column statistics delta to dictionary."""
         return {
             "column": self.column,
             "mean_a": self.mean_a,
@@ -105,6 +107,7 @@ class CategoricalDelta:
     missing_in_b: list[str]  # Values present in A but not in B
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert categorical delta to dictionary."""
         return {
             "column": self.column,
             "unique_a": self.unique_a,

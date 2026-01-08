@@ -2900,7 +2900,7 @@ async def get_multi_analysis(
 async def delete_multi_analysis(
     analysis_id: str,
     user: dict = Depends(get_current_user),
-):
+) -> None:
     """Delete a multi-dataset analysis."""
     user_id = user.get("user_id")
     if not user_id:

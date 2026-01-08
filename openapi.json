@@ -9677,7 +9677,7 @@
         "type": "object"
       },
       "DatasetBusinessContextResponse": {
-        "description": "Response for dataset business context.",
+        "description": "Response for dataset business context.\n\nWhen id is None, context is inherited from user's global business context.",
         "properties": {
           "additional_context": {
             "anyOf": [
@@ -9704,9 +9704,16 @@
             "title": "Business Goal"
           },
           "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Creation timestamp",
-            "title": "Created At",
-            "type": "string"
+            "title": "Created At"
           },
           "dataset_id": {
             "description": "Dataset UUID",
@@ -9714,9 +9721,16 @@
             "type": "string"
           },
           "id": {
-            "description": "Business context UUID",
-            "title": "Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Business context UUID (None if from user context)",
+            "title": "Id"
           },
           "industry": {
             "anyOf": [
@@ -9731,20 +9745,34 @@
             "title": "Industry"
           },
           "key_metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Key metrics",
-            "items": {
-              "type": "string"
-            },
-            "title": "Key Metrics",
-            "type": "array"
+            "title": "Key Metrics"
           },
           "kpis": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "KPI targets",
-            "items": {
-              "type": "string"
-            },
-            "title": "Kpis",
-            "type": "array"
+            "title": "Kpis"
           },
           "objectives": {
             "anyOf": [
@@ -9759,16 +9787,20 @@
             "title": "Objectives"
           },
           "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Last update timestamp",
-            "title": "Updated At",
-            "type": "string"
+            "title": "Updated At"
           }
         },
         "required": [
-          "id",
-          "dataset_id",
-          "created_at",
-          "updated_at"
+          "dataset_id"
         ],
         "title": "DatasetBusinessContextResponse",
         "type": "object"

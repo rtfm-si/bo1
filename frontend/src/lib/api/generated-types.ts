@@ -16804,6 +16804,8 @@ export interface components {
         /**
          * DatasetBusinessContextResponse
          * @description Response for dataset business context.
+         *
+         *     When id is None, context is inherited from user's global business context.
          */
         DatasetBusinessContextResponse: {
             /**
@@ -16820,7 +16822,7 @@ export interface components {
              * Created At
              * @description Creation timestamp
              */
-            created_at: string;
+            created_at?: string | null;
             /**
              * Dataset Id
              * @description Dataset UUID
@@ -16828,9 +16830,9 @@ export interface components {
             dataset_id: string;
             /**
              * Id
-             * @description Business context UUID
+             * @description Business context UUID (None if from user context)
              */
-            id: string;
+            id?: string | null;
             /**
              * Industry
              * @description Industry
@@ -16840,12 +16842,12 @@ export interface components {
              * Key Metrics
              * @description Key metrics
              */
-            key_metrics?: string[];
+            key_metrics?: string[] | null;
             /**
              * Kpis
              * @description KPI targets
              */
-            kpis?: string[];
+            kpis?: string[] | null;
             /**
              * Objectives
              * @description Detailed objectives
@@ -16855,7 +16857,7 @@ export interface components {
              * Updated At
              * @description Last update timestamp
              */
-            updated_at: string;
+            updated_at?: string | null;
         };
         /**
          * DatasetComparisonCreate

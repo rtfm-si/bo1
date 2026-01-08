@@ -77,12 +77,12 @@
 	}
 
 	// Derived stats
-	const totalColumns = $derived(investigation?.column_roles.roles.length ?? 0);
-	const metricsCount = $derived(investigation?.column_roles.metric_columns.length ?? 0);
-	const dimensionsCount = $derived(investigation?.column_roles.dimension_columns.length ?? 0);
-	const columnsWithNulls = $derived(investigation?.missingness.columns_with_nulls ?? 0);
-	const outlierColumns = $derived(investigation?.outliers.columns_with_outliers ?? 0);
-	const qualityScore = $derived(investigation?.data_quality.overall_score ?? 0);
+	const totalColumns = $derived(investigation?.column_roles?.roles?.length ?? 0);
+	const metricsCount = $derived(investigation?.column_roles?.metric_columns?.length ?? 0);
+	const dimensionsCount = $derived(investigation?.column_roles?.dimension_columns?.length ?? 0);
+	const columnsWithNulls = $derived(investigation?.missingness?.columns_with_nulls ?? 0);
+	const outlierColumns = $derived(investigation?.outliers?.columns_with_outliers ?? 0);
+	const qualityScore = $derived(investigation?.data_quality?.overall_score ?? 0);
 </script>
 
 {#if loading}
@@ -163,7 +163,7 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Column Roles</span>
-						<span class="text-xs text-neutral-500">({investigation.column_roles.roles.length} columns classified)</span>
+						<span class="text-xs text-neutral-500">({investigation.column_roles?.roles?.length ?? 0} columns classified)</span>
 					</div>
 					<svg class="w-5 h-5 text-neutral-400 transition-transform {expandedSections.has('column_roles') ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -210,7 +210,7 @@
 				</button>
 				{#if expandedSections.has('missingness')}
 					<div class="mt-3 pl-10">
-						{#if investigation.missingness.high_null_columns.length > 0}
+						{#if investigation.missingness?.high_null_columns?.length > 0}
 							<div class="mb-3 p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
 								<div class="text-sm font-medium text-warning-700 dark:text-warning-300">High null columns:</div>
 								<div class="text-sm text-warning-600 dark:text-warning-400">{investigation.missingness.high_null_columns.join(', ')}</div>
@@ -492,7 +492,7 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Segmentation Opportunities</span>
-						{#if investigation.segmentation_suggestions.opportunities.length > 0}
+						{#if investigation.segmentation_suggestions?.opportunities?.length > 0}
 							<span class="text-xs text-neutral-500">({investigation.segmentation_suggestions.opportunities.length} found)</span>
 						{/if}
 					</div>
@@ -502,7 +502,7 @@
 				</button>
 				{#if expandedSections.has('segmentation')}
 					<div class="mt-3 pl-10">
-						{#if investigation.segmentation_suggestions.opportunities.length > 0}
+						{#if investigation.segmentation_suggestions?.opportunities?.length > 0}
 							<div class="space-y-2">
 								{#each investigation.segmentation_suggestions.opportunities.slice(0, 5) as opp}
 									<div class="p-2 bg-pink-50 dark:bg-pink-900/20 rounded text-sm">
@@ -516,7 +516,7 @@
 								No strong segmentation opportunities found. Try adding dimension columns.
 							</div>
 						{/if}
-						{#if investigation.segmentation_suggestions.best_dimensions.length > 0}
+						{#if investigation.segmentation_suggestions?.best_dimensions?.length > 0}
 							<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 								<span class="font-medium">Best dimensions:</span> {investigation.segmentation_suggestions.best_dimensions.join(', ')}
 							</div>

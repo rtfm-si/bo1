@@ -1,6 +1,4 @@
 # Trivy vulnerability ignore list
 # https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
 
-# urllib3 2.6.2 SSRF vulnerability - requires lockfile regeneration to fix
-# No external URLs in SSRF scope, scheduled for 2026-02 fix
-CVE-2026-21441
+# Add CVE IDs here with justification comments

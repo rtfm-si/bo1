@@ -7,9 +7,3 @@
 # id = "GHSA-xxxx-xxxx-xxxx"
 # reason = "Brief justification why this is safe to ignore"
 # expiry = "2025-06-01" # Optional: re-evaluate after this date
-
-# urllib3 2.6.2 SSRF vulnerability - requires lockfile regeneration to fix
-[[IgnoredVulns]]
-id = "GHSA-38jv-5279-wg99"
-reason = "urllib3 2.6.3 requires lockfile regeneration, no external URLs in SSRF scope"
-ignoreUntil = 2026-02-01

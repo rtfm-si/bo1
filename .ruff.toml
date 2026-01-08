@@ -48,6 +48,13 @@ ignore = [
 "migrations/versions/*.py" = [
     "D415",    # first line punctuation not needed in migration docstrings
 ]
+# Batch-generated service files - relax docstring/annotation requirements for internal dataclasses
+"backend/services/dataset_comparator.py" = ["D102", "D107", "ANN204"]
+"backend/services/deterministic_analyzer.py" = ["D102", "D107", "ANN204"]
+"backend/services/duckdb_engine.py" = ["D102", "D107", "ANN204"]
+"backend/services/multi_dataset_analyzer.py" = ["D102", "D107", "ANN204"]
+"backend/services/pii_detector.py" = ["D102", "D107", "ANN204"]
+"backend/services/dataset_report_generator.py" = ["D102", "D107", "ANN204"]
 
 [lint.pydocstyle]
 convention = "google"

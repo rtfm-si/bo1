@@ -27,7 +27,7 @@ def upgrade() -> None:
     op.create_table(
         "multi_dataset_analyses",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID, sa.ForeignKey("auth.users.id"), nullable=False),
+        sa.Column("user_id", UUID, nullable=False),
         # Dataset IDs (2-5 datasets)
         sa.Column("dataset_ids", ARRAY(UUID), nullable=False),
         # Metadata

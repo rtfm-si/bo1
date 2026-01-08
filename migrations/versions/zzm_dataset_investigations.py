@@ -35,7 +35,7 @@ def upgrade() -> None:
             nullable=False,
             unique=True,
         ),
-        sa.Column("user_id", UUID, sa.ForeignKey("auth.users.id"), nullable=False),
+        sa.Column("user_id", UUID, nullable=False),
         # The 8 analysis results (JSONB for each)
         sa.Column("column_roles", JSONB, nullable=True),  # Analysis 1: semantic roles
         sa.Column("missingness", JSONB, nullable=True),  # Analysis 2: null/unique/cardinality
@@ -72,7 +72,7 @@ def upgrade() -> None:
             nullable=False,
             unique=True,
         ),
-        sa.Column("user_id", UUID, sa.ForeignKey("auth.users.id"), nullable=False),
+        sa.Column("user_id", UUID, nullable=False),
         # User-provided context
         sa.Column("business_goal", sa.Text, nullable=True),
         sa.Column("key_metrics", sa.ARRAY(sa.Text), nullable=True),

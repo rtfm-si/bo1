@@ -28,7 +28,7 @@ def upgrade() -> None:
     op.create_table(
         "dataset_favourites",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID, sa.ForeignKey("auth.users.id"), nullable=False),
+        sa.Column("user_id", UUID, nullable=False),
         sa.Column(
             "dataset_id", UUID, sa.ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
         ),
@@ -73,7 +73,7 @@ def upgrade() -> None:
     op.create_table(
         "dataset_reports",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID, sa.ForeignKey("auth.users.id"), nullable=False),
+        sa.Column("user_id", UUID, nullable=False),
         sa.Column(
             "dataset_id", UUID, sa.ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
         ),

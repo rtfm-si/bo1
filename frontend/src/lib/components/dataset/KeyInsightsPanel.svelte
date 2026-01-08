@@ -370,7 +370,7 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Correlations</span>
-						{#if investigation.correlations.potential_leakage.length > 0}
+						{#if investigation.correlations?.potential_leakage?.length > 0}
 							<span class="text-xs px-2 py-0.5 rounded-full bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300">
 								{investigation.correlations.potential_leakage.length} potential leakage
 							</span>
@@ -382,7 +382,7 @@
 				</button>
 				{#if expandedSections.has('correlations')}
 					<div class="mt-3 pl-10 space-y-3">
-						{#if investigation.correlations.potential_leakage.length > 0}
+						{#if investigation.correlations?.potential_leakage?.length > 0}
 							<div class="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
 								<div class="text-sm font-medium text-warning-700 dark:text-warning-300 mb-1">Potential Data Leakage</div>
 								<div class="text-xs text-warning-600 dark:text-warning-400 space-y-1">
@@ -393,7 +393,7 @@
 							</div>
 						{/if}
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-							{#if investigation.correlations.top_positive.length > 0}
+							{#if investigation.correlations?.top_positive?.length > 0}
 								<div>
 									<div class="text-xs font-medium text-success-600 dark:text-success-400 mb-1">Top Positive</div>
 									<div class="space-y-1 text-xs">
@@ -406,7 +406,7 @@
 									</div>
 								</div>
 							{/if}
-							{#if investigation.correlations.top_negative.length > 0}
+							{#if investigation.correlations?.top_negative?.length > 0}
 								<div>
 									<div class="text-xs font-medium text-error-600 dark:text-error-400 mb-1">Top Negative</div>
 									<div class="space-y-1 text-xs">
@@ -464,7 +464,7 @@
 							</div>
 						{:else}
 							<div class="text-sm text-neutral-500 dark:text-neutral-400">
-								{#if investigation.time_series_readiness.recommendations.length > 0}
+								{#if investigation.time_series_readiness?.recommendations?.length > 0}
 									<ul class="list-disc pl-4 space-y-1">
 										{#each investigation.time_series_readiness.recommendations as rec}
 											<li>{rec}</li>

@@ -247,6 +247,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+          trivyignores: '.trivyignore'
 
       - name: Run Trivy (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@0.33.1

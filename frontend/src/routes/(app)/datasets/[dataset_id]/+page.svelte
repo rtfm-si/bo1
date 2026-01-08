@@ -200,8 +200,7 @@
 		if (!runNew) {
 			try {
 				investigationLoading = true;
-				const response = await apiClient.getDatasetInvestigation(datasetId);
-				investigation = response.investigation;
+				investigation = await apiClient.getDatasetInvestigation(datasetId);
 				return;
 			} catch {
 				// No cached investigation, will try to run new one
@@ -211,8 +210,7 @@
 		// Run new investigation
 		investigationLoading = true;
 		try {
-			const response = await apiClient.investigateDataset(datasetId);
-			investigation = response.investigation;
+			investigation = await apiClient.investigateDataset(datasetId);
 		} catch (err: unknown) {
 			// Check for 422 status (not profiled yet) - silently skip
 			const status = (err as { status?: number }).status;

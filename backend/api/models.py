@@ -4863,18 +4863,21 @@ class DatasetBusinessContextCreate(BaseModel):
 
 
 class DatasetBusinessContextResponse(BaseModel):
-    """Response for dataset business context."""
+    """Response for dataset business context.
 
-    id: str = Field(description="Business context UUID")
+    When id is None, context is inherited from user's global business context.
+    """
+
+    id: str | None = Field(None, description="Business context UUID (None if from user context)")
     dataset_id: str = Field(description="Dataset UUID")
     business_goal: str | None = Field(None, description="User's business goal")
-    key_metrics: list[str] = Field(default_factory=list, description="Key metrics")
-    kpis: list[str] = Field(default_factory=list, description="KPI targets")
+    key_metrics: list[str] | None = Field(default_factory=list, description="Key metrics")
+    kpis: list[str] | None = Field(default_factory=list, description="KPI targets")
     objectives: str | None = Field(None, description="Detailed objectives")
     industry: str | None = Field(None, description="Industry")
     additional_context: str | None = Field(None, description="Additional context")
-    created_at: str = Field(description="Creation timestamp")
-    updated_at: str = Field(description="Last update timestamp")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Last update timestamp")
 
 
 # =============================================================================

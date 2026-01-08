@@ -831,18 +831,7 @@ async def trigger_profile(
             df = load_dataframe(file_key)
             investigation = run_investigation(df)
             investigation_dict = investigation.to_dict()
-            dataset_repository.save_investigation(
-                user_id=user_id,
-                dataset_id=dataset_id,
-                column_roles=investigation_dict.get("column_roles"),
-                missingness=investigation_dict.get("missingness"),
-                descriptive_stats=investigation_dict.get("descriptive_stats"),
-                outliers=investigation_dict.get("outliers"),
-                correlations=investigation_dict.get("correlations"),
-                time_series_readiness=investigation_dict.get("time_series_readiness"),
-                segmentation_suggestions=investigation_dict.get("segmentation_builder"),
-                data_quality=investigation_dict.get("data_quality"),
-            )
+            dataset_repository.save_investigation(dataset_id, user_id, investigation_dict)
             logger.info(f"Auto-investigation completed for dataset {dataset_id}")
         except Exception as e:
             # Don't fail profiling if investigation fails
@@ -2425,7 +2414,11 @@ async def get_business_context(
     dataset_id: str,
     user: dict = Depends(get_current_user),
 ) -> DatasetBusinessContextResponse:
-    """Get business context for a dataset."""
+    """Get business context for a dataset.
+
+    First checks for dataset-specific business context.
+    Falls back to user's global business context if none exists.
+    """
     user_id = user.get("user_id")
     if not user_id:
         raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
@@ -2435,16 +2428,37 @@ async def get_business_context(
     if not dataset:
         raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
 
-    # Get business context
+    # Get dataset-specific business context
     context = dataset_repository.get_business_context(dataset_id, user_id)
-    if not context:
-        raise http_error(
-            ErrorCode.API_NOT_FOUND,
-            "No business context found for this dataset",
-            status=404,
+    if context:
+        return DatasetBusinessContextResponse(**context)
+
+    # Fallback to user's global business context
+    user_context = user_repository.get_context(user_id)
+    if user_context:
+        # Map user context to dataset business context format
+        return DatasetBusinessContextResponse(
+            id=None,
+            dataset_id=dataset_id,
+            business_goal=user_context.get("primary_objective"),
+            key_metrics=None,
+            kpis=user_context.get("context_kpis") if user_context.get("context_kpis") else None,
+            objectives=user_context.get("main_value_proposition"),
+            industry=user_context.get("industry"),
+            additional_context=f"Company: {user_context.get('company_name', 'N/A')}. "
+            f"Target market: {user_context.get('target_market', 'N/A')}. "
+            f"Business model: {user_context.get('business_model', 'N/A')}."
+            if user_context.get("company_name") or user_context.get("target_market")
+            else None,
+            created_at=None,
+            updated_at=None,
         )
 
-    return DatasetBusinessContextResponse(**context)
+    raise http_error(
+        ErrorCode.API_NOT_FOUND,
+        "No business context found. Set up your business context in Settings first.",
+        status=404,
+    )
 
 
 # =============================================================================

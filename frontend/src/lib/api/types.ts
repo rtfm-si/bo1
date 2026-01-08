@@ -2061,28 +2061,28 @@ export interface DataQualityAnalysis {
 }
 
 /**
- * Full dataset investigation result
+ * Full dataset investigation result (returned directly from API)
  */
 export interface DatasetInvestigation {
+	id: string;
+	dataset_id: string;
 	column_roles: ColumnRolesAnalysis;
 	missingness: MissingnessAnalysis;
 	descriptive_stats: DescriptiveStatsAnalysis;
 	outliers: OutliersAnalysis;
 	correlations: CorrelationsAnalysis;
 	time_series_readiness: TimeSeriesReadiness;
-	segmentation_builder: SegmentationBuilderAnalysis;
+	/** @deprecated Use segmentation_suggestions - keeping for backward compat */
+	segmentation_builder?: SegmentationBuilderAnalysis;
+	segmentation_suggestions: SegmentationBuilderAnalysis;
 	data_quality: DataQualityAnalysis;
+	computed_at: string;
 }
 
 /**
- * Investigation response from API
+ * Investigation response from API (flat structure, no nesting)
  */
-export interface DatasetInvestigationResponse {
-	investigation: DatasetInvestigation;
-	dataset_id: string;
-	computed_at: string;
-	cached: boolean;
-}
+export type DatasetInvestigationResponse = DatasetInvestigation;
 
 /**
  * Business context for dataset
@@ -2098,12 +2098,13 @@ export interface DatasetBusinessContext {
 
 /**
  * Business context response from API
+ * When id is null, context is inherited from user's global business context.
  */
 export interface DatasetBusinessContextResponse extends DatasetBusinessContext {
-	id: string;
+	id: string | null;
 	dataset_id: string;
-	user_id: string;
-	updated_at: string;
+	created_at?: string | null;
+	updated_at?: string | null;
 }
 
 // =============================================================================

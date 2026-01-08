@@ -818,7 +818,7 @@ class ProjectRepository(BaseRepository):
                 """
                 SELECT ad.action_id, ad.depends_on_action_id, ad.dependency_type, ad.lag_days
                 FROM action_dependencies ad
-                WHERE ad.action_id = ANY(%s) AND ad.depends_on_action_id = ANY(%s)
+                WHERE ad.action_id = ANY(%s::uuid[]) AND ad.depends_on_action_id = ANY(%s::uuid[])
                 """,
                 (action_ids, action_ids),
             )

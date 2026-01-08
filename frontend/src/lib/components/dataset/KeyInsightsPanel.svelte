@@ -83,6 +83,31 @@
 	const columnsWithNulls = $derived(investigation?.missingness?.columns_with_nulls ?? 0);
 	const outlierColumns = $derived(investigation?.outliers?.columns_with_outliers ?? 0);
 	const qualityScore = $derived(investigation?.data_quality?.overall_score ?? 0);
+
+	// Normalized data with safe defaults to prevent undefined errors
+	const safeData = $derived({
+		columnRoles: investigation?.column_roles?.roles ?? [],
+		missingnessColumns: investigation?.missingness?.columns ?? [],
+		highNullColumns: investigation?.missingness?.high_null_columns ?? [],
+		numericColumns: investigation?.descriptive_stats?.numeric_columns ?? [],
+		categoricalColumns: investigation?.descriptive_stats?.categorical_columns ?? [],
+		outliers: investigation?.outliers?.outliers ?? [],
+		potentialLeakage: investigation?.correlations?.potential_leakage ?? [],
+		topPositive: investigation?.correlations?.top_positive ?? [],
+		topNegative: investigation?.correlations?.top_negative ?? [],
+		tsReady: investigation?.time_series_readiness?.is_ready ?? false,
+		tsTimestampColumn: investigation?.time_series_readiness?.timestamp_column ?? null,
+		tsFrequency: investigation?.time_series_readiness?.detected_frequency ?? null,
+		tsDateRange: investigation?.time_series_readiness?.date_range ?? null,
+		tsGapCount: investigation?.time_series_readiness?.gap_count ?? 0,
+		tsRecommendations: investigation?.time_series_readiness?.recommendations ?? [],
+		segmentationOpportunities: investigation?.segmentation_suggestions?.opportunities ?? [],
+		bestDimensions: investigation?.segmentation_suggestions?.best_dimensions ?? [],
+		qualityIssues: investigation?.data_quality?.issues ?? [],
+		completenessScore: investigation?.data_quality?.completeness_score ?? 0,
+		consistencyScore: investigation?.data_quality?.consistency_score ?? 0,
+		validityScore: investigation?.data_quality?.validity_score ?? 0,
+	});
 </script>
 
 {#if loading}
@@ -172,7 +197,7 @@
 				{#if expandedSections.has('column_roles')}
 					<div class="mt-3 pl-10">
 						<div class="flex flex-wrap gap-2">
-							{#each investigation.column_roles.roles as col}
+							{#each safeData.columnRoles as col}
 								<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {getRoleColor(col.role)}">
 									<span>{col.column}</span>
 									<span class="opacity-70">({col.role})</span>
@@ -210,14 +235,14 @@
 				</button>
 				{#if expandedSections.has('missingness')}
 					<div class="mt-3 pl-10">
-						{#if investigation.missingness?.high_null_columns?.length > 0}
+						{#if safeData.highNullColumns.length > 0}
 							<div class="mb-3 p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
 								<div class="text-sm font-medium text-warning-700 dark:text-warning-300">High null columns:</div>
-								<div class="text-sm text-warning-600 dark:text-warning-400">{investigation.missingness.high_null_columns.join(', ')}</div>
+								<div class="text-sm text-warning-600 dark:text-warning-400">{safeData.highNullColumns.join(', ')}</div>
 							</div>
 						{/if}
 						<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
-							{#each investigation.missingness.columns.slice(0, 12) as col}
+							{#each safeData.missingnessColumns.slice(0, 12) as col}
 								<div class="p-2 bg-neutral-50 dark:bg-neutral-700/50 rounded">
 									<div class="font-medium text-neutral-700 dark:text-neutral-300 truncate" title={col.column}>{col.column}</div>
 									<div class="text-neutral-500 dark:text-neutral-400">
@@ -226,8 +251,8 @@
 								</div>
 							{/each}
 						</div>
-						{#if investigation.missingness.columns.length > 12}
-							<div class="mt-2 text-xs text-neutral-500">+{investigation.missingness.columns.length - 12} more columns</div>
+						{#if safeData.missingnessColumns.length > 12}
+							<div class="mt-2 text-xs text-neutral-500">+{safeData.missingnessColumns.length - 12} more columns</div>
 						{/if}
 					</div>
 				{/if}
@@ -247,7 +272,7 @@
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Descriptive Statistics</span>
 						<span class="text-xs text-neutral-500">
-							({investigation.descriptive_stats.numeric_columns.length} numeric, {investigation.descriptive_stats.categorical_columns.length} categorical)
+							({safeData.numericColumns.length} numeric, {safeData.categoricalColumns.length} categorical)
 						</span>
 					</div>
 					<svg class="w-5 h-5 text-neutral-400 transition-transform {expandedSections.has('descriptive_stats') ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,7 +281,7 @@
 				</button>
 				{#if expandedSections.has('descriptive_stats')}
 					<div class="mt-3 pl-10 space-y-4">
-						{#if investigation.descriptive_stats.numeric_columns.length > 0}
+						{#if safeData.numericColumns.length > 0}
 							<div>
 								<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">Numeric Columns</div>
 								<div class="overflow-x-auto">
@@ -271,7 +296,7 @@
 											</tr>
 										</thead>
 										<tbody class="text-neutral-700 dark:text-neutral-300">
-											{#each investigation.descriptive_stats.numeric_columns.slice(0, 8) as col}
+											{#each safeData.numericColumns.slice(0, 8) as col}
 												<tr>
 													<td class="pr-4 py-1 font-medium">{col.column}</td>
 													<td class="pr-4 py-1">{col.mean?.toFixed(2) ?? '-'}</td>
@@ -285,11 +310,11 @@
 								</div>
 							</div>
 						{/if}
-						{#if investigation.descriptive_stats.categorical_columns.length > 0}
+						{#if safeData.categoricalColumns.length > 0}
 							<div>
 								<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">Top Categorical Values</div>
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-									{#each investigation.descriptive_stats.categorical_columns.slice(0, 4) as col}
+									{#each safeData.categoricalColumns.slice(0, 4) as col}
 										<div class="p-2 bg-neutral-50 dark:bg-neutral-700/50 rounded">
 											<div class="font-medium text-neutral-700 dark:text-neutral-300 mb-1">{col.column}</div>
 											{#if col.top_values}
@@ -338,9 +363,9 @@
 				</button>
 				{#if expandedSections.has('outliers')}
 					<div class="mt-3 pl-10">
-						{#if investigation.outliers.outliers.length > 0}
+						{#if safeData.outliers.length > 0}
 							<div class="space-y-2">
-								{#each investigation.outliers.outliers as o}
+								{#each safeData.outliers as o}
 									<div class="p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
 										<span class="font-medium text-red-700 dark:text-red-300">{o.column}</span>
 										<span class="text-red-600 dark:text-red-400">: {o.outlier_count} outliers ({formatPercent(o.outlier_percent)})</span>
@@ -370,9 +395,9 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Correlations</span>
-						{#if investigation.correlations?.potential_leakage?.length > 0}
+						{#if safeData.potentialLeakage.length > 0}
 							<span class="text-xs px-2 py-0.5 rounded-full bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300">
-								{investigation.correlations.potential_leakage.length} potential leakage
+								{safeData.potentialLeakage.length} potential leakage
 							</span>
 						{/if}
 					</div>
@@ -382,22 +407,22 @@
 				</button>
 				{#if expandedSections.has('correlations')}
 					<div class="mt-3 pl-10 space-y-3">
-						{#if investigation.correlations?.potential_leakage?.length > 0}
+						{#if safeData.potentialLeakage.length > 0}
 							<div class="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
 								<div class="text-sm font-medium text-warning-700 dark:text-warning-300 mb-1">Potential Data Leakage</div>
 								<div class="text-xs text-warning-600 dark:text-warning-400 space-y-1">
-									{#each investigation.correlations.potential_leakage as pair}
+									{#each safeData.potentialLeakage as pair}
 										<div>{pair.column_a} ↔ {pair.column_b}: {formatCorrelation(pair.correlation)}</div>
 									{/each}
 								</div>
 							</div>
 						{/if}
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-							{#if investigation.correlations?.top_positive?.length > 0}
+							{#if safeData.topPositive.length > 0}
 								<div>
 									<div class="text-xs font-medium text-success-600 dark:text-success-400 mb-1">Top Positive</div>
 									<div class="space-y-1 text-xs">
-										{#each investigation.correlations.top_positive.slice(0, 5) as pair}
+										{#each safeData.topPositive.slice(0, 5) as pair}
 											<div class="flex justify-between text-neutral-600 dark:text-neutral-400">
 												<span>{pair.column_a} ↔ {pair.column_b}</span>
 												<span class="text-success-600 dark:text-success-400">+{formatCorrelation(pair.correlation)}</span>
@@ -406,11 +431,11 @@
 									</div>
 								</div>
 							{/if}
-							{#if investigation.correlations?.top_negative?.length > 0}
+							{#if safeData.topNegative.length > 0}
 								<div>
 									<div class="text-xs font-medium text-error-600 dark:text-error-400 mb-1">Top Negative</div>
 									<div class="space-y-1 text-xs">
-										{#each investigation.correlations.top_negative.slice(0, 5) as pair}
+										{#each safeData.topNegative.slice(0, 5) as pair}
 											<div class="flex justify-between text-neutral-600 dark:text-neutral-400">
 												<span>{pair.column_a} ↔ {pair.column_b}</span>
 												<span class="text-error-600 dark:text-error-400">{formatCorrelation(pair.correlation)}</span>
@@ -437,7 +462,7 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Time Series Readiness</span>
-						{#if investigation.time_series_readiness.is_ready}
+						{#if safeData.tsReady}
 							<span class="text-xs px-2 py-0.5 rounded-full bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300">Ready</span>
 						{:else}
 							<span class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400">Not time-series</span>
@@ -449,24 +474,24 @@
 				</button>
 				{#if expandedSections.has('time_series')}
 					<div class="mt-3 pl-10">
-						{#if investigation.time_series_readiness.is_ready}
+						{#if safeData.tsReady}
 							<div class="space-y-2 text-sm">
-								<div><span class="text-neutral-500 dark:text-neutral-400">Timestamp column:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{investigation.time_series_readiness.timestamp_column}</span></div>
-								{#if investigation.time_series_readiness.detected_frequency}
-									<div><span class="text-neutral-500 dark:text-neutral-400">Frequency:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{investigation.time_series_readiness.detected_frequency}</span></div>
+								<div><span class="text-neutral-500 dark:text-neutral-400">Timestamp column:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{safeData.tsTimestampColumn}</span></div>
+								{#if safeData.tsFrequency}
+									<div><span class="text-neutral-500 dark:text-neutral-400">Frequency:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{safeData.tsFrequency}</span></div>
 								{/if}
-								{#if investigation.time_series_readiness.date_range}
-									<div><span class="text-neutral-500 dark:text-neutral-400">Date range:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{investigation.time_series_readiness.date_range.start} to {investigation.time_series_readiness.date_range.end}</span></div>
+								{#if safeData.tsDateRange}
+									<div><span class="text-neutral-500 dark:text-neutral-400">Date range:</span> <span class="font-medium text-neutral-700 dark:text-neutral-300">{safeData.tsDateRange.start} to {safeData.tsDateRange.end}</span></div>
 								{/if}
-								{#if investigation.time_series_readiness.gap_count > 0}
-									<div class="text-warning-600 dark:text-warning-400">{investigation.time_series_readiness.gap_count} gaps detected in time series</div>
+								{#if safeData.tsGapCount > 0}
+									<div class="text-warning-600 dark:text-warning-400">{safeData.tsGapCount} gaps detected in time series</div>
 								{/if}
 							</div>
 						{:else}
 							<div class="text-sm text-neutral-500 dark:text-neutral-400">
-								{#if investigation.time_series_readiness?.recommendations?.length > 0}
+								{#if safeData.tsRecommendations.length > 0}
 									<ul class="list-disc pl-4 space-y-1">
-										{#each investigation.time_series_readiness.recommendations as rec}
+										{#each safeData.tsRecommendations as rec}
 											<li>{rec}</li>
 										{/each}
 									</ul>
@@ -492,8 +517,8 @@
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Segmentation Opportunities</span>
-						{#if investigation.segmentation_suggestions?.opportunities?.length > 0}
-							<span class="text-xs text-neutral-500">({investigation.segmentation_suggestions.opportunities.length} found)</span>
+						{#if safeData.segmentationOpportunities.length > 0}
+							<span class="text-xs text-neutral-500">({safeData.segmentationOpportunities.length} found)</span>
 						{/if}
 					</div>
 					<svg class="w-5 h-5 text-neutral-400 transition-transform {expandedSections.has('segmentation') ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -502,9 +527,9 @@
 				</button>
 				{#if expandedSections.has('segmentation')}
 					<div class="mt-3 pl-10">
-						{#if investigation.segmentation_suggestions?.opportunities?.length > 0}
+						{#if safeData.segmentationOpportunities.length > 0}
 							<div class="space-y-2">
-								{#each investigation.segmentation_suggestions.opportunities.slice(0, 5) as opp}
+								{#each safeData.segmentationOpportunities.slice(0, 5) as opp}
 									<div class="p-2 bg-pink-50 dark:bg-pink-900/20 rounded text-sm">
 										<div class="font-medium text-pink-700 dark:text-pink-300">{opp.dimension} x {opp.metric}</div>
 										<div class="text-xs text-pink-600 dark:text-pink-400">{opp.recommendation}</div>
@@ -516,9 +541,9 @@
 								No strong segmentation opportunities found. Try adding dimension columns.
 							</div>
 						{/if}
-						{#if investigation.segmentation_suggestions?.best_dimensions?.length > 0}
+						{#if safeData.bestDimensions.length > 0}
 							<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-								<span class="font-medium">Best dimensions:</span> {investigation.segmentation_suggestions.best_dimensions.join(', ')}
+								<span class="font-medium">Best dimensions:</span> {safeData.bestDimensions.join(', ')}
 							</div>
 						{/if}
 					</div>
@@ -551,22 +576,22 @@
 						<!-- Score breakdown -->
 						<div class="grid grid-cols-3 gap-4 mb-4">
 							<div class="text-center">
-								<div class="text-lg font-semibold {getScoreColor(investigation.data_quality.completeness_score)}">{investigation.data_quality.completeness_score}%</div>
+								<div class="text-lg font-semibold {getScoreColor(safeData.completenessScore)}">{safeData.completenessScore}%</div>
 								<div class="text-xs text-neutral-500">Completeness</div>
 							</div>
 							<div class="text-center">
-								<div class="text-lg font-semibold {getScoreColor(investigation.data_quality.consistency_score)}">{investigation.data_quality.consistency_score}%</div>
+								<div class="text-lg font-semibold {getScoreColor(safeData.consistencyScore)}">{safeData.consistencyScore}%</div>
 								<div class="text-xs text-neutral-500">Consistency</div>
 							</div>
 							<div class="text-center">
-								<div class="text-lg font-semibold {getScoreColor(investigation.data_quality.validity_score)}">{investigation.data_quality.validity_score}%</div>
+								<div class="text-lg font-semibold {getScoreColor(safeData.validityScore)}">{safeData.validityScore}%</div>
 								<div class="text-xs text-neutral-500">Validity</div>
 							</div>
 						</div>
 						<!-- Issues -->
-						{#if investigation.data_quality.issues.length > 0}
+						{#if safeData.qualityIssues.length > 0}
 							<div class="space-y-2">
-								{#each investigation.data_quality.issues as issue}
+								{#each safeData.qualityIssues as issue}
 									<div class="p-2 rounded text-sm {getSeverityColor(issue.severity)}">
 										<div class="flex items-center gap-2">
 											<span class="font-medium">{issue.column}</span>

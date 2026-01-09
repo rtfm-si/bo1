@@ -1376,6 +1376,76 @@ class DatasetRepository(BaseRepository):
             return self._row_to_investigation(row)
         return None
 
+    def update_column_role(
+        self,
+        dataset_id: str,
+        user_id: str,
+        column_name: str,
+        new_role: str,
+    ) -> dict[str, Any] | None:
+        """Update a single column's role in the investigation.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+            column_name: Column to update
+            new_role: New role (metric, dimension, id, timestamp, unknown)
+
+        Returns:
+            Updated investigation or None if not found
+        """
+        import json
+
+        investigation = self.get_investigation(dataset_id, user_id)
+        if not investigation:
+            return None
+
+        column_roles = investigation.get("column_roles", {})
+        roles_list = column_roles.get("roles", [])
+
+        # Update the role for the specified column
+        updated = False
+        for role_entry in roles_list:
+            if role_entry.get("column") == column_name:
+                role_entry["role"] = new_role
+                role_entry["confidence"] = 1.0  # User override = 100% confidence
+                role_entry["reasoning"] = "User override"
+                updated = True
+                break
+
+        if not updated:
+            return None
+
+        # Rebuild metric_columns and dimension_columns lists
+        metric_columns = [r["column"] for r in roles_list if r["role"] == "metric"]
+        dimension_columns = [r["column"] for r in roles_list if r["role"] == "dimension"]
+
+        column_roles["roles"] = roles_list
+        column_roles["metric_columns"] = metric_columns
+        column_roles["dimension_columns"] = dimension_columns
+
+        # Update just the column_roles field
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE dataset_investigations
+                    SET column_roles = %s
+                    WHERE dataset_id = %s
+                    RETURNING id, dataset_id, user_id,
+                              column_roles, missingness, descriptive_stats, outliers,
+                              correlations, time_series_readiness, segmentation_suggestions, data_quality,
+                              computed_at
+                    """,
+                    (json.dumps(column_roles), dataset_id),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_investigation(row)
+        return None
+
     def delete_investigation(self, dataset_id: str, user_id: str) -> bool:
         """Delete investigation for a dataset."""
         with db_session() as conn:

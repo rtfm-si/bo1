@@ -509,6 +509,7 @@
 
 <!-- Upload Modal -->
 {#if showUploadModal}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
 		onclick={() => (showUploadModal = false)}
@@ -516,7 +517,9 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="upload-modal-title"
+		tabindex="-1"
 	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
 			onclick={(e) => e.stopPropagation()}
@@ -550,7 +553,7 @@
 			>
 				<!-- File Input -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="upload-file" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						File
 					</label>
 					{#if uploadFile}
@@ -568,6 +571,7 @@
 						</div>
 					{:else}
 						<input
+							id="upload-file"
 							type="file"
 							accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,video/mp4,video/webm"
 							class="w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
@@ -578,10 +582,11 @@
 
 				<!-- Title -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="upload-title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Title
 					</label>
 					<input
+						id="upload-title"
 						type="text"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						bind:value={uploadTitle}
@@ -591,10 +596,11 @@
 
 				<!-- Type -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="upload-type" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Type
 					</label>
 					<select
+						id="upload-type"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						bind:value={uploadType}
 					>
@@ -607,10 +613,11 @@
 
 				<!-- Description -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="upload-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Description (optional)
 					</label>
 					<textarea
+						id="upload-description"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						rows="2"
 						bind:value={uploadDescription}
@@ -619,10 +626,11 @@
 
 				<!-- Tags -->
 				<div class="mb-6">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="upload-tags" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Tags (comma-separated)
 					</label>
 					<input
+						id="upload-tags"
 						type="text"
 						placeholder="pricing, saas, hero"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
@@ -659,6 +667,7 @@
 
 <!-- Edit Modal -->
 {#if editingAsset}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
 		onclick={() => (editingAsset = null)}
@@ -666,7 +675,9 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="edit-modal-title"
+		tabindex="-1"
 	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
 			onclick={(e) => e.stopPropagation()}
@@ -694,10 +705,11 @@
 			>
 				<!-- Title -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="edit-title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Title
 					</label>
 					<input
+						id="edit-title"
 						type="text"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						bind:value={editTitle}
@@ -707,10 +719,11 @@
 
 				<!-- Description -->
 				<div class="mb-4">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="edit-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Description
 					</label>
 					<textarea
+						id="edit-description"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						rows="2"
 						bind:value={editDescription}
@@ -719,10 +732,11 @@
 
 				<!-- Tags -->
 				<div class="mb-6">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="edit-tags" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Tags (comma-separated)
 					</label>
 					<input
+						id="edit-tags"
 						type="text"
 						class="w-full px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
 						bind:value={editTags}

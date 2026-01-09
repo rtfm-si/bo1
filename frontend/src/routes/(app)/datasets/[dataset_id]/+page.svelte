@@ -228,6 +228,19 @@
 		}
 	}
 
+	async function updateColumnRole(columnName: string, newRole: string) {
+		try {
+			investigation = await apiClient.updateColumnRole(
+				datasetId,
+				columnName,
+				newRole as 'metric' | 'dimension' | 'id' | 'timestamp' | 'unknown'
+			);
+		} catch (err) {
+			console.error('[Investigation] Failed to update column role:', err);
+			throw err;
+		}
+	}
+
 	async function fetchBusinessContext() {
 		contextLoading = true;
 		try {
@@ -524,6 +537,7 @@
 						loading={investigationLoading}
 						error={investigationError}
 						onRefresh={() => fetchInvestigation(true)}
+						onUpdateColumnRole={updateColumnRole}
 					/>
 				</div>
 			{/if}

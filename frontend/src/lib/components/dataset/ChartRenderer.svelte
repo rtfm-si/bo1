@@ -53,7 +53,7 @@
 		onToggleFavourite
 	}: Props = $props();
 
-	let chartContainer: HTMLDivElement;
+	let chartContainer: HTMLDivElement = $state(null!);
 	let Plotly: typeof import('plotly.js-basic-dist') | null = null;
 	let plotlyLoaded = $state(false);
 

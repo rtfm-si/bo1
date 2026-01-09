@@ -2264,6 +2264,20 @@ export class ApiClient {
 	}
 
 	/**
+	 * Update a column's role classification
+	 */
+	async updateColumnRole(
+		datasetId: string,
+		columnName: string,
+		role: 'metric' | 'dimension' | 'id' | 'timestamp' | 'unknown'
+	): Promise<DatasetInvestigationResponse> {
+		return this.patch<DatasetInvestigationResponse>(
+			`/api/v1/datasets/${datasetId}/column-role`,
+			{ column_name: columnName, role }
+		);
+	}
+
+	/**
 	 * Set business context for a dataset
 	 */
 	async setDatasetBusinessContext(

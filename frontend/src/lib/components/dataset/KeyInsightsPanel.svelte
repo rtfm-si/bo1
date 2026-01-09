@@ -13,9 +13,27 @@
 		loading?: boolean;
 		error?: string | null;
 		onRefresh?: () => void;
+		onUpdateColumnRole?: (columnName: string, newRole: string) => Promise<void>;
 	}
 
-	let { investigation, loading = false, error = null, onRefresh }: Props = $props();
+	let { investigation, loading = false, error = null, onRefresh, onUpdateColumnRole }: Props = $props();
+
+	// Role editing state
+	let editingRole = $state<string | null>(null);
+	let savingRole = $state(false);
+
+	const roleOptions = ['metric', 'dimension', 'id', 'timestamp', 'unknown'] as const;
+
+	async function handleRoleChange(columnName: string, newRole: string) {
+		if (!onUpdateColumnRole || savingRole) return;
+		savingRole = true;
+		try {
+			await onUpdateColumnRole(columnName, newRole);
+		} finally {
+			savingRole = false;
+			editingRole = null;
+		}
+	}
 
 	// Track expanded sections
 	let expandedSections = new SvelteSet(['column_roles', 'data_quality']);
@@ -198,12 +216,52 @@
 					<div class="mt-3 pl-10">
 						<div class="flex flex-wrap gap-2">
 							{#each safeData.columnRoles as col}
-								<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {getRoleColor(col.role)}">
-									<span>{col.column}</span>
-									<span class="opacity-70">({col.role})</span>
-								</span>
+								{#if editingRole === col.column}
+									<!-- Editing mode -->
+									<div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-white dark:bg-neutral-700 border border-brand-300 dark:border-brand-600 shadow-sm">
+										<span class="text-neutral-700 dark:text-neutral-200">{col.column}:</span>
+										<select
+											class="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
+											value={col.role}
+											disabled={savingRole}
+											onchange={(e) => handleRoleChange(col.column, e.currentTarget.value)}
+										>
+											{#each roleOptions as opt}
+												<option value={opt}>{opt}</option>
+											{/each}
+										</select>
+										<button
+											onclick={() => editingRole = null}
+											class="ml-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+											title="Cancel"
+										>
+											<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									</div>
+								{:else}
+									<!-- Display mode - clickable to edit -->
+									<button
+										onclick={() => onUpdateColumnRole && (editingRole = col.column)}
+										class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {getRoleColor(col.role)} {onUpdateColumnRole ? 'hover:ring-2 hover:ring-brand-300 dark:hover:ring-brand-600 cursor-pointer' : ''} transition-all"
+										title={onUpdateColumnRole ? 'Click to change role' : undefined}
+										disabled={!onUpdateColumnRole}
+									>
+										<span>{col.column}</span>
+										<span class="opacity-70">({col.role})</span>
+										{#if col.role === 'unknown' && onUpdateColumnRole}
+											<svg class="w-3 h-3 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+											</svg>
+										{/if}
+									</button>
+								{/if}
 							{/each}
 						</div>
+						{#if onUpdateColumnRole}
+							<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">Click a column to change its role</p>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -235,10 +293,16 @@
 				</button>
 				{#if expandedSections.has('missingness')}
 					<div class="mt-3 pl-10">
+						<!-- Contextual explanation -->
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mb-3">
+							<strong>Null %</strong> = missing values that may need filling or handling.
+							<strong>Cardinality</strong> = unique value count (low = good for grouping, high = identifiers).
+						</p>
 						{#if safeData.highNullColumns.length > 0}
 							<div class="mb-3 p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-								<div class="text-sm font-medium text-warning-700 dark:text-warning-300">High null columns:</div>
+								<div class="text-sm font-medium text-warning-700 dark:text-warning-300">High null columns need attention:</div>
 								<div class="text-sm text-warning-600 dark:text-warning-400">{safeData.highNullColumns.join(', ')}</div>
+								<p class="text-xs text-warning-500 dark:text-warning-400 mt-1">Consider: fill with defaults, exclude from analysis, or investigate why data is missing.</p>
 							</div>
 						{/if}
 						<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
@@ -363,18 +427,25 @@
 				</button>
 				{#if expandedSections.has('outliers')}
 					<div class="mt-3 pl-10">
+						<!-- Contextual explanation -->
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mb-3">
+							Outliers are values far from typical ranges. They may be data entry errors, special cases, or genuine extremes worth investigating.
+						</p>
 						{#if safeData.outliers.length > 0}
 							<div class="space-y-2">
 								{#each safeData.outliers as o}
-									<div class="p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
-										<span class="font-medium text-red-700 dark:text-red-300">{o.column}</span>
-										<span class="text-red-600 dark:text-red-400">: {o.outlier_count} outliers ({formatPercent(o.outlier_percent)})</span>
+									<div class="p-2 bg-orange-50 dark:bg-orange-900/20 rounded text-sm border border-orange-200 dark:border-orange-800">
+										<span class="font-medium text-orange-700 dark:text-orange-300">{o.column}</span>
+										<span class="text-orange-600 dark:text-orange-400">: {o.outlier_count} outliers ({formatPercent(o.outlier_percent)})</span>
 										{#if o.lower_bound !== null && o.upper_bound !== null}
-											<span class="text-xs text-red-500 dark:text-red-400"> | bounds: [{o.lower_bound?.toFixed(2)}, {o.upper_bound?.toFixed(2)}]</span>
+											<span class="text-xs text-orange-500 dark:text-orange-400"> | normal range: [{o.lower_bound?.toFixed(2)}, {o.upper_bound?.toFixed(2)}]</span>
 										{/if}
 									</div>
 								{/each}
 							</div>
+							<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+								Consider: verify data accuracy, filter outliers for analysis, or investigate what caused extreme values.
+							</p>
 						{:else}
 							<div class="text-sm text-neutral-500 dark:text-neutral-400">No significant outliers detected in numeric columns.</div>
 						{/if}
@@ -396,8 +467,8 @@
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Correlations</span>
 						{#if safeData.potentialLeakage.length > 0}
-							<span class="text-xs px-2 py-0.5 rounded-full bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300">
-								{safeData.potentialLeakage.length} potential leakage
+							<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+								{safeData.potentialLeakage.length} highly correlated
 							</span>
 						{/if}
 					</div>
@@ -407,14 +478,27 @@
 				</button>
 				{#if expandedSections.has('correlations')}
 					<div class="mt-3 pl-10 space-y-3">
+						<!-- Contextual explanation -->
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">
+							Correlation measures how closely two columns move together (1.0 = perfect positive, -1.0 = perfect negative, 0 = no relationship).
+						</p>
 						{#if safeData.potentialLeakage.length > 0}
-							<div class="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-								<div class="text-sm font-medium text-warning-700 dark:text-warning-300 mb-1">Potential Data Leakage</div>
-								<div class="text-xs text-warning-600 dark:text-warning-400 space-y-1">
+							<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+								<div class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-2">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									Highly Correlated Pairs
+								</div>
+								<div class="text-xs text-blue-600 dark:text-blue-400 space-y-1">
 									{#each safeData.potentialLeakage as pair}
 										<div>{pair.column_a} ↔ {pair.column_b}: {formatCorrelation(pair.correlation)}</div>
 									{/each}
 								</div>
+								<p class="text-xs text-blue-500 dark:text-blue-400 mt-2">
+									<strong>Review needed:</strong> High correlation may be expected (e.g., Gross Sales ↔ Net Sales) or indicate redundant columns.
+									If using for ML, consider if one column derives from another.
+								</p>
 							</div>
 						{/if}
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">

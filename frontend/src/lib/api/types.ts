@@ -1067,6 +1067,14 @@ export interface SuggestedChart {
 	rationale: string;
 }
 
+export interface ObjectiveAlignment {
+	score: number;
+	summary: string;
+	strengths: string[];
+	gaps: string[];
+	recommendations: string[];
+}
+
 export interface DatasetInsights {
 	identity: DataIdentity;
 	headline_metrics: HeadlineMetric[];
@@ -1076,6 +1084,7 @@ export interface DatasetInsights {
 	column_semantics: ColumnSemantic[];
 	narrative_summary: string;
 	suggested_charts?: SuggestedChart[];
+	objective_alignment?: ObjectiveAlignment;
 }
 
 export interface DatasetInsightsResponse {

@@ -227,16 +227,21 @@
 							{/if}
 						</div>
 
-						<!-- Type badges -->
+						<!-- Type badge - show semantic type, with technical as tooltip -->
 						<div class="flex items-center gap-1.5 mt-1.5">
 							{#if col.semantic_type && col.semantic_type.toLowerCase() !== 'unknown'}
-								<span class="px-2 py-0.5 text-[10px] font-medium rounded-full {getSemanticBadgeColor(col.semantic_type)}">
+								<span
+									class="px-2 py-0.5 text-[10px] font-medium rounded-full {getSemanticBadgeColor(col.semantic_type)}"
+									title={col.technical_type}
+								>
 									{col.semantic_type}
 								</span>
+							{:else}
+								<!-- Unknown semantic type - show technical type as primary -->
+								<span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400">
+									{col.technical_type || 'unknown'}
+								</span>
 							{/if}
-							<span class="text-[10px] text-neutral-400 dark:text-neutral-500">
-								{col.technical_type}
-							</span>
 						</div>
 
 						<!-- Description (editable) -->

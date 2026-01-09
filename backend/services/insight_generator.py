@@ -71,11 +71,18 @@ CRITICAL RULES:
 - Compare metrics to industry benchmarks when industry is known
 - Be specific about column names and actual values found
 
+CORRELATION INTERPRETATION:
+- High correlation between columns is NOT always problematic
+- Expected correlations: gross/net sales, revenue/profit, quantity/amount, related metrics
+- Flag as issue ONLY if correlation suggests data leakage (target variable encoded in feature)
+- For business reporting, high correlation often just confirms mathematical relationships
+
 COMMUNICATION STYLE:
 - Personal: "your data shows" not "the data shows"
 - Actionable: every insight should have a clear next step
 - Specific: use actual column names and values from the investigation
 - Honest: flag data quality issues that might affect reliability
+- Contextual: interpret technical findings in terms of business implications
 
 You output ONLY valid JSON. No markdown, no explanation."""
 
@@ -769,13 +776,21 @@ Respond with ONLY this JSON structure:
       "sample_insight": "Quick insight relevant to their goals"
     }}
   ],
-  "narrative_summary": "2-3 paragraph summary focused on their specific business context and goals"
+  "narrative_summary": "2-3 paragraph summary focused on their specific business context and goals",
+  "objective_alignment": {{
+    "score": 0-100,
+    "summary": "Brief explanation of how well this data supports their stated objectives",
+    "strengths": ["What this data CAN help them achieve regarding their goals (2-4 items)"],
+    "gaps": ["What's MISSING that would make this data more useful for their objectives (2-4 items)"],
+    "recommendations": ["Specific actions to improve data usefulness - e.g., add customer_id column, include date field, track conversion events (1-3 items)"]
+  }}
 }}
 
 CRITICAL: Generate insights that would genuinely help THIS user with THEIR stated goals.
 - If they want to reduce churn, focus on churn-related findings
 - If they want to increase revenue, highlight revenue opportunities
-- If they specified KPIs, compare their data against those targets"""
+- If they specified KPIs, compare their data against those targets
+- For objective_alignment: score 80+ = data well-suited for objectives, 50-79 = partially useful, <50 = significant gaps"""
 
 
 def _format_investigation_summary(investigation: dict[str, Any] | None) -> str:
@@ -821,7 +836,7 @@ def _format_investigation_summary(investigation: dict[str, Any] | None) -> str:
             ]
             lines.append(f"- OUTLIERS DETECTED: {', '.join(outlier_summary)}")
 
-    # Correlations
+    # Correlations - provide context for interpretation
     correlations = investigation.get("correlations", {})
     if correlations:
         leakage = correlations.get("potential_leakage", [])
@@ -829,7 +844,12 @@ def _format_investigation_summary(investigation: dict[str, Any] | None) -> str:
             leak_summary = [
                 f"{p['column_a']} <-> {p['column_b']} ({p['correlation']:.2f})" for p in leakage[:3]
             ]
-            lines.append(f"- POTENTIAL LEAKAGE: {', '.join(leak_summary)}")
+            lines.append(f"- HIGHLY CORRELATED PAIRS (>0.95): {', '.join(leak_summary)}")
+            lines.append(
+                "  NOTE: High correlation may be expected (e.g., gross vs net sales, "
+                "related metrics) or may indicate derived/redundant columns. "
+                "Consider business context when interpreting."
+            )
         strong_pos = correlations.get("top_positive", [])
         if strong_pos:
             pos_summary = [

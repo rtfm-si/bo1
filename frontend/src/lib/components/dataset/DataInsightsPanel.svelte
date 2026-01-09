@@ -226,6 +226,49 @@
 	</div>
 {:else if insights}
 	<div class="space-y-6">
+		<!-- Data Summary - Natural Language Description -->
+		{#if insights.identity?.description || insights.narrative_summary}
+			<div class="bg-gradient-to-r from-brand-50 to-indigo-50 dark:from-brand-900/20 dark:to-indigo-900/20 rounded-lg border border-brand-200 dark:border-brand-800 p-5">
+				<div class="flex items-start gap-3">
+					<div class="p-2 rounded-lg bg-white dark:bg-neutral-800 shadow-sm">
+						<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<div class="flex-1">
+						<h3 class="text-base font-semibold text-neutral-900 dark:text-white mb-2">About This Data</h3>
+						{#if insights.identity?.description}
+							<p class="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
+								{insights.identity.description}
+							</p>
+						{/if}
+						{#if insights.narrative_summary && insights.narrative_summary !== insights.identity?.description}
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-2 leading-relaxed">
+								{insights.narrative_summary}
+							</p>
+						{/if}
+						{#if insights.identity?.domain && insights.identity.domain !== 'unknown'}
+							<div class="mt-3 flex items-center gap-2 flex-wrap">
+								<span class="px-2 py-1 text-xs font-medium rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+									{insights.identity.domain.charAt(0).toUpperCase() + insights.identity.domain.slice(1)}
+								</span>
+								{#if insights.identity.entity_type}
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">
+										Each row represents: {insights.identity.entity_type}
+									</span>
+								{/if}
+								{#if insights.identity.time_range}
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">
+										| {insights.identity.time_range}
+									</span>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Headline Metrics -->
 		{#if filteredMetrics.length > 0}
 			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -286,6 +329,92 @@
 						</div>
 					{/each}
 				</div>
+			</div>
+		{/if}
+
+		<!-- Objective Alignment Score -->
+		{#if insights.objective_alignment}
+			{@const alignment = insights.objective_alignment}
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+						<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+						</svg>
+						Data Usefulness for Your Goals
+					</h3>
+					<!-- Score badge -->
+					<div class="flex items-center gap-2">
+						<span class="text-3xl font-bold {alignment.score >= 80 ? 'text-success-600 dark:text-success-400' : alignment.score >= 50 ? 'text-warning-600 dark:text-warning-400' : 'text-error-600 dark:text-error-400'}">
+							{alignment.score}%
+						</span>
+					</div>
+				</div>
+
+				<!-- Summary -->
+				<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">{alignment.summary}</p>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Strengths -->
+					{#if alignment.strengths.length > 0}
+						<div class="p-4 rounded-lg bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800">
+							<h4 class="text-sm font-semibold text-success-700 dark:text-success-300 mb-2 flex items-center gap-1.5">
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+								</svg>
+								What this data can help with
+							</h4>
+							<ul class="space-y-1">
+								{#each alignment.strengths as strength}
+									<li class="text-sm text-success-600 dark:text-success-400 flex items-start gap-2">
+										<span class="text-success-400 mt-1">•</span>
+										<span>{strength}</span>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+
+					<!-- Gaps -->
+					{#if alignment.gaps.length > 0}
+						<div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+							<h4 class="text-sm font-semibold text-warning-700 dark:text-warning-300 mb-2 flex items-center gap-1.5">
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+								</svg>
+								What's missing
+							</h4>
+							<ul class="space-y-1">
+								{#each alignment.gaps as gap}
+									<li class="text-sm text-warning-600 dark:text-warning-400 flex items-start gap-2">
+										<span class="text-warning-400 mt-1">•</span>
+										<span>{gap}</span>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Recommendations -->
+				{#if alignment.recommendations.length > 0}
+					<div class="mt-4 p-4 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+						<h4 class="text-sm font-semibold text-brand-700 dark:text-brand-300 mb-2 flex items-center gap-1.5">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							Recommendations to improve data usefulness
+						</h4>
+						<ul class="space-y-1">
+							{#each alignment.recommendations as rec}
+								<li class="text-sm text-brand-600 dark:text-brand-400 flex items-start gap-2">
+									<span class="text-brand-400 mt-1">→</span>
+									<span>{rec}</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 			</div>
 		{/if}
 

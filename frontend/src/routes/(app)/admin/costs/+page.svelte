@@ -1570,10 +1570,11 @@
 						<Alert variant="error">{addError}</Alert>
 					{/if}
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						<label for="cost-provider" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 							Provider <span class="text-danger-500">*</span>
 						</label>
 						<input
+							id="cost-provider"
 							type="text"
 							bind:value={newCost.provider}
 							placeholder="e.g., DigitalOcean, Neon, Redis"
@@ -1581,10 +1582,11 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						<label for="cost-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 							Description <span class="text-danger-500">*</span>
 						</label>
 						<input
+							id="cost-description"
 							type="text"
 							bind:value={newCost.description}
 							placeholder="e.g., Database hosting, CDN bandwidth"
@@ -1593,12 +1595,13 @@
 					</div>
 					<div class="grid grid-cols-2 gap-4">
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="cost-amount" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Monthly Amount (USD) <span class="text-danger-500">*</span>
 							</label>
 							<div class="relative">
 								<span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
 								<input
+									id="cost-amount"
 									type="number"
 									step="0.01"
 									min="0"
@@ -1608,10 +1611,11 @@
 							</div>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="cost-category" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Category
 							</label>
 							<select
+								id="cost-category"
 								bind:value={newCost.category}
 								class="w-full px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
 							>
@@ -1624,10 +1628,11 @@
 						</div>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						<label for="cost-notes" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 							Notes (optional)
 						</label>
 						<textarea
+							id="cost-notes"
 							bind:value={newCost.notes}
 							rows="2"
 							placeholder="Additional details..."

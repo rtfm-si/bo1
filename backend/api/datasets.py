@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import UPLOAD_RATE_LIMIT, limiter
@@ -2351,6 +2352,61 @@ async def get_dataset_investigation(
         raise http_error(
             ErrorCode.API_NOT_FOUND,
             "No investigation found. Run POST /investigate first.",
+            status=404,
+        )
+
+    return DatasetInvestigationResponse(**investigation)
+
+
+class ColumnRoleUpdate(BaseModel):
+    """Request body for updating a column's role."""
+
+    column_name: str = Field(description="Column name to update")
+    role: str = Field(description="New role: metric, dimension, id, timestamp, or unknown")
+
+
+@router.patch(
+    "/{dataset_id}/column-role",
+    response_model=DatasetInvestigationResponse,
+    summary="Update column role",
+    description="Update a column's role classification (metric, dimension, id, timestamp, unknown)",
+)
+@handle_api_errors("update column role")
+async def update_column_role(
+    dataset_id: str,
+    body: ColumnRoleUpdate,
+    user: dict = Depends(get_current_user),
+) -> DatasetInvestigationResponse:
+    """Update a column's role in the investigation.
+
+    Allows users to correct misclassified columns (e.g., setting 'Returns' from 'unknown' to 'metric').
+    """
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Validate role
+    valid_roles = {"metric", "dimension", "id", "timestamp", "unknown"}
+    if body.role not in valid_roles:
+        raise http_error(
+            ErrorCode.API_VALIDATION_ERROR,
+            f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+            status=400,
+        )
+
+    # Verify dataset ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Update the column role
+    investigation = dataset_repository.update_column_role(
+        dataset_id, user_id, body.column_name, body.role
+    )
+    if not investigation:
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            "Column not found in investigation or no investigation exists",
             status=404,
         )
 

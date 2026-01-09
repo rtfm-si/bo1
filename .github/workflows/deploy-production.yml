@@ -752,10 +752,16 @@ jobs:
             fi
 
             # =================================================================
-            # STEP 11: Cleanup
+            # STEP 11: Post-deploy cleanup (low priority, non-disruptive)
             # =================================================================
-            echo "🧹 Cleaning up old Docker images..."
-            docker system prune -f --filter "until=72h"
+            echo "🧹 Running post-deploy cleanup..."
+            if [ -x /opt/boardofone/scripts/post-deploy-cleanup.sh ]; then
+              /opt/boardofone/scripts/post-deploy-cleanup.sh
+            else
+              # Fallback: lightweight cleanup with low priority
+              nice -n 19 ionice -c3 docker image prune -f
+              nice -n 19 ionice -c3 docker builder prune -f --keep-storage=2GB
+            fi
 
             echo ""
             echo "✅ ✅ ✅ Deployment successful! ✅ ✅ ✅"

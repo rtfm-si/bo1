@@ -640,11 +640,11 @@
 			></textarea>
 		</div>
 
-		<div>
+		<fieldset>
 			<div class="flex items-center justify-between mb-2">
-				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+				<legend class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					Variants *
-				</label>
+				</legend>
 				<span class="text-sm {variantWeightSum === 100 ? 'text-success-600' : 'text-error-600'}">
 					Total: {variantWeightSum}% {variantWeightSum !== 100 ? '(must be 100)' : ''}
 				</span>
@@ -687,7 +687,7 @@
 			>
 				+ Add variant
 			</button>
-		</div>
+		</fieldset>
 
 		<div>
 			<label for="exp-metrics" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">

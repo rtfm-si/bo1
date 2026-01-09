@@ -302,9 +302,9 @@
 								{@const isExpanded = expandedInfo.has(item.key)}
 
 								<BoCard
-									class="{isDanger
+									class={isDanger
 										? 'border-error-300 dark:border-error-700'
-										: 'border-neutral-200 dark:border-neutral-700'}"
+										: 'border-neutral-200 dark:border-neutral-700'}
 								>
 									<div class="p-6">
 										<div class="flex items-start justify-between gap-6">

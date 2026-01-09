@@ -4780,6 +4780,28 @@ class SuggestedChart(BaseModel):
     )
 
 
+class ObjectiveAlignment(BaseModel):
+    """Assessment of how well the dataset supports the user's stated objectives."""
+
+    score: int = Field(ge=0, le=100, description="Overall alignment score 0-100")
+    summary: str = Field(description="Brief explanation of alignment score")
+    strengths: list[str] = Field(
+        default_factory=list,
+        max_length=4,
+        description="What this data can help with regarding objectives",
+    )
+    gaps: list[str] = Field(
+        default_factory=list,
+        max_length=4,
+        description="What's missing or would improve usefulness",
+    )
+    recommendations: list[str] = Field(
+        default_factory=list,
+        max_length=3,
+        description="Specific actions to improve data usefulness for objectives",
+    )
+
+
 class DatasetInsights(BaseModel):
     """Complete structured intelligence for a dataset."""
 
@@ -4792,6 +4814,10 @@ class DatasetInsights(BaseModel):
     narrative_summary: str = Field(description="Prose summary for fallback display")
     suggested_charts: list[SuggestedChart] = Field(
         default_factory=list, max_length=5, description="Auto-generated chart suggestions"
+    )
+    objective_alignment: ObjectiveAlignment | None = Field(
+        default=None,
+        description="Assessment of data usefulness for user's stated objectives (enhanced insights only)",
     )
 
 

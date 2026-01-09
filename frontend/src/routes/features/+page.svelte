@@ -283,7 +283,7 @@
 							</div>
 
 							<!-- Capabilities Grid -->
-							<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pl-0 md:pl-22">
+							<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pl-0 md:pl-[5.5rem]">
 								{#each func.capabilities as capability}
 									<div class="bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
 										<h3 class="font-bold text-lg text-neutral-900 dark:text-neutral-100 mb-2">
@@ -377,11 +377,3 @@
 	<Footer />
 </div>
 
-<style>
-	/* Offset for the capability grid to align with function text */
-	@media (min-width: 768px) {
-		.pl-22 {
-			padding-left: 5.5rem;
-		}
-	}
-</style>

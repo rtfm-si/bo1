@@ -114,6 +114,7 @@
 		{#if isExpanded}
 			<div class="space-y-3">
 				{#each suggestions as suggestion, i}
+					{@const EffortIcon = getEffortIcon(suggestion.effort_level)}
 					<BoCard variant="bordered" padding="sm">
 						<div class="space-y-2">
 							<div class="flex items-start justify-between gap-3">
@@ -121,7 +122,7 @@
 									{suggestion.approach}
 								</p>
 								<Badge variant={getEffortVariant(suggestion.effort_level)} size="sm">
-									<svelte:component this={getEffortIcon(suggestion.effort_level)} class="h-3 w-3 mr-1" />
+									<EffortIcon class="h-3 w-3 mr-1" />
 									{suggestion.effort_level}
 								</Badge>
 							</div>

@@ -124,6 +124,8 @@ services:
     environment:
       - NODE_ENV=production
       - PUBLIC_API_URL=https://boardof.one
+      - PUBLIC_UMAMI_HOST=https://analytics.boardof.one
+      - PUBLIC_UMAMI_WEBSITE_ID=d996d0e6-74d8-4cac-bbde-215437f7c703
       - ORIGIN=https://boardof.one
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"

@@ -7,7 +7,7 @@ Provides 8 pre-computed analyses that serve dual purposes:
 
 import logging
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -213,7 +213,10 @@ class DatasetInvestigation:
     data_quality: DataQualityAnalysis
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for storage."""
+        """Convert to dictionary for storage.
+
+        Transforms field names to match frontend KeyInsightsPanel expectations.
+        """
 
         def convert_numpy(obj: Any) -> Any:
             """Recursively convert numpy types to native Python types."""
@@ -227,16 +230,204 @@ class DatasetInvestigation:
                 return obj.tolist()
             return obj
 
-        return {
-            "column_roles": convert_numpy(asdict(self.column_roles)),
-            "missingness": convert_numpy(asdict(self.missingness)),
-            "descriptive_stats": convert_numpy(asdict(self.descriptive_stats)),
-            "outliers": convert_numpy(asdict(self.outliers)),
-            "correlations": convert_numpy(asdict(self.correlations)),
-            "time_series_readiness": convert_numpy(asdict(self.time_series_readiness)),
-            "segmentation_suggestions": convert_numpy(asdict(self.segmentation_suggestions)),
-            "data_quality": convert_numpy(asdict(self.data_quality)),
+        # Transform column_roles: columns -> roles, column_name -> column, inferred_role -> role
+        column_roles = {
+            "roles": [
+                {
+                    "column": col.column_name,
+                    "role": col.inferred_role,
+                    "confidence": col.confidence,
+                    "reasoning": col.reasoning,
+                }
+                for col in self.column_roles.columns
+            ],
+            "metric_columns": self.column_roles.metric_columns,
+            "dimension_columns": self.column_roles.dimension_columns,
+            "primary_key_candidate": self.column_roles.primary_key_candidate,
+            "time_column": self.column_roles.time_column,
         }
+
+        # Transform missingness: column_name -> column, cardinality_class -> cardinality_category
+        # columns_with_nulls -> high_null_columns
+        missingness = {
+            "columns": [
+                {
+                    "column": col.column_name,
+                    "null_count": col.null_count,
+                    "null_percent": col.null_percent,
+                    "unique_count": col.unique_count,
+                    "unique_percent": col.unique_percent,
+                    "cardinality_category": col.cardinality_class,
+                    "is_complete": col.is_complete,
+                }
+                for col in self.missingness.columns
+            ],
+            "overall_completeness": self.missingness.overall_completeness,
+            "columns_with_nulls": len(self.missingness.columns_with_nulls),
+            "high_null_columns": self.missingness.columns_with_nulls,
+            "high_cardinality_columns": self.missingness.high_cardinality_columns,
+        }
+
+        # Transform descriptive_stats: split into numeric_columns and categorical_columns
+        numeric_cols = []
+        categorical_cols = []
+        for col in self.descriptive_stats.columns:
+            if col.data_type == "numeric":
+                numeric_cols.append(
+                    {
+                        "column": col.column_name,
+                        "mean": col.mean,
+                        "median": col.median,
+                        "std": col.std,
+                        "min": col.min_val,
+                        "max": col.max_val,
+                        "skewness": col.skewness,
+                    }
+                )
+            else:
+                top_values = None
+                if col.heavy_hitters:
+                    top_values = [
+                        {"value": hh.value, "count": hh.count, "percent": hh.percent}
+                        for hh in col.heavy_hitters
+                    ]
+                categorical_cols.append(
+                    {
+                        "column": col.column_name,
+                        "top_values": top_values,
+                        "has_dominant_value": col.has_dominant_value,
+                    }
+                )
+
+        descriptive_stats = {
+            "numeric_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "skewed_columns": self.descriptive_stats.skewed_columns,
+            "columns_with_dominant_values": self.descriptive_stats.columns_with_dominant_values,
+        }
+
+        # Transform outliers: columns -> outliers, column_name -> column
+        outliers = {
+            "outliers": [
+                {
+                    "column": col.column_name,
+                    "outlier_count": col.outlier_count,
+                    "outlier_percent": col.outlier_percent,
+                    "lower_bound": col.lower_bound,
+                    "upper_bound": col.upper_bound,
+                    "sample_outliers": col.sample_outliers,
+                    "method": col.method,
+                }
+                for col in self.outliers.columns
+            ],
+            "total_outlier_rows": self.outliers.total_outlier_rows,
+            "columns_with_outliers": len(self.outliers.columns_with_outliers),
+        }
+
+        # Transform correlations: split notable_pairs into potential_leakage, top_positive, top_negative
+        potential_leakage = []
+        top_positive = []
+        top_negative = []
+        for pair in self.correlations.notable_pairs:
+            pair_dict = {
+                "column_a": pair.column_a,
+                "column_b": pair.column_b,
+                "correlation": pair.correlation,
+            }
+            if pair.is_leakage_risk:
+                potential_leakage.append(pair_dict)
+            elif pair.correlation > 0:
+                top_positive.append(pair_dict)
+            else:
+                top_negative.append(pair_dict)
+
+        # Sort by absolute correlation
+        top_positive.sort(key=lambda x: x["correlation"], reverse=True)
+        top_negative.sort(key=lambda x: x["correlation"])
+
+        correlations = {
+            "potential_leakage": potential_leakage,
+            "top_positive": top_positive[:10],
+            "top_negative": top_negative[:10],
+            "leakage_warnings": self.correlations.leakage_warnings,
+        }
+
+        # Transform time_series_readiness
+        ts = self.time_series_readiness
+        date_range = None
+        if ts.min_date and ts.max_date:
+            date_range = {"start": ts.min_date, "end": ts.max_date}
+
+        time_series_readiness = {
+            "is_ready": ts.is_time_series_ready,
+            "timestamp_column": ts.date_column,
+            "detected_frequency": ts.cadence,
+            "date_range": date_range,
+            "date_range_days": ts.date_range_days,
+            "gap_count": ts.gap_count,
+            "recommendations": ts.gaps if ts.gaps else [],
+            "seasonality_hint": ts.seasonality_hint,
+        }
+
+        # Transform segmentation_suggestions: suggestions -> opportunities
+        segmentation_suggestions = {
+            "opportunities": [
+                {
+                    "metric": s.metric_column,
+                    "dimension": s.dimension_column,
+                    "recommendation": s.rationale,
+                    "priority": s.priority,
+                }
+                for s in self.segmentation_suggestions.suggestions
+            ],
+            "best_metric": self.segmentation_suggestions.best_metric,
+            "best_dimensions": self.segmentation_suggestions.best_dimensions,
+        }
+
+        # Transform data_quality: column_name -> column, add score breakdown
+        # Calculate completeness/consistency/validity from issues
+        completeness_issues = sum(
+            1 for i in self.data_quality.issues if i.issue_type == "high_nulls"
+        )
+        consistency_issues = sum(
+            1
+            for i in self.data_quality.issues
+            if i.issue_type in ("mixed_types", "inconsistent_format")
+        )
+        validity_issues = sum(
+            1 for i in self.data_quality.issues if i.issue_type == "suspicious_values"
+        )
+
+        data_quality = {
+            "overall_score": self.data_quality.overall_score,
+            "completeness_score": max(0, 100 - (completeness_issues * 20)),
+            "consistency_score": max(0, 100 - (consistency_issues * 20)),
+            "validity_score": max(0, 100 - (validity_issues * 20)),
+            "issues": [
+                {
+                    "column": i.column_name,
+                    "issue_type": i.issue_type,
+                    "description": i.description,
+                    "severity": i.severity,
+                    "affected_count": i.affected_count,
+                }
+                for i in self.data_quality.issues
+            ],
+            "recommendations": self.data_quality.recommendations,
+        }
+
+        return convert_numpy(
+            {
+                "column_roles": column_roles,
+                "missingness": missingness,
+                "descriptive_stats": descriptive_stats,
+                "outliers": outliers,
+                "correlations": correlations,
+                "time_series_readiness": time_series_readiness,
+                "segmentation_suggestions": segmentation_suggestions,
+                "data_quality": data_quality,
+            }
+        )
 
 
 # =============================================================================

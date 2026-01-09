@@ -623,25 +623,30 @@ async def generate_dataset_insights(
     except TimeoutError:
         logger.warning(f"LLM call timed out after {llm_timeout}s for dataset {dataset_id}")
         insights = _build_fallback_insights(profile_dict, dataset_name)
+        metadata["is_fallback"] = True
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse insight JSON: {e}")
         if response:
             logger.debug(f"Raw response: {response[:500]}...")
         insights = _build_fallback_insights(profile_dict, dataset_name)
+        metadata["is_fallback"] = True
 
     except ValidationError as e:
         logger.error(f"Insight validation failed: {e}")
         if response:
             logger.debug(f"Raw response: {response[:500]}...")
         insights = _build_fallback_insights(profile_dict, dataset_name)
+        metadata["is_fallback"] = True
 
     except Exception as e:
         logger.error(f"Failed to generate insights: {e}", exc_info=True)
         insights = _build_fallback_insights(profile_dict, dataset_name)
+        metadata["is_fallback"] = True
 
-    # Cache result
-    if use_cache and insights:
+    # Cache result - but NOT fallback results (they should be retried)
+    is_fallback = metadata.get("is_fallback", False)
+    if use_cache and insights and not is_fallback:
         redis = redis_manager or RedisManager()
         try:
             if redis.client is not None:
@@ -652,6 +657,8 @@ async def generate_dataset_insights(
                 )
         except Exception as e:
             logger.warning(f"Redis cache write failed: {e}")
+    elif is_fallback:
+        logger.info(f"[Insights] NOT caching fallback result for {dataset_id[:8]}...")
 
     return insights, metadata
 

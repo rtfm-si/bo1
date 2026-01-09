@@ -728,7 +728,9 @@ class DeterministicAnalyzer:
                 except (ValueError, TypeError):
                     pass  # Column cannot be converted - keep as categorical
 
-            stats = ColumnDescriptiveStats(column_name=col, data_type="numeric" if is_numeric else str(series.dtype))
+            stats = ColumnDescriptiveStats(
+                column_name=col, data_type="numeric" if is_numeric else str(series.dtype)
+            )
 
             if is_numeric:
                 non_null = series.dropna()

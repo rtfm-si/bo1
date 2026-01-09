@@ -6531,6 +6531,27 @@
         "title": "CohortResponse",
         "type": "object"
       },
+      "ColumnRoleUpdate": {
+        "description": "Request body for updating a column's role.",
+        "properties": {
+          "column_name": {
+            "description": "Column name to update",
+            "title": "Column Name",
+            "type": "string"
+          },
+          "role": {
+            "description": "New role: metric, dimension, id, timestamp, or unknown",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column_name",
+          "role"
+        ],
+        "title": "ColumnRoleUpdate",
+        "type": "object"
+      },
       "ColumnSemantic": {
         "description": "Semantic understanding of a column.",
         "properties": {
@@ -10481,6 +10502,17 @@
             "description": "Prose summary for fallback display",
             "title": "Narrative Summary",
             "type": "string"
+          },
+          "objective_alignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectiveAlignment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Assessment of data usefulness for user's stated objectives (enhanced insights only)"
           },
           "quality": {
             "$ref": "#/components/schemas/DataQualityScore"
@@ -19099,6 +19131,56 @@
           }
         },
         "title": "NotFoundErrorResponse",
+        "type": "object"
+      },
+      "ObjectiveAlignment": {
+        "description": "Assessment of how well the dataset supports the user's stated objectives.",
+        "properties": {
+          "gaps": {
+            "description": "What's missing or would improve usefulness",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Gaps",
+            "type": "array"
+          },
+          "recommendations": {
+            "description": "Specific actions to improve data usefulness for objectives",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "score": {
+            "description": "Overall alignment score 0-100",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "integer"
+          },
+          "strengths": {
+            "description": "What this data can help with regarding objectives",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Strengths",
+            "type": "array"
+          },
+          "summary": {
+            "description": "Brief explanation of alignment score",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "score",
+          "summary"
+        ],
+        "title": "ObjectiveAlignment",
         "type": "object"
       },
       "ObjectiveProgress": {
@@ -52947,6 +53029,60 @@
           }
         },
         "summary": "Generate chart",
+        "tags": [
+          "datasets",
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/column-role": {
+      "patch": {
+        "description": "Update a column's role classification (metric, dimension, id, timestamp, unknown)",
+        "operationId": "update_column_role_api_v1_datasets__dataset_id__column_role_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColumnRoleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetInvestigationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update column role",
         "tags": [
           "datasets",
           "datasets"

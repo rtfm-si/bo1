@@ -6405,6 +6405,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/column-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update column role
+         * @description Update a column's role classification (metric, dimension, id, timestamp, unknown)
+         */
+        patch: operations["update_column_role_api_v1_datasets__dataset_id__column_role_patch"];
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/columns/descriptions": {
         parameters: {
             query?: never;
@@ -14756,6 +14776,22 @@ export interface components {
             signups: number;
         };
         /**
+         * ColumnRoleUpdate
+         * @description Request body for updating a column's role.
+         */
+        ColumnRoleUpdate: {
+            /**
+             * Column Name
+             * @description Column name to update
+             */
+            column_name: string;
+            /**
+             * Role
+             * @description New role: metric, dimension, id, timestamp, or unknown
+             */
+            role: string;
+        };
+        /**
          * ColumnSemantic
          * @description Semantic understanding of a column.
          */
@@ -17257,6 +17293,8 @@ export interface components {
              * @description Prose summary for fallback display
              */
             narrative_summary: string;
+            /** @description Assessment of data usefulness for user's stated objectives (enhanced insights only) */
+            objective_alignment?: components["schemas"]["ObjectiveAlignment"] | null;
             quality: components["schemas"]["DataQualityScore"];
             /**
              * Suggested Charts
@@ -23003,6 +23041,37 @@ export interface components {
              * @default Resource not found
              */
             message: string;
+        };
+        /**
+         * ObjectiveAlignment
+         * @description Assessment of how well the dataset supports the user's stated objectives.
+         */
+        ObjectiveAlignment: {
+            /**
+             * Gaps
+             * @description What's missing or would improve usefulness
+             */
+            gaps?: string[];
+            /**
+             * Recommendations
+             * @description Specific actions to improve data usefulness for objectives
+             */
+            recommendations?: string[];
+            /**
+             * Score
+             * @description Overall alignment score 0-100
+             */
+            score: number;
+            /**
+             * Strengths
+             * @description What this data can help with regarding objectives
+             */
+            strengths?: string[];
+            /**
+             * Summary
+             * @description Brief explanation of alignment score
+             */
+            summary: string;
         };
         /**
          * ObjectiveProgress
@@ -45720,6 +45789,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChartResultResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_column_role_api_v1_datasets__dataset_id__column_role_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnRoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetInvestigationResponse"];
                 };
             };
             /** @description Validation Error */

@@ -443,26 +443,8 @@ class DeterministicAnalyzer:
     TIMESTAMP_PATTERNS = re.compile(
         r"(date|time|_at$|_on$|created|updated|timestamp|dt$)", re.IGNORECASE
     )
-    METRIC_KEYWORDS = [
-        "revenue",
-        "sales",
-        "amount",
-        "price",
-        "cost",
-        "total",
-        "count",
-        "quantity",
-        "qty",
-        "sum",
-        "avg",
-        "rate",
-        "percent",
-        "score",
-        "value",
-        "profit",
-        "margin",
-        "spend",
-    ]
+    # Note: Metric detection is now data-first (any numeric column with >10 distinct values)
+    # Keywords are no longer used for metric detection - the data speaks for itself
     DIMENSION_KEYWORDS = [
         "category",
         "type",
@@ -491,6 +473,33 @@ class DeterministicAnalyzer:
         """
         self.df = df
         self.profile_summary = profile_summary or {}
+        self._numeric_df: pd.DataFrame | None = None
+
+    def _get_numeric_df(self) -> pd.DataFrame:
+        """Get DataFrame with string columns converted to numeric where possible.
+
+        Caches the result for reuse across analyses.
+        """
+        if self._numeric_df is not None:
+            return self._numeric_df
+
+        numeric_df = self.df.select_dtypes(include=[np.number]).copy()
+
+        # Try to convert object columns that look numeric
+        for col in self.df.select_dtypes(include=["object"]).columns:
+            try:
+                # Remove common formatting: $, €, £, commas, % signs
+                cleaned = self.df[col].astype(str).str.replace(r"[$€£,%]", "", regex=True)
+                cleaned = cleaned.str.replace(",", "")
+                numeric_series = pd.to_numeric(cleaned, errors="coerce")
+                # If >50% values are numeric, include the column
+                if numeric_series.notna().sum() > 0.5 * len(self.df[col].dropna()):
+                    numeric_df[col] = numeric_series
+            except Exception:
+                pass
+
+        self._numeric_df = numeric_df
+        return numeric_df
 
     def run_all(self) -> DatasetInvestigation:
         """Run all 8 analyses and return combined result."""
@@ -552,52 +561,80 @@ class DeterministicAnalyzer:
         )
 
     def _infer_column_role(self, col_name: str, series: pd.Series) -> tuple[str, float, str]:
-        """Infer role for a single column."""
-        col_lower = col_name.lower()
+        """Infer role for a single column using data-first approach.
 
-        # Check for ID patterns
+        Priority order:
+        1. ID detection (name pattern + high uniqueness)
+        2. Timestamp detection (datetime type or parseable dates)
+        3. Numeric columns: metric by default, dimension if binary/low-cardinality
+        4. Non-numeric: dimension if low cardinality, unknown otherwise
+        """
+        n_rows = max(len(series), 1)
+        n_unique = series.nunique()
+        unique_ratio = n_unique / n_rows
+
+        # 1. Check for ID patterns (name-based + data validation)
         if self.ID_PATTERNS.search(col_name):
-            unique_ratio = series.nunique() / max(len(series), 1)
             if unique_ratio > 0.9:
                 return "identifier", 0.95, "Name pattern + high uniqueness"
             return "identifier", 0.7, "Name pattern suggests ID"
 
-        # Check for timestamp patterns
+        # 2. Check for timestamp (datetime type or parseable)
+        if pd.api.types.is_datetime64_any_dtype(series):
+            return "timestamp", 0.95, "DateTime type"
+
         if self.TIMESTAMP_PATTERNS.search(col_name):
-            if pd.api.types.is_datetime64_any_dtype(series):
-                return "timestamp", 0.95, "DateTime type + name pattern"
-            # Try parsing
             try:
                 pd.to_datetime(series.dropna().head(100), format="mixed")
                 return "timestamp", 0.85, "Parseable as date + name pattern"
             except (ValueError, TypeError):
                 pass
 
-        # Check for metric keywords
-        for keyword in self.METRIC_KEYWORDS:
-            if keyword in col_lower:
-                if pd.api.types.is_numeric_dtype(series):
-                    return "metric", 0.9, f"Numeric + '{keyword}' in name"
-                return "metric", 0.6, f"'{keyword}' in name (non-numeric)"
+        # 3. Numeric columns - DATA-FIRST approach
+        is_numeric = pd.api.types.is_numeric_dtype(series)
 
-        # Check for dimension keywords
+        # Try converting string columns that look numeric
+        if not is_numeric and series.dtype == "object":
+            try:
+                cleaned = series.astype(str).str.replace(r"[$€£,%]", "", regex=True)
+                cleaned = cleaned.str.replace(",", "")
+                numeric_series = pd.to_numeric(cleaned, errors="coerce")
+                if numeric_series.notna().sum() > 0.5 * len(series.dropna()):
+                    is_numeric = True
+                    n_unique = numeric_series.nunique()
+            except Exception:
+                pass
+
+        if is_numeric:
+            # Binary column (0/1, yes/no encoded) → dimension
+            if n_unique == 2:
+                return "dimension", 0.8, "Binary numeric (2 distinct values)"
+
+            # Very low cardinality numeric → likely categorical encoding → dimension
+            if n_unique <= 10:
+                return "dimension", 0.7, f"Low cardinality numeric ({n_unique} distinct values)"
+
+            # All other numeric columns are metrics
+            # This is the key change: numeric = metric by default
+            return "metric", 0.85, f"Numeric column ({n_unique} distinct values)"
+
+        # 4. Non-numeric columns
+        # Check for dimension keywords (still useful for string columns)
+        col_lower = col_name.lower()
         for keyword in self.DIMENSION_KEYWORDS:
             if keyword in col_lower:
                 return "dimension", 0.85, f"'{keyword}' in name"
 
-        # Heuristic: low cardinality categorical = dimension
-        if series.dtype == "object" or pd.api.types.is_categorical_dtype(series):
-            unique_ratio = series.nunique() / max(len(series), 1)
-            if unique_ratio < 0.1 and series.nunique() <= 50:
-                return "dimension", 0.75, "Low cardinality categorical"
+        # Low cardinality string/categorical → dimension
+        if n_unique <= 50 and unique_ratio < 0.3:
+            return "dimension", 0.8, f"Low cardinality categorical ({n_unique} distinct values)"
 
-        # Heuristic: numeric with high cardinality = metric
-        if pd.api.types.is_numeric_dtype(series):
-            unique_ratio = series.nunique() / max(len(series), 1)
-            if unique_ratio > 0.5:
-                return "metric", 0.7, "Numeric with high cardinality"
+        # Medium cardinality categorical
+        if n_unique <= 100:
+            return "dimension", 0.6, f"Categorical ({n_unique} distinct values)"
 
-        return "unknown", 0.5, "No clear pattern detected"
+        # High cardinality text - could be names, descriptions, etc.
+        return "unknown", 0.5, f"High cardinality text ({n_unique} distinct values)"
 
     # -------------------------------------------------------------------------
     # Analysis 2: Missingness + Uniqueness + Cardinality
@@ -674,9 +711,25 @@ class DeterministicAnalyzer:
 
         for col in self.df.columns:
             series = self.df[col]
-            stats = ColumnDescriptiveStats(column_name=col, data_type=str(series.dtype))
+            is_numeric = pd.api.types.is_numeric_dtype(series)
 
-            if pd.api.types.is_numeric_dtype(series):
+            # Try to convert string columns to numeric (handles "$1,234" or "1,234" formats)
+            if not is_numeric and series.dtype == "object":
+                try:
+                    # Remove common formatting: $, €, £, commas, % signs
+                    cleaned = series.astype(str).str.replace(r"[$€£,%]", "", regex=True)
+                    cleaned = cleaned.str.replace(",", "")
+                    numeric_series = pd.to_numeric(cleaned, errors="coerce")
+                    # If >50% values are numeric, treat as numeric column
+                    if numeric_series.notna().sum() > 0.5 * len(series.dropna()):
+                        series = numeric_series
+                        is_numeric = True
+                except Exception:
+                    pass
+
+            stats = ColumnDescriptiveStats(column_name=col, data_type="numeric" if is_numeric else str(series.dtype))
+
+            if is_numeric:
                 non_null = series.dropna()
                 if len(non_null) > 0:
                     stats.mean = round(float(non_null.mean()), 4)
@@ -731,10 +784,10 @@ class DeterministicAnalyzer:
         columns_with_outliers = []
         outlier_rows = set()
 
-        numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+        numeric_df = self._get_numeric_df()
 
-        for col in numeric_cols:
-            series = self.df[col].dropna()
+        for col in numeric_df.columns:
+            series = numeric_df[col].dropna()
             if len(series) < 4:
                 continue
 
@@ -784,7 +837,8 @@ class DeterministicAnalyzer:
         leakage_warnings = []
         highly_correlated_pairs = []
 
-        numeric_cols = self.df.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_df = self._get_numeric_df()
+        numeric_cols = numeric_df.columns.tolist()
 
         # Limit to top 30 columns to avoid huge matrices
         if len(numeric_cols) > 30:
@@ -798,7 +852,7 @@ class DeterministicAnalyzer:
             )
 
         try:
-            corr_matrix = self.df[numeric_cols].corr()
+            corr_matrix = numeric_df[numeric_cols].corr()
         except Exception:
             return CorrelationAnalysis(
                 notable_pairs=[],

@@ -495,8 +495,9 @@ class DeterministicAnalyzer:
                 # If >50% values are numeric, include the column
                 if numeric_series.notna().sum() > 0.5 * len(self.df[col].dropna()):
                     numeric_df[col] = numeric_series
-            except Exception:
-                pass
+            except (ValueError, TypeError):
+                # Column cannot be converted to numeric - skip silently
+                continue
 
         self._numeric_df = numeric_df
         return numeric_df
@@ -602,8 +603,8 @@ class DeterministicAnalyzer:
                 if numeric_series.notna().sum() > 0.5 * len(series.dropna()):
                     is_numeric = True
                     n_unique = numeric_series.nunique()
-            except Exception:
-                pass
+            except (ValueError, TypeError):
+                pass  # Column cannot be converted - continue with original type
 
         if is_numeric:
             # Binary column (0/1, yes/no encoded) → dimension
@@ -724,8 +725,8 @@ class DeterministicAnalyzer:
                     if numeric_series.notna().sum() > 0.5 * len(series.dropna()):
                         series = numeric_series
                         is_numeric = True
-                except Exception:
-                    pass
+                except (ValueError, TypeError):
+                    pass  # Column cannot be converted - keep as categorical
 
             stats = ColumnDescriptiveStats(column_name=col, data_type="numeric" if is_numeric else str(series.dtype))
 
@@ -853,7 +854,8 @@ class DeterministicAnalyzer:
 
         try:
             corr_matrix = numeric_df[numeric_cols].corr()
-        except Exception:
+        except (ValueError, TypeError, KeyError):
+            # Correlation calculation failed - return empty analysis
             return CorrelationAnalysis(
                 notable_pairs=[],
                 leakage_warnings=[],
@@ -915,7 +917,8 @@ class DeterministicAnalyzer:
         # Parse dates
         try:
             dates = pd.to_datetime(self.df[date_col], format="mixed", errors="coerce")
-        except Exception:
+        except (ValueError, TypeError, KeyError):
+            # Date parsing failed - column is not time-series ready
             return TimeSeriesAnalysis(
                 date_column=date_col,
                 is_time_series_ready=False,

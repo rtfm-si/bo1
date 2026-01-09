@@ -449,7 +449,12 @@ test.describe('Dataset Detail Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for chat input
+			// Click the collapsed chat bar to expand it
+			const chatBar = page.getByRole('button', { name: /Ask a question about your data/i });
+			await expect(chatBar).toBeVisible({ timeout: 5000 });
+			await chatBar.click();
+
+			// Check for chat input in expanded state
 			const chatInput = page.locator(
 				'input[placeholder*="Ask"], textarea[placeholder*="Ask"], input[placeholder*="question"]'
 			);
@@ -474,6 +479,11 @@ test.describe('Dataset Detail Page', () => {
 			}
 
 			await page.waitForLoadState('networkidle');
+
+			// Click the collapsed chat bar to expand it
+			const chatBar = page.getByRole('button', { name: /Ask a question about your data/i });
+			await expect(chatBar).toBeVisible({ timeout: 5000 });
+			await chatBar.click();
 
 			// Find and fill chat input - exact placeholder from DatasetChat.svelte
 			const chatInput = page.getByPlaceholder('Ask a question about your data...');

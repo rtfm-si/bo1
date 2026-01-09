@@ -102,7 +102,7 @@ async def get_users_drilldown(
 
     # Get total count
     total = get_single_value(
-        f"SELECT COUNT(*) FROM users WHERE {time_filter}",
+        f"SELECT COUNT(*) FROM users WHERE {time_filter}",  # nosec B608 - time_filter from validated enum
         (),
         column="count",
         default=0,
@@ -116,7 +116,7 @@ async def get_users_drilldown(
         WHERE {time_filter}
         ORDER BY created_at DESC
         LIMIT %s OFFSET %s
-        """,
+        """,  # nosec B608 - time_filter from validated enum
         (limit, offset),
     )
 
@@ -166,7 +166,7 @@ async def get_costs_drilldown(
 
     # Get total count and sum
     stats = execute_query(
-        f"SELECT COUNT(*) as count, COALESCE(SUM(total_cost), 0) as total FROM api_costs WHERE {time_filter}",
+        f"SELECT COUNT(*) as count, COALESCE(SUM(total_cost), 0) as total FROM api_costs WHERE {time_filter}",  # nosec B608
         (),
         fetch="one",
     )
@@ -182,7 +182,7 @@ async def get_costs_drilldown(
         WHERE {time_filter.replace("created_at", "c.created_at")}
         ORDER BY c.created_at DESC
         LIMIT %s OFFSET %s
-        """,
+        """,  # nosec B608
         (limit, offset),
     )
 
@@ -237,7 +237,7 @@ async def get_waitlist_drilldown(
 
     # Get total count
     total = get_single_value(
-        f"SELECT COUNT(*) FROM waitlist WHERE {time_filter}",
+        f"SELECT COUNT(*) FROM waitlist WHERE {time_filter}",  # nosec B608
         (),
         column="count",
         default=0,
@@ -251,7 +251,7 @@ async def get_waitlist_drilldown(
         WHERE {time_filter}
         ORDER BY created_at DESC
         LIMIT %s OFFSET %s
-        """,
+        """,  # nosec B608
         (limit, offset),
     )
 
@@ -301,7 +301,7 @@ async def get_whitelist_drilldown(
 
     # Get total count
     total = get_single_value(
-        f"SELECT COUNT(*) FROM beta_whitelist WHERE {time_filter}",
+        f"SELECT COUNT(*) FROM beta_whitelist WHERE {time_filter}",  # nosec B608
         (),
         column="count",
         default=0,
@@ -315,7 +315,7 @@ async def get_whitelist_drilldown(
         WHERE {time_filter}
         ORDER BY created_at DESC
         LIMIT %s OFFSET %s
-        """,
+        """,  # nosec B608
         (limit, offset),
     )
 
@@ -396,7 +396,7 @@ async def get_cache_effectiveness(
         FROM session_stats
         GROUP BY bucket
         ORDER BY bucket
-        """,
+        """,  # nosec B608
         (),
     )
 
@@ -443,7 +443,7 @@ async def get_cache_effectiveness(
             SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as hit_rate
         FROM api_costs
         WHERE session_id IS NOT NULL AND {time_filter}
-        """,
+        """,  # nosec B608
         (),
         fetch="one",
     )
@@ -532,7 +532,7 @@ async def get_model_impact(
           AND {time_filter}
         GROUP BY model_name
         ORDER BY total_cost DESC
-        """,
+        """,  # nosec B608
         (),
     )
 

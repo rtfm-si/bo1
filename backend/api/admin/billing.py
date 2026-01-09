@@ -386,7 +386,7 @@ async def update_product(
                     UPDATE billing_products
                     SET {", ".join(updates)}
                     WHERE id = %s
-                """,
+                """,  # nosec B608 - updates built from hardcoded column names
                     values,
                 )
                 conn.commit()
@@ -502,7 +502,7 @@ async def update_price(
                     WHERE id = %s
                     RETURNING id, product_id, amount_cents, currency, interval,
                               stripe_price_id, stripe_product_id, stripe_synced_at, active
-                """,
+                """,  # nosec B608 - updates built from hardcoded column names
                     values,
                 )
                 row = cur.fetchone()

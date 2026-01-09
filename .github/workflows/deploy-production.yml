@@ -1,7 +1,7 @@
 name: Deploy to Production
 
 on:
-  workflow_dispatch:  # Manual trigger ONLY
+  workflow_dispatch: # Manual trigger ONLY
     inputs:
       confirm:
         description: 'Type "deploy-to-production" to confirm'
@@ -41,7 +41,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install security tools
         run: |
@@ -56,7 +56,7 @@ jobs:
           # Run scan with fail threshold (medium/high severity)
           # -ll = only report issues with severity >= LOW and confidence >= LOW
           bandit -r bo1/ backend/ -ll -f screen
-        continue-on-error: true  # Don't block deployment on warnings
+        continue-on-error: true # Don't block deployment on warnings
 
       - name: Check dependency vulnerabilities (Safety)
         run: |
@@ -64,13 +64,13 @@ jobs:
           # Export dependencies
           pip freeze > requirements-check.txt
 
-          # Run safety scan (new command - replaces deprecated 'check')
-          # --output json for artifact
-          safety scan --target requirements-check.txt --output json > safety-report.json || true
+          # Run safety check (file-based scan)
+          # Generate JSON report for artifact
+          safety check -r requirements-check.txt --output json > safety-report.json 2>&1 || true
 
           # Run with default output for console
-          safety scan --target requirements-check.txt
-        continue-on-error: true  # Don't block deployment on warnings
+          safety check -r requirements-check.txt
+        continue-on-error: true # Don't block deployment on warnings
 
       - name: Upload security reports
         uses: actions/upload-artifact@v6
@@ -831,7 +831,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0  # Full history for changelog
+          fetch-depth: 0 # Full history for changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -883,7 +883,7 @@ jobs:
             - ✅ Redis Connection
             - ✅ All integration tests passed
           draft: false
-          prerelease: true  # Mark as pre-release for beta
+          prerelease: true # Mark as pre-release for beta
           token: ${{ secrets.GITHUB_TOKEN }}
 
   notify:

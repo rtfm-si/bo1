@@ -13,7 +13,7 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
+from bo1.analysis.pipeline import DatasetAnalysisPipeline
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.models.dataset_objective_analysis import (
     AnalysisMode,
@@ -200,58 +201,19 @@ async def analyze_dataset(
     # Verify dataset exists and user has access
     _get_dataset_or_404(dataset_id, user_id)
 
-    # Fetch business context if requested
-    context_data = None
-    if body.include_context:
-        context_data = _get_user_context(user_id)
-
-    # Check for existing analysis (may be used for cache invalidation later)
-    _ = dataset_repository.get_objective_analysis(dataset_id, user_id)
-
-    # TODO: Phase 1 - Implement full pipeline in bo1/analysis/pipeline.py
-    # For now, create a placeholder analysis record
-
-    # Determine analysis mode
-    # In full implementation, this would come from relevance assessment
-    relevance_score = None
-    if context_data and context_data.get("strategic_objectives"):
-        # Placeholder: would be calculated by relevance assessment
-        relevance_score = 65  # Default to medium relevance
-
-    analysis_mode = _determine_analysis_mode(
-        relevance_score=relevance_score,
-        force_mode=body.force_mode,
+    # Run the full analysis pipeline
+    pipeline = DatasetAnalysisPipeline()
+    result = await pipeline.analyze(
+        dataset_id=dataset_id,
+        user_id=user_id,
         selected_objective_id=body.objective_id,
+        force_mode=body.force_mode,
     )
 
-    # Generate analysis ID
-    analysis_id = str(uuid.uuid4())
-    now = datetime.now(UTC)
-
-    # Create analysis record
-    # TODO: Replace with actual pipeline execution
-    analysis_data = {
-        "id": analysis_id,
-        "dataset_id": dataset_id,
-        "user_id": user_id,
-        "analysis_mode": analysis_mode.value,
-        "relevance_score": relevance_score,
-        "relevance_assessment": None,  # TODO: Generate with LLM
-        "data_story": None,  # TODO: Generate with LLM
-        "insights": [],  # TODO: Generate with LLM
-        "context_snapshot": context_data,
-        "selected_objective_id": body.objective_id,
-        "created_at": now,
-        "updated_at": now,
-    }
-
-    # Save analysis (or update existing)
-    saved_analysis = dataset_repository.save_objective_analysis(analysis_data)
-
     return AnalyzeResponse(
-        analysis_id=saved_analysis["id"],
-        analysis_mode=analysis_mode.value,
-        relevance_score=relevance_score,
+        analysis_id=result.id,
+        analysis_mode=result.analysis_mode.value,
+        relevance_score=result.relevance_score,
         status="completed",
     )
 

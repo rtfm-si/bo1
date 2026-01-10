@@ -10,6 +10,12 @@
 	import { Button } from '$lib/components/ui';
 	import ChatMessage from './ChatMessage.svelte';
 
+	interface ObjectiveContext {
+		objectives: string[];
+		analysisMode: 'objective_focused' | 'open_exploration';
+		relevanceScore?: number;
+	}
+
 	interface Props {
 		datasetId: string;
 		selectedConversationId?: string | null;
@@ -17,9 +23,20 @@
 		columnSemantics?: ColumnSemantic[];
 		onShowColumns?: () => void;
 		onAnalysisCreated?: () => void;
+		objectiveContext?: ObjectiveContext | null;
+		onAddToReport?: (message: ConversationMessage) => void;
 	}
 
-	let { datasetId, selectedConversationId = null, onConversationChange, columnSemantics = [], onShowColumns, onAnalysisCreated }: Props = $props();
+	let {
+		datasetId,
+		selectedConversationId = null,
+		onConversationChange,
+		columnSemantics = [],
+		onShowColumns,
+		onAnalysisCreated,
+		objectiveContext = null,
+		onAddToReport
+	}: Props = $props();
 
 	/**
 	 * Public method to ask a question programmatically
@@ -410,6 +427,8 @@
 					{datasetId}
 					isStreaming={isStreaming && i === messages.length - 1 && message.role === 'assistant'}
 					onNextStepClick={handleNextStepClick}
+					showMessageActions={message.role === 'assistant' && !isStreaming}
+					onAddToReport={onAddToReport ? () => onAddToReport(message) : undefined}
 				/>
 			{/each}
 			<!-- Thinking indicator when streaming but no content yet -->

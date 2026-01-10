@@ -111,8 +111,8 @@
 				<!-- Axis selectors placeholder -->
 				<div class="grid grid-cols-2 gap-4 mb-6">
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">X Axis</label>
-						<select class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white">
+						<label for="x-axis-select" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">X Axis</label>
+						<select id="x-axis-select" class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white">
 							<option value="">Select column...</option>
 							{#each allColumns as col}
 								<option value={col}>{col}</option>
@@ -120,8 +120,8 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Y Axis</label>
-						<select class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white">
+						<label for="y-axis-select" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Y Axis</label>
+						<select id="y-axis-select" class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white">
 							<option value="">Select column...</option>
 							{#each numericColumns as col}
 								<option value={col}>{col}</option>

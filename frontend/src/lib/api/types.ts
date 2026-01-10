@@ -206,7 +206,7 @@ export type RoleHistoryResponse = components['schemas']['RoleHistoryResponse'];
 
 // ---- Benchmark Types ----
 export type BenchmarkCategory = components['schemas']['BenchmarkCategory'];
-export type BenchmarkComparison = components['schemas']['BenchmarkComparison'];
+export type BenchmarkComparison = components['schemas']['backend__api__industry_insights__BenchmarkComparison'];
 export type BenchmarkComparisonResponse = components['schemas']['BenchmarkComparisonResponse'];
 export type BenchmarkHistoryEntry = components['schemas']['BenchmarkHistoryEntry'];
 export type IndustryInsight = components['schemas']['IndustryInsight'];
@@ -2056,6 +2056,12 @@ export interface DataQualityIssue {
 	severity: 'low' | 'medium' | 'high';
 	affected_rows?: number;
 	examples?: string[];
+	/** Suggested fix action for this issue */
+	suggested_action?: DatasetFixAction;
+	/** Configuration for the suggested fix action */
+	action_config?: DatasetFixConfig;
+	/** Human-readable label for the fix button */
+	fix_label?: string;
 }
 
 /**
@@ -2404,4 +2410,307 @@ export interface MultiDatasetAnalysisResponse {
 export interface MultiDatasetAnalysisListResponse {
 	analyses: MultiDatasetAnalysisResponse[];
 	total_count: number;
+}
+
+// =============================================================================
+// Objective Analysis Types (Data Analysis Reimagination)
+// =============================================================================
+
+/**
+ * Analysis mode for objective analysis
+ */
+export type ObjectiveAnalysisMode = 'objective_focused' | 'open_exploration';
+
+/**
+ * Relevance level for objective matching
+ */
+export type ObjectiveRelevanceLevel = 'high' | 'medium' | 'low' | 'none';
+
+/**
+ * Confidence level for insights
+ */
+export type ObjectiveConfidenceLevel = 'high' | 'medium' | 'low';
+
+/**
+ * Match assessment between dataset and a specific objective
+ */
+export interface ObjectiveMatch {
+	objective_id?: string | null;
+	objective_name: string;
+	relevance: ObjectiveRelevanceLevel;
+	explanation: string;
+	answerable_questions: string[];
+	unanswerable_questions: string[];
+}
+
+/**
+ * Data that would strengthen the analysis if available
+ */
+export interface MissingData {
+	data_needed: string;
+	why_valuable: string;
+	objectives_unlocked: string[];
+}
+
+/**
+ * Full relevance assessment for a dataset against user objectives
+ */
+export interface ObjectiveRelevanceAssessment {
+	relevance_score: number;
+	assessment_summary: string;
+	objective_matches: ObjectiveMatch[];
+	missing_data: MissingData[];
+	recommended_focus: string;
+}
+
+/**
+ * Visualization configuration for an insight
+ */
+export interface InsightVisualization {
+	type: 'bar' | 'line' | 'scatter' | 'pie';
+	x_axis?: string | null;
+	y_axis?: string | null;
+	group_by?: string | null;
+	title: string;
+}
+
+/**
+ * Benchmark comparison for an insight
+ */
+export interface InsightBenchmarkComparison {
+	metric_name: string;
+	your_value: number;
+	industry_median: number | null;
+	industry_top_quartile: number | null;
+	performance: 'top_performer' | 'above_average' | 'average' | 'below_average';
+	gap_to_median: number | null;
+	gap_to_top: number | null;
+	unit: string;
+}
+
+/**
+ * Impact model for an insight
+ */
+export interface InsightImpactModel {
+	scenario: string;
+	monthly_impact: number;
+	annual_impact: number;
+	narrative: string;
+	assumptions?: string[];
+}
+
+/**
+ * Single insight generated from objective analysis
+ */
+export interface ObjectiveInsight {
+	id: string;
+	objective_id?: string | null;
+	objective_name?: string | null;
+	headline: string;
+	narrative: string;
+	supporting_data?: Record<string, unknown>;
+	visualization?: InsightVisualization | null;
+	recommendation: string;
+	follow_up_questions: string[];
+	confidence: ObjectiveConfidenceLevel;
+	benchmark_comparison?: InsightBenchmarkComparison | null;
+	impact_model?: InsightImpactModel | null;
+	industry_context?: string | null;
+}
+
+/**
+ * Section of data story focused on a specific objective
+ */
+export interface ObjectiveSection {
+	objective_id?: string | null;
+	objective_name: string;
+	summary: string;
+	insight_ids: string[];
+	key_metric: string;
+	recommended_action: string;
+}
+
+/**
+ * Something interesting not directly related to objectives
+ */
+export interface UnexpectedFinding {
+	headline: string;
+	narrative: string;
+	should_investigate: boolean;
+}
+
+/**
+ * AI-generated narrative from analysis results
+ */
+export interface ObjectiveDataStory {
+	opening_hook: string;
+	objective_sections: ObjectiveSection[];
+	data_quality_summary: string;
+	unexpected_finding?: UnexpectedFinding | null;
+	next_steps: string[];
+	suggested_questions: string[];
+}
+
+/**
+ * Full objective analysis response
+ */
+export interface ObjectiveAnalysisResponse {
+	id: string;
+	dataset_id: string;
+	analysis_mode: ObjectiveAnalysisMode;
+	relevance_score?: number | null;
+	relevance_assessment?: ObjectiveRelevanceAssessment | null;
+	data_story?: ObjectiveDataStory | null;
+	insights: ObjectiveInsight[];
+	created_at: string;
+}
+
+/**
+ * Request to trigger analysis
+ */
+export interface AnalyzeDatasetRequest {
+	include_context?: boolean;
+	objective_id?: string | null;
+	force_mode?: ObjectiveAnalysisMode | null;
+}
+
+/**
+ * Response from triggering analysis
+ */
+export interface AnalyzeDatasetResponse {
+	analysis_id: string;
+	analysis_mode: ObjectiveAnalysisMode;
+	relevance_score?: number | null;
+	status: string;
+}
+
+// =============================================================================
+// Data Requirements Types (for "What Data Do I Need?" feature)
+// =============================================================================
+
+/**
+ * Essential data required for meaningful analysis
+ */
+export interface EssentialData {
+	name: string;
+	description: string;
+	example_columns: string[];
+	why_essential: string;
+	questions_answered: string[];
+}
+
+/**
+ * Valuable addition that would strengthen analysis
+ */
+export interface ValuableAddition {
+	name: string;
+	description: string;
+	insight_unlocked: string;
+	priority: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Suggested source for obtaining data
+ */
+export interface DataSource {
+	source_type: string;
+	example_tools: string[];
+	typical_export_name: string;
+	columns_typically_included: string[];
+}
+
+/**
+ * Full data requirements for an objective
+ */
+export interface DataRequirements {
+	objective_summary: string;
+	essential_data: EssentialData[];
+	valuable_additions: ValuableAddition[];
+	data_sources: DataSource[];
+	analysis_preview: string;
+}
+
+/**
+ * Summary of an objective with index identifier
+ */
+export interface ObjectiveSummary {
+	index: number;
+	name: string;
+	has_progress: boolean;
+	current_value?: string | null;
+	target_value?: string | null;
+}
+
+/**
+ * Response for data requirements for a specific objective
+ */
+export interface ObjectiveDataRequirementsResponse {
+	objective: ObjectiveSummary;
+	requirements: DataRequirements;
+	generated_at: string;
+	model_used: string;
+}
+
+/**
+ * Summary of data requirements for one objective
+ */
+export interface ObjectiveRequirementsSummary {
+	index: number;
+	name: string;
+	requirements_summary: string;
+	essential_data_count: number;
+}
+
+/**
+ * Response for all objectives data requirements overview
+ */
+export interface AllObjectivesRequirementsResponse {
+	objectives: ObjectiveRequirementsSummary[];
+	count: number;
+	north_star_goal?: string | null;
+}
+
+// =============================================================================
+// Dataset Fix/Cleaning Types (Data Quality Actions)
+// =============================================================================
+
+/**
+ * Available data cleaning actions
+ */
+export type DatasetFixAction =
+	| 'remove_duplicates'
+	| 'fill_nulls'
+	| 'remove_nulls'
+	| 'trim_whitespace';
+
+/**
+ * Configuration for data fixing actions
+ */
+export interface DatasetFixConfig {
+	/** For remove_duplicates: which duplicate to keep */
+	keep?: 'first' | 'last';
+	/** For remove_duplicates: subset of columns to consider */
+	subset?: string[];
+	/** For fill_nulls: column to fill */
+	column?: string;
+	/** For fill_nulls: strategy to use */
+	strategy?: 'mean' | 'median' | 'mode' | 'zero' | 'value' | 'forward' | 'backward';
+	/** For fill_nulls with strategy='value': the value to fill */
+	fill_value?: string | number;
+	/** For remove_nulls: columns to check for nulls */
+	columns?: string[];
+	/** For remove_nulls: how to determine null rows */
+	how?: 'any' | 'all';
+}
+
+/**
+ * Response from applying a data fix
+ */
+export interface DatasetFixResponse {
+	success: boolean;
+	rows_affected: number;
+	new_row_count: number;
+	reanalysis_required: boolean;
+	message: string;
+	stats: Record<string, unknown>;
 }

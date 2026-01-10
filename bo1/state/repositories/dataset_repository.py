@@ -385,6 +385,36 @@ class DatasetRepository(BaseRepository):
             }
         return None
 
+    def update_row_count(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+        row_count: int,
+    ) -> bool:
+        """Update dataset row count after data cleaning operations.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+            row_count: New row count
+
+        Returns:
+            True if updated, False if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE datasets
+                    SET row_count = %s, updated_at = NOW()
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    """,
+                    (row_count, str(dataset_id), str(user_id)),
+                )
+                affected: int = cur.rowcount or 0
+                conn.commit()
+        return affected > 0
+
     def acknowledge_pii(
         self,
         dataset_id: str | UUID,
@@ -1223,6 +1253,33 @@ class DatasetRepository(BaseRepository):
 
         return result is not None
 
+    def update_report_summary(self, report_id: str, user_id: str, summary: str) -> bool:
+        """Update the executive summary for a report.
+
+        Args:
+            report_id: Report UUID
+            user_id: User ID
+            summary: New executive summary text
+
+        Returns:
+            True if updated, False if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE dataset_reports
+                    SET executive_summary = %s, updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (summary, report_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
     def list_all_reports(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """List all reports for a user across all datasets.
 
@@ -1906,4 +1963,155 @@ class DatasetRepository(BaseRepository):
             "pairwise_comparisons": row["pairwise_comparisons"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+
+    # =========================================================================
+    # Dataset Objective Analysis
+    # =========================================================================
+
+    def save_objective_analysis(self, analysis_data: dict[str, Any]) -> dict[str, Any]:
+        """Save or update objective analysis for a dataset.
+
+        Uses UPSERT to update existing analysis or create new one.
+
+        Args:
+            analysis_data: Analysis data including:
+                - id: Analysis UUID
+                - dataset_id: Dataset UUID
+                - user_id: User UUID
+                - analysis_mode: 'objective_focused' or 'open_exploration'
+                - relevance_score: 0-100 or None
+                - relevance_assessment: JSONB
+                - data_story: JSONB
+                - insights: JSONB array
+                - context_snapshot: JSONB
+                - selected_objective_id: Optional objective index
+
+        Returns:
+            Saved analysis record
+        """
+        import json
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO dataset_objective_analyses (
+                        id, dataset_id, user_id, analysis_mode, relevance_score,
+                        relevance_assessment, data_story, insights,
+                        context_snapshot, selected_objective_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (dataset_id, user_id)
+                    DO UPDATE SET
+                        analysis_mode = EXCLUDED.analysis_mode,
+                        relevance_score = EXCLUDED.relevance_score,
+                        relevance_assessment = EXCLUDED.relevance_assessment,
+                        data_story = EXCLUDED.data_story,
+                        insights = EXCLUDED.insights,
+                        context_snapshot = EXCLUDED.context_snapshot,
+                        selected_objective_id = EXCLUDED.selected_objective_id,
+                        updated_at = NOW()
+                    RETURNING id, dataset_id, user_id, analysis_mode, relevance_score,
+                              relevance_assessment, data_story, insights,
+                              context_snapshot, selected_objective_id,
+                              created_at, updated_at
+                    """,
+                    (
+                        analysis_data["id"],
+                        analysis_data["dataset_id"],
+                        analysis_data["user_id"],
+                        analysis_data["analysis_mode"],
+                        analysis_data.get("relevance_score"),
+                        json.dumps(analysis_data.get("relevance_assessment"))
+                        if analysis_data.get("relevance_assessment")
+                        else None,
+                        json.dumps(analysis_data.get("data_story"))
+                        if analysis_data.get("data_story")
+                        else None,
+                        json.dumps(analysis_data.get("insights"))
+                        if analysis_data.get("insights")
+                        else None,
+                        json.dumps(analysis_data.get("context_snapshot"))
+                        if analysis_data.get("context_snapshot")
+                        else None,
+                        analysis_data.get("selected_objective_id"),
+                    ),
+                )
+                row = cur.fetchone()
+                conn.commit()
+
+        if row:
+            return self._row_to_objective_analysis(row)
+        return {}
+
+    def get_objective_analysis(self, dataset_id: str, user_id: str) -> dict[str, Any] | None:
+        """Get objective analysis for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User UUID
+
+        Returns:
+            Analysis record or None if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, dataset_id, user_id, analysis_mode, relevance_score,
+                           relevance_assessment, data_story, insights,
+                           context_snapshot, selected_objective_id,
+                           created_at, updated_at
+                    FROM dataset_objective_analyses
+                    WHERE dataset_id = %s AND user_id = %s
+                    """,
+                    (dataset_id, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return self._row_to_objective_analysis(row)
+        return None
+
+    def delete_objective_analysis(self, dataset_id: str, user_id: str) -> bool:
+        """Delete objective analysis for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM dataset_objective_analyses
+                    WHERE dataset_id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (dataset_id, user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None
+
+    def _row_to_objective_analysis(self, row: Any) -> dict[str, Any]:
+        """Convert database row to objective analysis dict."""
+        return {
+            "id": str(row["id"]),
+            "dataset_id": str(row["dataset_id"]),
+            "user_id": str(row["user_id"]),
+            "analysis_mode": row["analysis_mode"],
+            "relevance_score": row["relevance_score"],
+            "relevance_assessment": row["relevance_assessment"],
+            "data_story": row["data_story"],
+            "insights": row["insights"],
+            "context_snapshot": row["context_snapshot"],
+            "selected_objective_id": row["selected_objective_id"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }

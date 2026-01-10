@@ -1,17 +1,23 @@
 <script lang="ts">
 	/**
 	 * Advisor - Analyze Page
-	 * Data management and analysis tools
+	 * Data management and analysis tools with "What Data Do I Need?" feature
 	 */
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
-	import type { Dataset } from '$lib/api/types';
+	import type {
+		Dataset,
+		ObjectiveRequirementsSummary,
+		DataRequirements
+	} from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { toast } from '$lib/stores/toast';
 	import PiiConfirmationModal from '$lib/components/dataset/PiiConfirmationModal.svelte';
+	import ObjectiveSelector from '$lib/components/upload/ObjectiveSelector.svelte';
+	import DataRequirementsPanel from '$lib/components/upload/DataRequirementsPanel.svelte';
 
 	// PII warning types (inline for now, will be generated from OpenAPI)
 	type PiiType =
@@ -31,6 +37,21 @@
 		sample_values: string[];
 		match_count: number;
 	}
+
+	// State machine for upload page flow
+	type PageState = 'idle' | 'selecting_objective' | 'viewing_requirements' | 'uploading_with_objective';
+	let pageState = $state<PageState>('idle');
+
+	// Objectives state
+	let objectives = $state<ObjectiveRequirementsSummary[]>([]);
+	let objectivesLoading = $state(false);
+	let selectedObjectiveIndex = $state<number | null>(null);
+	let selectedObjectiveName = $state<string>('');
+
+	// Data requirements state
+	let requirements = $state<DataRequirements | null>(null);
+	let requirementsLoading = $state(false);
+	let requirementsError = $state<string | null>(null);
 
 	// Datasets state
 	let datasets = $state<Dataset[]>([]);
@@ -57,6 +78,81 @@
 	let isImportingSheets = $state(false);
 	let sheetsError = $state<string | null>(null);
 	let sheetsConnectionMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+
+	// ==========================================================================
+	// Objectives / Data Requirements Functions
+	// ==========================================================================
+
+	async function loadObjectives() {
+		objectivesLoading = true;
+		try {
+			const response = await apiClient.getAllObjectivesDataRequirements();
+			objectives = response.objectives || [];
+		} catch (err) {
+			console.error('Failed to load objectives:', err);
+			// Don't show toast - user may not have context set up
+		} finally {
+			objectivesLoading = false;
+		}
+	}
+
+	function handleObjectiveSelect(index: number) {
+		selectedObjectiveIndex = index;
+		const objective = objectives.find((o) => o.index === index);
+		selectedObjectiveName = objective?.name || '';
+	}
+
+	async function showDataRequirements() {
+		if (selectedObjectiveIndex === null) {
+			toast.error('Please select an objective first');
+			return;
+		}
+
+		pageState = 'viewing_requirements';
+		requirementsLoading = true;
+		requirementsError = null;
+
+		try {
+			const response = await apiClient.getObjectiveDataRequirements(selectedObjectiveIndex);
+			requirements = response.requirements;
+		} catch (err) {
+			console.error('Failed to load data requirements:', err);
+			requirementsError = err instanceof Error ? err.message : 'Failed to load requirements';
+		} finally {
+			requirementsLoading = false;
+		}
+	}
+
+	function handleUploadFromRequirements() {
+		pageState = 'uploading_with_objective';
+		// Focus the file input or trigger upload
+		fileInput?.click();
+	}
+
+	function handleBackFromRequirements() {
+		pageState = 'selecting_objective';
+		requirements = null;
+		requirementsError = null;
+	}
+
+	function startWhatDataFlow() {
+		pageState = 'selecting_objective';
+		if (objectives.length === 0) {
+			loadObjectives();
+		}
+	}
+
+	function cancelWhatDataFlow() {
+		pageState = 'idle';
+		selectedObjectiveIndex = null;
+		selectedObjectiveName = '';
+		requirements = null;
+		requirementsError = null;
+	}
+
+	// ==========================================================================
+	// Datasets Functions
+	// ==========================================================================
 
 	async function loadDatasets() {
 		try {
@@ -173,12 +269,24 @@
 			} else {
 				// No PII detected - proceed directly
 				toast.success('Dataset uploaded successfully');
-				await loadDatasets();
+
+				// If uploading with objective context, navigate to dataset with objective pre-selected
+				if (pageState === 'uploading_with_objective' && selectedObjectiveIndex !== null) {
+					goto(`/datasets/${response.id}?objective_index=${selectedObjectiveIndex}`);
+				} else {
+					await loadDatasets();
+				}
 			}
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Upload failed');
 		} finally {
 			isUploading = false;
+			// Reset page state if we were in objective flow
+			if (pageState === 'uploading_with_objective') {
+				pageState = 'idle';
+				selectedObjectiveIndex = null;
+				selectedObjectiveName = '';
+			}
 		}
 	}
 
@@ -188,12 +296,24 @@
 		try {
 			await apiClient.acknowledgePii(pendingDataset.id);
 			toast.success('Dataset uploaded successfully');
-			await loadDatasets();
+
+			// If uploading with objective context, navigate to dataset with objective pre-selected
+			if (pageState === 'uploading_with_objective' && selectedObjectiveIndex !== null) {
+				goto(`/datasets/${pendingDataset.id}?objective_index=${selectedObjectiveIndex}`);
+			} else {
+				await loadDatasets();
+			}
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to confirm upload');
 		} finally {
 			showPiiModal = false;
 			pendingDataset = null;
+			// Reset page state
+			if (pageState === 'uploading_with_objective') {
+				pageState = 'idle';
+				selectedObjectiveIndex = null;
+				selectedObjectiveName = '';
+			}
 		}
 	}
 
@@ -261,7 +381,7 @@
 	}
 
 	function formatBytes(bytes: number | null): string {
-		if (!bytes) return '—';
+		if (!bytes) return '-';
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -314,35 +434,133 @@
 		</p>
 	</div>
 
-	<!-- Upload Zone -->
-	<div
-		class="mb-8 border-2 border-dashed rounded-lg p-8 text-center transition-colors {isDragging
-			? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-			: 'border-neutral-300 dark:border-neutral-600 hover:border-brand-400 dark:hover:border-brand-500'}"
-		ondragover={handleDragOver}
-		ondragleave={handleDragLeave}
-		ondrop={handleDrop}
-		role="region"
-		aria-label="File upload area"
-	>
-		{#if isUploading}
-			<div class="space-y-4">
-				<svg class="w-12 h-12 mx-auto text-brand-500 animate-spin" fill="none" viewBox="0 0 24 24">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-				</svg>
-				<p class="text-neutral-600 dark:text-neutral-400">Uploading...</p>
+	<!-- Data Requirements Panel (when viewing requirements) -->
+	{#if pageState === 'viewing_requirements'}
+		<div class="mb-8">
+			<DataRequirementsPanel
+				{requirements}
+				loading={requirementsLoading}
+				error={requirementsError}
+				objectiveName={selectedObjectiveName}
+				onUploadClick={handleUploadFromRequirements}
+				onBackClick={handleBackFromRequirements}
+			/>
+		</div>
+	{:else if pageState === 'selecting_objective'}
+		<!-- Objective Selection (when in "What Data Do I Need?" flow) -->
+		<div class="mb-8 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-semibold text-neutral-900 dark:text-white">What data do I need?</h3>
+				<button
+					type="button"
+					onclick={cancelWhatDataFlow}
+					class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+					aria-label="Close"
+				>
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
 			</div>
-		{:else}
-			<svg class="w-12 h-12 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-			</svg>
-			<p class="text-neutral-600 dark:text-neutral-400 mb-2">Drag and drop a CSV file here, or</p>
-			<input bind:this={fileInput} type="file" accept=".csv" class="hidden" onchange={handleFileSelect} />
-			<Button variant="outline" onclick={() => fileInput?.click()}>Browse Files</Button>
-			<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-2">CSV files only, max 10MB</p>
-		{/if}
-	</div>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Select an objective to see what data would help you analyze it:
+			</p>
+
+			<ObjectiveSelector
+				objectives={objectives.map((o) => ({
+					index: o.index,
+					name: o.name,
+					requirements_summary: o.requirements_summary
+				}))}
+				selectedIndex={selectedObjectiveIndex}
+				onSelect={handleObjectiveSelect}
+				loading={objectivesLoading}
+			/>
+
+			{#if objectives.length === 0 && !objectivesLoading}
+				<div class="mt-4 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-lg">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						No objectives found. <a href="/context/overview" class="text-brand-600 hover:text-brand-700 dark:text-brand-400">Set up your business context</a> to see data recommendations.
+					</p>
+				</div>
+			{/if}
+
+			<div class="mt-4 flex gap-3">
+				<Button
+					variant="brand"
+					disabled={selectedObjectiveIndex === null}
+					onclick={showDataRequirements}
+				>
+					What data do I need for this?
+				</Button>
+				<Button variant="outline" onclick={cancelWhatDataFlow}>
+					Cancel
+				</Button>
+			</div>
+		</div>
+	{:else}
+		<!-- Path A: "I have data" - Upload Zone -->
+		<div
+			class="mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors {isDragging
+				? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+				: 'border-neutral-300 dark:border-neutral-600 hover:border-brand-400 dark:hover:border-brand-500'}"
+			ondragover={handleDragOver}
+			ondragleave={handleDragLeave}
+			ondrop={handleDrop}
+			role="region"
+			aria-label="File upload area"
+		>
+			{#if isUploading}
+				<div class="space-y-4">
+					<svg class="w-12 h-12 mx-auto text-brand-500 animate-spin" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<p class="text-neutral-600 dark:text-neutral-400">Uploading...</p>
+				</div>
+			{:else}
+				<svg class="w-12 h-12 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+				</svg>
+				<p class="text-neutral-600 dark:text-neutral-400 mb-2">Drag and drop a CSV file here, or</p>
+				<input bind:this={fileInput} type="file" accept=".csv" class="hidden" onchange={handleFileSelect} />
+				<Button variant="outline" onclick={() => fileInput?.click()}>Browse Files</Button>
+				<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-2">CSV files only, max 10MB</p>
+			{/if}
+		</div>
+
+		<!-- OR Divider -->
+		<div class="relative mb-6">
+			<div class="absolute inset-0 flex items-center">
+				<div class="w-full border-t border-neutral-300 dark:border-neutral-600"></div>
+			</div>
+			<div class="relative flex justify-center text-sm">
+				<span class="px-4 bg-neutral-50 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400">
+					OR
+				</span>
+			</div>
+		</div>
+
+		<!-- Path B: "What data do I need?" -->
+		<div class="mb-8 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<div class="flex items-start gap-4">
+				<div class="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
+					<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+				</div>
+				<div class="flex-1">
+					<h3 class="font-semibold text-neutral-900 dark:text-white">Not sure what data you need?</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+						Select an objective to see what data would help you analyze it.
+					</p>
+					<Button variant="outline" size="sm" class="mt-3" onclick={startWhatDataFlow}>
+						What data do I need?
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Google Sheets Connection Message -->
 	{#if sheetsConnectionMessage}
@@ -357,44 +575,46 @@
 		</div>
 	{/if}
 
-	<!-- Google Sheets Import -->
-	<div class="mb-8 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
-		<div class="flex items-center justify-between mb-4">
-			<h3 class="font-semibold text-neutral-900 dark:text-white">Import from Google Sheets</h3>
-			{#if !sheetsConnectionLoading}
-				{#if sheetsConnected}
-					<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300">
-						Connected
-					</span>
-				{:else}
-					<Button variant="outline" size="sm" onclick={connectGoogleSheets}>Connect Google</Button>
+	<!-- Google Sheets Import (only show in idle state) -->
+	{#if pageState === 'idle'}
+		<div class="mb-8 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-semibold text-neutral-900 dark:text-white">Import from Google Sheets</h3>
+				{#if !sheetsConnectionLoading}
+					{#if sheetsConnected}
+						<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300">
+							Connected
+						</span>
+					{:else}
+						<Button variant="outline" size="sm" onclick={connectGoogleSheets}>Connect Google</Button>
+					{/if}
 				{/if}
+			</div>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				{sheetsConnected
+					? 'Import data from any Google Sheet you have access to.'
+					: 'Import data from public Google Sheets. Connect Google to import private sheets.'}
+			</p>
+			<div class="flex gap-3">
+				<input
+					type="url"
+					bind:value={sheetsUrl}
+					placeholder="https://docs.google.com/spreadsheets/d/..."
+					class="flex-1 px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+					disabled={isImportingSheets}
+				/>
+				<Button variant="brand" onclick={handleSheetsImport} disabled={isImportingSheets || !sheetsUrl.trim()}>
+					{isImportingSheets ? 'Importing...' : 'Import'}
+				</Button>
+			</div>
+			{#if sheetsError}
+				<p class="mt-2 text-sm text-error-600 dark:text-error-400">{sheetsError}</p>
 			{/if}
 		</div>
-		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-			{sheetsConnected
-				? 'Import data from any Google Sheet you have access to.'
-				: 'Import data from public Google Sheets. Connect Google to import private sheets.'}
-		</p>
-		<div class="flex gap-3">
-			<input
-				type="url"
-				bind:value={sheetsUrl}
-				placeholder="https://docs.google.com/spreadsheets/d/..."
-				class="flex-1 px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-				disabled={isImportingSheets}
-			/>
-			<Button variant="brand" onclick={handleSheetsImport} disabled={isImportingSheets || !sheetsUrl.trim()}>
-				{isImportingSheets ? 'Importing...' : 'Import'}
-			</Button>
-		</div>
-		{#if sheetsError}
-			<p class="mt-2 text-sm text-error-600 dark:text-error-400">{sheetsError}</p>
-		{/if}
-	</div>
+	{/if}
 
 	<!-- Multi-Select Toolbar -->
-	{#if datasets.length >= 2}
+	{#if datasets.length >= 2 && pageState === 'idle'}
 		<div class="mb-4 flex items-center justify-between">
 			<div class="flex items-center gap-4">
 				<Button variant={isMultiSelectMode ? 'brand' : 'outline'} size="sm" onclick={toggleSelectMode}>
@@ -414,7 +634,7 @@
 		</div>
 	{/if}
 
-	<!-- Datasets List -->
+	<!-- Datasets List (always visible) -->
 	{#if datasetsLoading}
 		<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 			{#each Array(6) as _, i (i)}
@@ -474,8 +694,8 @@
 					{/if}
 
 					<div class="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-						<span>{dataset.row_count?.toLocaleString() || '—'} rows</span>
-						<span>{dataset.column_count || '—'} cols</span>
+						<span>{dataset.row_count?.toLocaleString() || '-'} rows</span>
+						<span>{dataset.column_count || '-'} cols</span>
 						<span>{formatBytes(dataset.file_size_bytes ?? null)}</span>
 					</div>
 

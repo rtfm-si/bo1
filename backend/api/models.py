@@ -5029,3 +5029,62 @@ class MultiDatasetAnalysisListResponse(BaseModel):
 
     analyses: list[MultiDatasetAnalysisResponse] = Field(description="List of analyses")
     total_count: int = Field(description="Total count")
+
+
+# =============================================================================
+# Dataset Fix/Cleaning Models (Data Quality Actions)
+# =============================================================================
+
+
+class DatasetFixAction(str, Enum):
+    """Available data cleaning actions."""
+
+    REMOVE_DUPLICATES = "remove_duplicates"
+    FILL_NULLS = "fill_nulls"
+    REMOVE_NULLS = "remove_nulls"
+    TRIM_WHITESPACE = "trim_whitespace"
+
+
+class DatasetFixRequest(BaseModel):
+    """Request to fix data quality issues in a dataset.
+
+    Attributes:
+        action: Cleaning action to apply
+        config: Action-specific configuration
+    """
+
+    action: DatasetFixAction = Field(..., description="Cleaning action to apply")
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Action-specific config. "
+            "remove_duplicates: {keep: 'first'|'last', subset: ['col1']}. "
+            "fill_nulls: {column: 'col', strategy: 'mean'|'median'|'mode'|'zero'|'value', fill_value: 'x'}. "
+            "remove_nulls: {columns: ['col1'], how: 'any'|'all'}. "
+            "trim_whitespace: {} (no config needed)."
+        ),
+    )
+
+
+class DatasetFixResponse(BaseModel):
+    """Response from applying a data fix.
+
+    Attributes:
+        success: Whether fix was applied successfully
+        rows_affected: Number of rows modified/removed
+        new_row_count: Total rows after fix
+        reanalysis_required: Whether dataset should be re-analyzed
+        message: Human-readable result message
+        stats: Detailed statistics from the cleaning operation
+    """
+
+    success: bool = Field(..., description="Whether fix was applied successfully")
+    rows_affected: int = Field(..., description="Number of rows modified/removed")
+    new_row_count: int = Field(..., description="Total rows after fix")
+    reanalysis_required: bool = Field(
+        default=True, description="Whether dataset should be re-analyzed"
+    )
+    message: str = Field(..., description="Human-readable result message")
+    stats: dict[str, Any] = Field(
+        default_factory=dict, description="Detailed statistics from cleaning operation"
+    )

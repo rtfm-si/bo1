@@ -47,6 +47,8 @@ from backend.api.models import (
     DatasetFavouriteListResponse,
     DatasetFavouriteResponse,
     DatasetFavouriteUpdate,
+    DatasetFixRequest,
+    DatasetFixResponse,
     DatasetInsightsResponse,
     DatasetInvestigationResponse,
     DatasetListResponse,
@@ -93,6 +95,13 @@ from backend.services.query_engine import QueryError, execute_query
 from backend.services.spaces import SpacesConfigurationError, SpacesError, get_spaces_client
 from backend.services.summary_generator import generate_dataset_summary, invalidate_summary_cache
 from backend.services.usage_tracking import UsageResult
+from bo1.datasets.cleaning import (
+    CleaningError,
+    fill_nulls,
+    remove_duplicates,
+    remove_null_rows,
+    trim_whitespace,
+)
 from bo1.llm.client import ClaudeClient
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.data_analyst import (
@@ -856,6 +865,212 @@ async def trigger_profile(
         updated_at=dataset["updated_at"],
         profiles=[_format_profile_response(p) for p in profiles],
         summary=summary,
+    )
+
+
+@router.post(
+    "/{dataset_id}/fix",
+    response_model=DatasetFixResponse,
+    summary="Fix data quality issues",
+    description="""
+    Apply a data cleaning action to fix quality issues in a dataset.
+
+    Available actions:
+    - **remove_duplicates**: Remove duplicate rows. Config: {keep: 'first'|'last', subset: ['col1']}
+    - **fill_nulls**: Fill null values in a column. Config: {column: 'col', strategy: 'mean'|'median'|'mode'|'zero'|'value', fill_value: 'x'}
+    - **remove_nulls**: Remove rows with null values. Config: {columns: ['col1'], how: 'any'|'all'}
+    - **trim_whitespace**: Trim whitespace from string columns. No config needed.
+
+    After applying a fix, the dataset file is updated and re-profiled automatically.
+    The response indicates whether re-analysis is recommended.
+    """,
+)
+@handle_api_errors("fix dataset")
+async def fix_dataset(
+    dataset_id: str,
+    body: DatasetFixRequest,
+    user: dict = Depends(get_current_user),
+) -> DatasetFixResponse:
+    """Apply data cleaning action to fix quality issues."""
+    import io
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    file_key = dataset.get("file_key")
+    if not file_key:
+        raise http_error(
+            ErrorCode.API_INVALID_REQUEST,
+            "Dataset has no file to modify",
+            status=400,
+        )
+
+    # Load dataset
+    try:
+        df = load_dataframe(file_key, max_rows=None, sanitize=False)
+    except DataFrameLoadError as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            f"Failed to load dataset for fixing: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_ANALYSIS_ERROR, f"Failed to load dataset: {e}", status=422
+        ) from None
+
+    original_row_count = len(df)
+    config = body.config or {}
+
+    # Apply the requested action
+    try:
+        if body.action.value == "remove_duplicates":
+            df_clean, stats = remove_duplicates(
+                df,
+                keep=config.get("keep", "first"),
+                subset=config.get("subset"),
+            )
+            rows_affected = stats["rows_removed"]
+            message = f"Removed {rows_affected} duplicate rows"
+
+        elif body.action.value == "fill_nulls":
+            column = config.get("column")
+            if not column:
+                raise http_error(
+                    ErrorCode.API_INVALID_REQUEST,
+                    "fill_nulls requires 'column' in config",
+                    status=400,
+                )
+            df_clean, stats = fill_nulls(
+                df,
+                column=column,
+                strategy=config.get("strategy", "mean"),
+                fill_value=config.get("fill_value"),
+            )
+            rows_affected = stats["nulls_filled"]
+            message = f"Filled {rows_affected} null values in '{column}' using {stats['strategy']}"
+
+        elif body.action.value == "remove_nulls":
+            df_clean, stats = remove_null_rows(
+                df,
+                columns=config.get("columns"),
+                how=config.get("how", "any"),
+            )
+            rows_affected = stats["rows_removed"]
+            message = f"Removed {rows_affected} rows with null values"
+
+        elif body.action.value == "trim_whitespace":
+            df_clean, stats = trim_whitespace(df)
+            rows_affected = stats["cells_trimmed"]
+            message = f"Trimmed whitespace in {rows_affected} cells across {len(stats['columns_affected'])} columns"
+
+        else:
+            raise http_error(
+                ErrorCode.API_INVALID_REQUEST,
+                f"Unknown action: {body.action.value}",
+                status=400,
+            )
+
+    except CleaningError as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            f"Cleaning error: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+            action=body.action.value,
+        )
+        raise http_error(ErrorCode.SERVICE_ANALYSIS_ERROR, str(e), status=422) from None
+
+    new_row_count = len(df_clean)
+
+    # If no changes were made, return early
+    if rows_affected == 0:
+        return DatasetFixResponse(
+            success=True,
+            rows_affected=0,
+            new_row_count=new_row_count,
+            reanalysis_required=False,
+            message="No changes needed - data already clean",
+            stats=stats,
+        )
+
+    # Save updated file to Spaces
+    try:
+        csv_buffer = io.BytesIO()
+        df_clean.to_csv(csv_buffer, index=False)
+        csv_content = csv_buffer.getvalue()
+
+        spaces_client = get_spaces_client()
+        # Overwrite existing file
+        spaces_client._client.put_object(
+            Bucket=spaces_client.bucket,
+            Key=file_key,
+            Body=csv_content,
+            ContentType="text/csv",
+            Metadata={
+                "user_id": user_id,
+                "action_applied": body.action.value,
+            },
+        )
+        logger.info(f"Updated dataset file {file_key} after {body.action.value}")
+    except SpacesError as e:
+        log_error(
+            logger,
+            ErrorCode.EXT_SPACES_ERROR,
+            f"Failed to save fixed dataset: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.EXT_SPACES_ERROR,
+            "Failed to save updated dataset",
+            status=502,
+        ) from None
+
+    # Update row count in database
+    dataset_repository.update_row_count(dataset_id, user_id, new_row_count)
+
+    # Invalidate caches since data changed
+    invalidate_summary_cache(dataset_id)
+    invalidate_insight_cache(dataset_id)
+
+    # Re-run profiling
+    try:
+        profile = profile_dataset(dataset_id, user_id, dataset_repository)
+        save_profile(profile, dataset_repository)
+        logger.info(f"Re-profiled dataset {dataset_id} after fix")
+    except ProfileError as e:
+        logger.warning(f"Failed to re-profile after fix: {e}")
+
+    # Re-run investigation
+    try:
+        investigation = run_investigation(df_clean)
+        investigation_dict = investigation.to_dict()
+        dataset_repository.save_investigation(dataset_id, user_id, investigation_dict)
+        logger.info(f"Re-investigated dataset {dataset_id} after fix")
+    except Exception as e:
+        logger.warning(f"Failed to re-investigate after fix: {e}")
+
+    logger.info(
+        f"Fixed dataset {dataset_id}: {body.action.value} affected {rows_affected} rows "
+        f"({original_row_count} -> {new_row_count})"
+    )
+
+    return DatasetFixResponse(
+        success=True,
+        rows_affected=rows_affected,
+        new_row_count=new_row_count,
+        reanalysis_required=True,
+        message=message,
+        stats=stats,
     )
 
 
@@ -2262,6 +2477,166 @@ async def delete_report(
     deleted = dataset_repository.delete_report(report_id, user_id)
     if not deleted:
         raise http_error(ErrorCode.API_NOT_FOUND, "Report not found", status=404)
+
+
+class ReportSummaryResponse(BaseModel):
+    """Response for executive summary regeneration."""
+
+    summary: str = Field(..., description="Regenerated executive summary")
+    model_used: str | None = Field(None, description="LLM model used")
+    tokens_used: int | None = Field(None, description="Tokens consumed")
+
+
+@router.post(
+    "/{dataset_id}/reports/{report_id}/summary",
+    response_model=ReportSummaryResponse,
+    summary="Regenerate executive summary",
+    description="Regenerate the executive summary for a report using LLM",
+)
+@handle_api_errors("regenerate report summary")
+async def regenerate_report_summary(
+    dataset_id: str,
+    report_id: str,
+    user: dict = Depends(get_current_user),
+) -> ReportSummaryResponse:
+    """Regenerate the executive summary for a report."""
+    from backend.services.dataset_report_generator import regenerate_executive_summary
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify dataset ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Get report
+    report = dataset_repository.get_report(report_id, user_id)
+    if not report:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Report not found", status=404)
+
+    # Regenerate summary
+    summary, metadata = await regenerate_executive_summary(report)
+
+    # Update report with new summary
+    dataset_repository.update_report_summary(report_id, user_id, summary)
+
+    return ReportSummaryResponse(
+        summary=summary,
+        model_used=metadata.get("model"),
+        tokens_used=metadata.get("tokens"),
+    )
+
+
+@router.get(
+    "/{dataset_id}/reports/{report_id}/export",
+    summary="Export report",
+    description="Export report in specified format (markdown or pdf)",
+)
+@handle_api_errors("export report")
+async def export_report(
+    dataset_id: str,
+    report_id: str,
+    format: str = Query("markdown", description="Export format: markdown or pdf"),
+    user: dict = Depends(get_current_user),
+) -> StreamingResponse:
+    """Export a report as markdown or PDF."""
+    from backend.services.dataset_report_generator import export_report_to_markdown
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify dataset ownership
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Get report
+    report = dataset_repository.get_report(report_id, user_id)
+    if not report:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Report not found", status=404)
+
+    # Get favourites for chart references
+    favourites = dataset_repository.get_favourites_by_ids(report["favourite_ids"], user_id)
+
+    if format == "markdown":
+        markdown_content = export_report_to_markdown(
+            report=report,
+            dataset_name=dataset.get("name", "Dataset"),
+            favourites=favourites,
+        )
+        return StreamingResponse(
+            iter([markdown_content.encode("utf-8")]),
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f"attachment; filename={report.get('title', 'report').replace(' ', '_')}.md"
+            },
+        )
+
+    elif format == "pdf":
+        # Generate markdown first, then convert to simple PDF
+        markdown_content = export_report_to_markdown(
+            report=report,
+            dataset_name=dataset.get("name", "Dataset"),
+            favourites=favourites,
+        )
+
+        # For MVP, we'll provide HTML that can be printed to PDF
+        # A proper PDF would need reportlab or weasyprint
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{report.get("title", "Report")}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }}
+        h1 {{ color: #1a1a2e; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; }}
+        h2 {{ color: #374151; margin-top: 30px; }}
+        blockquote {{ border-left: 4px solid #4f46e5; margin: 20px 0; padding: 10px 20px; background: #f3f4f6; }}
+        hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 30px 0; }}
+        .meta {{ color: #6b7280; font-size: 14px; }}
+        @media print {{ body {{ margin: 0; padding: 20px; }} }}
+    </style>
+</head>
+<body>
+    <h1>{report.get("title", "Data Analysis Report")}</h1>
+    <p class="meta"><strong>Dataset:</strong> {dataset.get("name", "Dataset")}</p>
+    <hr>
+"""
+        # Convert markdown sections to HTML
+        if report.get("executive_summary"):
+            html_content += f"<h2>Executive Summary</h2><p>{report['executive_summary']}</p>"
+
+        report_content = report.get("report_content", {})
+        for section in report_content.get("sections", []):
+            html_content += f"<h2>{section.get('title', 'Section')}</h2>"
+            # Basic markdown to HTML conversion
+            content = section.get("content", "")
+            content = content.replace("\n\n", "</p><p>").replace("\n", "<br>")
+            html_content += f"<p>{content}</p>"
+
+        html_content += """
+    <hr>
+    <p class="meta"><em>Generated by Board of One Data Analysis</em></p>
+</body>
+</html>"""
+
+        return StreamingResponse(
+            iter([html_content.encode("utf-8")]),
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f"attachment; filename={report.get('title', 'report').replace(' ', '_')}.html"
+            },
+        )
+
+    else:
+        raise http_error(
+            ErrorCode.API_VALIDATION_ERROR,
+            f"Unsupported format: {format}. Use 'markdown' or 'pdf'",
+            status=400,
+        )
 
 
 # =============================================================================

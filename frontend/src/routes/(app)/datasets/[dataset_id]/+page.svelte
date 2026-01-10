@@ -9,7 +9,13 @@
 		ColumnSemantic,
 		DatasetReport,
 		DatasetInvestigation,
-		DatasetBusinessContext
+		DatasetBusinessContext,
+		ObjectiveAnalysisResponse,
+		ObjectiveInsight,
+		DataQualityIssue,
+		DatasetFixResponse,
+		ConversationMessage,
+		AnalyzeDatasetRequest
 	} from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button, Tabs } from '$lib/components/ui';
@@ -30,6 +36,27 @@
 	import ClarifyTab from '$lib/components/dataset/tabs/ClarifyTab.svelte';
 	import ChartsTab from '$lib/components/dataset/tabs/ChartsTab.svelte';
 	import InsightsTab from '$lib/components/dataset/tabs/InsightsTab.svelte';
+
+	// Objective Analysis components
+	import DataStory from '$lib/components/datasets/DataStory.svelte';
+	import ObjectiveBar from '$lib/components/datasets/ObjectiveBar.svelte';
+	import RelevanceNotice from '$lib/components/datasets/RelevanceNotice.svelte';
+	import SuggestedQuestions from '$lib/components/datasets/SuggestedQuestions.svelte';
+	import NoContextFallback from '$lib/components/datasets/NoContextFallback.svelte';
+
+	// Report Builder component
+	import ReportBuilder from '$lib/components/datasets/ReportBuilder.svelte';
+
+	// Type for report items
+	interface SelectedInsight {
+		id: string;
+		type: 'insight' | 'chat_message' | 'favourite';
+		headline?: string;
+		content: string;
+		chart_spec?: object;
+		figure_json?: object;
+		included: boolean;
+	}
 
 	const datasetId = $derived(page.params.dataset_id || '');
 
@@ -96,6 +123,46 @@
 	// Generated report state
 	let generatedReport = $state<DatasetReport | null>(null);
 
+	// Report Builder state
+	let reportPanelOpen = $state(false);
+	let reportInsights = $state<SelectedInsight[]>([]);
+
+	// Objective Analysis state
+	let objectiveAnalysis = $state<ObjectiveAnalysisResponse | null>(null);
+	let objectiveAnalysisLoading = $state(false);
+	let objectiveAnalysisError = $state<string | null>(null);
+	let showAdvancedMode = $state(false);
+
+	// Feature discovery state (for "What's New" callout)
+	let showFeatureCallout = $state(false);
+	let featureCalloutDismissed = $state(false);
+
+	// Derived: objectives from analysis
+	const objectiveNames = $derived<string[]>(
+		objectiveAnalysis?.data_story?.objective_sections?.map((s) => s.objective_name) ?? []
+	);
+
+	// Derived: data quality issues from investigation
+	const dataQualityIssues = $derived<DataQualityIssue[]>(
+		investigation?.data_quality?.issues ?? []
+	);
+
+	// Derived: suggested questions from analysis
+	const suggestedQuestions = $derived<string[]>(
+		objectiveAnalysis?.data_story?.suggested_questions ?? []
+	);
+
+	// Derived: objective context for chat
+	const objectiveContext = $derived(
+		objectiveAnalysis
+			? {
+					objectives: objectiveNames,
+					analysisMode: objectiveAnalysis.analysis_mode,
+					relevanceScore: objectiveAnalysis.relevance_score ?? undefined
+				}
+			: null
+	);
+
 	function handleReportGenerated(report: DatasetReport) {
 		generatedReport = report;
 		window.location.href = `/datasets/${datasetId}/report/${report.id}`;
@@ -104,8 +171,18 @@
 	// Derive column semantics from insights
 	const columnSemantics = $derived<ColumnSemantic[]>(insights?.column_semantics ?? []);
 
+	// Derived: column names for suggested questions
+	const dataColumnNames = $derived<string[]>(
+		columnSemantics.map((c) => c.column_name)
+	);
+
 	// Derived: is dataset profiled?
 	const isProfiled = $derived((dataset?.profiles?.length ?? 0) > 0);
+
+	// Derived: has business context set up?
+	const hasBusinessContext = $derived(
+		!!(businessContext?.business_goal || businessContext?.objectives?.length)
+	);
 
 	function handleConversationSelect(id: string) {
 		selectedConversationId = id;
@@ -291,10 +368,223 @@
 		}
 	}
 
+	async function fetchObjectiveAnalysis() {
+		objectiveAnalysisError = null;
+		objectiveAnalysisLoading = true;
+
+		try {
+			const response = await apiClient.getObjectiveAnalysis(datasetId);
+			objectiveAnalysis = response;
+		} catch (err: unknown) {
+			const status = (err as { status?: number }).status;
+			// 404 means no analysis yet - not an error
+			if (status === 404) {
+				objectiveAnalysis = null;
+				objectiveAnalysisError = null;
+			} else {
+				console.error('[ObjectiveAnalysis] Error:', err);
+				objectiveAnalysisError = err instanceof Error ? err.message : 'Failed to load analysis';
+			}
+		} finally {
+			objectiveAnalysisLoading = false;
+		}
+	}
+
+	async function triggerObjectiveAnalysis(objectiveIndex?: number) {
+		objectiveAnalysisError = null;
+		objectiveAnalysisLoading = true;
+
+		try {
+			const request: AnalyzeDatasetRequest = {
+				include_context: true
+			};
+			// If an objective index was passed (from "What Data Do I Need?" flow), use it
+			if (objectiveIndex !== undefined) {
+				request.objective_id = String(objectiveIndex);
+				request.force_mode = 'objective_focused';
+			}
+			await apiClient.analyzeDatasetForObjectives(datasetId, request);
+			// Fetch the results after triggering
+			await fetchObjectiveAnalysis();
+		} catch (err) {
+			console.error('[ObjectiveAnalysis] Trigger error:', err);
+			objectiveAnalysisError = err instanceof Error ? err.message : 'Failed to trigger analysis';
+			objectiveAnalysisLoading = false;
+		}
+	}
+
+	function handleInsightAddToReport(insight: ObjectiveInsight) {
+		// Add insight to report builder
+		const existingIndex = reportInsights.findIndex(
+			(i) => i.type === 'insight' && i.headline === insight.headline
+		);
+		if (existingIndex === -1) {
+			reportInsights = [
+				...reportInsights,
+				{
+					id: crypto.randomUUID(),
+					type: 'insight',
+					headline: insight.headline,
+					content: insight.narrative,
+					chart_spec: insight.visualization as object | undefined,
+					included: true
+				}
+			];
+		}
+		reportPanelOpen = true;
+	}
+
+	function handleInsightCreateAction(insight: ObjectiveInsight) {
+		// TODO: Implement action creation from insight
+		console.log('Create action:', insight);
+	}
+
+	function handleInsightExploreMore(insight: ObjectiveInsight) {
+		// Open chat with follow-up question
+		if (insight.follow_up_questions?.length > 0) {
+			handleQuestionClick(insight.follow_up_questions[0]);
+		}
+	}
+
+	function handleInsightShareWithBoard(insight: ObjectiveInsight) {
+		// Navigate to new meeting with insight as context
+		const insightContext = encodeURIComponent(JSON.stringify({
+			headline: insight.headline,
+			narrative: insight.narrative,
+			objective_name: insight.objective_name,
+			recommendation: insight.recommendation
+		}));
+		// Include objective_id if the insight is linked to one
+		const params = new URLSearchParams();
+		params.set('insight_context', insightContext);
+		if (insight.objective_name) {
+			params.set('objective', insight.objective_name);
+		}
+		window.location.href = `/meetings/new?${params.toString()}`;
+	}
+
+	function handleChangeObjectives() {
+		// Switch to clarify tab to edit objectives
+		activeTab = 'clarify';
+		showAdvancedMode = true;
+	}
+
+	function handleDataFixed(result: DatasetFixResponse) {
+		// Re-fetch dataset to get updated row count and profiles
+		if (result.success && result.reanalysis_required) {
+			// Refresh dataset info
+			datasetData.fetch();
+			// Re-trigger objective analysis
+			fetchObjectiveAnalysis();
+		}
+	}
+
+	function handleChatMessageAddToReport(message: ConversationMessage) {
+		// Add chat message to report builder
+		// Generate unique ID from content hash since ConversationMessage doesn't have an id field
+		const messageId = `msg_${message.timestamp}_${message.content.slice(0, 20)}`;
+		const existingIndex = reportInsights.findIndex(
+			(i) => i.type === 'chat_message' && i.headline === (message.content?.slice(0, 60) + (message.content && message.content.length > 60 ? '...' : ''))
+		);
+		if (existingIndex === -1) {
+			reportInsights = [
+				...reportInsights,
+				{
+					id: messageId,
+					type: 'chat_message',
+					headline: message.content?.slice(0, 60) + (message.content && message.content.length > 60 ? '...' : ''),
+					content: message.content || '',
+					chart_spec: message.chart_spec as object | undefined,
+					included: true
+				}
+			];
+		}
+		reportPanelOpen = true;
+	}
+
+	function handleReportBuilderClose() {
+		reportPanelOpen = false;
+	}
+
+	function handleReportExport(format: 'markdown' | 'pdf') {
+		console.log('[Dataset] Report exported as:', format);
+	}
+
+	// No context fallback handlers
+	function handleSetupContext() {
+		// Navigate to context page or open clarify tab
+		activeTab = 'clarify';
+		showAdvancedMode = true;
+	}
+
+	function handleAnalyzeAnyway() {
+		// Trigger open exploration analysis without context
+		triggerObjectiveAnalysis();
+	}
+
+	async function handleQuickGoalSubmit(goal: string) {
+		// Save the quick goal as business context and trigger analysis
+		contextSaving = true;
+		try {
+			const context: DatasetBusinessContext = {
+				business_goal: goal,
+				key_metrics: [],
+				kpis: [],
+				objectives: goal,
+				industry: businessContext?.industry || '',
+				additional_context: ''
+			};
+			await apiClient.setDatasetBusinessContext(datasetId, context);
+			businessContext = context;
+			// Trigger objective-focused analysis
+			await triggerObjectiveAnalysis();
+		} catch (err) {
+			console.error('Failed to save quick goal:', err);
+		} finally {
+			contextSaving = false;
+		}
+	}
+
+	// Check feature callout on mount
+	function checkFeatureCallout() {
+		if (typeof localStorage !== 'undefined') {
+			const dismissed = localStorage.getItem('story_view_callout_dismissed');
+			if (!dismissed) {
+				showFeatureCallout = true;
+			} else {
+				featureCalloutDismissed = true;
+			}
+		}
+	}
+
+	function dismissFeatureCallout() {
+		showFeatureCallout = false;
+		featureCalloutDismissed = true;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem('story_view_callout_dismissed', 'true');
+		}
+	}
+
 	onMount(() => {
 		datasetData.fetch();
 		fetchAnalyses();
 		fetchBusinessContext();
+		checkFeatureCallout();
+
+		// Check for objective_index from "What Data Do I Need?" flow
+		const objectiveIndexParam = page.url.searchParams.get('objective_index');
+		if (objectiveIndexParam !== null) {
+			// Auto-trigger objective-focused analysis with the selected objective
+			const objectiveIndex = parseInt(objectiveIndexParam, 10);
+			if (!isNaN(objectiveIndex)) {
+				triggerObjectiveAnalysis(objectiveIndex);
+			} else {
+				fetchObjectiveAnalysis();
+			}
+		} else {
+			fetchObjectiveAnalysis();
+		}
+
 		setTimeout(() => {
 			fetchInsights();
 			fetchInvestigation();
@@ -346,27 +636,124 @@
 				<DatasetHeader {dataset} {datasetId} />
 			</div>
 
-			<!-- Tab Navigation -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 mb-6">
-				<nav class="flex border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto" aria-label="Dataset tabs">
-					{#each tabs as tab}
+			<!-- Feature Discovery Callout -->
+			{#if showFeatureCallout && !featureCalloutDismissed && !showAdvancedMode}
+				<div class="mb-4 bg-gradient-to-r from-brand-50 to-purple-50 dark:from-brand-900/20 dark:to-purple-900/20 rounded-lg border border-brand-200 dark:border-brand-800 p-4">
+					<div class="flex items-start gap-3">
+						<div class="flex-shrink-0 p-1.5 rounded-lg bg-brand-100 dark:bg-brand-900/40">
+							<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+						</div>
+						<div class="flex-1 min-w-0">
+							<p class="text-sm font-medium text-brand-800 dark:text-brand-200">
+								<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-brand-200 dark:bg-brand-800 text-brand-700 dark:text-brand-300 mr-1">New</span>
+								Your data now tells a story
+							</p>
+							<p class="mt-1 text-sm text-brand-600 dark:text-brand-400">
+								See insights aligned to your business objectives. Switch to Advanced Mode for detailed statistics.
+							</p>
+						</div>
 						<button
-							onclick={() => activeTab = tab.id}
-							class="flex items-center gap-2 px-5 py-4 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px
-								{activeTab === tab.id
-									? 'border-brand-500 text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10'
-									: 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-700/50'}"
+							onclick={dismissFeatureCallout}
+							class="flex-shrink-0 p-1 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 text-brand-500 dark:text-brand-400 transition-colors"
+							aria-label="Dismiss"
 						>
 							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={tab.icon} />
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 							</svg>
-							{tab.label}
 						</button>
-					{/each}
-				</nav>
+					</div>
+				</div>
+			{/if}
 
-				<!-- Tab Content -->
-				<div class="p-6">
+			<!-- View Toggle & Relevance Badge -->
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center gap-3">
+					{#if objectiveAnalysis?.relevance_score != null}
+						<RelevanceNotice
+							relevanceScore={objectiveAnalysis.relevance_score}
+							relevanceAssessment={objectiveAnalysis.relevance_assessment}
+							compact={true}
+						/>
+					{/if}
+				</div>
+
+				<!-- Polished View Toggle -->
+				<div class="inline-flex items-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 p-1" role="tablist" aria-label="View mode">
+					<button
+						role="tab"
+						aria-selected={!showAdvancedMode}
+						onclick={() => showAdvancedMode = false}
+						class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200
+							{!showAdvancedMode
+								? 'bg-white dark:bg-neutral-700 text-brand-700 dark:text-brand-300 shadow-sm'
+								: 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+						</svg>
+						Story View
+					</button>
+					<button
+						role="tab"
+						aria-selected={showAdvancedMode}
+						onclick={() => showAdvancedMode = true}
+						class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200
+							{showAdvancedMode
+								? 'bg-white dark:bg-neutral-700 text-brand-700 dark:text-brand-300 shadow-sm'
+								: 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+						Advanced
+					</button>
+				</div>
+
+				<!-- Report Builder Button -->
+				<button
+					onclick={() => reportPanelOpen = true}
+					class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors
+						{reportInsights.length > 0
+							? 'bg-brand-600 hover:bg-brand-700 text-white border-brand-600'
+							: 'bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-600'}"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+					Report
+					{#if reportInsights.length > 0}
+						<span class="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-white/20">
+							{reportInsights.length}
+						</span>
+					{/if}
+				</button>
+			</div>
+
+			{#if showAdvancedMode}
+				<!-- Advanced Mode: Tab Navigation -->
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 mb-6">
+					<nav class="flex border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto" aria-label="Dataset tabs">
+						{#each tabs as tab}
+							<button
+								onclick={() => activeTab = tab.id}
+								class="flex items-center gap-2 px-5 py-4 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px
+									{activeTab === tab.id
+										? 'border-brand-500 text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10'
+										: 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-700/50'}"
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={tab.icon} />
+								</svg>
+								{tab.label}
+							</button>
+						{/each}
+					</nav>
+
+					<!-- Tab Content -->
+					<div class="p-6">
 					{#if activeTab === 'overview'}
 						<OverviewTab
 							{dataset}
@@ -440,8 +827,180 @@
 							onRefresh={() => fetchInsights(true)}
 						/>
 					{/if}
+					</div>
 				</div>
-			</div>
+			{:else}
+				<!-- Story View: Data Story with Objective Analysis -->
+				<div class="space-y-6 mb-6">
+					<!-- Objective Bar -->
+					{#if objectiveNames.length > 0 || objectiveAnalysis}
+						<ObjectiveBar
+							objectives={objectiveNames}
+							relevanceScore={objectiveAnalysis?.relevance_score}
+							analysisMode={objectiveAnalysis?.analysis_mode ?? 'open_exploration'}
+							onChangeObjectives={handleChangeObjectives}
+						/>
+					{/if}
+
+					<!-- Loading state -->
+					{#if objectiveAnalysisLoading}
+						<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-8">
+							<div class="flex flex-col items-center justify-center space-y-4">
+								<div class="animate-spin w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full"></div>
+								<p class="text-neutral-600 dark:text-neutral-400">Analyzing your data...</p>
+							</div>
+						</div>
+					{:else if objectiveAnalysisError}
+						<!-- Error state with helpful messaging -->
+						<div class="bg-error-50 dark:bg-error-900/20 rounded-lg border border-error-200 dark:border-error-800 p-6">
+							<div class="flex items-start gap-4">
+								<div class="flex-shrink-0 p-2 rounded-lg bg-error-100 dark:bg-error-900/30">
+									<svg class="w-6 h-6 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+								</div>
+								<div class="flex-1">
+									<h3 class="font-semibold text-error-900 dark:text-error-200">Something went wrong</h3>
+									<p class="text-sm text-error-700 dark:text-error-300 mt-1">{objectiveAnalysisError}</p>
+									<p class="text-sm text-error-600 dark:text-error-400 mt-2">
+										Try again or switch to Advanced Mode for detailed statistics.
+									</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-3 mt-4 pt-4 border-t border-error-200 dark:border-error-700">
+								<button
+									onclick={fetchObjectiveAnalysis}
+									class="inline-flex items-center gap-2 px-4 py-2 bg-error-600 hover:bg-error-700 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-error-500 focus-visible:ring-offset-2"
+								>
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+									</svg>
+									Try Again
+								</button>
+								<button
+									onclick={() => showAdvancedMode = true}
+									class="inline-flex items-center gap-2 px-4 py-2 text-error-700 dark:text-error-300 hover:bg-error-100 dark:hover:bg-error-900/30 rounded-lg text-sm font-medium transition-colors"
+								>
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+									</svg>
+									Switch to Advanced Mode
+								</button>
+							</div>
+						</div>
+					{:else if objectiveAnalysis}
+						<!-- Data Story -->
+						<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+							<DataStory
+								datasetId={dataset.id}
+								dataStory={objectiveAnalysis.data_story}
+								insights={objectiveAnalysis.insights}
+								analysisMode={objectiveAnalysis.analysis_mode}
+								{dataQualityIssues}
+								loading={objectiveAnalysisLoading}
+								onAddToReport={handleInsightAddToReport}
+								onCreateAction={handleInsightCreateAction}
+								onExploreMore={handleInsightExploreMore}
+								onShareWithBoard={handleInsightShareWithBoard}
+								onAskQuestion={handleQuestionClick}
+								onDataFixed={handleDataFixed}
+							/>
+						</div>
+
+						<!-- Conversation Section - Elevated in Story View -->
+						<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+							<div class="flex items-center gap-3 mb-4">
+								<div class="p-2 rounded-lg bg-brand-100 dark:bg-brand-900/30">
+									<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+									</svg>
+								</div>
+								<div>
+									<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Explore Your Data</h2>
+									<p class="text-sm text-neutral-500 dark:text-neutral-400">Ask questions to dive deeper into your insights</p>
+								</div>
+							</div>
+
+							<!-- Suggested Questions -->
+							<div class="mb-4">
+								<SuggestedQuestions
+									analysisMode={objectiveAnalysis.analysis_mode}
+									{suggestedQuestions}
+									objectives={objectiveNames}
+									dataColumns={dataColumnNames}
+									onAskQuestion={handleQuestionClick}
+								/>
+							</div>
+
+							<!-- Inline Chat -->
+							<DatasetChat
+								{datasetId}
+								{selectedConversationId}
+								{columnSemantics}
+								{objectiveContext}
+								onConversationChange={handleConversationChange}
+								onShowColumns={toggleColumnSidebar}
+								onAnalysisCreated={fetchAnalyses}
+								onAddToReport={handleChatMessageAddToReport}
+								bind:this={chatComponent}
+							/>
+						</div>
+					{:else if isProfiled}
+						<!-- No analysis yet - show context fallback or analyze prompt -->
+						{#if !hasBusinessContext}
+							<NoContextFallback
+								onSetupContext={handleSetupContext}
+								onAnalyzeAnyway={handleAnalyzeAnyway}
+								onQuickGoalSubmit={handleQuickGoalSubmit}
+								loading={objectiveAnalysisLoading || contextSaving}
+							/>
+						{:else}
+							<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-8 text-center">
+								<svg class="w-16 h-16 mx-auto text-neutral-300 dark:text-neutral-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+								<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">Ready for Objective Analysis</h3>
+								<p class="text-neutral-600 dark:text-neutral-400 mb-4 max-w-md mx-auto">
+									Analyze your data with your business objectives in mind. Get insights that directly connect to what matters to you.
+								</p>
+								<Button variant="brand" size="md" onclick={() => triggerObjectiveAnalysis()}>
+									{#snippet children()}
+										<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+										</svg>
+										Analyze with Your Objectives
+									{/snippet}
+								</Button>
+							</div>
+						{/if}
+					{:else}
+						<!-- Profile required first -->
+						<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-8 text-center">
+							<svg class="w-16 h-16 mx-auto text-neutral-300 dark:text-neutral-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+							</svg>
+							<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">Profile Your Data First</h3>
+							<p class="text-neutral-600 dark:text-neutral-400 mb-4">
+								Generate a profile to understand your data before running objective analysis.
+							</p>
+							<Button variant="brand" size="md" onclick={handleProfile} disabled={isProfiling}>
+								{#snippet children()}
+									{#if isProfiling}
+										<svg class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Generating Profile...
+									{:else}
+										Generate Profile
+									{/if}
+								{/snippet}
+							</Button>
+						</div>
+					{/if}
+				</div>
+			{/if}
 
 			<!-- Analysis History Section -->
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
@@ -593,4 +1152,17 @@
 			/>
 		</div>
 	</div>
+{/if}
+
+<!-- Report Builder Panel -->
+{#if dataset}
+	<ReportBuilder
+		{datasetId}
+		datasetName={dataset.name}
+		isOpen={reportPanelOpen}
+		selectedInsights={reportInsights}
+		onClose={handleReportBuilderClose}
+		onExport={handleReportExport}
+		onReportGenerated={handleReportGenerated}
+	/>
 {/if}

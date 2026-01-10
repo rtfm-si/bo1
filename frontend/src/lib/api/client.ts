@@ -96,10 +96,17 @@ import type {
 	DatasetInvestigationResponse,
 	DatasetBusinessContext,
 	DatasetBusinessContextResponse,
+	DatasetFixAction,
+	DatasetFixConfig,
+	DatasetFixResponse,
 	ChartSpec,
 	ChartResultResponse,
 	DatasetAnalysis,
 	DatasetAnalysisListResponse,
+	// Objective Analysis types (Data Analysis Reimagination)
+	ObjectiveAnalysisResponse,
+	AnalyzeDatasetRequest,
+	AnalyzeDatasetResponse,
 	// Conversation types (Dataset Q&A)
 	ConversationResponse,
 	ConversationDetailResponse,
@@ -236,7 +243,10 @@ import type {
 	DatasetComparisonListResponse,
 	// Multi-Dataset Analysis types
 	MultiDatasetAnalysisResponse,
-	MultiDatasetAnalysisListResponse
+	MultiDatasetAnalysisListResponse,
+	// Data Requirements types
+	ObjectiveDataRequirementsResponse,
+	AllObjectivesRequirementsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -2225,6 +2235,27 @@ export class ApiClient {
 	}
 
 	/**
+	 * Fix data quality issues in a dataset
+	 *
+	 * Applies a cleaning action and re-profiles the dataset.
+	 * Available actions:
+	 * - remove_duplicates: Remove duplicate rows
+	 * - fill_nulls: Fill null values in a column
+	 * - remove_nulls: Remove rows with null values
+	 * - trim_whitespace: Trim whitespace from string columns
+	 */
+	async fixDataset(
+		datasetId: string,
+		action: DatasetFixAction,
+		config?: DatasetFixConfig
+	): Promise<DatasetFixResponse> {
+		return this.post<DatasetFixResponse>(`/api/v1/datasets/${datasetId}/fix`, {
+			action,
+			config: config ?? {}
+		});
+	}
+
+	/**
 	 * Trigger profiling for a dataset
 	 */
 	async profileDataset(datasetId: string): Promise<{ profiles: DatasetProfile[]; summary: string }> {
@@ -2332,6 +2363,26 @@ export class ApiClient {
 	async getDatasetAnalyses(datasetId: string, limit?: number): Promise<DatasetAnalysisListResponse> {
 		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/analyses`, { limit });
 		return this.fetch<DatasetAnalysisListResponse>(endpoint);
+	}
+
+	/**
+	 * Get objective analysis results for a dataset
+	 */
+	async getObjectiveAnalysis(datasetId: string): Promise<ObjectiveAnalysisResponse> {
+		return this.fetch<ObjectiveAnalysisResponse>(`/api/v1/datasets/${datasetId}/objective-analysis`);
+	}
+
+	/**
+	 * Trigger objective-aligned analysis for a dataset
+	 */
+	async analyzeDatasetForObjectives(
+		datasetId: string,
+		options?: AnalyzeDatasetRequest
+	): Promise<AnalyzeDatasetResponse> {
+		return this.post<AnalyzeDatasetResponse>(
+			`/api/v1/datasets/${datasetId}/analyze`,
+			options ?? { include_context: true }
+		);
 	}
 
 	/**
@@ -2566,6 +2617,58 @@ export class ApiClient {
 		// Use the standalone endpoint - need to add this backend endpoint
 		// For now, throw error as delete requires dataset_id
 		throw new Error('Cannot delete orphaned reports - dataset was deleted');
+	}
+
+	/**
+	 * Regenerate executive summary for a report
+	 */
+	async regenerateReportSummary(
+		datasetId: string,
+		reportId: string
+	): Promise<{ summary: string; model_used?: string; tokens_used?: number }> {
+		return this.post<{ summary: string; model_used?: string; tokens_used?: number }>(
+			`/api/v1/datasets/${datasetId}/reports/${reportId}/summary`,
+			{}
+		);
+	}
+
+	/**
+	 * Export a report in the specified format
+	 *
+	 * @param datasetId - Dataset ID
+	 * @param reportId - Report ID
+	 * @param format - Export format: 'markdown' or 'pdf'
+	 * @returns The exported content as a string (markdown or HTML for PDF)
+	 */
+	async exportReport(
+		datasetId: string,
+		reportId: string,
+		format: 'markdown' | 'pdf' = 'markdown'
+	): Promise<string> {
+		const url = `${this.baseUrl}/api/v1/datasets/${datasetId}/reports/${reportId}/export?format=${format}`;
+		const headers: Record<string, string> = {};
+		const csrfToken = getCsrfToken();
+		if (csrfToken) {
+			headers['X-CSRF-Token'] = csrfToken;
+		}
+
+		const response = await fetch(url, {
+			method: 'GET',
+			credentials: 'include',
+			headers
+		});
+
+		if (!response.ok) {
+			let error;
+			try {
+				error = await response.json();
+			} catch {
+				error = { detail: response.statusText };
+			}
+			throw new ApiClientError(error.detail || 'Export failed', response.status, error);
+		}
+
+		return response.text();
 	}
 
 	// ============================================================================
@@ -4010,6 +4113,30 @@ export class ApiClient {
 	 */
 	async getResearchEmbeddings(): Promise<ResearchEmbeddingsResponse> {
 		return this.fetch<ResearchEmbeddingsResponse>('/api/v1/context/research-embeddings');
+	}
+
+	// =========================================================================
+	// Objective Data Requirements ("What Data Do I Need?" feature)
+	// =========================================================================
+
+	/**
+	 * Get data requirements overview for all objectives
+	 * Returns a summary of what data would help across all goals
+	 */
+	async getAllObjectivesDataRequirements(): Promise<AllObjectivesRequirementsResponse> {
+		return this.fetch<AllObjectivesRequirementsResponse>('/api/v1/objectives/data-requirements');
+	}
+
+	/**
+	 * Get detailed data requirements for a specific objective
+	 * @param objectiveIndex - 0-based index of the objective
+	 */
+	async getObjectiveDataRequirements(
+		objectiveIndex: number
+	): Promise<ObjectiveDataRequirementsResponse> {
+		return this.fetch<ObjectiveDataRequirementsResponse>(
+			`/api/v1/objectives/${objectiveIndex}/data-requirements`
+		);
 	}
 }
 

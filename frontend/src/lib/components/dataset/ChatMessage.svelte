@@ -18,6 +18,9 @@
 		isFavourited?: boolean;
 		favouriteLoading?: boolean;
 		onToggleFavourite?: () => void;
+		// Message actions
+		showMessageActions?: boolean;
+		onAddToReport?: () => void;
 	}
 
 	let {
@@ -27,7 +30,9 @@
 		onNextStepClick,
 		isFavourited = false,
 		favouriteLoading = false,
-		onToggleFavourite
+		onToggleFavourite,
+		showMessageActions = false,
+		onAddToReport
 	}: Props = $props();
 
 	// Chart preview state
@@ -207,6 +212,36 @@
 		{#if message.query_result && !message.chart_spec}
 			<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 				Query returned {message.query_result.row_count || 0} rows
+			</div>
+		{/if}
+
+		<!-- Message actions (Add to Report, etc.) -->
+		{#if showMessageActions && !isUser}
+			<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-600">
+				<div class="flex flex-wrap items-center gap-2">
+					{#if onAddToReport}
+						<button
+							onclick={onAddToReport}
+							class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 border border-brand-200 dark:border-brand-800 transition-colors"
+						>
+							<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							</svg>
+							Add to Report
+						</button>
+					{/if}
+					{#if message.chart_spec && chartData}
+						<button
+							onclick={handleExpand}
+							class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-neutral-50 dark:bg-neutral-600 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-500 border border-neutral-200 dark:border-neutral-500 transition-colors"
+						>
+							<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+							</svg>
+							Full Screen
+						</button>
+					{/if}
+				</div>
 			</div>
 		{/if}
 

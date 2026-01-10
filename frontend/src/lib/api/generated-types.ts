@@ -6341,6 +6341,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger objective-aligned analysis
+         * @description Triggers the full analysis pipeline for a dataset.
+         *
+         *         The pipeline:
+         *         1. Fetches user's business context (objectives, north star)
+         *         2. Assesses dataset relevance to objectives
+         *         3. Generates objective-aligned or open exploration insights
+         *         4. Compiles a data story narrative
+         *
+         *         Analysis mode is determined by:
+         *         - Pre-selected objective (from "What Data Do I Need?" flow) -> objective_focused
+         *         - High relevance score (70+) -> objective_focused
+         *         - Low relevance or no context -> open_exploration
+         *         - force_mode parameter overrides auto-detection
+         */
+        post: operations["analyze_dataset_api_v1_datasets__dataset_id__analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/ask": {
         parameters: {
             query?: never;
@@ -6641,6 +6673,35 @@ export interface paths {
         patch: operations["update_favourite_api_v1_datasets__dataset_id__favourites__favourite_id__patch"];
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/fix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fix data quality issues
+         * @description Apply a data cleaning action to fix quality issues in a dataset.
+         *
+         *         Available actions:
+         *         - **remove_duplicates**: Remove duplicate rows. Config: {keep: 'first'|'last', subset: ['col1']}
+         *         - **fill_nulls**: Fill null values in a column. Config: {column: 'col', strategy: 'mean'|'median'|'mode'|'zero'|'value', fill_value: 'x'}
+         *         - **remove_nulls**: Remove rows with null values. Config: {columns: ['col1'], how: 'any'|'all'}
+         *         - **trim_whitespace**: Trim whitespace from string columns. No config needed.
+         *
+         *         After applying a fix, the dataset file is updated and re-profiled automatically.
+         *         The response indicates whether re-analysis is recommended.
+         */
+        post: operations["fix_dataset_api_v1_datasets__dataset_id__fix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/insights": {
         parameters: {
             query?: never;
@@ -6693,6 +6754,33 @@ export interface paths {
          * @description Get cached investigation results for a dataset
          */
         get: operations["get_dataset_investigation_api_v1_datasets__dataset_id__investigation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/objective-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get objective analysis results
+         * @description Returns the objective analysis results for a dataset.
+         *
+         *         Includes:
+         *         - Relevance assessment (score and objective matches)
+         *         - Data story (narrative with objective sections)
+         *         - Individual insights linked to objectives
+         *
+         *         Returns 404 if no analysis has been run yet.
+         */
+        get: operations["get_objective_analysis_api_v1_datasets__dataset_id__objective_analysis_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6761,6 +6849,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/question": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask objective-aware question
+         * @description Ask a question about the dataset with objective-aware response.
+         *
+         *         The response:
+         *         - Answers in plain business language
+         *         - Connects to relevant objectives when applicable
+         *         - Includes visualization if helpful
+         *         - Suggests follow-up questions
+         *         - Maintains conversation context for multi-turn Q&A
+         *
+         *         This endpoint returns JSON directly. For streaming responses,
+         *         use the existing /ask endpoint with SSE.
+         */
+        post: operations["ask_objective_question_api_v1_datasets__dataset_id__question_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/question/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask question with streaming response
+         * @description Ask a question about the dataset with SSE streaming response.
+         *
+         *         Streams the response as Server-Sent Events for real-time display.
+         *         Includes thinking indicators, partial responses, and final answer.
+         *
+         *         Event types:
+         *         - thinking: Status update during processing
+         *         - partial: Partial response chunk
+         *         - chart: Chart specification (if include_chart=true)
+         *         - complete: Final response with metadata
+         *         - error: Error occurred
+         */
+        post: operations["ask_objective_question_stream_api_v1_datasets__dataset_id__question_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/reports": {
         parameters: {
             query?: never;
@@ -6804,6 +6952,46 @@ export interface paths {
          * @description Delete a report
          */
         delete: operations["delete_report_api_v1_datasets__dataset_id__reports__report_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/reports/{report_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export report
+         * @description Export report in specified format (markdown or pdf)
+         */
+        get: operations["export_report_api_v1_datasets__dataset_id__reports__report_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/reports/{report_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate executive summary
+         * @description Regenerate the executive summary for a report using LLM
+         */
+        post: operations["regenerate_report_summary_api_v1_datasets__dataset_id__reports__report_id__summary_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7388,6 +7576,56 @@ export interface paths {
          *         Acknowledgment response
          */
         post: operations["receive_client_metrics_api_v1_metrics_client_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/objectives/data-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get data requirements overview for all objectives
+         * @description Returns a summary of data requirements for all active objectives.
+         *
+         *         This provides an overview of what data would help across all goals,
+         *         without generating full requirements for each (which would be expensive).
+         *         Use the /{objective_index}/data-requirements endpoint for full details.
+         */
+        get: operations["get_all_data_requirements_api_v1_objectives_data_requirements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/objectives/{objective_index}/data-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get data requirements for specific objective
+         * @description Returns detailed data requirements for analyzing a specific objective.
+         *
+         *         This endpoint is called from the upload page when a user selects an objective
+         *         in the "What Data Do I Need?" flow. It explains what data types are essential,
+         *         what would be valuable additions, and where to find this data.
+         *
+         *         The objective_index is 0-based, matching the order in strategic_objectives.
+         */
+        get: operations["get_data_requirements_api_v1_objectives__objective_index__data_requirements_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -12161,6 +12399,27 @@ export interface components {
             total_tasks: number;
         };
         /**
+         * AllObjectivesRequirementsResponse
+         * @description Response for data requirements across all objectives.
+         */
+        AllObjectivesRequirementsResponse: {
+            /**
+             * Count
+             * @description Number of objectives
+             */
+            count: number;
+            /**
+             * North Star Goal
+             * @description User's north star goal if set
+             */
+            north_star_goal?: string | null;
+            /**
+             * Objectives
+             * @description Summary for each objective
+             */
+            objectives?: components["schemas"]["ObjectiveRequirementsSummary"][];
+        };
+        /**
          * AllPartitionsResponse
          * @description All partitions across all partitioned tables.
          */
@@ -12250,6 +12509,55 @@ export interface components {
              * @description Question about data or analysis
              */
             question: string;
+        };
+        /**
+         * AnalyzeRequest
+         * @description Request to trigger dataset analysis.
+         */
+        AnalyzeRequest: {
+            /**
+             * Force Mode
+             * @description Force analysis mode: 'objective_focused' or 'open_exploration' (auto-detect if None)
+             */
+            force_mode?: string | null;
+            /**
+             * Include Context
+             * @description Whether to fetch business context for analysis
+             * @default true
+             */
+            include_context: boolean;
+            /**
+             * Objective Id
+             * @description Pre-selected objective index from 'What Data Do I Need?' flow
+             */
+            objective_id?: string | null;
+        };
+        /**
+         * AnalyzeResponse
+         * @description Response from triggering analysis.
+         */
+        AnalyzeResponse: {
+            /**
+             * Analysis Id
+             * @description UUID of the analysis
+             */
+            analysis_id: string;
+            /**
+             * Analysis Mode
+             * @description Mode used: objective_focused or open_exploration
+             */
+            analysis_mode: string;
+            /**
+             * Relevance Score
+             * @description Relevance to objectives (0-100)
+             */
+            relevance_score?: number | null;
+            /**
+             * Status
+             * @description Analysis status
+             * @default completed
+             */
+            status: string;
         };
         /**
          * ApiErrorItem
@@ -12779,71 +13087,6 @@ export interface components {
          */
         BenchmarkCategory: "growth" | "retention" | "efficiency" | "engagement";
         /**
-         * BenchmarkComparison
-         * @description User's metrics compared to industry benchmarks.
-         */
-        BenchmarkComparison: {
-            /** @description Benchmark category */
-            category: components["schemas"]["BenchmarkCategory"];
-            /**
-             * History
-             * @description Historical values (max 6, newest first)
-             */
-            history?: components["schemas"]["BenchmarkHistoryEntry"][];
-            /**
-             * Locked
-             * @description Whether this comparison is tier-locked
-             * @default false
-             */
-            locked: boolean;
-            /**
-             * Metric Name
-             * @description Metric being compared
-             */
-            metric_name: string;
-            /**
-             * Metric Unit
-             * @description Unit of measurement
-             */
-            metric_unit: string;
-            /**
-             * P25
-             * @description 25th percentile
-             */
-            p25?: number | null;
-            /**
-             * P50
-             * @description Median (50th percentile)
-             */
-            p50?: number | null;
-            /**
-             * P75
-             * @description 75th percentile
-             */
-            p75?: number | null;
-            /**
-             * Percentile
-             * @description User's percentile rank (0-100)
-             */
-            percentile?: number | null;
-            /**
-             * Status
-             * @description Performance status: below_average, average, above_average, top_performer
-             * @default unknown
-             */
-            status: string;
-            /**
-             * User Value
-             * @description User's metric value
-             */
-            user_value?: number | null;
-            /**
-             * User Value Updated At
-             * @description When user's value was last set (ISO timestamp)
-             */
-            user_value_updated_at?: string | null;
-        };
-        /**
          * BenchmarkComparisonResponse
          * @description Response with user benchmark comparisons.
          */
@@ -12858,7 +13101,7 @@ export interface components {
              * Comparisons
              * @description List of comparisons
              */
-            comparisons?: components["schemas"]["BenchmarkComparison"][];
+            comparisons?: components["schemas"]["backend__api__industry_insights__BenchmarkComparison"][];
             /**
              * Industry
              * @description Industry used for comparison
@@ -14216,6 +14459,12 @@ export interface components {
             y_field: string;
         };
         /**
+         * ChartType
+         * @description Chart type for visualizations.
+         * @enum {string}
+         */
+        ChartType: "bar" | "line" | "scatter" | "pie";
+        /**
          * CheckoutRequest
          * @description Request to create a checkout session.
          */
@@ -15207,6 +15456,12 @@ export interface components {
              */
             timestamp: string;
         };
+        /**
+         * ConfidenceLevel
+         * @description Confidence level for insights.
+         * @enum {string}
+         */
+        ConfidenceLevel: "high" | "medium" | "low";
         /**
          * ConflictErrorResponse
          * @description Error response for 409 Conflict.
@@ -16691,6 +16946,12 @@ export interface components {
             time_range?: string | null;
         };
         /**
+         * DataPriority
+         * @description Priority level for valuable data additions.
+         * @enum {string}
+         */
+        DataPriority: "high" | "medium" | "low";
+        /**
          * DataQualityScore
          * @description Assessment of data quality and completeness.
          */
@@ -16730,6 +16991,96 @@ export interface components {
              * @description How to improve the data
              */
             suggestions?: string[];
+        };
+        /**
+         * DataRequirements
+         * @description Full data requirements guide for analyzing an objective.
+         */
+        DataRequirements: {
+            /**
+             * Analysis Preview
+             * @description 2-3 sentences describing possible insights
+             */
+            analysis_preview: string;
+            /**
+             * Data Sources
+             * @description Where to find the data
+             */
+            data_sources?: components["schemas"]["DataSource"][];
+            /**
+             * Essential Data
+             * @description Data required for analysis
+             */
+            essential_data?: components["schemas"]["EssentialData"][];
+            /**
+             * Objective Summary
+             * @description 1 sentence restating what we're trying to analyze
+             */
+            objective_summary: string;
+            /**
+             * Valuable Additions
+             * @description Data that would strengthen analysis
+             */
+            valuable_additions?: components["schemas"]["ValuableAddition"][];
+        };
+        /**
+         * DataSource
+         * @description Suggested source for obtaining data.
+         */
+        DataSource: {
+            /**
+             * Columns Typically Included
+             * @description Columns usually in this export
+             */
+            columns_typically_included?: string[];
+            /**
+             * Example Tools
+             * @description Tool names like Salesforce, Stripe
+             */
+            example_tools?: string[];
+            /**
+             * Source Type
+             * @description CRM, Analytics, Billing, etc.
+             */
+            source_type: string;
+            /**
+             * Typical Export Name
+             * @description Common export/report name
+             */
+            typical_export_name: string;
+        };
+        /**
+         * DataStory
+         * @description AI-generated narrative from analysis results.
+         */
+        DataStory: {
+            /**
+             * Data Quality Summary
+             * @description Honest assessment of data limitations
+             */
+            data_quality_summary: string;
+            /**
+             * Next Steps
+             * @description Prioritized actions to take
+             */
+            next_steps?: string[];
+            /**
+             * Objective Sections
+             * @description Insights grouped by objective
+             */
+            objective_sections?: components["schemas"]["ObjectiveSection"][];
+            /**
+             * Opening Hook
+             * @description 1 sentence capturing attention, references North Star
+             */
+            opening_hook: string;
+            /**
+             * Suggested Questions
+             * @description Questions derived from objectives + data
+             */
+            suggested_questions?: string[];
+            /** @description Something interesting not in objectives */
+            unexpected_finding?: components["schemas"]["UnexpectedFinding"] | null;
         };
         /**
          * DatasetAnalysisListResponse
@@ -17277,6 +17628,78 @@ export interface components {
             user_note?: string | null;
         };
         /**
+         * DatasetFixAction
+         * @description Available data cleaning actions.
+         * @enum {string}
+         */
+        DatasetFixAction: "remove_duplicates" | "fill_nulls" | "remove_nulls" | "trim_whitespace";
+        /**
+         * DatasetFixRequest
+         * @description Request to fix data quality issues in a dataset.
+         *
+         *     Attributes:
+         *         action: Cleaning action to apply
+         *         config: Action-specific configuration
+         */
+        DatasetFixRequest: {
+            /** @description Cleaning action to apply */
+            action: components["schemas"]["DatasetFixAction"];
+            /**
+             * Config
+             * @description Action-specific config. remove_duplicates: {keep: 'first'|'last', subset: ['col1']}. fill_nulls: {column: 'col', strategy: 'mean'|'median'|'mode'|'zero'|'value', fill_value: 'x'}. remove_nulls: {columns: ['col1'], how: 'any'|'all'}. trim_whitespace: {} (no config needed).
+             */
+            config?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * DatasetFixResponse
+         * @description Response from applying a data fix.
+         *
+         *     Attributes:
+         *         success: Whether fix was applied successfully
+         *         rows_affected: Number of rows modified/removed
+         *         new_row_count: Total rows after fix
+         *         reanalysis_required: Whether dataset should be re-analyzed
+         *         message: Human-readable result message
+         *         stats: Detailed statistics from the cleaning operation
+         */
+        DatasetFixResponse: {
+            /**
+             * Message
+             * @description Human-readable result message
+             */
+            message: string;
+            /**
+             * New Row Count
+             * @description Total rows after fix
+             */
+            new_row_count: number;
+            /**
+             * Reanalysis Required
+             * @description Whether dataset should be re-analyzed
+             * @default true
+             */
+            reanalysis_required: boolean;
+            /**
+             * Rows Affected
+             * @description Number of rows modified/removed
+             */
+            rows_affected: number;
+            /**
+             * Stats
+             * @description Detailed statistics from cleaning operation
+             */
+            stats?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Success
+             * @description Whether fix was applied successfully
+             */
+            success: boolean;
+        };
+        /**
          * DatasetInsights
          * @description Complete structured intelligence for a dataset.
          */
@@ -17287,7 +17710,7 @@ export interface components {
             headline_metrics: components["schemas"]["HeadlineMetric"][];
             identity: components["schemas"]["DataIdentity"];
             /** Insights */
-            insights: components["schemas"]["Insight"][];
+            insights: components["schemas"]["backend__api__models__Insight"][];
             /**
              * Narrative Summary
              * @description Prose summary for fallback display
@@ -18537,6 +18960,37 @@ export interface components {
              * @description ID of the created meeting session
              */
             session_id: string;
+        };
+        /**
+         * EssentialData
+         * @description Data required for meaningful analysis of an objective.
+         */
+        EssentialData: {
+            /**
+             * Description
+             * @description What this data represents
+             */
+            description: string;
+            /**
+             * Example Columns
+             * @description Example column names
+             */
+            example_columns?: string[];
+            /**
+             * Name
+             * @description Data type name
+             */
+            name: string;
+            /**
+             * Questions Answered
+             * @description What questions this enables
+             */
+            questions_answered?: string[];
+            /**
+             * Why Essential
+             * @description Why analysis fails without this
+             */
+            why_essential: string;
         };
         /**
          * EventHistoryResponse
@@ -20396,6 +20850,37 @@ export interface components {
             total: number;
         };
         /**
+         * ImpactModel
+         * @description Modeled impact of a proposed change.
+         */
+        ImpactModel: {
+            /**
+             * Annual Impact
+             * @description Annual revenue/savings impact
+             */
+            annual_impact: number;
+            /**
+             * Assumptions
+             * @description Assumptions made in model
+             */
+            assumptions?: string[];
+            /**
+             * Monthly Impact
+             * @description Monthly revenue/savings impact
+             */
+            monthly_impact: number;
+            /**
+             * Narrative
+             * @description Human-readable impact description
+             */
+            narrative: string;
+            /**
+             * Scenario
+             * @description Description of the improvement scenario
+             */
+            scenario: string;
+        };
+        /**
          * ImpersonationHistoryItem
          * @description Response model for impersonation history entry.
          *
@@ -20791,34 +21276,6 @@ export interface components {
             user_tier: string;
         };
         /**
-         * Insight
-         * @description A single business insight.
-         */
-        Insight: {
-            /**
-             * Action
-             * @description Suggested action
-             */
-            action?: string | null;
-            /**
-             * Detail
-             * @description Full explanation
-             */
-            detail: string;
-            /**
-             * Headline
-             * @description Short headline
-             */
-            headline: string;
-            /**
-             * Metric
-             * @description Related metric if applicable
-             */
-            metric?: string | null;
-            severity: components["schemas"]["InsightSeverity"];
-            type: components["schemas"]["InsightType"];
-        };
-        /**
          * InsightCategory
          * @description Business insight categories.
          * @enum {string}
@@ -20867,6 +21324,34 @@ export interface components {
          * @enum {string}
          */
         InsightType: "trend" | "pattern" | "anomaly" | "risk" | "opportunity" | "benchmark";
+        /**
+         * InsightVisualization
+         * @description Visualization configuration for an insight.
+         */
+        InsightVisualization: {
+            /**
+             * Group By
+             * @description Grouping column
+             */
+            group_by?: string | null;
+            /**
+             * Title
+             * @description Chart title
+             */
+            title: string;
+            /** @description Chart type */
+            type: components["schemas"]["ChartType"];
+            /**
+             * X Axis
+             * @description X-axis column
+             */
+            x_axis?: string | null;
+            /**
+             * Y Axis
+             * @description Y-axis column
+             */
+            y_axis?: string | null;
+        };
         /**
          * InsightsResponse
          * @description Response containing user's accumulated insights from meetings.
@@ -22580,6 +23065,27 @@ export interface components {
             templates: components["schemas"]["MetricTemplate"][];
         };
         /**
+         * MissingData
+         * @description Data that would strengthen the analysis if available.
+         */
+        MissingData: {
+            /**
+             * Data Needed
+             * @description What data is missing
+             */
+            data_needed: string;
+            /**
+             * Objectives Unlocked
+             * @description Which objectives this would serve
+             */
+            objectives_unlocked?: string[];
+            /**
+             * Why Valuable
+             * @description How it would help the analysis
+             */
+            why_valuable: string;
+        };
+        /**
          * ModelImpactItem
          * @description Model impact stats for a single model.
          *
@@ -23074,6 +23580,101 @@ export interface components {
             summary: string;
         };
         /**
+         * ObjectiveAnalysisResponse
+         * @description Full objective analysis results.
+         */
+        ObjectiveAnalysisResponse: {
+            /**
+             * Analysis Mode
+             * @description Analysis mode used
+             */
+            analysis_mode: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Analysis creation time
+             */
+            created_at: string;
+            /** @description Generated data narrative */
+            data_story?: components["schemas"]["DataStory"] | null;
+            /**
+             * Dataset Id
+             * @description Dataset UUID
+             */
+            dataset_id: string;
+            /**
+             * Id
+             * @description Analysis UUID
+             */
+            id: string;
+            /**
+             * Insights
+             * @description Generated insights
+             */
+            insights?: components["schemas"]["bo1__models__dataset_objective_analysis__Insight"][];
+            /** @description Full relevance assessment */
+            relevance_assessment?: components["schemas"]["RelevanceAssessment"] | null;
+            /**
+             * Relevance Score
+             * @description Relevance score 0-100
+             */
+            relevance_score?: number | null;
+        };
+        /**
+         * ObjectiveDataRequirementsResponse
+         * @description Response for data requirements for a specific objective.
+         */
+        ObjectiveDataRequirementsResponse: {
+            /**
+             * Generated At
+             * Format: date-time
+             * @description When requirements were generated
+             */
+            generated_at: string;
+            /**
+             * Model Used
+             * @description LLM model used for generation
+             */
+            model_used: string;
+            /** @description The objective being analyzed */
+            objective: components["schemas"]["ObjectiveSummary"];
+            /** @description Data requirements for this objective */
+            requirements: components["schemas"]["DataRequirements"];
+        };
+        /**
+         * ObjectiveMatch
+         * @description Match assessment between dataset and a specific objective.
+         */
+        ObjectiveMatch: {
+            /**
+             * Answerable Questions
+             * @description Questions the data CAN answer
+             */
+            answerable_questions?: string[];
+            /**
+             * Explanation
+             * @description Why the data helps or doesn't help
+             */
+            explanation: string;
+            /**
+             * Objective Id
+             * @description Objective UUID if linked
+             */
+            objective_id?: string | null;
+            /**
+             * Objective Name
+             * @description Name of the objective
+             */
+            objective_name: string;
+            /** @description Relevance level */
+            relevance: components["schemas"]["RelevanceLevel"];
+            /**
+             * Unanswerable Questions
+             * @description Questions the data CANNOT answer
+             */
+            unanswerable_questions?: string[];
+        };
+        /**
          * ObjectiveProgress
          * @description Progress data for a single strategic objective.
          *
@@ -23158,6 +23759,100 @@ export interface components {
              * @description Optional unit label
              */
             unit?: string | null;
+        };
+        /**
+         * ObjectiveRequirementsSummary
+         * @description Summary of data requirements for one objective.
+         */
+        ObjectiveRequirementsSummary: {
+            /**
+             * Essential Data Count
+             * @description Number of essential data types needed
+             */
+            essential_data_count: number;
+            /**
+             * Index
+             * @description Objective index
+             */
+            index: number;
+            /**
+             * Name
+             * @description Objective text
+             */
+            name: string;
+            /**
+             * Requirements Summary
+             * @description Brief summary of data needs
+             */
+            requirements_summary: string;
+        };
+        /**
+         * ObjectiveSection
+         * @description Section of data story focused on a specific objective.
+         */
+        ObjectiveSection: {
+            /**
+             * Insight Ids
+             * @description Linked insight IDs
+             */
+            insight_ids?: string[];
+            /**
+             * Key Metric
+             * @description The most important number
+             */
+            key_metric: string;
+            /**
+             * Objective Id
+             * @description Objective UUID if linked
+             */
+            objective_id?: string | null;
+            /**
+             * Objective Name
+             * @description Name of the objective
+             */
+            objective_name: string;
+            /**
+             * Recommended Action
+             * @description What to do
+             */
+            recommended_action: string;
+            /**
+             * Summary
+             * @description 2-3 sentences synthesizing insights
+             */
+            summary: string;
+        };
+        /**
+         * ObjectiveSummary
+         * @description Summary of an objective with its index identifier.
+         */
+        ObjectiveSummary: {
+            /**
+             * Current Value
+             * @description Current progress value if set
+             */
+            current_value?: string | null;
+            /**
+             * Has Progress
+             * @description Whether progress tracking is set
+             * @default false
+             */
+            has_progress: boolean;
+            /**
+             * Index
+             * @description Objective index (0-based)
+             */
+            index: number;
+            /**
+             * Name
+             * @description Objective text
+             */
+            name: string;
+            /**
+             * Target Value
+             * @description Target value if set
+             */
+            target_value?: string | null;
         };
         /**
          * ObservabilityLinks
@@ -24879,6 +25574,67 @@ export interface components {
             trend?: components["schemas"]["TrendSpec"] | null;
         };
         /**
+         * QuestionRequest
+         * @description Request to ask a question about the dataset.
+         */
+        QuestionRequest: {
+            /**
+             * Conversation Id
+             * @description Continue existing conversation
+             */
+            conversation_id?: string | null;
+            /**
+             * Include Chart
+             * @description Include visualization in response
+             * @default true
+             */
+            include_chart: boolean;
+            /**
+             * Question
+             * @description Question to ask
+             */
+            question: string;
+        };
+        /**
+         * QuestionResponse
+         * @description Response to a dataset question.
+         */
+        QuestionResponse: {
+            /**
+             * Answer
+             * @description Answer narrative in markdown
+             */
+            answer: string;
+            /**
+             * Chart Spec
+             * @description Chart configuration if applicable
+             */
+            chart_spec?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Confidence
+             * @description Confidence level: high/medium/low
+             * @default medium
+             */
+            confidence: string;
+            /**
+             * Conversation Id
+             * @description Conversation ID for continuity
+             */
+            conversation_id: string;
+            /**
+             * Follow Up Questions
+             * @description Suggested follow-up questions
+             */
+            follow_up_questions?: string[];
+            /**
+             * Relevant Objectives
+             * @description Objective indices this relates to
+             */
+            relevant_objectives?: string[];
+        };
+        /**
          * RaiseHandRequest
          * @description Request model for user interjection during deliberation.
          *
@@ -25349,6 +26105,37 @@ export interface components {
             title: string;
         };
         /**
+         * RelevanceAssessment
+         * @description Full relevance assessment for a dataset against user objectives.
+         */
+        RelevanceAssessment: {
+            /**
+             * Assessment Summary
+             * @description 2-3 sentence summary of dataset fit
+             */
+            assessment_summary: string;
+            /**
+             * Missing Data
+             * @description Data that would strengthen analysis
+             */
+            missing_data?: components["schemas"]["MissingData"][];
+            /**
+             * Objective Matches
+             * @description Per-objective relevance assessment
+             */
+            objective_matches?: components["schemas"]["ObjectiveMatch"][];
+            /**
+             * Recommended Focus
+             * @description Where to focus the analysis given limitations
+             */
+            recommended_focus: string;
+            /**
+             * Relevance Score
+             * @description Overall relevance score 0-100
+             */
+            relevance_score: number;
+        };
+        /**
          * RelevanceFlags
          * @description Relevance check flags for a detected competitor.
          */
@@ -25372,6 +26159,12 @@ export interface components {
              */
             similar_product: boolean;
         };
+        /**
+         * RelevanceLevel
+         * @description Relevance level for objective matching.
+         * @enum {string}
+         */
+        RelevanceLevel: "high" | "medium" | "low" | "none";
         /**
          * RemediationHistoryResponse
          * @description List of remediation log entries.
@@ -25620,6 +26413,27 @@ export interface components {
              * @description Section title
              */
             title: string;
+        };
+        /**
+         * ReportSummaryResponse
+         * @description Response for executive summary regeneration.
+         */
+        ReportSummaryResponse: {
+            /**
+             * Model Used
+             * @description LLM model used
+             */
+            model_used?: string | null;
+            /**
+             * Summary
+             * @description Regenerated executive summary
+             */
+            summary: string;
+            /**
+             * Tokens Used
+             * @description Tokens consumed
+             */
+            tokens_used?: number | null;
         };
         /**
          * ResearchCacheStats
@@ -29515,6 +30329,27 @@ export interface components {
             rationale: string;
         };
         /**
+         * UnexpectedFinding
+         * @description Something interesting not directly related to objectives.
+         */
+        UnexpectedFinding: {
+            /**
+             * Headline
+             * @description What was found
+             */
+            headline: string;
+            /**
+             * Narrative
+             * @description Why it might matter
+             */
+            narrative: string;
+            /**
+             * Should Investigate
+             * @description Whether to explore further
+             */
+            should_investigate: boolean;
+        };
+        /**
          * UnifiedCacheMetricsResponse
          * @description Response model for unified cache metrics across all cache systems.
          *
@@ -30565,6 +31400,29 @@ export interface components {
             type: string;
         };
         /**
+         * ValuableAddition
+         * @description Data that would strengthen but isn't required for analysis.
+         */
+        ValuableAddition: {
+            /**
+             * Description
+             * @description What this data represents
+             */
+            description: string;
+            /**
+             * Insight Unlocked
+             * @description What additional insight this provides
+             */
+            insight_unlocked: string;
+            /**
+             * Name
+             * @description Data type name
+             */
+            name: string;
+            /** @description How valuable this addition is */
+            priority: components["schemas"]["DataPriority"];
+        };
+        /**
          * ValueMetricResponse
          * @description A single value metric with trend information.
          */
@@ -31270,6 +32128,71 @@ export interface components {
             total_count: number;
         };
         /**
+         * BenchmarkComparison
+         * @description User's metrics compared to industry benchmarks.
+         */
+        backend__api__industry_insights__BenchmarkComparison: {
+            /** @description Benchmark category */
+            category: components["schemas"]["BenchmarkCategory"];
+            /**
+             * History
+             * @description Historical values (max 6, newest first)
+             */
+            history?: components["schemas"]["BenchmarkHistoryEntry"][];
+            /**
+             * Locked
+             * @description Whether this comparison is tier-locked
+             * @default false
+             */
+            locked: boolean;
+            /**
+             * Metric Name
+             * @description Metric being compared
+             */
+            metric_name: string;
+            /**
+             * Metric Unit
+             * @description Unit of measurement
+             */
+            metric_unit: string;
+            /**
+             * P25
+             * @description 25th percentile
+             */
+            p25?: number | null;
+            /**
+             * P50
+             * @description Median (50th percentile)
+             */
+            p50?: number | null;
+            /**
+             * P75
+             * @description 75th percentile
+             */
+            p75?: number | null;
+            /**
+             * Percentile
+             * @description User's percentile rank (0-100)
+             */
+            percentile?: number | null;
+            /**
+             * Status
+             * @description Performance status: below_average, average, above_average, top_performer
+             * @default unknown
+             */
+            status: string;
+            /**
+             * User Value
+             * @description User's metric value
+             */
+            user_value?: number | null;
+            /**
+             * User Value Updated At
+             * @description When user's value was last set (ISO timestamp)
+             */
+            user_value_updated_at?: string | null;
+        };
+        /**
          * DailyCostItem
          * @description Cost summary for a single day.
          *
@@ -31320,6 +32243,34 @@ export interface components {
              * @description Start date (YYYY-MM-DD)
              */
             start_date: string;
+        };
+        /**
+         * Insight
+         * @description A single business insight.
+         */
+        backend__api__models__Insight: {
+            /**
+             * Action
+             * @description Suggested action
+             */
+            action?: string | null;
+            /**
+             * Detail
+             * @description Full explanation
+             */
+            detail: string;
+            /**
+             * Headline
+             * @description Short headline
+             */
+            headline: string;
+            /**
+             * Metric
+             * @description Related metric if applicable
+             */
+            metric?: string | null;
+            severity: components["schemas"]["InsightSeverity"];
+            type: components["schemas"]["InsightType"];
         };
         /**
          * UserCostItem
@@ -31476,6 +32427,114 @@ export interface components {
              * @enum {string}
              */
             status: "added" | "already_exists" | "whitelisted";
+        };
+        /**
+         * BenchmarkComparison
+         * @description Comparison of a metric to industry benchmark.
+         */
+        bo1__models__dataset_objective_analysis__BenchmarkComparison: {
+            /**
+             * Gap To Median
+             * @description Gap from your value to median
+             */
+            gap_to_median?: number | null;
+            /**
+             * Gap To Top
+             * @description Gap from your value to top quartile
+             */
+            gap_to_top?: number | null;
+            /**
+             * Industry Median
+             * @description Industry median value
+             */
+            industry_median?: number | null;
+            /**
+             * Industry Top Quartile
+             * @description Top quartile value
+             */
+            industry_top_quartile?: number | null;
+            /**
+             * Metric Name
+             * @description Name of the metric being compared
+             */
+            metric_name: string;
+            /**
+             * Performance
+             * @description Performance level: top_performer, above_average, average, below_average
+             */
+            performance: string;
+            /**
+             * Unit
+             * @description Unit of measurement
+             * @default
+             */
+            unit: string;
+            /**
+             * Your Value
+             * @description Your actual value
+             */
+            your_value: number;
+        };
+        /**
+         * Insight
+         * @description Single insight generated from analysis.
+         */
+        bo1__models__dataset_objective_analysis__Insight: {
+            /** @description Industry benchmark comparison */
+            benchmark_comparison?: components["schemas"]["bo1__models__dataset_objective_analysis__BenchmarkComparison"] | null;
+            /** @description Confidence level */
+            confidence: components["schemas"]["ConfidenceLevel"];
+            /**
+             * Follow Up Questions
+             * @description What to explore next
+             */
+            follow_up_questions?: string[];
+            /**
+             * Headline
+             * @description Key finding in 10 words max
+             */
+            headline: string;
+            /**
+             * Id
+             * @description Unique insight identifier
+             */
+            id: string;
+            /** @description Modeled impact of improvement */
+            impact_model?: components["schemas"]["ImpactModel"] | null;
+            /**
+             * Industry Context
+             * @description Additional industry context
+             */
+            industry_context?: string | null;
+            /**
+             * Narrative
+             * @description 2-4 sentences explaining the insight
+             */
+            narrative: string;
+            /**
+             * Objective Id
+             * @description Linked objective UUID
+             */
+            objective_id?: string | null;
+            /**
+             * Objective Name
+             * @description Linked objective name
+             */
+            objective_name?: string | null;
+            /**
+             * Recommendation
+             * @description Specific action to take
+             */
+            recommendation: string;
+            /**
+             * Supporting Data
+             * @description Key metrics and comparisons
+             */
+            supporting_data?: {
+                [key: string]: unknown;
+            };
+            /** @description Recommended chart configuration */
+            visualization?: components["schemas"]["InsightVisualization"] | null;
         };
     };
     responses: never;
@@ -45661,6 +46720,41 @@ export interface operations {
             };
         };
     };
+    analyze_dataset_api_v1_datasets__dataset_id__analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyzeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ask_dataset_api_v1_datasets__dataset_id__ask_post: {
         parameters: {
             query?: never;
@@ -46302,6 +47396,41 @@ export interface operations {
             };
         };
     };
+    fix_dataset_api_v1_datasets__dataset_id__fix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetFixRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFixResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dataset_insights_api_v1_datasets__dataset_id__insights_get: {
         parameters: {
             query?: {
@@ -46385,6 +47514,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetInvestigationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_objective_analysis_api_v1_datasets__dataset_id__objective_analysis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectiveAnalysisResponse"];
                 };
             };
             /** @description Validation Error */
@@ -46486,6 +47646,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QueryResultResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_objective_question_api_v1_datasets__dataset_id__question_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_objective_question_stream_api_v1_datasets__dataset_id__question_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -46615,6 +47845,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_api_v1_datasets__dataset_id__reports__report_id__export_get: {
+        parameters: {
+            query?: {
+                /** @description Export format: markdown or pdf */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_report_summary_api_v1_datasets__dataset_id__reports__report_id__summary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSummaryResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -47715,6 +49012,69 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_all_data_requirements_api_v1_objectives_data_requirements_get: {
+        parameters: {
+            query?: {
+                /** @description Include brief requirement summaries (adds latency) */
+                include_summaries?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllObjectivesRequirementsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_requirements_api_v1_objectives__objective_index__data_requirements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                objective_index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectiveDataRequirementsResponse"];
                 };
             };
             /** @description Validation Error */

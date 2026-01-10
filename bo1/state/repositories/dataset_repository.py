@@ -2002,8 +2002,9 @@ class DatasetRepository(BaseRepository):
                         context_snapshot, selected_objective_id
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (dataset_id, user_id)
+                    ON CONFLICT (dataset_id)
                     DO UPDATE SET
+                        user_id = EXCLUDED.user_id,
                         analysis_mode = EXCLUDED.analysis_mode,
                         relevance_score = EXCLUDED.relevance_score,
                         relevance_assessment = EXCLUDED.relevance_assessment,

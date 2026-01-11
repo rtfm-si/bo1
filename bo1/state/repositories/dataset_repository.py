@@ -1156,7 +1156,7 @@ class DatasetRepository(BaseRepository):
                         user_id, dataset_id, title, executive_summary,
                         report_content, favourite_ids, model_used, tokens_used
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s::uuid[], %s, %s)
                     RETURNING id, user_id, dataset_id, title, executive_summary,
                               report_content, favourite_ids, model_used, tokens_used,
                               created_at, updated_at

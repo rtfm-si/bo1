@@ -394,12 +394,48 @@
 		}
 	}
 
-	function handleInsightAddToReport(insight: ObjectiveInsight) {
-		// Add insight to report builder
-		const existingIndex = reportInsights.findIndex(
-			(i) => i.type === 'insight' && i.headline === insight.headline
-		);
-		if (existingIndex === -1) {
+	async function handleInsightAddToReport(insight: ObjectiveInsight) {
+		// Create favourite in database with full insight data for report generation
+		try {
+			const favourite = await apiClient.createFavourite(datasetId, {
+				favourite_type: 'insight',
+				title: insight.headline,
+				content: insight.narrative,
+				insight_data: {
+					headline: insight.headline,
+					narrative: insight.narrative,
+					recommendation: insight.recommendation,
+					confidence: insight.confidence,
+					supporting_data: insight.supporting_data,
+					visualization: insight.visualization,
+					benchmark_comparison: insight.benchmark_comparison,
+					impact_model: insight.impact_model
+				},
+				figure_json: insight.visualization?.figure_json as Record<string, unknown> | undefined
+			});
+
+			// Add to local report builder
+			const existingIndex = reportInsights.findIndex(
+				(i) => i.type === 'insight' && i.headline === insight.headline
+			);
+			if (existingIndex === -1) {
+				reportInsights = [
+					...reportInsights,
+					{
+						id: favourite.id,
+						type: 'insight',
+						headline: insight.headline,
+						content: insight.narrative,
+						chart_spec: insight.visualization as object | undefined,
+						figure_json: insight.visualization?.figure_json as object | undefined,
+						included: true
+					}
+				];
+			}
+			reportPanelOpen = true;
+		} catch (err) {
+			console.error('[Report] Failed to create favourite:', err);
+			// Still add locally even if favourite creation fails
 			reportInsights = [
 				...reportInsights,
 				{
@@ -411,8 +447,8 @@
 					included: true
 				}
 			];
+			reportPanelOpen = true;
 		}
-		reportPanelOpen = true;
 	}
 
 	function handleInsightCreateAction(insight: ObjectiveInsight) {

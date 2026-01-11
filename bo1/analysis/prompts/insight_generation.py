@@ -30,6 +30,16 @@ Each insight must be:
 5. Confidence-rated: Honest about certainty level
 </insight_quality>
 
+<chart_data_rules>
+EVERY insight MUST include chart_data for visualization:
+- x array: category labels, time periods, or segments (max 10 items)
+- y array: corresponding numeric values (same length as x)
+- Extract these values from the statistical profile provided
+- For distributions: use stats format {min, median, mean, max}
+- For categories: extract top values from column profiles
+- If >10 categories, show top 9 + aggregate "Other"
+</chart_data_rules>
+
 <output_format>
 Return valid JSON array with 3-5 insights:
 [
@@ -40,13 +50,18 @@ Return valid JSON array with 3-5 insights:
         "supporting_data": {
             "metric": "<key number with units>",
             "comparison": "<vs what baseline>",
-            "confidence": "high|medium|low"
+            "confidence": "high|medium|low",
+            "chart_data": {
+                "x": ["label1", "label2", "label3"],
+                "y": [100, 80, 60],
+                "unit": "<%|$|count|units>"
+            }
         },
         "visualization": {
-            "type": "bar|line|scatter|pie|heatmap",
-            "x_axis": "<column name>",
-            "y_axis": "<column name>",
-            "group_by": "<column name or null>",
+            "type": "bar|line|scatter|pie",
+            "x_axis": "<what x represents>",
+            "y_axis": "<what y represents>",
+            "group_by": "<grouping or null>",
             "title": "<chart title>",
             "highlight": "<what to notice in the chart>"
         },

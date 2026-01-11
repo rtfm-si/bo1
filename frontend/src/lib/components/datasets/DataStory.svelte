@@ -279,25 +279,6 @@
 		</div>
 	{/if}
 
-	<!-- Suggested Questions -->
-	{#if dataStory?.suggested_questions && dataStory.suggested_questions.length > 0}
-		<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-5 border border-neutral-200 dark:border-neutral-700">
-			<h4 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
-				Questions to explore
-			</h4>
-			<div class="flex flex-wrap gap-2">
-				{#each dataStory.suggested_questions as question}
-					<button
-						onclick={() => onAskQuestion?.(question)}
-						class="text-sm px-3 py-1.5 rounded-full bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand-300 dark:hover:border-brand-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-					>
-						{question}
-					</button>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
 	<!-- Empty state -->
 	{#if !dataStory && insights.length === 0}
 		<div class="text-center py-12" in:fade={{ duration: 200, delay: 100 }}>

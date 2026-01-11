@@ -7,9 +7,43 @@ import json
 import logging
 from typing import Any
 
+from bo1.analysis.charts import generate_chart_from_insight
 from bo1.llm.broker import PromptBroker, PromptRequest
 
 logger = logging.getLogger(__name__)
+
+
+def generate_chart_for_insight(
+    insight_data: dict[str, Any],
+    title: str = "Chart",
+) -> dict[str, Any] | None:
+    """Generate a chart for an insight that doesn't have one.
+
+    Args:
+        insight_data: The insight data dict with supporting_data and visualization
+        title: Chart title
+
+    Returns:
+        Plotly figure_json or None
+    """
+    if not insight_data:
+        return None
+
+    # Get visualization config
+    viz = insight_data.get("visualization", {})
+    if not viz:
+        # Default to bar chart
+        viz = {"type": "bar"}
+
+    # Get supporting data
+    supporting_data = insight_data.get("supporting_data", {})
+
+    return generate_chart_from_insight(
+        visualization_config=viz,
+        supporting_data=supporting_data,
+        title=title,
+    )
+
 
 REPORT_SYSTEM_PROMPT = """You are a senior data analyst creating an executive report. Your job is to
 transform a collection of data insights and charts into a cohesive narrative
@@ -97,7 +131,7 @@ async def generate_dataset_report(
     Returns:
         Tuple of (report_data, metadata)
     """
-    # Format favourites for prompt
+    # Format favourites for prompt and generate missing charts
     favourites_for_prompt = []
     for f in favourites:
         item = {
@@ -109,6 +143,17 @@ async def generate_dataset_report(
             item["content"] = f["content"][:500]  # Truncate for prompt
         if f.get("insight_data"):
             item["insight"] = f["insight_data"]
+
+            # Auto-generate chart if insight doesn't have one
+            if not f.get("figure_json") and not f.get("chart_spec"):
+                generated_chart = generate_chart_for_insight(
+                    insight_data=f["insight_data"],
+                    title=f.get("title") or "Insight Chart",
+                )
+                if generated_chart:
+                    f["figure_json"] = generated_chart
+                    item["has_chart"] = True
+
         if f.get("chart_spec"):
             item["chart_type"] = f["chart_spec"].get("chart_type", "chart")
             item["chart_fields"] = {

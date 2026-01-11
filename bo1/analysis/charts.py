@@ -107,11 +107,27 @@ def _extract_chart_data(
 
     Handles various data formats from LLM responses.
     """
+    # Check for chart_data nested structure (from updated prompt)
+    chart_data = supporting_data.get("chart_data", {})
+    if chart_data and isinstance(chart_data, dict):
+        x_data = chart_data.get("x", [])
+        y_data = chart_data.get("y", [])
+        if x_data and y_data:
+            return {
+                "x": x_data,
+                "y": y_data,
+                "unit": chart_data.get("unit", ""),
+            }
+        # Stats format for distributions
+        stats = chart_data.get("stats", {})
+        if stats:
+            return {"stats": stats, "unit": chart_data.get("unit", "")}
+
     # Direct data array
     if "data" in supporting_data and isinstance(supporting_data["data"], list):
         return {"values": supporting_data["data"]}
 
-    # X/Y arrays
+    # X/Y arrays at root level
     x_data = supporting_data.get("x", supporting_data.get("labels", []))
     y_data = supporting_data.get("y", supporting_data.get("values", []))
 
@@ -166,6 +182,7 @@ def _generate_bar_chart(
     """Generate horizontal bar chart (better for labels)."""
     x = data.get("x", [])
     y = data.get("y", [])
+    unit = data.get("unit", "")
 
     if not x or not y:
         # Generate from stats
@@ -186,6 +203,26 @@ def _generate_bar_chart(
         x = [p[0] for p in pairs]
         y = [p[1] for p in pairs]
 
+    # Calculate customdata for enhanced hover (%, rank)
+    total = sum(y) if y else 1
+    n = len(y)
+    # Sort indices by value descending to get ranks
+    sorted_indices = sorted(range(n), key=lambda i: y[i], reverse=True)
+    ranks = [0] * n
+    for rank, idx in enumerate(sorted_indices, 1):
+        ranks[idx] = rank
+    customdata = [[round(v / total * 100, 1), ranks[i], n] for i, v in enumerate(y)]
+
+    # Build hover template with unit
+    unit_suffix = f" {unit}" if unit and unit not in ["%", "$"] else unit
+    hover_template = (
+        "<b>%{y}</b><br>"
+        f"Value: %{{x:,.1f}}{unit_suffix}<br>"
+        "Share: %{customdata[0]:.1f}%<br>"
+        "Rank: %{customdata[1]} of %{customdata[2]}"
+        "<extra></extra>"
+    )
+
     return {
         "data": [
             {
@@ -197,7 +234,8 @@ def _generate_bar_chart(
                     "color": CHART_COLORS[0],
                     "line": {"width": 0},
                 },
-                "hovertemplate": "<b>%{y}</b><br>%{x:,.2f}<extra></extra>",
+                "customdata": customdata,
+                "hovertemplate": hover_template,
             }
         ],
         "layout": {
@@ -308,6 +346,7 @@ def _generate_pie_chart(
     """
     labels = data.get("x", [])
     values = data.get("y", data.get("values", []))
+    unit = data.get("unit", "")
 
     # Limit to 6 segments (Stephen Few: too many segments are hard to read)
     if len(labels) > 6:
@@ -316,6 +355,24 @@ def _generate_pie_chart(
         other_sum = sum(p[1] for p in pairs[5:])
         labels = [p[0] for p in top] + ["Other"]
         values = [p[1] for p in top] + [other_sum]
+
+    # Calculate ranks for customdata
+    n = len(values)
+    sorted_indices = sorted(range(n), key=lambda i: values[i], reverse=True)
+    ranks = [0] * n
+    for rank, idx in enumerate(sorted_indices, 1):
+        ranks[idx] = rank
+    customdata = [[ranks[i], n] for i in range(n)]
+
+    # Build hover template with rank
+    unit_suffix = f" {unit}" if unit and unit not in ["%", "$"] else unit
+    hover_template = (
+        "<b>%{label}</b><br>"
+        f"Value: %{{value:,.0f}}{unit_suffix}<br>"
+        "Share: %{percent}<br>"
+        "Rank: %{customdata[0]} of %{customdata[1]}"
+        "<extra></extra>"
+    )
 
     return {
         "data": [
@@ -327,7 +384,8 @@ def _generate_pie_chart(
                 "marker": {"colors": CHART_COLORS[: len(labels)]},
                 "textinfo": "percent",
                 "textposition": "outside",
-                "hovertemplate": "<b>%{label}</b><br>%{value:,.0f} (%{percent})<extra></extra>",
+                "customdata": customdata,
+                "hovertemplate": hover_template,
             }
         ],
         "layout": {

@@ -31,6 +31,87 @@ from bo1.models.dataset_objective_analysis import (
 logger = logging.getLogger(__name__)
 
 
+def _generate_fallback_chart(
+    visualization_config: dict[str, Any],
+    column_profiles: list[dict[str, Any]],
+    title: str,
+) -> dict[str, Any] | None:
+    """Generate chart from column profiles when LLM doesn't provide chart_data.
+
+    Args:
+        visualization_config: Dict with type, x_axis, y_axis from LLM
+        column_profiles: Column profile information with stats
+        title: Chart title
+
+    Returns:
+        Plotly figure_json dict or None
+    """
+    if not visualization_config or not column_profiles:
+        return None
+
+    x_axis = visualization_config.get("x_axis", "")
+    y_axis = visualization_config.get("y_axis", "")
+
+    # Find matching columns
+    x_profile = None
+    y_profile = None
+    for col in column_profiles:
+        col_name = col.get("name", col.get("column_name", col.get("column", "")))
+        if col_name.lower() == x_axis.lower():
+            x_profile = col
+        if col_name.lower() == y_axis.lower():
+            y_profile = col
+
+    # Build supporting_data from column profiles
+    supporting_data: dict[str, Any] = {}
+
+    # For categorical x-axis, use top values
+    if x_profile:
+        top_values = x_profile.get("top_values", x_profile.get("stats", {}).get("top_values", []))
+        if top_values:
+            # Handle dict format {value: count}
+            if isinstance(top_values, dict):
+                supporting_data["chart_data"] = {
+                    "x": list(top_values.keys())[:10],
+                    "y": list(top_values.values())[:10],
+                    "unit": "count",
+                }
+            # Handle list of dicts [{value, count}]
+            elif isinstance(top_values, list) and top_values:
+                if isinstance(top_values[0], dict):
+                    supporting_data["chart_data"] = {
+                        "x": [
+                            v.get("value", v.get("label", str(i)))
+                            for i, v in enumerate(top_values[:10])
+                        ],
+                        "y": [v.get("count", v.get("frequency", 0)) for v in top_values[:10]],
+                        "unit": "count",
+                    }
+
+    # For numeric columns, use distribution stats
+    if y_profile and not supporting_data:
+        stats = y_profile.get("stats", {})
+        if stats.get("mean") is not None or stats.get("median") is not None:
+            supporting_data["chart_data"] = {
+                "stats": {
+                    "min": stats.get("min", 0),
+                    "median": stats.get("median", stats.get("p50", 0)),
+                    "mean": stats.get("mean", 0),
+                    "max": stats.get("max", 0),
+                },
+                "unit": stats.get("unit", ""),
+            }
+
+    if not supporting_data:
+        return None
+
+    return generate_chart_from_insight(
+        visualization_config=visualization_config,
+        supporting_data=supporting_data,
+        title=title,
+    )
+
+
 def _extract_dataset_metrics(
     column_profiles: list[dict[str, Any]] | None = None,
     investigation: dict[str, Any] | None = None,
@@ -246,8 +327,8 @@ async def generate_insights(
         # Parse response
         raw_insights = parse_insights_response(response_text)
 
-        # Convert to typed models
-        return _parse_insights(raw_insights)
+        # Convert to typed models with fallback chart generation
+        return _parse_insights(raw_insights, column_profiles=column_profiles)
 
     except Exception as e:
         logger.error(f"Error generating insights: {e}")
@@ -343,11 +424,15 @@ def _parse_impact_model(raw: dict[str, Any] | None) -> ImpactModel | None:
         return None
 
 
-def _parse_insights(raw_insights: list[dict[str, Any]]) -> list[Insight]:
+def _parse_insights(
+    raw_insights: list[dict[str, Any]],
+    column_profiles: list[dict[str, Any]] | None = None,
+) -> list[Insight]:
     """Parse raw LLM response into typed Insight models.
 
     Args:
         raw_insights: List of parsed JSON insight dicts
+        column_profiles: Column profile info for fallback chart generation
 
     Returns:
         List of Insight models
@@ -374,19 +459,29 @@ def _parse_insights(raw_insights: list[dict[str, Any]]) -> list[Insight]:
             except ValueError:
                 chart_type = ChartType.BAR
 
+            chart_title = raw_viz.get("title", f"Chart {i + 1}")
+
             # Generate Plotly figure_json from visualization config + supporting_data
             figure_json = generate_chart_from_insight(
                 visualization_config=raw_viz,
                 supporting_data=raw.get("supporting_data", {}),
-                title=raw_viz.get("title", f"Chart {i + 1}"),
+                title=chart_title,
             )
+
+            # Fallback: generate chart from column profiles if LLM didn't provide data
+            if figure_json is None and column_profiles:
+                figure_json = _generate_fallback_chart(
+                    visualization_config=raw_viz,
+                    column_profiles=column_profiles,
+                    title=chart_title,
+                )
 
             visualization = InsightVisualization(
                 type=chart_type,
                 x_axis=raw_viz.get("x_axis"),
                 y_axis=raw_viz.get("y_axis"),
                 group_by=raw_viz.get("group_by"),
-                title=raw_viz.get("title", f"Chart {i + 1}"),
+                title=chart_title,
                 figure_json=figure_json,
             )
 

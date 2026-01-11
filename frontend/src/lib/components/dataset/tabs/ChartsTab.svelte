@@ -2,7 +2,7 @@
 	/**
 	 * ChartsTab - Chart builder and favourites
 	 */
-	import type { DatasetDetailResponse, DatasetReport } from '$lib/api/types';
+	import type { DatasetDetailResponse, DatasetReportResponse } from '$lib/api/types';
 	import FavouritesTab from '../FavouritesTab.svelte';
 
 	// Use the profiles type from DatasetDetailResponse to match what's passed from the page
@@ -11,7 +11,7 @@
 	interface Props {
 		datasetId: string;
 		profiles: ProfileType[];
-		onReportGenerated?: (report: DatasetReport) => void;
+		onReportGenerated?: (report: DatasetReportResponse) => void;
 	}
 
 	let { datasetId, profiles, onReportGenerated }: Props = $props();

@@ -2,7 +2,7 @@
 	/**
 	 * FavouritesTab - Shows favourited charts and insights with manage/report generation
 	 */
-	import type { DatasetFavourite, DatasetReport } from '$lib/api/types';
+	import type { DatasetFavourite, DatasetReportResponse } from '$lib/api/types';
 	import { apiClient } from '$lib/api/client';
 	import FavouriteButton from './FavouriteButton.svelte';
 	import ChartRenderer from './ChartRenderer.svelte';
@@ -12,7 +12,7 @@
 
 	interface Props {
 		datasetId: string;
-		onReportGenerated?: (report: DatasetReport) => void;
+		onReportGenerated?: (report: DatasetReportResponse) => void;
 	}
 
 	let { datasetId, onReportGenerated }: Props = $props();

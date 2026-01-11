@@ -7,7 +7,7 @@
 		DatasetAnalysis,
 		DatasetInsights,
 		ColumnSemantic,
-		DatasetReport,
+		DatasetReportResponse,
 		DatasetInvestigation,
 		DatasetBusinessContext,
 		ObjectiveAnalysisResponse,
@@ -107,7 +107,7 @@
 	let chatExpanded = $state(false);
 
 	// Generated report state
-	let generatedReport = $state<DatasetReport | null>(null);
+	let generatedReport = $state<DatasetReportResponse | null>(null);
 
 	// Report Builder state
 	let reportPanelOpen = $state(false);
@@ -144,7 +144,7 @@
 			: null
 	);
 
-	function handleReportGenerated(report: DatasetReport) {
+	function handleReportGenerated(report: DatasetReportResponse) {
 		generatedReport = report;
 		window.location.href = `/datasets/${datasetId}/report/${report.id}`;
 	}

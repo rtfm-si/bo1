@@ -5,7 +5,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiClient } from '$lib/api/client';
-	import type { DatasetReport, DatasetFavourite, DatasetDetailResponse } from '$lib/api/types';
+	import type { DatasetReportResponse, DatasetFavourite, DatasetDetailResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import DatasetReportRenderer from '$lib/components/dataset/DatasetReport.svelte';
@@ -15,7 +15,7 @@
 	const reportId = $derived(page.params.report_id || '');
 
 	// Data state
-	let report = $state<DatasetReport | null>(null);
+	let report = $state<DatasetReportResponse | null>(null);
 	let favourites = $state<DatasetFavourite[]>([]);
 	let dataset = $state<DatasetDetailResponse | null>(null);
 	let loading = $state(true);

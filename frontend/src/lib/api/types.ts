@@ -2556,8 +2556,9 @@ export interface DatasetReport {
 
 /**
  * Response for a single report (includes expanded data from API)
+ * API flattens report_content.sections to root-level sections
  */
-export interface DatasetReportResponse extends DatasetReport {
+export interface DatasetReportResponse extends Omit<DatasetReport, 'report_content'> {
 	sections: ReportSection[]; // Flattened sections from report_content
 	favourites?: DatasetFavourite[]; // Full favourite data for rendering charts
 }

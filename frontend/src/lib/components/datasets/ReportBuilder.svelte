@@ -12,7 +12,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type {
 		DatasetFavourite,
-		DatasetReport,
+		DatasetReportResponse,
 		ObjectiveInsight,
 		ConversationMessage
 	} from '$lib/api/types';
@@ -35,7 +35,7 @@
 		selectedInsights?: SelectedInsight[];
 		onClose: () => void;
 		onExport?: (format: 'markdown' | 'pdf') => void;
-		onReportGenerated?: (report: DatasetReport) => void;
+		onReportGenerated?: (report: DatasetReportResponse) => void;
 	}
 
 	let {
@@ -52,7 +52,7 @@
 	let reportTitle = $state(`${datasetName} Analysis Report`);
 	let isGenerating = $state(false);
 	let isExporting = $state(false);
-	let generatedReport = $state<DatasetReport | null>(null);
+	let generatedReport = $state<DatasetReportResponse | null>(null);
 	let error = $state<string | null>(null);
 	let showExportMenu = $state(false);
 

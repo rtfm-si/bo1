@@ -9,13 +9,13 @@
 	 * 4. Recommendations
 	 * 5. Data Notes
 	 */
-	import type { DatasetReport, DatasetFavourite, ReportSection } from '$lib/api/types';
+	import type { DatasetReportResponse, DatasetFavourite, ReportSection } from '$lib/api/types';
 	import ChartRenderer from './ChartRenderer.svelte';
 	import ChartModal from './ChartModal.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	interface Props {
-		report: DatasetReport;
+		report: DatasetReportResponse;
 		favourites?: DatasetFavourite[];
 		datasetName?: string;
 	}
@@ -92,12 +92,12 @@
 			<span>Generated {formatDate(report.created_at)}</span>
 		</div>
 		<h1 class="text-3xl font-bold text-neutral-900 dark:text-white mb-4">
-			{report.title || report.report_content.title}
+			{report.title}
 		</h1>
 	</header>
 
 	<!-- Executive Summary -->
-	{#if report.executive_summary || report.report_content.executive_summary}
+	{#if report.executive_summary}
 		<section class="mb-8 p-6 bg-brand-50 dark:bg-brand-900/20 rounded-lg border border-brand-200 dark:border-brand-800">
 			<h2 class="text-lg font-semibold text-brand-800 dark:text-brand-200 mb-3 flex items-center gap-2">
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,14 +106,14 @@
 				Executive Summary
 			</h2>
 			<p class="text-brand-900 dark:text-brand-100 text-lg leading-relaxed">
-				{report.executive_summary || report.report_content.executive_summary}
+				{report.executive_summary}
 			</p>
 		</section>
 	{/if}
 
 	<!-- Report Sections -->
-	{#if report.report_content.sections}
-		{#each report.report_content.sections as section, index (index)}
+	{#if report.sections}
+		{#each report.sections as section, index (index)}
 			<section class="mb-8">
 				<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
 					<svg class="w-5 h-5 {getSectionColor(section.section_type)}" fill="none" stroke="currentColor" viewBox="0 0 24 24">

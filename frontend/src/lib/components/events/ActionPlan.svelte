@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { eventTokens } from '$lib/design/tokens';
+	import { robustJSONParse } from '$lib/utils/xml-parser';
 	import type { MetaSynthesisCompleteEvent } from '$lib/api/sse-events';
 
 	interface ActionItem {
@@ -78,18 +79,17 @@
 
 	// Parse action plan from event data
 	const actionPlan = $derived.by((): ActionPlanData | null => {
-		try {
-			const synthesis = event.data.synthesis as string;
-			if (!synthesis || !synthesis.includes('recommended_actions')) return null;
+		const synthesis = event.data.synthesis as string;
+		if (!synthesis || !synthesis.includes('recommended_actions')) return null;
 
-			const jsonStr = extractJSON(synthesis);
-			if (!jsonStr) return null;
+		const jsonStr = extractJSON(synthesis);
+		if (!jsonStr) return null;
 
-			return JSON.parse(jsonStr) as ActionPlanData;
-		} catch (error) {
-			console.error('Failed to parse action plan:', error);
-			return null;
+		const parsed = robustJSONParse<ActionPlanData>(jsonStr);
+		if (!parsed) {
+			console.warn('[ActionPlan] Could not parse action plan JSON, showing raw synthesis');
 		}
+		return parsed;
 	});
 
 	function getPriorityConfig(priority: 'critical' | 'high' | 'medium' | 'low') {

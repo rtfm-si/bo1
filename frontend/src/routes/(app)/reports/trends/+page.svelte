@@ -238,19 +238,66 @@
 				{/if}
 
 				{#if marketTrends.length > 0}
-					<div class="space-y-3">
-						{#each marketTrends as trend}
-							<div class="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-								<p class="text-sm text-slate-700 dark:text-slate-300">{trend.trend}</p>
-								{#if trend.source_url}
-									<a
-										href={trend.source_url}
-										target="_blank"
-										rel="noopener noreferrer"
-										class="text-xs text-brand-600 dark:text-brand-400 hover:underline mt-1 inline-block"
-									>
-										{trend.source || 'Source'} →
-									</a>
+					<div class="space-y-4">
+						{#each marketTrends as trend, index}
+							{@const hasAISummary = trend.summary && trend.key_points}
+							<div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+								<!-- Headline -->
+								<h4 class="font-medium text-slate-900 dark:text-white mb-2">{trend.trend}</h4>
+
+								{#if hasAISummary}
+									<!-- AI Summary -->
+									<p class="text-sm text-slate-700 dark:text-slate-300 mb-3">{trend.summary}</p>
+
+									<!-- Key Points (collapsible) -->
+									<details class="group">
+										<summary class="text-xs font-medium text-brand-600 dark:text-brand-400 cursor-pointer hover:underline flex items-center gap-1">
+											<svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+											</svg>
+											Key Takeaways
+										</summary>
+										<ul class="mt-2 space-y-1 pl-4 text-sm text-slate-600 dark:text-slate-400">
+											{#each trend.key_points || [] as point}
+												<li class="flex items-start gap-2">
+													<span class="text-brand-500 mt-0.5">•</span>
+													<span>{point}</span>
+												</li>
+											{/each}
+										</ul>
+									</details>
+
+									<!-- AI indicator + Source -->
+									<div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-200 dark:border-slate-600">
+										<span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+											<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+											</svg>
+											Summarized by AI
+										</span>
+										{#if trend.source_url}
+											<a
+												href={trend.source_url}
+												target="_blank"
+												rel="noopener noreferrer"
+												class="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+											>
+												{trend.source || 'Read full article'} →
+											</a>
+										{/if}
+									</div>
+								{:else}
+									<!-- Fallback: Original search snippet style -->
+									{#if trend.source_url}
+										<a
+											href={trend.source_url}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="text-xs text-brand-600 dark:text-brand-400 hover:underline mt-1 inline-block"
+										>
+											{trend.source || 'Source'} →
+										</a>
+									{/if}
 								{/if}
 							</div>
 						{/each}

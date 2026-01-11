@@ -205,3 +205,49 @@ class TestSeoBlogArticleListResponse:
             remaining_this_month=0,
         )
         assert resp.remaining_this_month == 0
+
+
+@pytest.mark.unit
+class TestSeoBlogArticleUpdatePartial:
+    """Test partial update preserves untouched fields."""
+
+    def test_partial_update_content_only(self):
+        """Partial update with only content preserves other fields as None."""
+        req = SeoBlogArticleUpdate(content="New article body")
+        assert req.content == "New article body"
+        assert req.title is None
+        assert req.excerpt is None
+        assert req.meta_title is None
+        assert req.meta_description is None
+        assert req.status is None
+
+    def test_partial_update_preserves_optional_fields(self):
+        """Partial update should not require all fields."""
+        # Only updating meta fields
+        req = SeoBlogArticleUpdate(
+            meta_title="Better SEO Title", meta_description="Improved description"
+        )
+        assert req.meta_title == "Better SEO Title"
+        assert req.meta_description == "Improved description"
+        # Other fields remain None (unchanged)
+        assert req.title is None
+        assert req.content is None
+
+    def test_inline_edit_content_update(self):
+        """Content update for inline edit should work."""
+        new_content = """# Updated Article
+
+This is the updated article content.
+
+## Section 1
+
+Some markdown content here.
+
+## Section 2
+
+More content with **bold** and *italic* text.
+"""
+        req = SeoBlogArticleUpdate(content=new_content)
+        assert req.content == new_content
+        assert "# Updated Article" in req.content
+        assert "**bold**" in req.content

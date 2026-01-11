@@ -4,14 +4,14 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { MentorMessage as MessageType, ResolvedMentions, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
+	import type { MentorMessage as MessageType, ResolvedMentions, HoneypotFields as HoneypotFieldsType, ConversationSearchResult } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
 	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
 	import MentorMessage from './MentorMessage.svelte';
 	import PersonaPicker from './PersonaPicker.svelte';
 	import ContextSourcesBadge from './ContextSourcesBadge.svelte';
 	import MentionAutocomplete from './MentionAutocomplete.svelte';
-	import { Send, Square, Loader2 } from 'lucide-svelte';
+	import { Send, Square, Loader2, Search, X } from 'lucide-svelte';
 
 	// Props for pre-filling from URL query params
 	interface Props {
@@ -48,6 +48,13 @@
 
 	// Honeypot state
 	let honeypotValues = $state<HoneypotFieldsType>({});
+
+	// Search state
+	let showSearch = $state(false);
+	let searchQuery = $state('');
+	let searchResults = $state<ConversationSearchResult[]>([]);
+	let isSearching = $state(false);
+	let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function scrollToBottom() {
 		if (messagesContainer) {
@@ -120,6 +127,49 @@
 	function handleMentionClose() {
 		showMentionAutocomplete = false;
 		mentionQuery = '';
+	}
+
+	// Search functions
+	async function doSearch(query: string) {
+		if (query.length < 3) {
+			searchResults = [];
+			return;
+		}
+		isSearching = true;
+		try {
+			const response = await apiClient.searchAdvisorConversations(query, { limit: 5 });
+			searchResults = response.matches;
+		} catch (e) {
+			console.error('Search failed:', e);
+			searchResults = [];
+		} finally {
+			isSearching = false;
+		}
+	}
+
+	function handleSearchInput(e: Event) {
+		const target = e.target as HTMLInputElement;
+		searchQuery = target.value;
+
+		// Debounce search
+		if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+		searchDebounceTimer = setTimeout(() => doSearch(searchQuery), 300);
+	}
+
+	function handleSearchResultClick(result: ConversationSearchResult) {
+		// Close search and load conversation
+		showSearch = false;
+		searchQuery = '';
+		searchResults = [];
+		loadConversation(result.conversation_id);
+	}
+
+	function toggleSearch() {
+		showSearch = !showSearch;
+		if (!showSearch) {
+			searchQuery = '';
+			searchResults = [];
+		}
 	}
 
 	async function handleSubmit(e: Event) {
@@ -352,7 +402,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
-					Ask Your Mentor
+					Ask Your Advisor
 				</h3>
 				{#if activePersona && messages.length > 0}
 					<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -360,15 +410,68 @@
 					</p>
 				{/if}
 			</div>
-			{#if messages.length > 0}
+			<div class="flex items-center gap-2">
 				<button
-					onclick={clearConversation}
-					class="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+					onclick={toggleSearch}
+					class="p-1.5 rounded-md text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-neutral-200 dark:hover:bg-neutral-800"
+					title="Search past conversations"
 				>
-					Clear
+					{#if showSearch}
+						<X class="w-4 h-4" />
+					{:else}
+						<Search class="w-4 h-4" />
+					{/if}
 				</button>
-			{/if}
+				{#if messages.length > 0}
+					<button
+						onclick={clearConversation}
+						class="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+					>
+						Clear
+					</button>
+				{/if}
+			</div>
 		</div>
+		<!-- Search Panel -->
+		{#if showSearch}
+			<div class="relative">
+				<div class="flex items-center gap-2">
+					<div class="relative flex-1">
+						<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+						<input
+							type="text"
+							value={searchQuery}
+							oninput={handleSearchInput}
+							placeholder="Search past conversations..."
+							class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+						/>
+						{#if isSearching}
+							<Loader2 class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 animate-spin" />
+						{/if}
+					</div>
+				</div>
+				<!-- Search Results Dropdown -->
+				{#if searchResults.length > 0}
+					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+						{#each searchResults as result (result.conversation_id)}
+							<button
+								onclick={() => handleSearchResultClick(result)}
+								class="w-full px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700 border-b border-neutral-100 dark:border-neutral-700 last:border-b-0"
+							>
+								<p class="text-sm text-neutral-900 dark:text-white line-clamp-2">{result.preview}</p>
+								<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+									{Math.round(result.similarity * 100)}% match
+								</p>
+							</button>
+						{/each}
+					</div>
+				{:else if searchQuery.length >= 3 && !isSearching}
+					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg p-3 text-center">
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">No matching conversations</p>
+					</div>
+				{/if}
+			</div>
+		{/if}
 		<PersonaPicker selected={selectedPersona} onChange={handlePersonaChange} />
 		{#if contextSources.length > 0}
 			<ContextSourcesBadge sources={contextSources} />
@@ -393,7 +496,7 @@
 							d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
 						/>
 					</svg>
-					<p class="text-sm font-medium mb-1">Get guidance from your AI mentor</p>
+					<p class="text-sm font-medium mb-1">Get guidance from your AI advisor</p>
 					<p class="text-xs text-neutral-400 dark:text-neutral-500">
 						Ask about strategy, priorities, actions, or data insights. Your business context is
 						automatically included.
@@ -451,7 +554,7 @@
 				bind:value={inputValue}
 				onkeydown={handleKeyDown}
 				oninput={handleInput}
-				placeholder="Ask your mentor anything... (type @ to mention)"
+				placeholder="Ask your advisor anything... (type @ to mention)"
 				disabled={isStreaming}
 				rows="1"
 				class="flex-1 px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50 resize-none min-h-[40px] max-h-[120px]"

@@ -10,12 +10,14 @@
 	interface Props {
 		variant?: 'brand' | 'success' | 'warning' | 'error' | 'info' | 'neutral';
 		size?: 'sm' | 'md' | 'lg';
+		class?: string;
 		children?: Snippet;
 	}
 
 	let {
 		variant = 'neutral',
 		size = 'md',
+		class: className = '',
 		children
 	}: Props = $props();
 
@@ -43,7 +45,7 @@
 
 <ShadcnBadge
 	variant={config.shadcn}
-	class="{config.custom} {sizeClass}"
+	class="{config.custom} {sizeClass} {className}"
 >
 	{@render children?.()}
 </ShadcnBadge>

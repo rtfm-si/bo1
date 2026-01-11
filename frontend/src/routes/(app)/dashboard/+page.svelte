@@ -12,7 +12,6 @@
 	import OnboardingChecklist from '$lib/components/ui/OnboardingChecklist.svelte';
 	import ActivityHeatmap from '$lib/components/dashboard/ActivityHeatmap.svelte';
 	import PendingReminders from '$lib/components/dashboard/PendingReminders.svelte';
-	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
 	import FailedMeetingAlert from '$lib/components/dashboard/FailedMeetingAlert.svelte';
 	import GoalBanner from '$lib/components/dashboard/GoalBanner.svelte';
 	import SmartFocusBanner, { type FocusState } from '$lib/components/dashboard/SmartFocusBanner.svelte';
@@ -449,11 +448,6 @@
 
 		<!-- Daily Activities / Today's Focus -->
 		<DailyActivities actionsData={actionsData.data} />
-
-		<!-- Value Metrics Panel -->
-		<div class="mb-8">
-			<ValueMetricsPanel />
-		</div>
 
 		<!-- Research Headlines Widget -->
 		<div class="mb-8">

@@ -1873,6 +1873,46 @@
         "title": "ActiveSessionsResponse",
         "type": "object"
       },
+      "AddDatasetsRequest": {
+        "description": "Request to add datasets to a folder.",
+        "properties": {
+          "dataset_ids": {
+            "description": "Dataset UUIDs to add",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Dataset Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dataset_ids"
+        ],
+        "title": "AddDatasetsRequest",
+        "type": "object"
+      },
+      "AddDatasetsResponse": {
+        "description": "Response for adding datasets to a folder.",
+        "properties": {
+          "added": {
+            "description": "Number of datasets added",
+            "title": "Added",
+            "type": "integer"
+          },
+          "total_requested": {
+            "description": "Total datasets requested",
+            "title": "Total Requested",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "total_requested"
+        ],
+        "title": "AddDatasetsResponse",
+        "type": "object"
+      },
       "AddPromotionRequest": {
         "description": "Admin request to create a new promotion.\n\nAttributes:\n    code: Unique promo code (3-50 chars, alphanumeric + underscore)\n    type: Promotion type\n    value: Promotion value (> 0)\n    max_uses: Optional maximum uses\n    expires_at: Optional expiration timestamp",
         "examples": [
@@ -2617,6 +2657,58 @@
         "title": "AnalyzeResponse",
         "type": "object"
       },
+      "AnalyzeTopicsRequest": {
+        "description": "Request to analyze user-submitted words for topic suggestions.",
+        "properties": {
+          "skip_validation": {
+            "default": false,
+            "description": "Skip web research validation for faster response",
+            "title": "Skip Validation",
+            "type": "boolean"
+          },
+          "words": {
+            "description": "Words/phrases to analyze (1-10)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "AnalyzeTopicsRequest",
+        "type": "object"
+      },
+      "AnalyzeTopicsResponse": {
+        "description": "Response containing topic suggestions.",
+        "properties": {
+          "analyzed_words": {
+            "description": "Words that were analyzed",
+            "items": {
+              "type": "string"
+            },
+            "title": "Analyzed Words",
+            "type": "array"
+          },
+          "suggestions": {
+            "description": "Topic suggestions",
+            "items": {
+              "$ref": "#/components/schemas/TopicSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "analyzed_words"
+        ],
+        "title": "AnalyzeTopicsResponse",
+        "type": "object"
+      },
       "ApiErrorItem": {
         "description": "API error (500, 429, 401, etc.).",
         "properties": {
@@ -2709,6 +2801,81 @@
           "offset"
         ],
         "title": "ApiErrorListResponse",
+        "type": "object"
+      },
+      "ApplyBusinessMetricSuggestionRequest": {
+        "description": "Request to apply a business metric suggestion.",
+        "properties": {
+          "metric_key": {
+            "description": "Business metric key to update (e.g., 'mrr')",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "source_question": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Original question (for audit trail)",
+            "title": "Source Question"
+          },
+          "value": {
+            "description": "Numeric value to set",
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric_key",
+          "value"
+        ],
+        "title": "ApplyBusinessMetricSuggestionRequest",
+        "type": "object"
+      },
+      "ApplyBusinessMetricSuggestionResponse": {
+        "description": "Response after applying a business metric suggestion.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "metric_key": {
+            "description": "Metric that was updated",
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "new_value": {
+            "description": "Value that was applied",
+            "title": "New Value",
+            "type": "number"
+          },
+          "success": {
+            "description": "Whether update succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "metric_key",
+          "new_value"
+        ],
+        "title": "ApplyBusinessMetricSuggestionResponse",
         "type": "object"
       },
       "ApplyMetricSuggestionRequest": {
@@ -3317,6 +3484,24 @@
           }
         },
         "title": "AutogenSuggestionsResponse",
+        "type": "object"
+      },
+      "AvailableMetricsResponse": {
+        "description": "Response listing metrics with calculation support.",
+        "properties": {
+          "metrics": {
+            "description": "List of metric keys with calculation support",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "AvailableMetricsResponse",
         "type": "object"
       },
       "BadRequestErrorResponse": {
@@ -5061,6 +5246,124 @@
         "title": "BusinessDomain",
         "type": "string"
       },
+      "BusinessMetricSuggestion": {
+        "description": "A suggestion to auto-populate a business metric from insights.\n\nUses keyword-based matching to map insights to specific metrics like\nMRR, churn, CAC, etc. Distinct from MetricSuggestion which targets\ncontext fields.",
+        "properties": {
+          "answered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the insight was recorded (ISO)",
+            "title": "Answered At"
+          },
+          "confidence": {
+            "description": "Match confidence (0-1)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current metric value (if any)",
+            "title": "Current Value"
+          },
+          "is_dismissed": {
+            "default": false,
+            "description": "Whether user dismissed this suggestion",
+            "title": "Is Dismissed",
+            "type": "boolean"
+          },
+          "metric_key": {
+            "description": "Business metric key (e.g., 'mrr', 'churn')",
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "metric_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display name of the metric",
+            "title": "Metric Name"
+          },
+          "source_question": {
+            "description": "The clarification question that provided this",
+            "title": "Source Question",
+            "type": "string"
+          },
+          "suggested_value": {
+            "description": "Value extracted from insight",
+            "title": "Suggested Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric_key",
+          "suggested_value",
+          "source_question",
+          "confidence"
+        ],
+        "title": "BusinessMetricSuggestion",
+        "type": "object"
+      },
+      "BusinessMetricSuggestionsResponse": {
+        "description": "Response containing business metric suggestions from insights.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "description": "Number of suggestions",
+            "title": "Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether retrieval succeeded",
+            "title": "Success",
+            "type": "boolean"
+          },
+          "suggestions": {
+            "description": "List of business metric suggestions from insights",
+            "items": {
+              "$ref": "#/components/schemas/BusinessMetricSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "BusinessMetricSuggestionsResponse",
+        "type": "object"
+      },
       "BusinessStage": {
         "description": "Business development stage.",
         "enum": [
@@ -6025,6 +6328,17 @@
             "description": "Mentioned entities",
             "title": "Key Entities"
           },
+          "market_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClarificationInsightMarketContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Market benchmark context from auto-enrichment"
+          },
           "metric": {
             "anyOf": [
               {
@@ -6084,6 +6398,62 @@
           "answer"
         ],
         "title": "ClarificationInsight",
+        "type": "object"
+      },
+      "ClarificationInsightMarketContext": {
+        "description": "Market context for API response (subset of full MarketContext).",
+        "properties": {
+          "comparison_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable comparison",
+            "title": "Comparison Text"
+          },
+          "enriched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When enriched",
+            "title": "Enriched At"
+          },
+          "percentile_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's percentile (0-100)",
+            "title": "Percentile Position"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source URL for benchmark",
+            "title": "Source Url"
+          }
+        },
+        "title": "ClarificationInsightMarketContext",
         "type": "object"
       },
       "ClarificationRequest": {
@@ -7145,6 +7515,21 @@
             ],
             "title": "Funding Info"
           },
+          "funding_rounds": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Rounds"
+          },
           "id": {
             "anyOf": [
               {
@@ -7168,10 +7553,36 @@
             ],
             "title": "Industry"
           },
+          "intel_gathered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intel Gathered At"
+          },
           "is_primary": {
             "default": false,
             "title": "Is Primary",
             "type": "boolean"
+          },
+          "key_signals": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Signals"
           },
           "last_enriched_at": {
             "anyOf": [
@@ -7212,6 +7623,30 @@
               }
             ],
             "title": "Product Description"
+          },
+          "product_updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Updates"
           },
           "recent_news": {
             "anyOf": [
@@ -8234,6 +8669,65 @@
           "message_count"
         ],
         "title": "ConversationResponse",
+        "type": "object"
+      },
+      "ConversationSearchResponse": {
+        "description": "Response model for conversation search.",
+        "properties": {
+          "matches": {
+            "description": "Matching conversations sorted by similarity",
+            "items": {
+              "$ref": "#/components/schemas/ConversationSearchResult"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total number of matches",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matches",
+          "total"
+        ],
+        "title": "ConversationSearchResponse",
+        "type": "object"
+      },
+      "ConversationSearchResult": {
+        "description": "A single search result from conversation search.",
+        "properties": {
+          "conversation_id": {
+            "description": "ID of the matching conversation",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "ISO timestamp of the message",
+            "title": "Created At",
+            "type": "string"
+          },
+          "preview": {
+            "description": "Preview of the matching message",
+            "title": "Preview",
+            "type": "string"
+          },
+          "similarity": {
+            "description": "Similarity score (0-1)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Similarity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "preview",
+          "similarity",
+          "created_at"
+        ],
+        "title": "ConversationSearchResult",
         "type": "object"
       },
       "ConversionRequest": {
@@ -10707,6 +11201,417 @@
         "title": "DatasetFixResponse",
         "type": "object"
       },
+      "DatasetFolderCreate": {
+        "description": "Request model for creating a folder.",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex color e.g. #FF5733",
+            "title": "Color"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional description",
+            "title": "Description"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Icon name",
+            "title": "Icon"
+          },
+          "name": {
+            "description": "Folder name",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parent folder UUID for nesting",
+            "title": "Parent Folder Id"
+          },
+          "tags": {
+            "description": "Tags for the folder",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetFolderCreate",
+        "type": "object"
+      },
+      "DatasetFolderListResponse": {
+        "description": "Response for listing folders.",
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetFolderResponse"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "description": "Total folder count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "DatasetFolderListResponse",
+        "type": "object"
+      },
+      "DatasetFolderResponse": {
+        "description": "Response model for a folder.",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex color e.g. #FF5733",
+            "title": "Color"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_count": {
+            "default": 0,
+            "description": "Number of datasets in folder",
+            "title": "Dataset Count",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional description",
+            "title": "Description"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Icon name",
+            "title": "Icon"
+          },
+          "id": {
+            "description": "Folder UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Folder name",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parent folder UUID",
+            "title": "Parent Folder Id"
+          },
+          "tags": {
+            "description": "Folder tags",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DatasetFolderResponse",
+        "type": "object"
+      },
+      "DatasetFolderTree": {
+        "description": "Folder with nested children for tree view.",
+        "properties": {
+          "children": {
+            "description": "Child folders",
+            "items": {
+              "$ref": "#/components/schemas/DatasetFolderTree"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex color e.g. #FF5733",
+            "title": "Color"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_count": {
+            "default": 0,
+            "description": "Number of datasets in folder",
+            "title": "Dataset Count",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional description",
+            "title": "Description"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Icon name",
+            "title": "Icon"
+          },
+          "id": {
+            "description": "Folder UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Folder name",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parent folder UUID",
+            "title": "Parent Folder Id"
+          },
+          "tags": {
+            "description": "Folder tags",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DatasetFolderTree",
+        "type": "object"
+      },
+      "DatasetFolderTreeResponse": {
+        "description": "Response for folder tree.",
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetFolderTree"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "description": "Total folder count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "DatasetFolderTreeResponse",
+        "type": "object"
+      },
+      "DatasetFolderUpdate": {
+        "description": "Request model for updating a folder.",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "parent_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New parent folder or null for root",
+            "title": "Parent Folder Id"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replace tags if provided",
+            "title": "Tags"
+          }
+        },
+        "title": "DatasetFolderUpdate",
+        "type": "object"
+      },
       "DatasetInsights": {
         "description": "Complete structured intelligence for a dataset.",
         "properties": {
@@ -11958,6 +12863,31 @@
           "name"
         ],
         "title": "DetectedCompetitor",
+        "type": "object"
+      },
+      "DismissBusinessMetricSuggestionRequest": {
+        "description": "Request to dismiss a business metric suggestion.",
+        "properties": {
+          "metric_key": {
+            "description": "Business metric key to dismiss",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "source_question": {
+            "description": "The source question of the suggestion to dismiss",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Source Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric_key",
+          "source_question"
+        ],
+        "title": "DismissBusinessMetricSuggestionRequest",
         "type": "object"
       },
       "DismissRefreshRequest": {
@@ -14128,6 +15058,67 @@
         "title": "FixedCostsResponse",
         "type": "object"
       },
+      "FolderDatasetResponse": {
+        "description": "Basic dataset info for folder membership listing.",
+        "properties": {
+          "added_at": {
+            "description": "When added to folder",
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "id": {
+            "description": "Dataset UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Dataset name",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "added_at"
+        ],
+        "title": "FolderDatasetResponse",
+        "type": "object"
+      },
+      "FolderDatasetsListResponse": {
+        "description": "Response listing datasets in a folder.",
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/FolderDatasetResponse"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "FolderDatasetsListResponse",
+        "type": "object"
+      },
+      "FolderTagsResponse": {
+        "description": "Response listing all unique folder tags for a user.",
+        "properties": {
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "title": "FolderTagsResponse",
+        "type": "object"
+      },
       "ForbiddenErrorResponse": {
         "description": "Error response for 403 Forbidden.\n\nUsed when the user is authenticated but lacks permission.",
         "examples": [
@@ -15852,6 +16843,63 @@
         "title": "InsightCategory",
         "type": "string"
       },
+      "InsightEnrichResponse": {
+        "description": "Response from insight enrichment.",
+        "properties": {
+          "comparison_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable comparison",
+            "title": "Comparison Text"
+          },
+          "enriched": {
+            "default": false,
+            "description": "Whether market context was added",
+            "title": "Enriched",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "percentile_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's percentile (0-100)",
+            "title": "Percentile Position"
+          },
+          "success": {
+            "description": "Whether enrichment succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "InsightEnrichResponse",
+        "type": "object"
+      },
       "InsightMetricResponse": {
         "description": "Extracted metric from insight.",
         "properties": {
@@ -15946,6 +16994,19 @@
       "InsightVisualization": {
         "description": "Visualization configuration for an insight.",
         "properties": {
+          "figure_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Plotly figure spec for rendering",
+            "title": "Figure Json"
+          },
           "group_by": {
             "anyOf": [
               {
@@ -17101,6 +18162,104 @@
             "title": "Added At",
             "type": "string"
           },
+          "changes_detected": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fields that changed during last enrichment",
+            "title": "Changes Detected"
+          },
+          "employee_count": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employee count estimate",
+            "title": "Employee Count"
+          },
+          "funding_info": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Funding information",
+            "title": "Funding Info"
+          },
+          "funding_rounds": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Funding rounds: [{round_type, amount, date, investors[]}]",
+            "title": "Funding Rounds"
+          },
+          "intel_gathered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When deep intelligence was last gathered",
+            "title": "Intel Gathered At"
+          },
+          "key_signals": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notable signals: ['Raised Series B', 'Launched AI feature']",
+            "title": "Key Signals"
+          },
+          "last_enriched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When competitor was last enriched",
+            "title": "Last Enriched At"
+          },
           "name": {
             "description": "Competitor company name",
             "maxLength": 100,
@@ -17120,6 +18279,62 @@
             ],
             "description": "User notes about the competitor",
             "title": "Notes"
+          },
+          "product_description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product/service description",
+            "title": "Product Description"
+          },
+          "product_updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product launches/updates: [{title, date, description, source_url}]",
+            "title": "Product Updates"
+          },
+          "recent_news": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Recent news items with title, url, date",
+            "title": "Recent News"
           },
           "relevance_flags": {
             "anyOf": [
@@ -17159,6 +18374,34 @@
             "description": "Warning message if <2 checks pass",
             "title": "Relevance Warning"
           },
+          "tagline": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Company tagline",
+            "title": "Tagline"
+          },
+          "tech_stack": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Technology stack",
+            "title": "Tech Stack"
+          },
           "url": {
             "anyOf": [
               {
@@ -17178,6 +18421,50 @@
           "added_at"
         ],
         "title": "ManagedCompetitor",
+        "type": "object"
+      },
+      "ManagedCompetitorBulkEnrichResponse": {
+        "description": "Response from enriching all managed competitors.",
+        "properties": {
+          "competitors": {
+            "description": "All competitors with enrichment status",
+            "items": {
+              "$ref": "#/components/schemas/ManagedCompetitor"
+            },
+            "title": "Competitors",
+            "type": "array"
+          },
+          "enriched_count": {
+            "default": 0,
+            "description": "Number of competitors successfully enriched",
+            "title": "Enriched Count",
+            "type": "integer"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error messages if any failed",
+            "title": "Errors"
+          },
+          "success": {
+            "description": "Whether all enrichments succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "ManagedCompetitorBulkEnrichResponse",
         "type": "object"
       },
       "ManagedCompetitorCreate": {
@@ -17221,6 +18508,59 @@
           "name"
         ],
         "title": "ManagedCompetitorCreate",
+        "type": "object"
+      },
+      "ManagedCompetitorEnrichResponse": {
+        "description": "Response from enriching a single managed competitor.",
+        "properties": {
+          "changes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fields that changed during enrichment",
+            "title": "Changes"
+          },
+          "competitor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedCompetitor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enriched competitor data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "success": {
+            "description": "Whether enrichment succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "ManagedCompetitorEnrichResponse",
         "type": "object"
       },
       "ManagedCompetitorListResponse": {
@@ -17363,8 +18703,36 @@
         "type": "object"
       },
       "MarketTrend": {
-        "description": "A market trend.",
+        "description": "A market trend with optional AI-generated summary.\n\nBase fields (from search):\n- trend: Original headline/description from search\n- source: Source name (e.g., \"TechCrunch\")\n- source_url: URL to the article\n\nEnhanced fields (from article extraction + LLM):\n- summary: AI-generated 2-3 sentence summary of the article\n- key_points: Bullet-point takeaways (3 items)\n- fetched_at: When the article content was extracted",
         "properties": {
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When article content was extracted",
+            "title": "Fetched At"
+          },
+          "key_points": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Key takeaways (3 bullet points)",
+            "title": "Key Points"
+          },
           "source": {
             "anyOf": [
               {
@@ -17389,8 +18757,20 @@
             "description": "Source URL",
             "title": "Source Url"
           },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AI-generated article summary (2-3 sentences)",
+            "title": "Summary"
+          },
           "trend": {
-            "description": "Trend description",
+            "description": "Trend description/headline",
             "title": "Trend",
             "type": "string"
           }
@@ -18415,6 +19795,129 @@
         "title": "MessageResponse",
         "type": "object"
       },
+      "MetricCalculationAnswer": {
+        "description": "A single answer to a calculation question.",
+        "properties": {
+          "question_id": {
+            "description": "The question ID being answered",
+            "title": "Question Id",
+            "type": "string"
+          },
+          "value": {
+            "description": "Numeric value provided",
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "question_id",
+          "value"
+        ],
+        "title": "MetricCalculationAnswer",
+        "type": "object"
+      },
+      "MetricCalculationRequest": {
+        "description": "Request to calculate a metric from Q&A answers.",
+        "properties": {
+          "answers": {
+            "description": "Answers to the calculation questions",
+            "items": {
+              "$ref": "#/components/schemas/MetricCalculationAnswer"
+            },
+            "minItems": 1,
+            "title": "Answers",
+            "type": "array"
+          },
+          "save_insight": {
+            "default": true,
+            "description": "Whether to save answers as ClarificationInsight",
+            "title": "Save Insight",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "title": "MetricCalculationRequest",
+        "type": "object"
+      },
+      "MetricCalculationResponse": {
+        "description": "Response from metric calculation.",
+        "properties": {
+          "calculated_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calculated metric value",
+            "title": "Calculated Value"
+          },
+          "confidence": {
+            "default": 1.0,
+            "description": "Confidence score (1.0 for calculation)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if failed",
+            "title": "Error"
+          },
+          "formula_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Formula that was applied",
+            "title": "Formula Used"
+          },
+          "insight_saved": {
+            "default": false,
+            "description": "Whether insight was saved",
+            "title": "Insight Saved",
+            "type": "boolean"
+          },
+          "result_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unit of the result",
+            "title": "Result Unit"
+          },
+          "success": {
+            "description": "Whether calculation succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "MetricCalculationResponse",
+        "type": "object"
+      },
       "MetricCategory": {
         "description": "Metric category types.",
         "enum": [
@@ -18426,6 +19929,36 @@
         ],
         "title": "MetricCategory",
         "type": "string"
+      },
+      "MetricFormulaResponse": {
+        "description": "Response with questions for calculating a metric.",
+        "properties": {
+          "metric_key": {
+            "description": "The metric identifier",
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "questions": {
+            "description": "Questions to ask",
+            "items": {
+              "$ref": "#/components/schemas/MetricQuestionDef"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "result_unit": {
+            "description": "Unit of the result: $, %, months, ratio",
+            "title": "Result Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric_key",
+          "questions",
+          "result_unit"
+        ],
+        "title": "MetricFormulaResponse",
+        "type": "object"
       },
       "MetricHistoryPoint": {
         "description": "Single point in metric history for sparkline visualization.",
@@ -18464,6 +19997,51 @@
         ],
         "title": "MetricImportance",
         "type": "string"
+      },
+      "MetricQuestionDef": {
+        "description": "Definition of a metric calculation question.",
+        "properties": {
+          "help_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Help text explaining the question",
+            "title": "Help Text"
+          },
+          "id": {
+            "description": "Question identifier for answer mapping",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_type": {
+            "description": "Input type: currency, number, percent",
+            "title": "Input Type",
+            "type": "string"
+          },
+          "placeholder": {
+            "description": "Placeholder text for input",
+            "title": "Placeholder",
+            "type": "string"
+          },
+          "question": {
+            "description": "The question to ask the user",
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "input_type",
+          "placeholder"
+        ],
+        "title": "MetricQuestionDef",
+        "type": "object"
       },
       "MetricSource": {
         "description": "Source of metric value.",
@@ -27039,6 +28617,86 @@
         "title": "SetUserOverrideRequest",
         "type": "object"
       },
+      "SimilarDatasetItem": {
+        "description": "A dataset similar to the query dataset.",
+        "properties": {
+          "dataset_id": {
+            "description": "Dataset UUID",
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "insight_preview": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preview of dataset summary/insight",
+            "title": "Insight Preview"
+          },
+          "name": {
+            "description": "Dataset name",
+            "title": "Name",
+            "type": "string"
+          },
+          "shared_columns": {
+            "description": "Column names in common",
+            "items": {
+              "type": "string"
+            },
+            "title": "Shared Columns",
+            "type": "array"
+          },
+          "similarity": {
+            "description": "Similarity score (0-1)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Similarity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "dataset_id",
+          "name",
+          "similarity"
+        ],
+        "title": "SimilarDatasetItem",
+        "type": "object"
+      },
+      "SimilarDatasetsResponse": {
+        "description": "Response for similar datasets endpoint.",
+        "properties": {
+          "query_dataset_id": {
+            "description": "Source dataset ID for the query",
+            "title": "Query Dataset Id",
+            "type": "string"
+          },
+          "similar": {
+            "description": "Similar datasets",
+            "items": {
+              "$ref": "#/components/schemas/SimilarDatasetItem"
+            },
+            "maxItems": 10,
+            "title": "Similar",
+            "type": "array"
+          },
+          "threshold": {
+            "description": "Similarity threshold used",
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "query_dataset_id",
+          "threshold"
+        ],
+        "title": "SimilarDatasetsResponse",
+        "type": "object"
+      },
       "SimilarityBucket": {
         "description": "A bucket in the similarity distribution histogram.\n\nAttributes:\n    bucket: Bucket number (1-5)\n    range_start: Start of similarity range\n    range_end: End of similarity range\n    count: Number of entries in this bucket",
         "properties": {
@@ -28595,6 +30253,73 @@
           "source"
         ],
         "title": "TopicResponse",
+        "type": "object"
+      },
+      "TopicSuggestion": {
+        "description": "A topic suggestion from user-submitted words analysis.",
+        "properties": {
+          "competitor_presence": {
+            "default": "unknown",
+            "description": "Competitor presence: high, medium, low, unknown",
+            "title": "Competitor Presence",
+            "type": "string"
+          },
+          "description": {
+            "description": "Brief description of the topic opportunity",
+            "title": "Description",
+            "type": "string"
+          },
+          "keyword": {
+            "description": "Primary keyword/topic phrase",
+            "title": "Keyword",
+            "type": "string"
+          },
+          "related_keywords": {
+            "description": "Related keywords",
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Keywords",
+            "type": "array"
+          },
+          "search_volume_indicator": {
+            "default": "unknown",
+            "description": "Search volume indicator: high, medium, low, unknown",
+            "title": "Search Volume Indicator",
+            "type": "string"
+          },
+          "seo_potential": {
+            "description": "SEO potential: high, medium, low",
+            "title": "Seo Potential",
+            "type": "string"
+          },
+          "trend_status": {
+            "description": "Trend status: rising, stable, declining",
+            "title": "Trend Status",
+            "type": "string"
+          },
+          "validation_sources": {
+            "description": "URLs from web research validation",
+            "items": {
+              "type": "string"
+            },
+            "title": "Validation Sources",
+            "type": "array"
+          },
+          "validation_status": {
+            "default": "unvalidated",
+            "description": "Validation status: validated, unvalidated",
+            "title": "Validation Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword",
+          "seo_potential",
+          "trend_status",
+          "description"
+        ],
+        "title": "TopicSuggestion",
         "type": "object"
       },
       "TopicsResponse": {
@@ -32368,6 +34093,12 @@
             "title": "History",
             "type": "array"
           },
+          "is_objective_aligned": {
+            "default": false,
+            "description": "True if metric matches user's primary objective",
+            "title": "Is Objective Aligned",
+            "type": "boolean"
+          },
           "locked": {
             "default": false,
             "description": "Whether this comparison is tier-locked",
@@ -32431,6 +34162,32 @@
             ],
             "description": "User's percentile rank (0-100)",
             "title": "Percentile"
+          },
+          "relevance_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this metric matters for user's objective",
+            "title": "Relevance Reason"
+          },
+          "relevance_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relevance to user's objective (0.0-1.0)",
+            "title": "Relevance Score"
           },
           "status": {
             "default": "unknown",
@@ -49143,6 +50900,932 @@
         ]
       }
     },
+    "/api/v1/advisor/chat": {
+      "post": {
+        "description": "Ask questions or get guidance from the AI mentor (SSE streaming)",
+        "operationId": "mentor_chat_api_v1_advisor_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "example": "event: response\ndata: {\"content\": \"...\"}\n\n"
+              }
+            },
+            "description": "SSE event stream"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Chat with mentor",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/conversations": {
+      "get": {
+        "description": "List recent mentor conversations for the current user",
+        "operationId": "list_mentor_conversations_api_v1_advisor_conversations_get",
+        "parameters": [
+          {
+            "description": "Max conversations to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Max conversations to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorConversationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List mentor conversations",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/conversations/{conversation_id}": {
+      "delete": {
+        "description": "Delete a mentor conversation",
+        "operationId": "delete_mentor_conversation_api_v1_advisor_conversations__conversation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete mentor conversation",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      },
+      "get": {
+        "description": "Get a mentor conversation with full message history",
+        "operationId": "get_mentor_conversation_api_v1_advisor_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorConversationDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get mentor conversation",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      },
+      "patch": {
+        "description": "Update a mentor conversation (currently supports label update)",
+        "operationId": "update_mentor_conversation_api_v1_advisor_conversations__conversation_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationLabelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorConversationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update mentor conversation",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/failure-patterns": {
+      "get": {
+        "description": "Analyze actions to find failure patterns for proactive mentoring",
+        "operationId": "get_failure_patterns_api_v1_advisor_failure_patterns_get",
+        "parameters": [
+          {
+            "description": "Days to look back (7-90)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days to look back (7-90)",
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Minimum failures to report (1-20)",
+            "in": "query",
+            "name": "min_failures",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "Minimum failures to report (1-20)",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Min Failures",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailurePatternsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect action failure patterns",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/improvement-plan": {
+      "get": {
+        "description": "Generate a proactive improvement plan based on detected patterns",
+        "operationId": "get_improvement_plan_api_v1_advisor_improvement_plan_get",
+        "parameters": [
+          {
+            "description": "Days to look back (7-90)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days to look back (7-90)",
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Bypass cache and regenerate",
+            "in": "query",
+            "name": "force_refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Bypass cache and regenerate",
+              "title": "Force Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImprovementPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get improvement plan",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/mentions/search": {
+      "get": {
+        "description": "Search meetings, actions, datasets, or chats for @mention autocomplete",
+        "operationId": "search_mentions_api_v1_advisor_mentions_search_get",
+        "parameters": [
+          {
+            "description": "Entity type: meeting, action, dataset, chat",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Entity type: meeting, action, dataset, chat",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query (optional, returns recent if empty)",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Search query (optional, returns recent if empty)",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Max results",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Current conversation ID to exclude from results",
+            "in": "query",
+            "name": "conversation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Current conversation ID to exclude from results",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentionSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search for mentionable entities",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/personas": {
+      "get": {
+        "description": "Get all available mentor personas for manual selection",
+        "operationId": "list_personas_api_v1_advisor_personas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorPersonaListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          }
+        },
+        "summary": "List available mentor personas",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/repeated-topics": {
+      "get": {
+        "description": "Analyze mentor conversations to find repeated topic patterns",
+        "operationId": "get_repeated_topics_api_v1_advisor_repeated_topics_get",
+        "parameters": [
+          {
+            "description": "Similarity threshold (0.7-0.95)",
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "default": 0.85,
+              "description": "Similarity threshold (0.7-0.95)",
+              "maximum": 0.95,
+              "minimum": 0.7,
+              "title": "Threshold",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Minimum occurrences to report (2-10)",
+            "in": "query",
+            "name": "min_occurrences",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "Minimum occurrences to report (2-10)",
+              "maximum": 10,
+              "minimum": 2,
+              "title": "Min Occurrences",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Days to look back (7-90)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days to look back (7-90)",
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepeatedTopicsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect repeated help request topics",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/search": {
+      "get": {
+        "description": "Semantic search over past advisor conversations to find similar topics",
+        "operationId": "search_conversations_api_v1_advisor_search_get",
+        "parameters": [
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Search query",
+              "maxLength": 500,
+              "minLength": 3,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Minimum similarity (0.5-0.95)",
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "default": 0.7,
+              "description": "Minimum similarity (0.5-0.95)",
+              "maximum": 0.95,
+              "minimum": 0.5,
+              "title": "Threshold",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Maximum results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Maximum results",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Days to search back",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "description": "Days to search back",
+              "maximum": 365,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search advisor conversations",
+        "tags": [
+          "advisor",
+          "advisor"
+        ]
+      }
+    },
     "/api/v1/analysis/ask": {
       "post": {
         "description": "Ask questions about datasets or get general data analysis guidance (SSE streaming)",
@@ -51735,6 +54418,86 @@
         ]
       }
     },
+    "/api/v1/context/insights/{question_key}/enrich": {
+      "post": {
+        "description": "Manually trigger market context enrichment for a specific insight.\n\n    Finds matching industry benchmarks and adds percentile comparison data\n    to the insight. Useful for:\n    - Re-enriching insights after industry changes\n    - Enriching older insights that were created before this feature\n\n    **Requirements:**\n    - User must have an industry set in context\n    - Insight must have a metric with a numeric value\n\n    **Cost:** ~$0.005-0.01 if cache miss (web research + LLM extraction)",
+        "operationId": "enrich_insight_api_v1_context_insights__question_key__enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_key",
+            "required": true,
+            "schema": {
+              "title": "Question Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "comparison_text": "Your CAC ($50) is in the 45th percentile for SaaS (below average)",
+                  "enriched": true,
+                  "percentile_position": 45,
+                  "success": true
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/InsightEnrichResponse"
+                }
+              }
+            },
+            "description": "Enrichment completed (check enriched field)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enrich an insight with market context",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/key-metrics": {
       "get": {
         "description": "Returns user's prioritized key metrics with current values and trends.",
@@ -51953,6 +54716,58 @@
         ]
       }
     },
+    "/api/v1/context/managed-competitors/enrich-all": {
+      "post": {
+        "description": "Enrich all managed competitors with data from Tavily Search API.\n\n    This is an expensive operation - use sparingly (monthly refresh recommended).\n    Competitors are enriched sequentially with a small delay between requests.",
+        "operationId": "enrich_all_managed_competitors_api_v1_context_managed_competitors_enrich_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCompetitorBulkEnrichResponse"
+                }
+              }
+            },
+            "description": "Bulk enrichment completed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Enrich all managed competitors (monthly refresh)",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/managed-competitors/{name}": {
       "delete": {
         "description": "Remove a competitor from the user's managed list.\n\n    Competitor is matched by name (case-insensitive).\n    This does not delete any associated competitor insights.",
@@ -52093,6 +54908,89 @@
         ]
       }
     },
+    "/api/v1/context/managed-competitors/{name}/enrich": {
+      "post": {
+        "description": "Enrich a single managed competitor with data from Tavily Search API.\n\n    Retrieves:\n    - Company tagline and description\n    - Funding information (deep tier)\n    - Employee count (deep tier)\n    - Recent news (deep tier)\n\n    Rate limited to prevent API abuse.",
+        "operationId": "enrich_managed_competitor_api_v1_context_managed_competitors__name__enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCompetitorEnrichResponse"
+                }
+              }
+            },
+            "description": "Enrichment completed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Enrich a managed competitor with Tavily data",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
     "/api/v1/context/metric-suggestions": {
       "get": {
         "description": "Get suggestions for auto-populating context metrics from clarification insights.\n\n    Analyzes user's clarification answers (from meetings) and extracts metric data\n    that could be used to populate context fields like revenue, customers, growth_rate,\n    and team_size.\n\n    **Filtering:**\n    - Only insights with confidence >= 0.6 are suggested\n    - Only insights from the last 90 days are considered\n    - Suggestions are deduplicated per field (highest confidence wins)\n    - Suggestions matching current values are excluded\n\n    **Use Cases:**\n    - Show \"Suggested from insights\" panel on key-metrics page\n    - Help users keep context metrics in sync with their meeting data",
@@ -52134,6 +55032,382 @@
           }
         },
         "summary": "Get metric suggestions from insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/calculable": {
+      "get": {
+        "description": "Get a list of metric keys that have Q&A-guided calculation support.\n\n    These metrics can be derived through guided questions rather than\n    direct input of the final value.",
+        "operationId": "get_calculable_metrics_api_v1_context_metrics_calculable_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "metrics": [
+                    "mrr",
+                    "arr",
+                    "churn",
+                    "nps",
+                    "cac",
+                    "ltv",
+                    "burn_rate",
+                    "runway"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableMetricsResponse"
+                }
+              }
+            },
+            "description": "Available metrics listed"
+          }
+        },
+        "summary": "List metrics with calculation support",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/suggestions": {
+      "get": {
+        "description": "Get suggestions for auto-populating business metrics from clarification insights.\n\n    Uses keyword-based matching to detect metric values in user's clarification answers\n    (from meetings and calculations) and map them to specific business metrics like\n    MRR, churn, CAC, LTV, etc.\n\n    **Matching factors:**\n    - Category match (insight category \u2192 metric category)\n    - Keyword presence in question/answer text\n    - Value pattern extraction from text\n\n    **Filtering:**\n    - Only suggestions with confidence >= 0.5 are returned\n    - Only insights from the last 90 days are considered\n    - Suggestions matching current metric values are excluded\n    - Dismissed suggestions are excluded\n\n    **Use Cases:**\n    - Show \"Suggested from insights\" panel on business metrics page\n    - Help users keep metrics in sync with their meeting data",
+        "operationId": "get_business_metric_suggestions_api_v1_context_metrics_suggestions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "success": true,
+                  "suggestions": [
+                    {
+                      "answered_at": "2025-12-28T10:30:00Z",
+                      "confidence": 0.85,
+                      "current_value": 45000,
+                      "is_dismissed": false,
+                      "metric_key": "mrr",
+                      "metric_name": "Monthly Recurring Revenue",
+                      "source_question": "What's your current MRR?",
+                      "suggested_value": "$50,000"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessMetricSuggestionsResponse"
+                }
+              }
+            },
+            "description": "Suggestions retrieved successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          }
+        },
+        "summary": "Get business metric suggestions from insights",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/suggestions/apply": {
+      "post": {
+        "description": "Apply a business metric suggestion to update the metric value.\n\n    Updates the specified business metric with the provided value. The source_question\n    is recorded for audit trail.\n\n    **Use Cases:**\n    - User clicks \"Apply\" on a suggestion in the metrics page",
+        "operationId": "apply_business_metric_suggestion_api_v1_context_metrics_suggestions_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyBusinessMetricSuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "metric_key": "mrr",
+                  "new_value": 50000,
+                  "success": true
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyBusinessMetricSuggestionResponse"
+                }
+              }
+            },
+            "description": "Suggestion applied successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply a business metric suggestion",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/suggestions/dismiss": {
+      "post": {
+        "description": "Dismiss a business metric suggestion to prevent it from appearing again.\n\n    Stores the dismissal in user context. The suggestion can be un-dismissed by\n    clearing dismissed suggestions.",
+        "operationId": "dismiss_business_metric_suggestion_api_v1_context_metrics_suggestions_dismiss_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissBusinessMetricSuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "metric_key": "mrr",
+                  "new_value": 0,
+                  "success": true
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyBusinessMetricSuggestionResponse"
+                }
+              }
+            },
+            "description": "Suggestion dismissed successfully"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss a business metric suggestion",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/{metric_key}/calculate": {
+      "post": {
+        "description": "Calculate a metric value from user-provided answers to guided questions.\n\n    Optionally stores the Q&A answers as a ClarificationInsight with\n    source_type=\"calculation\" for future reference.\n\n    **Process:**\n    1. Validates all required answers are provided\n    2. Applies the metric formula to calculate the value\n    3. Optionally saves the calculation as an insight\n    4. Returns the calculated value and formula used",
+        "operationId": "calculate_metric_api_v1_context_metrics__metric_key__calculate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_key",
+            "required": true,
+            "schema": {
+              "title": "Metric Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetricCalculationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "calculated_value": 5.0,
+                  "confidence": 1.0,
+                  "formula_used": "(customers_lost / customers_start * 100)",
+                  "insight_saved": true,
+                  "result_unit": "%",
+                  "success": true
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MetricCalculationResponse"
+                }
+              }
+            },
+            "description": "Metric calculated successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Calculate a metric from Q&A answers",
+        "tags": [
+          "context",
+          "context"
+        ]
+      }
+    },
+    "/api/v1/context/metrics/{metric_key}/questions": {
+      "get": {
+        "description": "Get the guided Q&A questions for calculating a specific metric.\n\n    Returns a list of questions with input types (currency, number, percent)\n    and help text to guide the user through deriving the metric value.",
+        "operationId": "get_metric_questions_api_v1_context_metrics__metric_key__questions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_key",
+            "required": true,
+            "schema": {
+              "title": "Metric Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "metric_key": "churn",
+                  "questions": [
+                    {
+                      "help_text": "Customers who canceled or didn't renew",
+                      "id": "customers_lost",
+                      "input_type": "number",
+                      "placeholder": "5",
+                      "question": "How many customers did you lose this month?"
+                    },
+                    {
+                      "help_text": "Total active customers at month start",
+                      "id": "customers_start",
+                      "input_type": "number",
+                      "placeholder": "100",
+                      "question": "How many customers did you have at the start of the month?"
+                    }
+                  ],
+                  "result_unit": "%"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MetricFormulaResponse"
+                }
+              }
+            },
+            "description": "Questions retrieved successfully"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get calculation questions for a metric",
         "tags": [
           "context",
           "context"
@@ -53498,6 +56772,427 @@
         "summary": "List datasets",
         "tags": [
           "datasets",
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders": {
+      "get": {
+        "description": "List user's dataset folders (flat list).",
+        "operationId": "list_folders_api_v1_datasets_folders_get",
+        "parameters": [
+          {
+            "description": "Filter by parent folder",
+            "in": "query",
+            "name": "parent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by parent folder",
+              "title": "Parent Id"
+            }
+          },
+          {
+            "description": "Filter by tag",
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by tag",
+              "title": "Tag"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetFolderListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Folders",
+        "tags": [
+          "datasets"
+        ]
+      },
+      "post": {
+        "description": "Create a new dataset folder.",
+        "operationId": "create_folder_api_v1_datasets_folders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetFolderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetFolderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Folder",
+        "tags": [
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders/tags": {
+      "get": {
+        "description": "List all unique folder tags for the user.",
+        "operationId": "list_tags_api_v1_datasets_folders_tags_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderTagsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tags",
+        "tags": [
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders/tree": {
+      "get": {
+        "description": "Get folder tree with nested children.",
+        "operationId": "list_folders_tree_api_v1_datasets_folders_tree_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetFolderTreeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Folders Tree",
+        "tags": [
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders/{folder_id}": {
+      "delete": {
+        "description": "Delete a folder. Datasets are removed from folder (not deleted).",
+        "operationId": "delete_folder_api_v1_datasets_folders__folder_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Folder",
+        "tags": [
+          "datasets"
+        ]
+      },
+      "get": {
+        "description": "Get a folder by ID.",
+        "operationId": "get_folder_api_v1_datasets_folders__folder_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetFolderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Folder",
+        "tags": [
+          "datasets"
+        ]
+      },
+      "patch": {
+        "description": "Update a folder.",
+        "operationId": "update_folder_api_v1_datasets_folders__folder_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetFolderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetFolderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Folder",
+        "tags": [
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders/{folder_id}/datasets": {
+      "get": {
+        "description": "List datasets in a folder.",
+        "operationId": "get_folder_datasets_api_v1_datasets_folders__folder_id__datasets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderDatasetsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Folder Datasets",
+        "tags": [
+          "datasets"
+        ]
+      },
+      "post": {
+        "description": "Add datasets to a folder.",
+        "operationId": "add_datasets_to_folder_api_v1_datasets_folders__folder_id__datasets_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDatasetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddDatasetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Datasets To Folder",
+        "tags": [
+          "datasets"
+        ]
+      }
+    },
+    "/api/v1/datasets/folders/{folder_id}/datasets/{dataset_id}": {
+      "delete": {
+        "description": "Remove a dataset from a folder.",
+        "operationId": "remove_dataset_from_folder_api_v1_datasets_folders__folder_id__datasets__dataset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Dataset From Folder",
+        "tags": [
           "datasets"
         ]
       }
@@ -55985,6 +59680,78 @@
         ]
       }
     },
+    "/api/v1/datasets/{dataset_id}/similar": {
+      "get": {
+        "description": "Find datasets semantically similar to this one based on metadata and columns",
+        "operationId": "get_similar_datasets_api_v1_datasets__dataset_id__similar_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Minimum similarity threshold (0.4-0.9)",
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "default": 0.6,
+              "description": "Minimum similarity threshold (0.4-0.9)",
+              "maximum": 0.9,
+              "minimum": 0.4,
+              "title": "Threshold",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Maximum results to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Maximum results to return",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarDatasetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Find similar datasets",
+        "tags": [
+          "datasets",
+          "datasets"
+        ]
+      }
+    },
     "/api/v1/email/unsubscribe": {
       "get": {
         "description": "Handle email unsubscribe link.\n\nValidates the token and updates user's email preferences.\nReturns an HTML page confirming the unsubscribe action.",
@@ -56725,812 +60492,6 @@
         "tags": [
           "invitations",
           "invitations"
-        ]
-      }
-    },
-    "/api/v1/mentor/chat": {
-      "post": {
-        "description": "Ask questions or get guidance from the AI mentor (SSE streaming)",
-        "operationId": "mentor_chat_api_v1_mentor_chat_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MentorChatRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              },
-              "text/event-stream": {
-                "example": "event: response\ndata: {\"content\": \"...\"}\n\n"
-              }
-            },
-            "description": "SSE event stream"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RateLimitResponse"
-                }
-              }
-            },
-            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
-            "headers": {
-              "Retry-After": {
-                "description": "Number of seconds until the rate limit window resets",
-                "schema": {
-                  "example": 60,
-                  "type": "integer"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Chat with mentor",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/conversations": {
-      "get": {
-        "description": "List recent mentor conversations for the current user",
-        "operationId": "list_mentor_conversations_api_v1_mentor_conversations_get",
-        "parameters": [
-          {
-            "description": "Max conversations to return",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "description": "Max conversations to return",
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MentorConversationListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List mentor conversations",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/conversations/{conversation_id}": {
-      "delete": {
-        "description": "Delete a mentor conversation",
-        "operationId": "delete_mentor_conversation_api_v1_mentor_conversations__conversation_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "title": "Conversation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotFoundErrorResponse"
-                }
-              }
-            },
-            "description": "Not found - the requested resource does not exist"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete mentor conversation",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      },
-      "get": {
-        "description": "Get a mentor conversation with full message history",
-        "operationId": "get_mentor_conversation_api_v1_mentor_conversations__conversation_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "title": "Conversation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MentorConversationDetailResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotFoundErrorResponse"
-                }
-              }
-            },
-            "description": "Not found - the requested resource does not exist"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get mentor conversation",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      },
-      "patch": {
-        "description": "Update a mentor conversation (currently supports label update)",
-        "operationId": "update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "title": "Conversation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateConversationLabelRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MentorConversationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotFoundErrorResponse"
-                }
-              }
-            },
-            "description": "Not found - the requested resource does not exist"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Update mentor conversation",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/failure-patterns": {
-      "get": {
-        "description": "Analyze actions to find failure patterns for proactive mentoring",
-        "operationId": "get_failure_patterns_api_v1_mentor_failure_patterns_get",
-        "parameters": [
-          {
-            "description": "Days to look back (7-90)",
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "description": "Days to look back (7-90)",
-              "maximum": 90,
-              "minimum": 7,
-              "title": "Days",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Minimum failures to report (1-20)",
-            "in": "query",
-            "name": "min_failures",
-            "required": false,
-            "schema": {
-              "default": 3,
-              "description": "Minimum failures to report (1-20)",
-              "maximum": 20,
-              "minimum": 1,
-              "title": "Min Failures",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailurePatternsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Detect action failure patterns",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/improvement-plan": {
-      "get": {
-        "description": "Generate a proactive improvement plan based on detected patterns",
-        "operationId": "get_improvement_plan_api_v1_mentor_improvement_plan_get",
-        "parameters": [
-          {
-            "description": "Days to look back (7-90)",
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "description": "Days to look back (7-90)",
-              "maximum": 90,
-              "minimum": 7,
-              "title": "Days",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Bypass cache and regenerate",
-            "in": "query",
-            "name": "force_refresh",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "Bypass cache and regenerate",
-              "title": "Force Refresh",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImprovementPlanResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RateLimitResponse"
-                }
-              }
-            },
-            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
-            "headers": {
-              "Retry-After": {
-                "description": "Number of seconds until the rate limit window resets",
-                "schema": {
-                  "example": 60,
-                  "type": "integer"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Get improvement plan",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/mentions/search": {
-      "get": {
-        "description": "Search meetings, actions, datasets, or chats for @mention autocomplete",
-        "operationId": "search_mentions_api_v1_mentor_mentions_search_get",
-        "parameters": [
-          {
-            "description": "Entity type: meeting, action, dataset, chat",
-            "in": "query",
-            "name": "type",
-            "required": true,
-            "schema": {
-              "description": "Entity type: meeting, action, dataset, chat",
-              "title": "Type",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Search query (optional, returns recent if empty)",
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "default": "",
-              "description": "Search query (optional, returns recent if empty)",
-              "title": "Q",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Max results",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 10,
-              "description": "Max results",
-              "maximum": 20,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Current conversation ID to exclude from results",
-            "in": "query",
-            "name": "conversation_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Current conversation ID to exclude from results",
-              "title": "Conversation Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MentionSearchResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request - validation failed or invalid parameters"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Search for mentionable entities",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/personas": {
-      "get": {
-        "description": "Get all available mentor personas for manual selection",
-        "operationId": "list_personas_api_v1_mentor_personas_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MentorPersonaListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          }
-        },
-        "summary": "List available mentor personas",
-        "tags": [
-          "mentor",
-          "mentor"
-        ]
-      }
-    },
-    "/api/v1/mentor/repeated-topics": {
-      "get": {
-        "description": "Analyze mentor conversations to find repeated topic patterns",
-        "operationId": "get_repeated_topics_api_v1_mentor_repeated_topics_get",
-        "parameters": [
-          {
-            "description": "Similarity threshold (0.7-0.95)",
-            "in": "query",
-            "name": "threshold",
-            "required": false,
-            "schema": {
-              "default": 0.85,
-              "description": "Similarity threshold (0.7-0.95)",
-              "maximum": 0.95,
-              "minimum": 0.7,
-              "title": "Threshold",
-              "type": "number"
-            }
-          },
-          {
-            "description": "Minimum occurrences to report (2-10)",
-            "in": "query",
-            "name": "min_occurrences",
-            "required": false,
-            "schema": {
-              "default": 3,
-              "description": "Minimum occurrences to report (2-10)",
-              "maximum": 10,
-              "minimum": 2,
-              "title": "Min Occurrences",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Days to look back (7-90)",
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "description": "Days to look back (7-90)",
-              "maximum": 90,
-              "minimum": 7,
-              "title": "Days",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RepeatedTopicsListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized - authentication required or invalid"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden - user lacks permission to access this resource"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Detect repeated help request topics",
-        "tags": [
-          "mentor",
-          "mentor"
         ]
       }
     },
@@ -60595,6 +63556,68 @@
           }
         },
         "summary": "Create Topic",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/topics/analyze": {
+      "post": {
+        "description": "Analyze user-submitted words to suggest SEO topic ideas.\n\nTakes a list of words/phrases and returns intelligent topic suggestions\nwith SEO potential scoring, trend status, and related keywords.\n\nRate limited to 5 requests per minute.",
+        "operationId": "analyze_topics_api_v1_seo_topics_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeTopicsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeTopicsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Analyze Topics",
         "tags": [
           "seo",
           "seo"

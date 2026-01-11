@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.mentor import router
+from backend.api.advisor import router
 from backend.api.middleware.auth import get_current_user
 from backend.services.action_failure_detector import (
     FailurePattern,
@@ -24,7 +24,7 @@ def test_app():
     """Create test app with mentor router and auth override."""
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_user_override
-    # Router already has /v1/mentor prefix
+    # Router already has /v1/advisor prefix
     app.include_router(router, prefix="/api")
     return app
 
@@ -48,7 +48,7 @@ class TestFailurePatternsAuthRequired:
 
     def test_failure_patterns_requires_auth(self, unauthenticated_client):
         """Endpoint requires authentication."""
-        response = unauthenticated_client.get("/api/v1/mentor/failure-patterns")
+        response = unauthenticated_client.get("/api/v1/advisor/failure-patterns")
         assert response.status_code == 401
 
 
@@ -109,7 +109,7 @@ class TestFailurePatternsResponseStructure:
         ) as mock_detector:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()
@@ -161,7 +161,7 @@ class TestFailurePatternsResponseStructure:
         ) as mock_detector:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()
@@ -213,7 +213,7 @@ class TestMinFailuresFiltering:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
             # Default min_failures is 3
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()
@@ -255,14 +255,14 @@ class TestMinFailuresFiltering:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
             # Set min_failures to 10, should return empty
-            response = client.get("/api/v1/mentor/failure-patterns?min_failures=10")
+            response = client.get("/api/v1/advisor/failure-patterns?min_failures=10")
 
             assert response.status_code == 200
             data = response.json()
             assert data["patterns"] == []
 
             # Set min_failures to 1, should return all
-            response = client.get("/api/v1/mentor/failure-patterns?min_failures=1")
+            response = client.get("/api/v1/advisor/failure-patterns?min_failures=1")
             data = response.json()
             assert len(data["patterns"]) == 5
 
@@ -286,7 +286,7 @@ class TestDaysParamValidation:
             )
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()
@@ -294,13 +294,13 @@ class TestDaysParamValidation:
 
     def test_days_range_min(self, client):
         """Days parameter minimum is 7."""
-        response = client.get("/api/v1/mentor/failure-patterns?days=1")
+        response = client.get("/api/v1/advisor/failure-patterns?days=1")
         # FastAPI validates query params
         assert response.status_code == 422
 
     def test_days_range_max(self, client):
         """Days parameter maximum is 90."""
-        response = client.get("/api/v1/mentor/failure-patterns?days=100")
+        response = client.get("/api/v1/advisor/failure-patterns?days=100")
         assert response.status_code == 422
 
     def test_days_valid_values(self, client):
@@ -320,7 +320,7 @@ class TestDaysParamValidation:
                 )
                 mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-                response = client.get(f"/api/v1/mentor/failure-patterns?days={days}")
+                response = client.get(f"/api/v1/advisor/failure-patterns?days={days}")
                 assert response.status_code == 200
 
 
@@ -344,7 +344,7 @@ class TestEmptyPatterns:
         ) as mock_detector:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()
@@ -372,7 +372,7 @@ class TestEmptyPatterns:
         ) as mock_detector:
             mock_detector.return_value.detect_failure_patterns.return_value = mock_summary
 
-            response = client.get("/api/v1/mentor/failure-patterns")
+            response = client.get("/api/v1/advisor/failure-patterns")
 
             assert response.status_code == 200
             data = response.json()

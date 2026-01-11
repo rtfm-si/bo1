@@ -47,6 +47,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from backend.api import (  # noqa: E402
     actions,
     admin,
+    advisor,
     analysis,
     auth,
     billing,
@@ -64,7 +65,6 @@ from backend.api import (  # noqa: E402
     feedback,
     health,
     industry_insights,
-    mentor,
     onboarding,
     page_analytics,
     peer_benchmarks,
@@ -96,6 +96,7 @@ from backend.api.middleware.rate_limit import GlobalRateLimitMiddleware, limiter
 from backend.api.middleware.rate_limit_headers import RateLimitHeadersMiddleware  # noqa: E402
 from backend.api.middleware.security_headers import add_security_headers_middleware  # noqa: E402
 from backend.api.routes import (  # noqa: E402
+    dataset_folders_router,
     dataset_objective_analysis_router,
     objective_data_requirements_router,
 )
@@ -587,9 +588,10 @@ app.include_router(tags.router, prefix="/api", tags=["tags"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(datasets.router, prefix="/api", tags=["datasets"])
+app.include_router(dataset_folders_router, prefix="/api", tags=["datasets"])
 app.include_router(objective_data_requirements_router, prefix="/api", tags=["objectives"])
 app.include_router(dataset_objective_analysis_router, prefix="/api", tags=["datasets"])
-app.include_router(mentor.router, prefix="/api", tags=["mentor"])
+app.include_router(advisor.router, prefix="/api", tags=["advisor"])
 app.include_router(analysis.router, prefix="/api", tags=["analysis"])
 app.include_router(business_metrics.router, prefix="/api", tags=["business-metrics"])
 app.include_router(billing.router, prefix="/api", tags=["billing"])

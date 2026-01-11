@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.mentor import router
+from backend.api.advisor import router
 from backend.api.middleware.auth import get_current_user
 from backend.services.improvement_plan_generator import ImprovementPlan, Suggestion
 
@@ -21,7 +21,7 @@ def test_app():
     """Create test app with mentor router and auth override."""
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_user_override
-    # Router already has /v1/mentor prefix
+    # Router already has /v1/advisor prefix
     app.include_router(router, prefix="/api")
     return app
 
@@ -80,11 +80,11 @@ def mock_plan():
 
 
 class TestImprovementPlanEndpoint:
-    """Tests for GET /api/v1/mentor/improvement-plan."""
+    """Tests for GET /api/v1/advisor/improvement-plan."""
 
     def test_improvement_plan_endpoint_auth(self, unauthenticated_client):
         """Endpoint requires authentication."""
-        response = unauthenticated_client.get("/api/v1/mentor/improvement-plan")
+        response = unauthenticated_client.get("/api/v1/advisor/improvement-plan")
         assert response.status_code == 401
 
     def test_improvement_plan_returns_suggestions(self, client, mock_plan):
@@ -96,7 +96,7 @@ class TestImprovementPlanEndpoint:
             mock_generator.generate_plan = AsyncMock(return_value=mock_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan")
+            response = client.get("/api/v1/advisor/improvement-plan")
 
             assert response.status_code == 200
             data = response.json()
@@ -116,7 +116,7 @@ class TestImprovementPlanEndpoint:
             mock_generator.generate_plan = AsyncMock(return_value=mock_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan")
+            response = client.get("/api/v1/advisor/improvement-plan")
 
             data = response.json()
             assert "generated_at" in data
@@ -133,7 +133,7 @@ class TestImprovementPlanEndpoint:
             mock_generator.generate_plan = AsyncMock(return_value=mock_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan")
+            response = client.get("/api/v1/advisor/improvement-plan")
 
             data = response.json()
             summary = data["inputs_summary"]
@@ -150,7 +150,7 @@ class TestImprovementPlanEndpoint:
             mock_generator.generate_plan = AsyncMock(return_value=mock_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan?days=60")
+            response = client.get("/api/v1/advisor/improvement-plan?days=60")
 
             assert response.status_code == 200
             mock_generator.generate_plan.assert_called_once_with(
@@ -168,7 +168,7 @@ class TestImprovementPlanEndpoint:
             mock_generator.generate_plan = AsyncMock(return_value=mock_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan?force_refresh=true")
+            response = client.get("/api/v1/advisor/improvement-plan?force_refresh=true")
 
             assert response.status_code == 200
             mock_generator.generate_plan.assert_called_once_with(
@@ -179,12 +179,12 @@ class TestImprovementPlanEndpoint:
 
     def test_improvement_plan_days_validation_min(self, client):
         """Days parameter must be >= 7."""
-        response = client.get("/api/v1/mentor/improvement-plan?days=3")
+        response = client.get("/api/v1/advisor/improvement-plan?days=3")
         assert response.status_code == 422
 
     def test_improvement_plan_days_validation_max(self, client):
         """Days parameter must be <= 90."""
-        response = client.get("/api/v1/mentor/improvement-plan?days=100")
+        response = client.get("/api/v1/advisor/improvement-plan?days=100")
         assert response.status_code == 422
 
 
@@ -215,7 +215,7 @@ class TestImprovementPlanOnTrack:
             mock_generator.generate_plan = AsyncMock(return_value=on_track_plan)
             mock_gen.return_value = mock_generator
 
-            response = client.get("/api/v1/mentor/improvement-plan")
+            response = client.get("/api/v1/advisor/improvement-plan")
 
             data = response.json()
             assert len(data["suggestions"]) == 1

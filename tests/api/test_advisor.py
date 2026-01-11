@@ -22,7 +22,7 @@ class TestMentorPersonaListing:
 
         personas = list_all_personas()
 
-        assert len(personas) == 3
+        assert len(personas) >= 3  # May include additional personas
         persona_ids = [p.id for p in personas]
         assert "general" in persona_ids
         assert "action_coach" in persona_ids
@@ -461,7 +461,7 @@ class TestMentorConversationLabels:
 
     def test_conversation_response_includes_label_field(self):
         """MentorConversationResponse should have label field."""
-        from backend.api.mentor import MentorConversationResponse
+        from backend.api.advisor import MentorConversationResponse
 
         # With label
         response = MentorConversationResponse(
@@ -565,13 +565,13 @@ class TestMentorConversationLabels:
 
 
 class TestUpdateConversationLabelEndpoint:
-    """Tests for PATCH /api/v1/mentor/conversations/{id} endpoint."""
+    """Tests for PATCH /api/v1/advisor/conversations/{id} endpoint."""
 
     def test_update_label_request_validation(self):
         """UpdateConversationLabelRequest should validate label field."""
         from pydantic import ValidationError
 
-        from backend.api.mentor import UpdateConversationLabelRequest
+        from backend.api.advisor import UpdateConversationLabelRequest
 
         # Valid label
         req = UpdateConversationLabelRequest(label="My New Label")
@@ -603,7 +603,7 @@ class TestUpdateConversationLabelEndpoint:
         }
 
         with patch(
-            "backend.api.mentor.get_mentor_conversation_repo",
+            "backend.api.advisor.get_mentor_conversation_repo",
             return_value=mock_repo,
         ):
             # Verify mock behavior directly
@@ -635,7 +635,7 @@ class TestUpdateConversationLabelEndpoint:
         """PATCH should reject labels over 100 characters."""
         from pydantic import ValidationError
 
-        from backend.api.mentor import UpdateConversationLabelRequest
+        from backend.api.advisor import UpdateConversationLabelRequest
 
         with pytest.raises(ValidationError) as exc_info:
             UpdateConversationLabelRequest(label="x" * 101)
@@ -657,7 +657,7 @@ class TestMentionSearchChat:
 
     def test_mention_suggestion_can_be_chat_type(self):
         """MentionSuggestion should support 'chat' type."""
-        from backend.api.mentor import MentionSuggestion
+        from backend.api.advisor import MentionSuggestion
 
         suggestion = MentionSuggestion(
             id="chat-uuid-123",

@@ -12,7 +12,8 @@
 		SeoHistoryEntry,
 		SeoTrendOpportunity,
 		SeoTopic,
-		SeoBlogArticle
+		SeoBlogArticle,
+		TopicSuggestion
 	} from '$lib/api/types';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
@@ -22,6 +23,10 @@
 	import ShimmerSkeleton from '$lib/components/ui/loading/ShimmerSkeleton.svelte';
 	import ArticleDetailModal from '$lib/components/seo/ArticleDetailModal.svelte';
 	import { toast } from '$lib/stores/toast';
+
+	// Tab state
+	let activeTab = $state<'research' | 'content'>('research');
+	let historyDropdownOpen = $state(false);
 
 	// State
 	let keywords = $state('');
@@ -42,6 +47,12 @@
 	let newTopicKeyword = $state('');
 	let newTopicNotes = $state('');
 	let addingManualTopic = $state(false);
+
+	// Topic analysis state
+	let analyzingTopics = $state(false);
+	let topicSuggestions = $state<TopicSuggestion[]>([]);
+	let addingSuggestion = $state<string | null>(null);
+	let skipValidation = $state(false);
 
 	// Autogenerate state
 	let autogeneratingTopics = $state(false);
@@ -251,6 +262,8 @@
 			articles = [article, ...articles];
 			topics = topics.map((t) => (t.id === topic.id ? { ...t, status: 'writing' as const } : t));
 			toast.success(`Article generated for "${topic.keyword}"`);
+			// Auto-open the modal with the newly generated article
+			selectedArticle = article;
 			await loadArticles();
 		} catch (err: unknown) {
 			console.error('Failed to generate article:', err);
@@ -340,6 +353,117 @@
 			autogeneratingTopics = false;
 		}
 	}
+
+	async function analyzeTopicIdeas() {
+		if (!newTopicKeyword.trim()) return;
+		analyzingTopics = true;
+		topicSuggestions = [];
+		try {
+			const words = newTopicKeyword
+				.split(',')
+				.map((w) => w.trim())
+				.filter((w) => w.length > 0);
+			if (words.length === 0) return;
+
+			const response = await apiClient.analyzeSeoTopics(words, skipValidation);
+			topicSuggestions = response.suggestions;
+			if (topicSuggestions.length > 0) {
+				const validatedCount = topicSuggestions.filter(
+					(s) => s.validation_status === 'validated'
+				).length;
+				if (validatedCount > 0 && !skipValidation) {
+					toast.success(`Found ${topicSuggestions.length} topic ideas (${validatedCount} validated)`);
+				} else {
+					toast.success(`Found ${topicSuggestions.length} topic ideas`);
+				}
+			} else {
+				toast.info('No suggestions found - try different words');
+			}
+		} catch (err) {
+			console.error('Failed to analyze topics:', err);
+			toast.error('Failed to analyze topics');
+		} finally {
+			analyzingTopics = false;
+		}
+	}
+
+	async function addSuggestionToTopics(suggestion: TopicSuggestion) {
+		addingSuggestion = suggestion.keyword;
+		try {
+			const newTopic = await apiClient.createSeoTopic({
+				keyword: suggestion.keyword,
+				notes: suggestion.description
+			});
+			topics = [newTopic, ...topics];
+			toast.success(`Added "${suggestion.keyword}" to topics`);
+		} catch (err) {
+			console.error('Failed to add suggestion:', err);
+			toast.error('Failed to add topic');
+		} finally {
+			addingSuggestion = null;
+		}
+	}
+
+	function getSeoPotentalBadgeVariant(potential: string): 'success' | 'warning' | 'neutral' {
+		switch (potential) {
+			case 'high':
+				return 'success';
+			case 'medium':
+				return 'warning';
+			default:
+				return 'neutral';
+		}
+	}
+
+	function getTrendStatusBadgeVariant(status: string): 'success' | 'warning' | 'error' {
+		switch (status) {
+			case 'rising':
+				return 'success';
+			case 'stable':
+				return 'warning';
+			default:
+				return 'error';
+		}
+	}
+
+	function clearSuggestions() {
+		topicSuggestions = [];
+	}
+
+	function getCompetitorPresenceBadgeVariant(
+		presence: string
+	): 'error' | 'warning' | 'success' | 'neutral' {
+		switch (presence) {
+			case 'high':
+				return 'error';
+			case 'medium':
+				return 'warning';
+			case 'low':
+				return 'success';
+			default:
+				return 'neutral';
+		}
+	}
+
+	function getSearchVolumeBadgeVariant(
+		volume: string
+	): 'success' | 'warning' | 'neutral' {
+		switch (volume) {
+			case 'high':
+				return 'success';
+			case 'medium':
+				return 'warning';
+			default:
+				return 'neutral';
+		}
+	}
+
+	// Track expanded sources state per suggestion
+	let expandedSources = $state<Record<string, boolean>>({});
+
+	function toggleSources(keyword: string) {
+		expandedSources[keyword] = !expandedSources[keyword];
+	}
 </script>
 
 <div>
@@ -365,9 +489,36 @@
 		</div>
 	{/if}
 
-	<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-		<!-- Main Analysis Area -->
-		<div class="lg:col-span-2 space-y-6">
+	<!-- Tab Navigation -->
+	<div class="mb-6 border-b border-neutral-200 dark:border-neutral-700">
+		<nav class="flex gap-4" aria-label="SEO Tools tabs">
+			<button
+				type="button"
+				class="px-1 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'research'
+					? 'border-brand-500 text-brand-600 dark:text-brand-400'
+					: 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600'}"
+				onclick={() => (activeTab = 'research')}
+			>
+				Research
+			</button>
+			<button
+				type="button"
+				class="px-1 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'content'
+					? 'border-brand-500 text-brand-600 dark:text-brand-400'
+					: 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600'}"
+				onclick={() => (activeTab = 'content')}
+			>
+				Content{topics.length > 0 || articles.length > 0
+					? ` (${topics.length} topic${topics.length !== 1 ? 's' : ''}, ${articles.length} article${articles.length !== 1 ? 's' : ''})`
+					: ''}
+			</button>
+		</nav>
+	</div>
+
+	<!-- Tab Content -->
+	<div class="space-y-6">
+		{#if activeTab === 'research'}
+			<!-- Research Tab: Form + Results -->
 			<!-- Input Form -->
 			<BoCard>
 				{#snippet header()}
@@ -375,13 +526,61 @@
 						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
 							Analyze Trends
 						</h2>
-						{#if remaining !== -1}
-							<Badge variant="neutral">
-								{remaining} analyses remaining
-							</Badge>
-						{:else}
-							<Badge variant="success">Unlimited</Badge>
-						{/if}
+						<div class="flex items-center gap-3">
+							<!-- History Dropdown -->
+							<div class="relative">
+								<BoButton
+									variant="ghost"
+									size="sm"
+									onclick={() => (historyDropdownOpen = !historyDropdownOpen)}
+									disabled={historyLoading || history.length === 0}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									Load from history
+								</BoButton>
+								{#if historyDropdownOpen && history.length > 0}
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<div
+										class="fixed inset-0 z-40"
+										onclick={() => (historyDropdownOpen = false)}
+									></div>
+									<div class="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50 max-h-64 overflow-y-auto">
+										{#each history as entry (entry.id)}
+											<button
+												type="button"
+												class="w-full text-left px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+												onclick={() => {
+													loadFromHistory(entry);
+													historyDropdownOpen = false;
+												}}
+											>
+												<div class="font-medium text-sm text-neutral-900 dark:text-white truncate">
+													{entry.keywords.join(', ')}
+												</div>
+												{#if entry.industry}
+													<div class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+														{entry.industry}
+													</div>
+												{/if}
+												<div class="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">
+													{new Date(entry.created_at).toLocaleDateString()}
+												</div>
+											</button>
+										{/each}
+									</div>
+								{/if}
+							</div>
+							{#if remaining !== -1}
+								<Badge variant="neutral">
+									{remaining} analyses remaining
+								</Badge>
+							{:else}
+								<Badge variant="success">Unlimited</Badge>
+							{/if}
+						</div>
 					</div>
 				{/snippet}
 
@@ -589,7 +788,8 @@
 					</div>
 				</BoCard>
 			{/if}
-
+		{:else}
+			<!-- Content Tab: Topics + Articles -->
 			<!-- Topics Table -->
 			<BoCard>
 				{#snippet header()}
@@ -614,36 +814,210 @@
 
 				<!-- Manual Topic Form -->
 				<div class="mb-4 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
-					<form onsubmit={(e) => { e.preventDefault(); addManualTopic(); }} class="flex flex-col sm:flex-row gap-3">
-						<div class="flex-1">
-							<input
-								type="text"
-								bind:value={newTopicKeyword}
-								placeholder="Enter keyword or topic..."
-								class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
-								disabled={addingManualTopic}
-							/>
+					<form onsubmit={(e) => { e.preventDefault(); addManualTopic(); }} class="flex flex-col gap-3">
+						<div class="flex flex-col sm:flex-row gap-3">
+							<div class="flex-1">
+								<input
+									type="text"
+									bind:value={newTopicKeyword}
+									placeholder="Enter keyword(s), comma-separated..."
+									class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+									disabled={addingManualTopic || analyzingTopics}
+								/>
+							</div>
+							<div class="flex-1">
+								<input
+									type="text"
+									bind:value={newTopicNotes}
+									placeholder="Notes (optional)"
+									class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+									disabled={addingManualTopic || analyzingTopics}
+								/>
+							</div>
+							<div class="flex gap-2">
+								<BoButton
+									type="button"
+									variant="outline"
+									size="sm"
+									onclick={analyzeTopicIdeas}
+									loading={analyzingTopics}
+									disabled={analyzingTopics || addingManualTopic || !newTopicKeyword.trim()}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+									</svg>
+									{analyzingTopics ? 'Analyzing...' : 'Analyze'}
+								</BoButton>
+								<BoButton
+									type="submit"
+									variant="brand"
+									size="sm"
+									loading={addingManualTopic}
+									disabled={addingManualTopic || analyzingTopics || !newTopicKeyword.trim()}
+								>
+									Add Topic
+								</BoButton>
+							</div>
 						</div>
-						<div class="flex-1">
-							<input
-								type="text"
-								bind:value={newTopicNotes}
-								placeholder="Notes (optional)"
-								class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
-								disabled={addingManualTopic}
-							/>
+						<div class="flex items-center gap-2">
+							<label class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 cursor-pointer">
+								<input
+									type="checkbox"
+									bind:checked={skipValidation}
+									class="rounded border-neutral-300 dark:border-neutral-600 text-brand-600 focus:ring-brand-500 dark:bg-neutral-700"
+									disabled={analyzingTopics}
+								/>
+								Skip validation (faster)
+							</label>
+							<span class="text-xs text-neutral-400 dark:text-neutral-500">
+								Validation checks competitor presence and search volume
+							</span>
 						</div>
-						<BoButton
-							type="submit"
-							variant="brand"
-							size="sm"
-							loading={addingManualTopic}
-							disabled={addingManualTopic || !newTopicKeyword.trim()}
-						>
-							Add Topic
-						</BoButton>
 					</form>
 				</div>
+
+				<!-- Topic Suggestions Panel -->
+				{#if topicSuggestions.length > 0}
+					<div class="mb-4 p-4 bg-brand-50 dark:bg-brand-900/20 rounded-lg border border-brand-200 dark:border-brand-800">
+						<div class="flex items-center justify-between mb-3">
+							<h3 class="text-sm font-medium text-brand-900 dark:text-brand-100">
+								Topic Suggestions
+							</h3>
+							<button
+								type="button"
+								class="text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-200 text-sm"
+								onclick={clearSuggestions}
+							>
+								Clear
+							</button>
+						</div>
+						<div class="space-y-3">
+							{#each topicSuggestions as suggestion (suggestion.keyword)}
+								<div class="p-3 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+									<div class="flex items-start justify-between gap-3">
+										<div class="flex-1 min-w-0">
+											<div class="flex items-center gap-2 flex-wrap">
+												<span class="font-medium text-neutral-900 dark:text-white">
+													{suggestion.keyword}
+												</span>
+												{#if suggestion.validation_status === 'validated'}
+													<span title="Validated via web research" class="inline-flex items-center text-success-600 dark:text-success-400">
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+														</svg>
+													</span>
+												{/if}
+												<Badge variant={getSeoPotentalBadgeVariant(suggestion.seo_potential)}>
+													{suggestion.seo_potential} SEO
+												</Badge>
+												<Badge variant={getTrendStatusBadgeVariant(suggestion.trend_status)}>
+													{suggestion.trend_status}
+												</Badge>
+											</div>
+											<!-- Validation indicators -->
+											{#if suggestion.validation_status === 'validated'}
+												<div class="mt-2 flex items-center gap-3 text-xs">
+													{#if suggestion.search_volume_indicator !== 'unknown'}
+														<span class="flex items-center gap-1">
+															<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+															</svg>
+															<Badge variant={getSearchVolumeBadgeVariant(suggestion.search_volume_indicator)} size="sm">
+																{suggestion.search_volume_indicator} volume
+															</Badge>
+														</span>
+													{/if}
+													{#if suggestion.competitor_presence !== 'unknown'}
+														<span class="flex items-center gap-1">
+															<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+															</svg>
+															<Badge variant={getCompetitorPresenceBadgeVariant(suggestion.competitor_presence)} size="sm">
+																{suggestion.competitor_presence} competition
+															</Badge>
+														</span>
+													{/if}
+												</div>
+											{/if}
+											<p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+												{suggestion.description}
+											</p>
+											{#if suggestion.related_keywords.length > 0}
+												<div class="mt-2 flex flex-wrap gap-1">
+													{#each suggestion.related_keywords as kw}
+														<span class="px-2 py-0.5 text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 rounded">
+															{kw}
+														</span>
+													{/each}
+												</div>
+											{/if}
+											<!-- Validation sources (collapsible) -->
+											{#if suggestion.validation_sources && suggestion.validation_sources.length > 0}
+												<div class="mt-2">
+													<button
+														type="button"
+														class="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
+														onclick={() => toggleSources(suggestion.keyword)}
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															class="h-3 w-3 transition-transform {expandedSources[suggestion.keyword] ? 'rotate-90' : ''}"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+														>
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+														</svg>
+														{suggestion.validation_sources.length} source{suggestion.validation_sources.length !== 1 ? 's' : ''}
+													</button>
+													{#if expandedSources[suggestion.keyword]}
+														<ul class="mt-1 space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
+															{#each suggestion.validation_sources as source}
+																<li class="truncate">
+																	{#if source.includes(' - ')}
+																		{@const [title, url] = source.split(' - ')}
+																		<a
+																			href={url}
+																			target="_blank"
+																			rel="noopener noreferrer"
+																			class="hover:text-brand-600 dark:hover:text-brand-400 hover:underline"
+																		>
+																			{title}
+																		</a>
+																	{:else}
+																		{source}
+																	{/if}
+																</li>
+															{/each}
+														</ul>
+													{/if}
+												</div>
+											{/if}
+										</div>
+										<div class="flex-shrink-0">
+											{#if isTopicAdded(suggestion.keyword)}
+												<Badge variant="neutral">Added</Badge>
+											{:else}
+												<BoButton
+													variant="ghost"
+													size="sm"
+													onclick={() => addSuggestionToTopics(suggestion)}
+													loading={addingSuggestion === suggestion.keyword}
+													disabled={addingSuggestion !== null}
+												>
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+													</svg>
+													Add
+												</BoButton>
+											{/if}
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 
 				{#if topicsLoading}
 					<div class="space-y-3">
@@ -825,64 +1199,7 @@
 					</div>
 				{/if}
 			</BoCard>
-		</div>
-
-		<!-- Sidebar -->
-		<div class="lg:col-span-1 space-y-6">
-			<!-- Recent Analyses -->
-			<BoCard>
-				{#snippet header()}
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
-						Recent Analyses
-					</h2>
-				{/snippet}
-
-				{#if historyLoading}
-					<div class="space-y-3">
-						<ShimmerSkeleton type="text" />
-						<ShimmerSkeleton type="text" />
-						<ShimmerSkeleton type="text" />
-					</div>
-				{:else if history.length === 0}
-					<p class="text-sm text-neutral-500 dark:text-neutral-400 text-center py-4">
-						No previous analyses
-					</p>
-				{:else}
-					<div class="space-y-3">
-						{#each history as entry}
-							<button
-								type="button"
-								class="w-full text-left p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
-								onclick={() => loadFromHistory(entry)}
-							>
-								<div class="font-medium text-sm text-neutral-900 dark:text-white truncate">
-									{entry.keywords.join(', ')}
-								</div>
-								{#if entry.industry}
-									<div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-										{entry.industry}
-									</div>
-								{/if}
-								<div class="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
-									{new Date(entry.created_at).toLocaleDateString()}
-								</div>
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</BoCard>
-
-			<!-- Tips -->
-			<div class="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
-				<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Tips</h3>
-				<ul class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
-					<li>Use specific, targeted keywords</li>
-					<li>Add your industry for better context</li>
-					<li>Research competitors' top keywords</li>
-					<li>Analyze seasonal trends regularly</li>
-				</ul>
-			</div>
-		</div>
+		{/if}
 	</div>
 </div>
 

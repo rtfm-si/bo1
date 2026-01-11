@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any
 
-from bo1.llm.client import ClaudeClient
+from bo1.llm.broker import PromptBroker, PromptRequest
 
 logger = logging.getLogger(__name__)
 
@@ -129,15 +129,35 @@ async def generate_dataset_report(
         favourites_json=json.dumps(favourites_for_prompt, indent=2),
     )
 
-    # Call LLM
-    client = ClaudeClient()
-    response = await client.generate(
-        system_prompt=REPORT_SYSTEM_PROMPT,
-        user_prompt=prompt,
-        max_tokens=4000,
-        temperature=0.3,
-        model="claude-sonnet-4-20250514",
-    )
+    # Call LLM via broker (handles retries, fallback, model resolution)
+    broker = PromptBroker()
+    try:
+        request = PromptRequest(
+            system=REPORT_SYSTEM_PROMPT,
+            user_message=prompt,
+            model="core",  # Uses configured sonnet-level model
+            max_tokens=4000,
+            temperature=0.3,
+            agent_type="ReportGenerator",
+            phase="report_generation",
+        )
+        response = await broker.call(request)
+    except Exception as e:
+        logger.error(f"LLM call failed for report generation: {e}")
+        # Return fallback report on LLM failure
+        fallback = {
+            "title": title or f"Report: {dataset.get('name', 'Dataset')}",
+            "executive_summary": "Report generation is temporarily unavailable. Please try again later.",
+            "sections": [
+                {
+                    "section_type": "key_findings",
+                    "title": "Key Findings",
+                    "content": "Unable to generate report content due to a temporary service issue. Your favourited items are available for manual review.",
+                    "chart_refs": [f["id"] for f in favourites if f.get("chart_spec")],
+                }
+            ],
+        }
+        return fallback, {"model": "core", "tokens": 0, "error": str(e)}
 
     # Parse response
     try:
@@ -161,10 +181,8 @@ async def generate_dataset_report(
             report_data["executive_summary"] = ""
 
         metadata = {
-            "model": "claude-sonnet-4-20250514",
-            "tokens": response.usage.input_tokens + response.usage.output_tokens
-            if response.usage
-            else 0,
+            "model": response.model,
+            "tokens": response.total_tokens,
         }
 
         return report_data, metadata
@@ -184,7 +202,7 @@ async def generate_dataset_report(
                 }
             ],
         }
-        return fallback, {"model": "claude-sonnet-4-20250514", "tokens": 0, "error": str(e)}
+        return fallback, {"model": "core", "tokens": 0, "error": str(e)}
 
 
 SUMMARY_REGENERATION_PROMPT = """Based on the following data analysis report, regenerate the executive summary.
@@ -224,21 +242,22 @@ async def regenerate_executive_summary(
         sections_text=sections_text or "No sections available",
     )
 
-    client = ClaudeClient()
-    response = await client.generate(
-        system_prompt="You are a senior data analyst writing executive summaries. Be concise and actionable.",
-        user_prompt=prompt,
+    broker = PromptBroker()
+    request = PromptRequest(
+        system="You are a senior data analyst writing executive summaries. Be concise and actionable.",
+        user_message=prompt,
+        model="core",  # Uses configured sonnet-level model
         max_tokens=500,
         temperature=0.3,
-        model="claude-sonnet-4-20250514",
+        agent_type="ReportGenerator",
+        phase="summary_regeneration",
     )
+    response = await broker.call(request)
 
     summary = response.content.strip()
     metadata = {
-        "model": "claude-sonnet-4-20250514",
-        "tokens": response.usage.input_tokens + response.usage.output_tokens
-        if response.usage
-        else 0,
+        "model": response.model,
+        "tokens": response.total_tokens,
     }
 
     return summary, metadata

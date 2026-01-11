@@ -7,6 +7,7 @@ Uses LLM-based extraction to improve quality of detected competitors.
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -20,6 +21,8 @@ from backend.api.context.models import (
 )
 from backend.api.context.services import auto_save_competitors
 from backend.api.context.skeptic import evaluate_competitors_batch
+from backend.services.article_fetcher import fetch_articles_batch
+from backend.services.article_summarizer import summarize_articles_batch
 from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.logging.errors import ErrorCode, log_error
@@ -382,6 +385,8 @@ async def detect_competitors_for_user(
 
     # Get context for search
     company_name = context_data.get("company_name") if context_data else None
+    target_market = context_data.get("target_market") if context_data else None
+    business_model = context_data.get("business_model") if context_data else None
 
     if context_data:
         industry = industry or context_data.get("industry")
@@ -402,8 +407,14 @@ async def detect_competitors_for_user(
             error="Tavily Search API not configured. Please try again later.",
         )
 
-    # Build targeted search query for competitor discovery
-    search_query = _build_competitor_search_query(company_name, industry, product_description)
+    # Build targeted search query using all available context
+    search_query = _build_competitor_search_query(
+        company_name=company_name,
+        industry=industry,
+        product_description=product_description,
+        target_market=target_market,
+        business_model=business_model,
+    )
     logger.info(f"Tavily competitor search: {search_query}")
 
     try:
@@ -453,23 +464,71 @@ def _build_competitor_search_query(
     company_name: str | None,
     industry: str | None,
     product_description: str | None,
+    target_market: str | None = None,
+    business_model: str | None = None,
 ) -> str:
     """Build a search query for competitor discovery.
 
+    Uses multiple context fields to create a focused search query
+    that yields more relevant competitor results.
+
     Args:
-        company_name: Company name
-        industry: Industry
-        product_description: Product description
+        company_name: Company name (most specific)
+        industry: Industry vertical (e.g., "SaaS", "Healthcare")
+        product_description: Product/service description
+        target_market: Target customer segment (e.g., "SMBs", "Enterprise")
+        business_model: Business model (e.g., "B2B", "Marketplace")
 
     Returns:
-        Search query string
+        Search query string optimized for competitor discovery
     """
+    query_parts = []
+
     if company_name:
+        # Direct competitor search - most effective
         return f'"{company_name}" competitors alternatives'
-    elif industry and product_description:
-        return f"best {industry} software companies {product_description[:50]}"
-    else:
-        return f"top {industry or product_description[:80]} companies competitors"
+
+    # Build query from available context (order matters for relevance)
+    if business_model:
+        # Normalize common business model terms for search
+        bm_term = business_model.lower()
+        if "b2b" in bm_term:
+            query_parts.append("B2B")
+        elif "b2c" in bm_term:
+            query_parts.append("B2C")
+        elif "saas" in bm_term:
+            query_parts.append("SaaS")
+        elif "marketplace" in bm_term:
+            query_parts.append("marketplace")
+
+    if industry:
+        query_parts.append(industry)
+
+    if target_market:
+        # Extract key terms from target market
+        market_lower = target_market.lower()
+        if "enterprise" in market_lower:
+            query_parts.append("enterprise")
+        elif "smb" in market_lower or "small business" in market_lower:
+            query_parts.append("SMB")
+        elif "startup" in market_lower:
+            query_parts.append("startup")
+
+    # Add product context if available
+    if product_description:
+        # Take first meaningful portion of description
+        desc_snippet = product_description[:60].strip()
+        # Remove trailing partial words
+        if " " in desc_snippet:
+            desc_snippet = desc_snippet.rsplit(" ", 1)[0]
+        query_parts.append(desc_snippet)
+
+    if query_parts:
+        query = " ".join(query_parts)
+        return f"best {query} software companies competitors"
+
+    # Fallback - should rarely reach here
+    return "top software companies competitors alternatives"
 
 
 async def _search_competitors_tavily(
@@ -647,14 +706,20 @@ async def _search_trends_brave(
     api_key: str,
     industry: str,
 ) -> list[MarketTrend]:
-    """Search for market trends using Brave API.
+    """Search for market trends using Brave API, then fetch and summarize articles.
+
+    Pipeline:
+    1. Search Brave for industry trends
+    2. Fetch article content from top URLs
+    3. Summarize articles with Claude Haiku
+    4. Return enriched MarketTrend objects
 
     Args:
         api_key: Brave API key
         industry: Industry to search for
 
     Returns:
-        List of market trends
+        List of market trends with AI-generated summaries
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(
@@ -671,20 +736,80 @@ async def _search_trends_brave(
 
     # Extract trends from search results
     results = data.get("web", {}).get("results", [])
-    trends = []
+    if not results:
+        return []
 
-    for result in results[:5]:
+    # Take top 5 results for processing
+    top_results = results[:5]
+
+    # Step 2: Fetch article content in parallel
+    urls = [r.get("url", "") for r in top_results if r.get("url")]
+    fetch_results = await fetch_articles_batch(urls, max_concurrent=3, total_timeout=12.0)
+
+    # Build URL -> content map
+    url_content_map = {fr.url: fr.content for fr in fetch_results if fr.success and fr.content}
+
+    # Step 3: Prepare articles for summarization
+    articles_to_summarize = []
+    for result in top_results:
+        url = result.get("url", "")
+        content = url_content_map.get(url)
+        if content:
+            articles_to_summarize.append(
+                {
+                    "url": url,
+                    "content": content,
+                    "title": result.get("title", ""),
+                }
+            )
+
+    # Step 4: Summarize articles with LLM
+    summaries = []
+    if articles_to_summarize:
+        summaries = await summarize_articles_batch(articles_to_summarize, max_concurrent=3)
+
+    # Build URL -> summary map
+    url_summary_map = {s.url: s for s in summaries if s.success}
+
+    # Step 5: Build enriched MarketTrend objects
+    trends = []
+    now = datetime.now(UTC)
+
+    for result in top_results:
         title = result.get("title", "")
         url = result.get("url", "")
         description = result.get("description", "")
 
-        if title and description:
+        if not title:
+            continue
+
+        # Check if we have a summary for this URL
+        article_summary = url_summary_map.get(url)
+
+        if article_summary and article_summary.summary:
+            # Use AI-generated summary
             trends.append(
                 MarketTrend(
-                    trend=f"{title}: {description[:150]}...",
+                    trend=title,
                     source=result.get("profile", {}).get("name", "Web"),
                     source_url=url,
+                    summary=article_summary.summary,
+                    key_points=article_summary.key_points,
+                    fetched_at=now,
+                )
+            )
+        else:
+            # Fallback to search snippet
+            trends.append(
+                MarketTrend(
+                    trend=f"{title}: {description[:150]}..." if description else title,
+                    source=result.get("profile", {}).get("name", "Web"),
+                    source_url=url,
+                    summary=None,
+                    key_points=None,
+                    fetched_at=None,
                 )
             )
 
+    logger.info(f"Built {len(trends)} trends, {len(url_summary_map)} with AI summaries")
     return trends

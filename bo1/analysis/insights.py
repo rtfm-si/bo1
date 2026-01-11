@@ -11,6 +11,7 @@ from typing import Any
 from bo1.analysis.benchmarks import (
     get_benchmarks_for_industry,
 )
+from bo1.analysis.charts import generate_chart_from_insight
 from bo1.analysis.prompts.insight_generation import (
     INSIGHT_GENERATION_SYSTEM_PROMPT,
     build_insight_generation_prompt,
@@ -363,7 +364,7 @@ def _parse_insights(raw_insights: list[dict[str, Any]]) -> list[Insight]:
         except ValueError:
             confidence = ConfidenceLevel.MEDIUM
 
-        # Parse visualization
+        # Parse visualization and generate figure_json
         visualization = None
         raw_viz = raw.get("visualization")
         if raw_viz and isinstance(raw_viz, dict):
@@ -373,12 +374,20 @@ def _parse_insights(raw_insights: list[dict[str, Any]]) -> list[Insight]:
             except ValueError:
                 chart_type = ChartType.BAR
 
+            # Generate Plotly figure_json from visualization config + supporting_data
+            figure_json = generate_chart_from_insight(
+                visualization_config=raw_viz,
+                supporting_data=raw.get("supporting_data", {}),
+                title=raw_viz.get("title", f"Chart {i + 1}"),
+            )
+
             visualization = InsightVisualization(
                 type=chart_type,
                 x_axis=raw_viz.get("x_axis"),
                 y_axis=raw_viz.get("y_axis"),
                 group_by=raw_viz.get("group_by"),
                 title=raw_viz.get("title", f"Chart {i + 1}"),
+                figure_json=figure_json,
             )
 
         # Parse supporting data

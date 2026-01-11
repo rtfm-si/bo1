@@ -8,7 +8,7 @@ CSRF/auth complexities in test setup.
 import pytest
 from fastapi import HTTPException
 
-from backend.api.mentor import MentorChatRequest
+from backend.api.advisor import MentorChatRequest
 from backend.api.models import CreateSessionRequest, FeedbackCreate
 from backend.api.utils.honeypot import validate_honeypot_fields
 

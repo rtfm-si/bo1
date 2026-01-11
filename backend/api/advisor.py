@@ -1,10 +1,10 @@
-"""Mentor Chat API endpoints.
+"""Advisor Chat API endpoints.
 
 Provides:
-- POST /api/v1/mentor/chat - Chat with mentor (SSE streaming)
-- GET /api/v1/mentor/conversations - List mentor conversations
-- GET /api/v1/mentor/conversations/{id} - Get conversation detail
-- DELETE /api/v1/mentor/conversations/{id} - Delete conversation
+- POST /api/v1/advisor/chat - Chat with advisor (SSE streaming)
+- GET /api/v1/advisor/conversations - List advisor conversations
+- GET /api/v1/advisor/conversations/{id} - Get conversation detail
+- DELETE /api/v1/advisor/conversations/{id} - Delete conversation
 """
 
 import asyncio
@@ -58,7 +58,7 @@ from bo1.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/mentor", tags=["mentor"])
+router = APIRouter(prefix="/v1/advisor", tags=["advisor"])
 
 
 # =============================================================================
@@ -266,6 +266,29 @@ class ImprovementPlanResponse(BaseModel):
     generated_at: str = Field(..., description="ISO timestamp of generation")
     inputs_summary: dict[str, Any] = Field(..., description="Summary of inputs used for analysis")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)")
+
+
+# =============================================================================
+# Conversation Search Models
+# =============================================================================
+
+
+class ConversationSearchResult(BaseModel):
+    """A single search result from conversation search."""
+
+    conversation_id: str = Field(..., description="ID of the matching conversation")
+    preview: str = Field(..., description="Preview of the matching message")
+    similarity: float = Field(..., ge=0.0, le=1.0, description="Similarity score (0-1)")
+    created_at: str = Field(..., description="ISO timestamp of the message")
+
+
+class ConversationSearchResponse(BaseModel):
+    """Response model for conversation search."""
+
+    matches: list[ConversationSearchResult] = Field(
+        ..., description="Matching conversations sorted by similarity"
+    )
+    total: int = Field(..., description="Total number of matches")
 
 
 # =============================================================================
@@ -551,6 +574,64 @@ async def list_personas(
             for p in personas
         ],
         total=len(personas),
+    )
+
+
+@router.get(
+    "/search",
+    response_model=ConversationSearchResponse,
+    summary="Search advisor conversations",
+    description="Semantic search over past advisor conversations to find similar topics",
+    responses={400: ERROR_400_RESPONSE, 401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("search advisor conversations")
+async def search_conversations(
+    q: str = Query(..., min_length=3, max_length=500, description="Search query"),
+    threshold: float = Query(0.7, ge=0.5, le=0.95, description="Minimum similarity (0.5-0.95)"),
+    limit: int = Query(5, ge=1, le=20, description="Maximum results"),
+    days: int = Query(90, ge=7, le=365, description="Days to search back"),
+    user: dict = Depends(get_current_user),
+) -> ConversationSearchResponse:
+    """Search advisor conversations for similar topics.
+
+    Uses embedding-based semantic search to find past conversations
+    that are similar to the query. Leverages cached embeddings from
+    TopicDetector for zero additional API cost.
+    """
+    from backend.services.topic_detector import get_topic_detector
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Get user's messages from mentor conversations
+    mentor_conv_repo = get_mentor_conversation_repo()
+    messages = mentor_conv_repo.get_all_user_messages(user_id, days=days)
+
+    if not messages:
+        return ConversationSearchResponse(matches=[], total=0)
+
+    # Search using TopicDetector
+    detector = get_topic_detector()
+    similar = detector.find_similar_messages(
+        user_id=user_id,
+        query=q,
+        messages=messages,
+        threshold=threshold,
+        limit=limit,
+    )
+
+    return ConversationSearchResponse(
+        matches=[
+            ConversationSearchResult(
+                conversation_id=m.conversation_id,
+                preview=m.preview,
+                similarity=m.similarity,
+                created_at=m.timestamp,
+            )
+            for m in similar
+        ],
+        total=len(similar),
     )
 
 

@@ -70,6 +70,8 @@ from backend.api.models import (
     QueryResultResponse,
     QuerySpec,
     ReportSection,
+    SimilarDatasetItem,
+    SimilarDatasetsResponse,
     UpdateColumnDescriptionRequest,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
@@ -1301,6 +1303,67 @@ async def get_enhanced_insights(
         model_used=metadata.get("model_used", "sonnet"),
         tokens_used=metadata.get("tokens_used", 0),
         cached=metadata.get("cached", False),
+    )
+
+
+@router.get(
+    "/{dataset_id}/similar",
+    response_model=SimilarDatasetsResponse,
+    summary="Find similar datasets",
+    description="Find datasets semantically similar to this one based on metadata and columns",
+)
+@handle_api_errors("find similar datasets")
+async def get_similar_datasets(
+    dataset_id: str,
+    threshold: float = Query(
+        0.6,
+        ge=0.4,
+        le=0.9,
+        description="Minimum similarity threshold (0.4-0.9)",
+    ),
+    limit: int = Query(5, ge=1, le=10, description="Maximum results to return"),
+    user: dict = Depends(get_current_user),
+) -> SimilarDatasetsResponse:
+    """Find datasets semantically similar to the given dataset.
+
+    Uses embedding-based similarity to find datasets with similar:
+    - Names and descriptions
+    - Column structures
+    - Business context/insights
+    """
+    from backend.services.dataset_similarity import get_similarity_service
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    # Verify dataset exists and user owns it
+    dataset = dataset_repository.get_by_id(dataset_id, user_id)
+    if not dataset:
+        raise http_error(ErrorCode.API_NOT_FOUND, "Dataset not found", status=404)
+
+    # Find similar datasets
+    service = get_similarity_service()
+    similar = service.find_similar_datasets(
+        user_id=user_id,
+        dataset_id=dataset_id,
+        threshold=threshold,
+        limit=limit,
+    )
+
+    return SimilarDatasetsResponse(
+        similar=[
+            SimilarDatasetItem(
+                dataset_id=s.dataset_id,
+                name=s.name,
+                similarity=s.similarity,
+                shared_columns=s.shared_columns,
+                insight_preview=s.insight_preview,
+            )
+            for s in similar
+        ],
+        query_dataset_id=dataset_id,
+        threshold=threshold,
     )
 
 

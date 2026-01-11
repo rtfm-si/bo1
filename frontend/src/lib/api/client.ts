@@ -68,6 +68,7 @@ import type {
 	// Insights types
 	InsightsResponse,
 	ClarificationInsight,
+	InsightEnrichResponse,
 	// Pending Updates types (Phase 6)
 	PendingUpdatesResponse,
 	ApproveUpdateResponse,
@@ -94,6 +95,7 @@ import type {
 	DatasetProfile,
 	DatasetInsightsResponse,
 	DatasetInvestigationResponse,
+	SimilarDatasetsResponse,
 	DatasetBusinessContext,
 	DatasetBusinessContextResponse,
 	DatasetFixAction,
@@ -184,6 +186,8 @@ import type {
 	ManagedCompetitorUpdate,
 	ManagedCompetitorResponse,
 	ManagedCompetitorListResponse,
+	ManagedCompetitorEnrichResponse,
+	ManagedCompetitorBulkEnrichResponse,
 	// Rating types
 	RatingResponse,
 	RatingMetricsResponse,
@@ -197,6 +201,7 @@ import type {
 	SeoTopicUpdate,
 	SeoTopicListResponse,
 	SeoTopicsAutogenerateResponse,
+	AnalyzeTopicsResponse,
 	// SEO Blog Article types
 	SeoBlogArticle,
 	SeoBlogArticleUpdate,
@@ -221,6 +226,19 @@ import type {
 	MetricSuggestionsResponse,
 	ApplyMetricSuggestionRequest,
 	ApplyMetricSuggestionResponse,
+	// Metric Calculation types
+	MetricQuestionDef,
+	MetricFormulaResponse,
+	MetricCalculationAnswer,
+	MetricCalculationRequest,
+	MetricCalculationResponse,
+	AvailableMetricsResponse,
+	// Business Metric Suggestion types
+	BusinessMetricSuggestion,
+	BusinessMetricSuggestionsResponse,
+	ApplyBusinessMetricSuggestionRequest,
+	ApplyBusinessMetricSuggestionResponse,
+	DismissBusinessMetricSuggestionRequest,
 	// Working Pattern types
 	WorkingPatternResponse,
 	WorkingPatternUpdate,
@@ -246,11 +264,21 @@ import type {
 	MultiDatasetAnalysisListResponse,
 	// Data Requirements types
 	ObjectiveDataRequirementsResponse,
-	AllObjectivesRequirementsResponse
+	AllObjectivesRequirementsResponse,
+	// Dataset Folder types
+	DatasetFolderResponse,
+	DatasetFolderListResponse,
+	DatasetFolderTreeResponse,
+	DatasetFolderCreate,
+	DatasetFolderUpdate,
+	FolderDatasetsListResponse,
+	FolderTagsResponse,
+	AddDatasetsResponse
 } from './types';
 
 // Re-export types that are used by other modules
 export type { ClarificationInsight, IndustryInsight, IndustryInsightsResponse };
+export type { MetricQuestionDef, MetricFormulaResponse, BusinessMetricSuggestion };
 
 // ============================================================================
 // Onboarding Types
@@ -425,6 +453,10 @@ export interface MarketTrend {
 	trend: string;
 	source: string | null;
 	source_url: string | null;
+	// Enhanced fields (from article extraction + LLM)
+	summary: string | null;
+	key_points: string[] | null;
+	fetched_at: string | null;
 }
 
 export interface TrendsRefreshRequest {
@@ -1104,6 +1136,12 @@ export class ApiClient {
 		return this.delete<{ status: string }>(`/api/v1/context/insights/${questionHash}`);
 	}
 
+	async enrichInsight(questionKey: string): Promise<InsightEnrichResponse> {
+		// URL encode the question key
+		const encoded = encodeURIComponent(questionKey);
+		return this.post<InsightEnrichResponse>(`/api/v1/context/insights/${encoded}/enrich`, {});
+	}
+
 	// ==========================================================================
 	// Pending Context Updates (Phase 6)
 	// ==========================================================================
@@ -1533,6 +1571,29 @@ export class ApiClient {
 			{
 				method: 'DELETE'
 			}
+		);
+	}
+
+	/**
+	 * Enrich a managed competitor with Tavily data.
+	 * @param name - Competitor name
+	 */
+	async enrichManagedCompetitor(name: string): Promise<ManagedCompetitorEnrichResponse> {
+		const encodedName = encodeURIComponent(name);
+		return this.post<ManagedCompetitorEnrichResponse>(
+			`/api/v1/context/managed-competitors/${encodedName}/enrich`,
+			{}
+		);
+	}
+
+	/**
+	 * Enrich all managed competitors with Tavily data.
+	 * Rate limited to 1/minute - use sparingly.
+	 */
+	async enrichAllManagedCompetitors(): Promise<ManagedCompetitorBulkEnrichResponse> {
+		return this.post<ManagedCompetitorBulkEnrichResponse>(
+			'/api/v1/context/managed-competitors/enrich-all',
+			{}
 		);
 	}
 
@@ -2295,6 +2356,21 @@ export class ApiClient {
 	}
 
 	/**
+	 * Find datasets similar to the given dataset based on metadata and columns
+	 */
+	async getSimilarDatasets(
+		datasetId: string,
+		threshold: number = 0.6,
+		limit: number = 5
+	): Promise<SimilarDatasetsResponse> {
+		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/similar`, {
+			threshold: threshold.toString(),
+			limit: limit.toString()
+		});
+		return this.fetch<SimilarDatasetsResponse>(endpoint);
+	}
+
+	/**
 	 * Update a column's role classification
 	 */
 	async updateColumnRole(
@@ -2758,6 +2834,86 @@ export class ApiClient {
 	}
 
 	// ============================================================================
+	// Dataset Folder Methods
+	// ============================================================================
+
+	/**
+	 * Create a new dataset folder
+	 */
+	async createFolder(folder: DatasetFolderCreate): Promise<DatasetFolderResponse> {
+		return this.post<DatasetFolderResponse>('/api/v1/datasets/folders', folder);
+	}
+
+	/**
+	 * List all dataset folders (flat list)
+	 */
+	async listFolders(params?: {
+		parent_id?: string;
+		tag?: string;
+	}): Promise<DatasetFolderListResponse> {
+		const endpoint = withQueryString('/api/v1/datasets/folders', params || {});
+		return this.fetch<DatasetFolderListResponse>(endpoint);
+	}
+
+	/**
+	 * Get folder tree (nested structure)
+	 */
+	async getFolderTree(): Promise<DatasetFolderTreeResponse> {
+		return this.fetch<DatasetFolderTreeResponse>('/api/v1/datasets/folders/tree');
+	}
+
+	/**
+	 * Get all unique folder tags
+	 */
+	async getFolderTags(): Promise<FolderTagsResponse> {
+		return this.fetch<FolderTagsResponse>('/api/v1/datasets/folders/tags');
+	}
+
+	/**
+	 * Get a specific folder
+	 */
+	async getFolder(folderId: string): Promise<DatasetFolderResponse> {
+		return this.fetch<DatasetFolderResponse>(`/api/v1/datasets/folders/${folderId}`);
+	}
+
+	/**
+	 * Update a folder
+	 */
+	async updateFolder(folderId: string, update: DatasetFolderUpdate): Promise<DatasetFolderResponse> {
+		return this.patch<DatasetFolderResponse>(`/api/v1/datasets/folders/${folderId}`, update);
+	}
+
+	/**
+	 * Delete a folder (datasets are removed from folder, not deleted)
+	 */
+	async deleteFolder(folderId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/folders/${folderId}`);
+	}
+
+	/**
+	 * Add datasets to a folder
+	 */
+	async addDatasetsToFolder(folderId: string, datasetIds: string[]): Promise<AddDatasetsResponse> {
+		return this.post<AddDatasetsResponse>(`/api/v1/datasets/folders/${folderId}/datasets`, {
+			dataset_ids: datasetIds
+		});
+	}
+
+	/**
+	 * Remove a dataset from a folder
+	 */
+	async removeDatasetFromFolder(folderId: string, datasetId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/folders/${folderId}/datasets/${datasetId}`);
+	}
+
+	/**
+	 * Get datasets in a folder
+	 */
+	async getFolderDatasets(folderId: string): Promise<FolderDatasetsListResponse> {
+		return this.fetch<FolderDatasetsListResponse>(`/api/v1/datasets/folders/${folderId}/datasets`);
+	}
+
+	// ============================================================================
 	// Analysis Methods
 	// ============================================================================
 
@@ -2861,7 +3017,7 @@ export class ApiClient {
 		abort: () => void;
 	} {
 		const abortController = new AbortController();
-		const url = `${this.baseUrl}/api/v1/mentor/chat`;
+		const url = `${this.baseUrl}/api/v1/advisor/chat`;
 
 		const connect = async function* () {
 			const headers: Record<string, string> = {
@@ -2934,7 +3090,7 @@ export class ApiClient {
 	 * Get mentor conversations for current user
 	 */
 	async getMentorConversations(limit = 20): Promise<MentorConversationListResponse> {
-		return this.fetch<MentorConversationListResponse>(`/api/v1/mentor/conversations?limit=${limit}`);
+		return this.fetch<MentorConversationListResponse>(`/api/v1/advisor/conversations?limit=${limit}`);
 	}
 
 	/**
@@ -2942,7 +3098,7 @@ export class ApiClient {
 	 */
 	async getMentorConversation(conversationId: string): Promise<MentorConversationDetailResponse> {
 		return this.fetch<MentorConversationDetailResponse>(
-			`/api/v1/mentor/conversations/${conversationId}`
+			`/api/v1/advisor/conversations/${conversationId}`
 		);
 	}
 
@@ -2950,7 +3106,7 @@ export class ApiClient {
 	 * Delete a mentor conversation
 	 */
 	async deleteMentorConversation(conversationId: string): Promise<void> {
-		await this.delete<void>(`/api/v1/mentor/conversations/${conversationId}`);
+		await this.delete<void>(`/api/v1/advisor/conversations/${conversationId}`);
 	}
 
 	/**
@@ -2961,7 +3117,7 @@ export class ApiClient {
 		label: string
 	): Promise<MentorConversationResponse> {
 		return this.patch<MentorConversationResponse>(
-			`/api/v1/mentor/conversations/${conversationId}`,
+			`/api/v1/advisor/conversations/${conversationId}`,
 			{ label }
 		);
 	}
@@ -2970,7 +3126,7 @@ export class ApiClient {
 	 * Get available mentor personas for manual selection
 	 */
 	async getMentorPersonas(): Promise<MentorPersonaListResponse> {
-		return this.fetch<MentorPersonaListResponse>('/api/v1/mentor/personas');
+		return this.fetch<MentorPersonaListResponse>('/api/v1/advisor/personas');
 	}
 
 	/**
@@ -2987,7 +3143,30 @@ export class ApiClient {
 		if (conversationId) {
 			params.set('conversation_id', conversationId);
 		}
-		return this.fetch<MentionSearchResponse>(`/api/v1/mentor/mentions/search?${params}`);
+		return this.fetch<MentionSearchResponse>(`/api/v1/advisor/mentions/search?${params}`);
+	}
+
+	/**
+	 * Search advisor conversations semantically
+	 * Finds past conversations similar to the query using embeddings
+	 */
+	async searchAdvisorConversations(
+		query: string,
+		options?: { threshold?: number; limit?: number; days?: number }
+	): Promise<import('./types').ConversationSearchResponse> {
+		const params = new URLSearchParams({ q: query });
+		if (options?.threshold !== undefined) {
+			params.set('threshold', String(options.threshold));
+		}
+		if (options?.limit !== undefined) {
+			params.set('limit', String(options.limit));
+		}
+		if (options?.days !== undefined) {
+			params.set('days', String(options.days));
+		}
+		return this.fetch<import('./types').ConversationSearchResponse>(
+			`/api/v1/advisor/search?${params}`
+		);
 	}
 
 	// ============================================================================
@@ -3790,6 +3969,23 @@ export class ApiClient {
 		return response.topics;
 	}
 
+	/**
+	 * Analyze user-submitted words for topic suggestions
+	 *
+	 * Returns AI-generated topic ideas with SEO potential scoring.
+	 * @param words - Words/phrases to analyze
+	 * @param skipValidation - Skip web research validation for faster response (default: false)
+	 */
+	async analyzeSeoTopics(
+		words: string[],
+		skipValidation: boolean = false
+	): Promise<AnalyzeTopicsResponse> {
+		return this.post<AnalyzeTopicsResponse>('/api/v1/seo/topics/analyze', {
+			words,
+			skip_validation: skipValidation
+		});
+	}
+
 	// ============================================================================
 	// SEO Blog Article Methods
 	// ============================================================================
@@ -4053,6 +4249,74 @@ export class ApiClient {
 	): Promise<ApplyMetricSuggestionResponse> {
 		return this.post<ApplyMetricSuggestionResponse>(
 			'/api/v1/context/apply-metric-suggestion',
+			request
+		);
+	}
+
+	// ============================================================================
+	// Metric Calculation (Q&A-guided metric derivation)
+	// ============================================================================
+
+	/**
+	 * Get list of metrics with calculation support
+	 */
+	async getCalculableMetrics(): Promise<AvailableMetricsResponse> {
+		return this.fetch<AvailableMetricsResponse>('/api/v1/context/metrics/calculable');
+	}
+
+	/**
+	 * Get calculation questions for a specific metric
+	 */
+	async getMetricQuestions(metricKey: string): Promise<MetricFormulaResponse> {
+		return this.fetch<MetricFormulaResponse>(
+			`/api/v1/context/metrics/${encodeURIComponent(metricKey)}/questions`
+		);
+	}
+
+	/**
+	 * Calculate a metric from Q&A answers
+	 */
+	async calculateMetric(
+		metricKey: string,
+		request: MetricCalculationRequest
+	): Promise<MetricCalculationResponse> {
+		return this.post<MetricCalculationResponse>(
+			`/api/v1/context/metrics/${encodeURIComponent(metricKey)}/calculate`,
+			request
+		);
+	}
+
+	// ============================================================================
+	// Business Metric Insight Suggestions
+	// ============================================================================
+
+	/**
+	 * Get business metric suggestions from clarification insights
+	 */
+	async getBusinessMetricSuggestions(): Promise<BusinessMetricSuggestionsResponse> {
+		return this.fetch<BusinessMetricSuggestionsResponse>('/api/v1/context/metrics/suggestions');
+	}
+
+	/**
+	 * Apply a business metric suggestion to update the metric value
+	 */
+	async applyBusinessMetricSuggestion(
+		request: ApplyBusinessMetricSuggestionRequest
+	): Promise<ApplyBusinessMetricSuggestionResponse> {
+		return this.post<ApplyBusinessMetricSuggestionResponse>(
+			'/api/v1/context/metrics/suggestions/apply',
+			request
+		);
+	}
+
+	/**
+	 * Dismiss a business metric suggestion
+	 */
+	async dismissBusinessMetricSuggestion(
+		request: DismissBusinessMetricSuggestionRequest
+	): Promise<ApplyBusinessMetricSuggestionResponse> {
+		return this.post<ApplyBusinessMetricSuggestionResponse>(
+			'/api/v1/context/metrics/suggestions/dismiss',
 			request
 		);
 	}

@@ -562,45 +562,6 @@
 		<!-- Goal History -->
 		<GoalHistory />
 
-		<!-- Quick Links -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-				Explore More Context
-			</h2>
-			<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-				<a
-					href="/context/metrics"
-					class="flex items-center gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-				>
-					<span class="text-2xl">📊</span>
-					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Metrics</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">Track KPIs</p>
-					</div>
-				</a>
-				<a
-					href="/reports/competitors"
-					class="flex items-center gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-				>
-					<span class="text-2xl">🎯</span>
-					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Competitors</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">Analyze rivals</p>
-					</div>
-				</a>
-				<a
-					href="/reports/benchmarks"
-					class="flex items-center gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-				>
-					<span class="text-2xl">📈</span>
-					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Benchmarks</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">Industry standards</p>
-					</div>
-				</a>
-			</div>
-		</div>
-
 		<!-- Actions -->
 		<div class="flex items-center justify-between">
 			<Button variant="danger" onclick={handleDelete}>

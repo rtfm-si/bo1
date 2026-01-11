@@ -96,11 +96,10 @@
 		return Math.min(100, Math.max(0, normalized));
 	});
 
-	// Convert visualization config to figure_json for ChartRenderer
+	// Get figure_json from visualization for ChartRenderer
 	const figureJson = $derived.by(() => {
-		if (!insight.visualization) return null;
-		// Placeholder - in full implementation, this would be actual chart data
-		return null;
+		if (!insight.visualization?.figure_json) return null;
+		return insight.visualization.figure_json as { data?: unknown[]; layout?: Record<string, unknown> };
 	});
 
 	async function handleAddToReport() {

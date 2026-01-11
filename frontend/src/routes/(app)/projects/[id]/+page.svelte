@@ -205,8 +205,8 @@
 		goto('/projects');
 	}
 
-	function goToAction(sessionId: string, actionId: string) {
-		goto(`/actions/${sessionId}/${actionId}`);
+	function goToAction(actionId: string) {
+		goto(`/actions/${actionId}`);
 	}
 
 	function goToMeeting(sessionId: string) {
@@ -214,11 +214,7 @@
 	}
 
 	function handleGanttTaskClick(actionId: string) {
-		// Find the action to get its session_id
-		const action = actions.find((a) => a.id === actionId);
-		if (action) {
-			goToAction(action.session_id, actionId);
-		}
+		goToAction(actionId);
 	}
 
 	async function handleGanttDateChange(actionId: string, start: Date, end: Date): Promise<void> {
@@ -549,8 +545,8 @@
 									class="flex items-center justify-between gap-4 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-700 transition-colors cursor-pointer"
 									role="button"
 									tabindex="0"
-									onclick={() => goToAction(action.session_id, action.id)}
-									onkeydown={(e) => e.key === 'Enter' && goToAction(action.session_id, action.id)}
+									onclick={() => goToAction(action.id)}
+									onkeydown={(e) => e.key === 'Enter' && goToAction(action.id)}
 								>
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center gap-2 mb-1">

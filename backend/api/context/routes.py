@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 
 from backend.api.context.auto_detect import (
     get_auto_detect_status,
@@ -27,10 +28,15 @@ from backend.api.context.competitors import (
     refresh_market_trends,
 )
 from backend.api.context.models import (
+    ApplyBusinessMetricSuggestionRequest,
+    ApplyBusinessMetricSuggestionResponse,
     ApplyMetricSuggestionRequest,
     ApplyMetricSuggestionResponse,
     ApproveUpdateResponse,
+    AvailableMetricsResponse,
     BusinessContext,
+    BusinessMetricSuggestion,
+    BusinessMetricSuggestionsResponse,
     ClarificationInsight,
     CompetitorDetectRequest,
     CompetitorDetectResponse,
@@ -41,6 +47,7 @@ from backend.api.context.models import (
     ContextUpdateSuggestion,
     ContextWithTrends,
     DetectedCompetitor,
+    DismissBusinessMetricSuggestionRequest,
     DismissRefreshRequest,
     EnrichmentRequest,
     EnrichmentResponse,
@@ -58,10 +65,16 @@ from backend.api.context.models import (
     KeyMetricDisplay,
     KeyMetricsResponse,
     ManagedCompetitor,
+    ManagedCompetitorBulkEnrichResponse,
     ManagedCompetitorCreate,
+    ManagedCompetitorEnrichResponse,
     ManagedCompetitorListResponse,
     ManagedCompetitorResponse,
     ManagedCompetitorUpdate,
+    MetricCalculationRequest,
+    MetricCalculationResponse,
+    MetricFormulaResponse,
+    MetricQuestionDef,
     MetricSuggestion,
     MetricSuggestionsResponse,
     ObjectiveProgress,
@@ -1937,6 +1950,327 @@ async def remove_managed_competitor(
 
 
 # =============================================================================
+# Phase 8.5: Managed Competitor Enrichment
+# =============================================================================
+
+
+@router.post(
+    "/v1/context/managed-competitors/{name}/enrich",
+    response_model=ManagedCompetitorEnrichResponse,
+    summary="Enrich a managed competitor with Tavily data",
+    description="""
+    Enrich a single managed competitor with data from Tavily Search API.
+
+    Retrieves:
+    - Company tagline and description
+    - Funding information (deep tier)
+    - Employee count (deep tier)
+    - Recent news (deep tier)
+
+    Rate limited to prevent API abuse.
+    """,
+    responses={
+        200: {"description": "Enrichment completed"},
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(CONTEXT_RATE_LIMIT)
+@handle_api_errors("enrich managed competitor")
+async def enrich_managed_competitor(
+    request: Request,
+    name: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ManagedCompetitorEnrichResponse:
+    """Enrich a single managed competitor with Tavily data."""
+    import asyncio
+    import time
+
+    import httpx
+    from psycopg2 import DatabaseError, OperationalError
+
+    from backend.api.competitors import enrich_competitor_with_tavily
+    from backend.api.utils.db_helpers import get_user_tier
+
+    user_id = extract_user_id(user)
+
+    # Get tier config for data depth
+    tier = get_user_tier(user_id)
+    tier_config = {"free": "basic", "starter": "standard", "pro": "deep"}
+    data_depth = tier_config.get(tier, "basic")
+
+    # Find competitor in user's managed list
+    competitors = user_repository.get_managed_competitors(user_id)
+    name_lower = name.lower().strip()
+    target_competitor = None
+    target_index = -1
+
+    for i, c in enumerate(competitors):
+        if c.get("name", "").lower().strip() == name_lower:
+            target_competitor = c
+            target_index = i
+            break
+
+    if target_competitor is None:
+        raise http_error(
+            ErrorCode.API_NOT_FOUND,
+            f"Competitor '{name}' not found",
+            status=404,
+        )
+
+    try:
+        # Enrich with Tavily
+        start_time = time.monotonic()
+        enriched = await enrich_competitor_with_tavily(
+            target_competitor["name"],
+            target_competitor.get("url"),
+            data_depth,
+        )
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        logger.info(f"Tavily enrichment took {elapsed_ms:.0f}ms for {target_competitor['name']}")
+
+        # Detect changes
+        changes = []
+        for key, value in enriched.items():
+            if value and target_competitor.get(key) != value:
+                changes.append(key)
+
+        # Update competitor record with enriched data
+        target_competitor.update(
+            {
+                "tagline": enriched.get("tagline") or target_competitor.get("tagline"),
+                "product_description": enriched.get("product_description")
+                or target_competitor.get("product_description"),
+                "funding_info": enriched.get("funding_info")
+                or target_competitor.get("funding_info"),
+                "employee_count": enriched.get("employee_count")
+                or target_competitor.get("employee_count"),
+                "recent_news": enriched.get("recent_news") or target_competitor.get("recent_news"),
+                "last_enriched_at": datetime.now(UTC).isoformat(),
+                "changes_detected": changes if changes else None,
+            }
+        )
+
+        # Save updated competitors list
+        competitors[target_index] = target_competitor
+        context = user_repository.get_context(user_id) or {}
+        context["managed_competitors"] = competitors
+        user_repository.save_context(user_id, context)
+
+        # Build response
+        return ManagedCompetitorEnrichResponse(
+            success=True,
+            competitor=ManagedCompetitor(
+                name=target_competitor["name"],
+                url=target_competitor.get("url"),
+                notes=target_competitor.get("notes"),
+                added_at=datetime.fromisoformat(target_competitor["added_at"]),
+                relevance_score=target_competitor.get("relevance_score"),
+                relevance_flags=target_competitor.get("relevance_flags"),
+                relevance_warning=target_competitor.get("relevance_warning"),
+                tagline=target_competitor.get("tagline"),
+                product_description=target_competitor.get("product_description"),
+                funding_info=target_competitor.get("funding_info"),
+                employee_count=target_competitor.get("employee_count"),
+                tech_stack=target_competitor.get("tech_stack"),
+                recent_news=target_competitor.get("recent_news"),
+                last_enriched_at=datetime.fromisoformat(target_competitor["last_enriched_at"])
+                if target_competitor.get("last_enriched_at")
+                else None,
+                changes_detected=target_competitor.get("changes_detected"),
+            ),
+            changes=changes if changes else None,
+        )
+
+    except httpx.HTTPError as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"HTTP error during enrichment: {e}",
+            competitor_name=target_competitor["name"],
+        )
+        return ManagedCompetitorEnrichResponse(
+            success=False,
+            error=f"Failed to connect to enrichment service: {e}",
+        )
+    except (DatabaseError, OperationalError) as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Database error during enrichment: {e}",
+            competitor_name=target_competitor["name"],
+        )
+        return ManagedCompetitorEnrichResponse(
+            success=False,
+            error="Database error during enrichment",
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error during enrichment: {e}",
+            exc_info=True,
+            competitor_name=target_competitor["name"],
+        )
+        return ManagedCompetitorEnrichResponse(
+            success=False,
+            error=str(e),
+        )
+
+
+@router.post(
+    "/v1/context/managed-competitors/enrich-all",
+    response_model=ManagedCompetitorBulkEnrichResponse,
+    summary="Enrich all managed competitors (monthly refresh)",
+    description="""
+    Enrich all managed competitors with data from Tavily Search API.
+
+    This is an expensive operation - use sparingly (monthly refresh recommended).
+    Competitors are enriched sequentially with a small delay between requests.
+    """,
+    responses={
+        200: {"description": "Bulk enrichment completed"},
+        403: ERROR_403_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit("1/minute")
+@handle_api_errors("enrich all managed competitors")
+async def enrich_all_managed_competitors(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ManagedCompetitorBulkEnrichResponse:
+    """Enrich all managed competitors with Tavily data."""
+    import asyncio
+
+    import httpx
+    from psycopg2 import DatabaseError, OperationalError
+
+    from backend.api.competitors import enrich_competitor_with_tavily
+    from backend.api.utils.db_helpers import get_user_tier
+
+    user_id = extract_user_id(user)
+
+    # Get tier config
+    tier = get_user_tier(user_id)
+    tier_config = {"free": "basic", "starter": "standard", "pro": "deep"}
+    data_depth = tier_config.get(tier, "basic")
+
+    competitors = user_repository.get_managed_competitors(user_id)
+    if not competitors:
+        return ManagedCompetitorBulkEnrichResponse(
+            success=True,
+            enriched_count=0,
+            competitors=[],
+        )
+
+    enriched_competitors = []
+    errors = []
+
+    for i, comp in enumerate(competitors):
+        try:
+            # Small delay between requests to avoid rate limiting
+            if i > 0:
+                await asyncio.sleep(0.5)
+
+            enriched = await enrich_competitor_with_tavily(
+                comp["name"],
+                comp.get("url"),
+                data_depth,
+            )
+
+            # Update competitor with enriched data
+            comp.update(
+                {
+                    "tagline": enriched.get("tagline") or comp.get("tagline"),
+                    "product_description": enriched.get("product_description")
+                    or comp.get("product_description"),
+                    "funding_info": enriched.get("funding_info") or comp.get("funding_info"),
+                    "employee_count": enriched.get("employee_count") or comp.get("employee_count"),
+                    "recent_news": enriched.get("recent_news") or comp.get("recent_news"),
+                    "last_enriched_at": datetime.now(UTC).isoformat(),
+                }
+            )
+
+            enriched_competitors.append(
+                ManagedCompetitor(
+                    name=comp["name"],
+                    url=comp.get("url"),
+                    notes=comp.get("notes"),
+                    added_at=datetime.fromisoformat(comp["added_at"]),
+                    relevance_score=comp.get("relevance_score"),
+                    relevance_flags=comp.get("relevance_flags"),
+                    relevance_warning=comp.get("relevance_warning"),
+                    tagline=comp.get("tagline"),
+                    product_description=comp.get("product_description"),
+                    funding_info=comp.get("funding_info"),
+                    employee_count=comp.get("employee_count"),
+                    tech_stack=comp.get("tech_stack"),
+                    recent_news=comp.get("recent_news"),
+                    last_enriched_at=datetime.fromisoformat(comp["last_enriched_at"])
+                    if comp.get("last_enriched_at")
+                    else None,
+                    changes_detected=comp.get("changes_detected"),
+                )
+            )
+
+        except httpx.HTTPError as e:
+            errors.append(f"{comp['name']}: HTTP error - {e}")
+            enriched_competitors.append(
+                ManagedCompetitor(
+                    name=comp["name"],
+                    url=comp.get("url"),
+                    notes=comp.get("notes"),
+                    added_at=datetime.fromisoformat(comp["added_at"]),
+                )
+            )
+        except (DatabaseError, OperationalError):
+            errors.append(f"{comp['name']}: Database error")
+            enriched_competitors.append(
+                ManagedCompetitor(
+                    name=comp["name"],
+                    url=comp.get("url"),
+                    notes=comp.get("notes"),
+                    added_at=datetime.fromisoformat(comp["added_at"]),
+                )
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Unexpected error enriching {comp['name']}: {e}",
+                exc_info=True,
+                competitor_name=comp["name"],
+            )
+            errors.append(f"{comp['name']}: {str(e)}")
+            enriched_competitors.append(
+                ManagedCompetitor(
+                    name=comp["name"],
+                    url=comp.get("url"),
+                    notes=comp.get("notes"),
+                    added_at=datetime.fromisoformat(comp["added_at"]),
+                )
+            )
+
+    # Save updated competitors list
+    context = user_repository.get_context(user_id) or {}
+    context["managed_competitors"] = competitors
+    user_repository.save_context(user_id, context)
+
+    return ManagedCompetitorBulkEnrichResponse(
+        success=len(errors) == 0,
+        enriched_count=len(competitors) - len(errors),
+        competitors=enriched_competitors,
+        errors=errors if errors else None,
+    )
+
+
+# =============================================================================
 # Phase 9: Goal Progress Endpoint
 # =============================================================================
 
@@ -2436,8 +2770,8 @@ async def refresh_trend_summary(
         )
 
     # Check rate limits
-    summary_data = context_data.get("trend_summary", {})
-    generated_at_str = summary_data.get("generated_at")
+    summary_data = context_data.get("trend_summary") or {}
+    generated_at_str = summary_data.get("generated_at") if isinstance(summary_data, dict) else None
     if generated_at_str:
         try:
             generated_at = datetime.fromisoformat(generated_at_str.replace("Z", "+00:00"))
@@ -3677,4 +4011,737 @@ async def apply_metric_suggestion(
         success=True,
         field=request.field,
         new_value=request.value,
+    )
+
+
+# =============================================================================
+# Metric Calculation Endpoints (Q&A-guided metric derivation)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/metrics/calculable",
+    response_model=AvailableMetricsResponse,
+    summary="List metrics with calculation support",
+    description="""
+    Get a list of metric keys that have Q&A-guided calculation support.
+
+    These metrics can be derived through guided questions rather than
+    direct input of the final value.
+    """,
+    responses={
+        200: {
+            "description": "Available metrics listed",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "metrics": [
+                            "mrr",
+                            "arr",
+                            "churn",
+                            "nps",
+                            "cac",
+                            "ltv",
+                            "burn_rate",
+                            "runway",
+                        ]
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_calculable_metrics() -> AvailableMetricsResponse:
+    """List metrics with calculation support."""
+    from backend.api.context.metric_questions import get_available_metrics
+
+    return AvailableMetricsResponse(metrics=get_available_metrics())
+
+
+@router.get(
+    "/v1/context/metrics/{metric_key}/questions",
+    response_model=MetricFormulaResponse,
+    summary="Get calculation questions for a metric",
+    description="""
+    Get the guided Q&A questions for calculating a specific metric.
+
+    Returns a list of questions with input types (currency, number, percent)
+    and help text to guide the user through deriving the metric value.
+    """,
+    responses={
+        200: {
+            "description": "Questions retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "metric_key": "churn",
+                        "questions": [
+                            {
+                                "id": "customers_lost",
+                                "question": "How many customers did you lose this month?",
+                                "input_type": "number",
+                                "placeholder": "5",
+                                "help_text": "Customers who canceled or didn't renew",
+                            },
+                            {
+                                "id": "customers_start",
+                                "question": "How many customers did you have at the start of the month?",
+                                "input_type": "number",
+                                "placeholder": "100",
+                                "help_text": "Total active customers at month start",
+                            },
+                        ],
+                        "result_unit": "%",
+                    }
+                }
+            },
+        },
+        404: ERROR_404_RESPONSE,
+    },
+)
+async def get_metric_questions(metric_key: str) -> MetricFormulaResponse:
+    """Get calculation questions for a metric."""
+    from backend.api.context.metric_questions import get_metric_questions as get_questions
+
+    formula = get_questions(metric_key)
+    if not formula:
+        raise http_error(
+            code=ErrorCode.API_NOT_FOUND,
+            message=f"No calculation support for metric: {metric_key}",
+            status=404,
+        )
+
+    return MetricFormulaResponse(
+        metric_key=metric_key,
+        questions=[
+            MetricQuestionDef(
+                id=q["id"],
+                question=q["question"],
+                input_type=q["input_type"].value,
+                placeholder=q["placeholder"],
+                help_text=q.get("help_text"),
+            )
+            for q in formula["questions"]
+        ],
+        result_unit=formula["result_unit"],
+    )
+
+
+@router.post(
+    "/v1/context/metrics/{metric_key}/calculate",
+    response_model=MetricCalculationResponse,
+    summary="Calculate a metric from Q&A answers",
+    description="""
+    Calculate a metric value from user-provided answers to guided questions.
+
+    Optionally stores the Q&A answers as a ClarificationInsight with
+    source_type="calculation" for future reference.
+
+    **Process:**
+    1. Validates all required answers are provided
+    2. Applies the metric formula to calculate the value
+    3. Optionally saves the calculation as an insight
+    4. Returns the calculated value and formula used
+    """,
+    responses={
+        200: {
+            "description": "Metric calculated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "calculated_value": 5.0,
+                        "formula_used": "(customers_lost / customers_start * 100)",
+                        "result_unit": "%",
+                        "confidence": 1.0,
+                        "insight_saved": True,
+                    }
+                }
+            },
+        },
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
+    },
+)
+@handle_api_errors("calculate metric")
+async def calculate_metric(
+    metric_key: str,
+    request: MetricCalculationRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MetricCalculationResponse:
+    """Calculate a metric from Q&A answers."""
+    from backend.api.context.metric_questions import (
+        calculate_metric as calc_metric,
+    )
+    from backend.api.context.metric_questions import (
+        get_metric_questions as get_questions,
+    )
+
+    user_id = extract_user_id(user)
+
+    # Get formula definition
+    formula = get_questions(metric_key)
+    if not formula:
+        raise http_error(
+            code=ErrorCode.API_NOT_FOUND,
+            message=f"No calculation support for metric: {metric_key}",
+            status=404,
+        )
+
+    # Convert answers to dict
+    answers_dict = {a.question_id: a.value for a in request.answers}
+
+    # Calculate
+    try:
+        calculated_value, formula_used = calc_metric(metric_key, answers_dict)
+    except ValueError as e:
+        raise http_error(
+            code=ErrorCode.VALIDATION_ERROR,
+            message=str(e),
+            status=400,
+        ) from e
+
+    insight_saved = False
+
+    # Optionally save as insight
+    if request.save_insight:
+        try:
+            # Build a summary of the calculation as the "answer"
+            answer_parts = []
+            for q in formula["questions"]:
+                qid = q["id"]
+                if qid in answers_dict:
+                    answer_parts.append(f"{q['question']}: {answers_dict[qid]}")
+            answer_summary = "; ".join(answer_parts)
+
+            # Create the clarification entry
+            from backend.api.context.models import (
+                ClarificationStorageEntry,
+                InsightCategory,
+                InsightMetricResponse,
+            )
+
+            now = datetime.now(UTC)
+            entry = ClarificationStorageEntry(
+                answer=answer_summary,
+                answered_at=now,
+                source="calculation",
+                metric_key=metric_key,
+                category=InsightCategory.REVENUE
+                if metric_key in ("mrr", "arr", "burn_rate", "runway", "gross_margin")
+                else InsightCategory.CUSTOMERS
+                if metric_key in ("churn", "nps", "cac", "ltv", "ltv_cac_ratio")
+                else InsightCategory.GROWTH
+                if metric_key in ("aov", "conversion_rate", "return_rate")
+                else InsightCategory.UNCATEGORIZED,
+                metric=InsightMetricResponse(
+                    value=calculated_value,
+                    unit=formula["result_unit"],
+                    metric_type=metric_key,
+                    raw_text=f"Calculated {metric_key}: {calculated_value}{formula['result_unit']}",
+                ),
+                confidence_score=1.0,
+                summary=f"Calculated {metric_key} = {calculated_value}{formula['result_unit']}",
+                parsed_at=now,
+            )
+
+            # Load and update clarifications
+            context_data = user_repository.get_context(user_id) or {}
+            clarifications = context_data.get("clarifications", {})
+
+            # Use metric key as question key for calculation insights
+            question_key = f"[Calculation] {metric_key.upper()}"
+            clarifications[question_key] = entry.model_dump(mode="json")
+
+            context_data["clarifications"] = clarifications
+            user_repository.save_context(user_id, context_data)
+            insight_saved = True
+
+            logger.info(
+                f"Saved metric calculation insight for user {user_id}: {metric_key}={calculated_value}"
+            )
+
+            # Trigger async market context enrichment
+            industry = context_data.get("industry")
+            if industry and metric_key:
+                import asyncio
+
+                asyncio.create_task(
+                    _enrich_insight_background(
+                        user_id=user_id,
+                        question_key=question_key,
+                        metric_key=metric_key,
+                        metric_value=calculated_value,
+                        industry=industry,
+                    )
+                )
+        except Exception as e:
+            # Non-blocking: log but don't fail
+            logger.warning(f"Failed to save calculation insight: {e}")
+
+    return MetricCalculationResponse(
+        success=True,
+        calculated_value=calculated_value,
+        formula_used=formula_used,
+        result_unit=formula["result_unit"],
+        confidence=1.0,
+        insight_saved=insight_saved,
+    )
+
+
+# =============================================================================
+# Business Metric Insight Suggestion Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/metrics/suggestions",
+    response_model=BusinessMetricSuggestionsResponse,
+    summary="Get business metric suggestions from insights",
+    description="""
+    Get suggestions for auto-populating business metrics from clarification insights.
+
+    Uses keyword-based matching to detect metric values in user's clarification answers
+    (from meetings and calculations) and map them to specific business metrics like
+    MRR, churn, CAC, LTV, etc.
+
+    **Matching factors:**
+    - Category match (insight category → metric category)
+    - Keyword presence in question/answer text
+    - Value pattern extraction from text
+
+    **Filtering:**
+    - Only suggestions with confidence >= 0.5 are returned
+    - Only insights from the last 90 days are considered
+    - Suggestions matching current metric values are excluded
+    - Dismissed suggestions are excluded
+
+    **Use Cases:**
+    - Show "Suggested from insights" panel on business metrics page
+    - Help users keep metrics in sync with their meeting data
+    """,
+    responses={
+        200: {
+            "description": "Suggestions retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "suggestions": [
+                            {
+                                "metric_key": "mrr",
+                                "metric_name": "Monthly Recurring Revenue",
+                                "current_value": 45000,
+                                "suggested_value": "$50,000",
+                                "source_question": "What's your current MRR?",
+                                "confidence": 0.85,
+                                "answered_at": "2025-12-28T10:30:00Z",
+                                "is_dismissed": False,
+                            }
+                        ],
+                        "count": 1,
+                    }
+                }
+            },
+        },
+        403: ERROR_403_RESPONSE,
+    },
+)
+@handle_api_errors("get business metric suggestions")
+async def get_business_metric_suggestions(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> BusinessMetricSuggestionsResponse:
+    """Get business metric suggestions from clarification insights."""
+    from backend.api.context.metric_mapping import get_insight_metric_suggestions
+
+    user_id = extract_user_id(user)
+
+    # Load context from database
+    context_data = user_repository.get_context(user_id)
+
+    if not context_data:
+        return BusinessMetricSuggestionsResponse(success=True, suggestions=[], count=0)
+
+    # Get clarifications from context
+    clarifications = context_data.get("clarifications", {})
+    if not clarifications:
+        return BusinessMetricSuggestionsResponse(success=True, suggestions=[], count=0)
+
+    # Get current metric values
+    from bo1.state.repositories.metrics_repository import metrics_repository
+
+    existing_metrics: dict[str, Any] = {}
+    try:
+        user_metrics = metrics_repository.get_business_metrics(user_id)
+        for m in user_metrics:
+            if m.get("value") is not None:
+                existing_metrics[m["metric_key"]] = m["value"]
+    except Exception as e:
+        logger.warning(f"Failed to load user metrics: {e}")
+
+    # Get dismissed suggestions from context
+    dismissed = set(context_data.get("dismissed_metric_suggestions", []))
+
+    # Extract suggestions
+    raw_suggestions = get_insight_metric_suggestions(
+        clarifications,
+        existing_metrics,
+        confidence_threshold=0.5,
+        max_age_days=90,
+    )
+
+    # Get metric templates for names
+    templates = metrics_repository.get_templates()
+    template_names = {t["metric_key"]: t["name"] for t in templates}
+
+    # Convert to response models, filtering dismissed
+    suggestions = []
+    for s in raw_suggestions:
+        key = f"{s['metric_key']}:{s['source_question']}"
+        if key in dismissed:
+            continue
+
+        suggestions.append(
+            BusinessMetricSuggestion(
+                metric_key=s["metric_key"],
+                metric_name=template_names.get(s["metric_key"]),
+                current_value=s.get("current_value"),
+                suggested_value=str(s["suggested_value"]),
+                source_question=s["source_question"],
+                confidence=s["confidence"],
+                answered_at=s.get("answered_at"),
+                is_dismissed=False,
+            )
+        )
+
+    logger.info(f"Found {len(suggestions)} business metric suggestions for user {user_id}")
+
+    return BusinessMetricSuggestionsResponse(
+        success=True,
+        suggestions=suggestions,
+        count=len(suggestions),
+    )
+
+
+@router.post(
+    "/v1/context/metrics/suggestions/apply",
+    response_model=ApplyBusinessMetricSuggestionResponse,
+    summary="Apply a business metric suggestion",
+    description="""
+    Apply a business metric suggestion to update the metric value.
+
+    Updates the specified business metric with the provided value. The source_question
+    is recorded for audit trail.
+
+    **Use Cases:**
+    - User clicks "Apply" on a suggestion in the metrics page
+    """,
+    responses={
+        200: {
+            "description": "Suggestion applied successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "metric_key": "mrr",
+                        "new_value": 50000,
+                    }
+                }
+            },
+        },
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+    },
+)
+@handle_api_errors("apply business metric suggestion")
+async def apply_business_metric_suggestion(
+    request: ApplyBusinessMetricSuggestionRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ApplyBusinessMetricSuggestionResponse:
+    """Apply a business metric suggestion."""
+    from bo1.state.repositories.metrics_repository import metrics_repository
+
+    user_id = extract_user_id(user)
+
+    # Update the metric
+    result = metrics_repository.update_metric_value(
+        user_id=user_id,
+        metric_key=request.metric_key,
+        value=request.value,
+        source="insight",
+    )
+
+    if not result:
+        # Metric doesn't exist - try to create from template
+        result = metrics_repository.save_metric(
+            user_id=user_id,
+            metric_key=request.metric_key,
+            value=request.value,
+            source="insight",
+            is_predefined=True,
+        )
+        if not result:
+            raise http_error(
+                code=ErrorCode.API_NOT_FOUND,
+                message=f"Metric not found and could not be created: {request.metric_key}",
+                status=404,
+            )
+
+    logger.info(
+        f"Applied business metric suggestion for user {user_id}: {request.metric_key}={request.value}"
+    )
+
+    return ApplyBusinessMetricSuggestionResponse(
+        success=True,
+        metric_key=request.metric_key,
+        new_value=request.value,
+    )
+
+
+@router.post(
+    "/v1/context/metrics/suggestions/dismiss",
+    response_model=ApplyBusinessMetricSuggestionResponse,
+    summary="Dismiss a business metric suggestion",
+    description="""
+    Dismiss a business metric suggestion to prevent it from appearing again.
+
+    Stores the dismissal in user context. The suggestion can be un-dismissed by
+    clearing dismissed suggestions.
+    """,
+    responses={
+        200: {
+            "description": "Suggestion dismissed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "metric_key": "mrr",
+                        "new_value": 0,
+                    }
+                }
+            },
+        },
+        403: ERROR_403_RESPONSE,
+    },
+)
+@handle_api_errors("dismiss business metric suggestion")
+async def dismiss_business_metric_suggestion(
+    request: DismissBusinessMetricSuggestionRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ApplyBusinessMetricSuggestionResponse:
+    """Dismiss a business metric suggestion."""
+    user_id = extract_user_id(user)
+
+    # Load context
+    context_data = user_repository.get_context(user_id) or {}
+
+    # Add to dismissed set
+    dismissed = set(context_data.get("dismissed_metric_suggestions", []))
+    key = f"{request.metric_key}:{request.source_question}"
+    dismissed.add(key)
+
+    context_data["dismissed_metric_suggestions"] = list(dismissed)
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(f"Dismissed business metric suggestion for user {user_id}: {request.metric_key}")
+
+    return ApplyBusinessMetricSuggestionResponse(
+        success=True,
+        metric_key=request.metric_key,
+        new_value=0,  # Placeholder
+    )
+
+
+# =============================================================================
+# Insight Market Context Enrichment Endpoints
+# =============================================================================
+
+
+class InsightEnrichRequest(BaseModel):
+    """Request to enrich a specific insight with market context."""
+
+    question_key: str = Field(..., description="The clarification question key to enrich")
+
+
+class InsightEnrichResponse(BaseModel):
+    """Response from insight enrichment."""
+
+    success: bool = Field(..., description="Whether enrichment succeeded")
+    enriched: bool = Field(False, description="Whether market context was added")
+    percentile_position: int | None = Field(None, description="User's percentile (0-100)")
+    comparison_text: str | None = Field(None, description="Human-readable comparison")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+async def _enrich_insight_background(
+    user_id: str,
+    question_key: str,
+    metric_key: str,
+    metric_value: float,
+    industry: str,
+) -> None:
+    """Background task to enrich an insight with market context.
+
+    Non-blocking: errors are logged but don't affect the user response.
+    """
+    try:
+        from backend.services.insight_enrichment import (
+            InsightEnrichmentService,
+            market_context_to_dict,
+        )
+
+        service = InsightEnrichmentService()
+        result = await service.enrich_insight(
+            metric_key=metric_key,
+            metric_value=metric_value,
+            industry=industry,
+        )
+
+        if result is None:
+            logger.debug(f"No market context available for {metric_key} in {industry}")
+            return
+
+        # Load and update the insight
+        context_data = user_repository.get_context(user_id) or {}
+        clarifications = context_data.get("clarifications", {})
+
+        if question_key not in clarifications:
+            logger.warning(f"Insight {question_key} not found for enrichment")
+            return
+
+        # Add market context to the insight
+        clarifications[question_key]["market_context"] = market_context_to_dict(result)
+        context_data["clarifications"] = clarifications
+        user_repository.save_context(user_id, context_data)
+
+        logger.info(
+            f"Enriched insight {question_key} for user {user_id}: "
+            f"percentile={result.percentile_position}"
+        )
+    except Exception as e:
+        logger.warning(f"Background insight enrichment failed: {e}")
+
+
+@router.post(
+    "/v1/context/insights/{question_key}/enrich",
+    response_model=InsightEnrichResponse,
+    summary="Enrich an insight with market context",
+    description="""
+    Manually trigger market context enrichment for a specific insight.
+
+    Finds matching industry benchmarks and adds percentile comparison data
+    to the insight. Useful for:
+    - Re-enriching insights after industry changes
+    - Enriching older insights that were created before this feature
+
+    **Requirements:**
+    - User must have an industry set in context
+    - Insight must have a metric with a numeric value
+
+    **Cost:** ~$0.005-0.01 if cache miss (web research + LLM extraction)
+    """,
+    responses={
+        200: {
+            "description": "Enrichment completed (check enriched field)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "enriched": True,
+                        "percentile_position": 45,
+                        "comparison_text": "Your CAC ($50) is in the 45th percentile for SaaS (below average)",
+                    }
+                }
+            },
+        },
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+    },
+)
+@handle_api_errors("enrich insight")
+async def enrich_insight(
+    question_key: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> InsightEnrichResponse:
+    """Manually enrich an insight with market context."""
+    from backend.services.insight_enrichment import (
+        InsightEnrichmentService,
+        market_context_to_dict,
+    )
+
+    user_id = extract_user_id(user)
+
+    # Load context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise http_error(
+            code=ErrorCode.API_NOT_FOUND,
+            message="No context found",
+            status=404,
+        )
+
+    # Check industry
+    industry = context_data.get("industry")
+    if not industry:
+        return InsightEnrichResponse(
+            success=False,
+            enriched=False,
+            error="No industry set in context. Set your industry first.",
+        )
+
+    # Find the insight
+    clarifications = context_data.get("clarifications", {})
+    if question_key not in clarifications:
+        raise http_error(
+            code=ErrorCode.API_NOT_FOUND,
+            message=f"Insight not found: {question_key}",
+            status=404,
+        )
+
+    insight = clarifications[question_key]
+
+    # Extract metric info
+    metric_key = insight.get("metric_key")
+    metric_data = insight.get("metric")
+    metric_value = metric_data.get("value") if metric_data else None
+
+    if not metric_key or metric_value is None:
+        return InsightEnrichResponse(
+            success=False,
+            enriched=False,
+            error="Insight has no metric value to compare against benchmarks",
+        )
+
+    # Run enrichment
+    service = InsightEnrichmentService()
+    result = await service.enrich_insight(
+        metric_key=metric_key,
+        metric_value=float(metric_value),
+        industry=industry,
+    )
+
+    if result is None:
+        return InsightEnrichResponse(
+            success=True,
+            enriched=False,
+            error=f"No benchmark data available for {metric_key} in {industry}",
+        )
+
+    # Save enrichment to insight
+    clarifications[question_key]["market_context"] = market_context_to_dict(result)
+    context_data["clarifications"] = clarifications
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(
+        f"Manually enriched insight {question_key} for user {user_id}: "
+        f"percentile={result.percentile_position}"
+    )
+
+    return InsightEnrichResponse(
+        success=True,
+        enriched=True,
+        percentile_position=result.percentile_position,
+        comparison_text=result.comparison_text,
     )

@@ -905,6 +905,8 @@ class ActionRepository(BaseRepository):
     # =========================================================================
 
     # Valid status transitions (from_status -> allowed_to_statuses)
+    # Note: "failed" requires starting work first (not from "todo")
+    # but "abandoned" is allowed from "todo" (decided not to pursue)
     VALID_TRANSITIONS = {
         "todo": {"in_progress", "blocked", "cancelled", "abandoned"},
         "blocked": {"todo", "in_progress", "cancelled", "failed", "abandoned"},

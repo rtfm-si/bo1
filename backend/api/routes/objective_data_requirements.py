@@ -200,6 +200,63 @@ async def _generate_data_requirements(
 
 # --- Endpoints ---
 
+# IMPORTANT: Static routes MUST be defined before parameterized routes.
+# FastAPI matches routes in definition order, so /data-requirements must come
+# before /{objective_index}/data-requirements to avoid "data-requirements" being
+# captured as a path parameter value.
+
+
+@router.get(
+    "/data-requirements",
+    response_model=AllObjectivesRequirementsResponse,
+    summary="Get data requirements overview for all objectives",
+    description="""
+    Returns a summary of data requirements for all active objectives.
+
+    This provides an overview of what data would help across all goals,
+    without generating full requirements for each (which would be expensive).
+    Use the /{objective_index}/data-requirements endpoint for full details.
+    """,
+)
+@handle_api_errors("get all objectives data requirements")
+async def get_all_data_requirements(
+    include_summaries: bool = Query(
+        True, description="Include brief requirement summaries (adds latency)"
+    ),
+    user: dict = Depends(get_current_user),
+) -> AllObjectivesRequirementsResponse:
+    """Returns data requirements overview for all active objectives."""
+    user_id = extract_user_id(user)
+
+    # Fetch user context
+    context_data = _get_user_context(user_id)
+    if not context_data:
+        return AllObjectivesRequirementsResponse(objectives=[], count=0, north_star_goal=None)
+
+    objectives = context_data.get("strategic_objectives") or []
+    north_star = context_data.get("north_star_goal")
+
+    # Build summaries for each objective
+    result = []
+    for idx, objective_text in enumerate(objectives):
+        # Simple heuristic-based summary without LLM call
+        summary = _generate_quick_requirements_summary(objective_text)
+
+        result.append(
+            ObjectiveRequirementsSummary(
+                index=idx,
+                name=objective_text,
+                requirements_summary=summary,
+                essential_data_count=_estimate_essential_data_count(objective_text),
+            )
+        )
+
+    return AllObjectivesRequirementsResponse(
+        objectives=result,
+        count=len(result),
+        north_star_goal=north_star,
+    )
+
 
 @router.get(
     "/{objective_index}/data-requirements",
@@ -293,58 +350,6 @@ async def get_data_requirements(
         requirements=requirements,
         generated_at=datetime.utcnow(),
         model_used=model_used,
-    )
-
-
-@router.get(
-    "/data-requirements",
-    response_model=AllObjectivesRequirementsResponse,
-    summary="Get data requirements overview for all objectives",
-    description="""
-    Returns a summary of data requirements for all active objectives.
-
-    This provides an overview of what data would help across all goals,
-    without generating full requirements for each (which would be expensive).
-    Use the /{objective_index}/data-requirements endpoint for full details.
-    """,
-)
-@handle_api_errors("get all objectives data requirements")
-async def get_all_data_requirements(
-    include_summaries: bool = Query(
-        True, description="Include brief requirement summaries (adds latency)"
-    ),
-    user: dict = Depends(get_current_user),
-) -> AllObjectivesRequirementsResponse:
-    """Returns data requirements overview for all active objectives."""
-    user_id = extract_user_id(user)
-
-    # Fetch user context
-    context_data = _get_user_context(user_id)
-    if not context_data:
-        return AllObjectivesRequirementsResponse(objectives=[], count=0, north_star_goal=None)
-
-    objectives = context_data.get("strategic_objectives") or []
-    north_star = context_data.get("north_star_goal")
-
-    # Build summaries for each objective
-    result = []
-    for idx, objective_text in enumerate(objectives):
-        # Simple heuristic-based summary without LLM call
-        summary = _generate_quick_requirements_summary(objective_text)
-
-        result.append(
-            ObjectiveRequirementsSummary(
-                index=idx,
-                name=objective_text,
-                requirements_summary=summary,
-                essential_data_count=_estimate_essential_data_count(objective_text),
-            )
-        )
-
-    return AllObjectivesRequirementsResponse(
-        objectives=result,
-        count=len(result),
-        north_star_goal=north_star,
     )
 
 

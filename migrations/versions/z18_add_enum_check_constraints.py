@@ -58,11 +58,11 @@ def upgrade() -> None:
     op.execute("ALTER TABLE sessions VALIDATE CONSTRAINT sessions_phase_check")
 
     # Actions table constraints
-    # status: todo, in_progress, blocked, in_review, done, cancelled (from ActionStatus)
+    # status: todo, in_progress, blocked, in_review, done, cancelled, failed, abandoned, replanned (from ActionStatus)
     op.execute("""
         ALTER TABLE actions
         ADD CONSTRAINT actions_status_check
-        CHECK (status IN ('todo', 'in_progress', 'blocked', 'in_review', 'done', 'cancelled'))
+        CHECK (status IN ('todo', 'in_progress', 'blocked', 'in_review', 'done', 'cancelled', 'failed', 'abandoned', 'replanned'))
         NOT VALID
     """)
     op.execute("ALTER TABLE actions VALIDATE CONSTRAINT actions_status_check")

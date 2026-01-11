@@ -38,7 +38,7 @@
 		sessions_run: { light: 'bg-brand-600', dark: 'dark:bg-brand-400', label: 'Meetings', shortLabel: 'Meet', group: 'actual' },
 		completed_count: { light: 'bg-success-600', dark: 'dark:bg-success-400', label: 'Actions completed', shortLabel: 'Done', group: 'actual' },
 		in_progress_count: { light: 'bg-amber-600', dark: 'dark:bg-amber-400', label: 'Actions started', shortLabel: 'Started', group: 'actual' },
-		mentor_sessions: { light: 'bg-purple-600', dark: 'dark:bg-purple-400', label: 'Mentor sessions', shortLabel: 'Mentor', group: 'actual' },
+		mentor_sessions: { light: 'bg-purple-600', dark: 'dark:bg-purple-400', label: 'Advisor sessions', shortLabel: 'Advisor', group: 'actual' },
 		estimated_starts: { light: 'bg-amber-300', dark: 'dark:bg-amber-500', label: 'Planned starts', shortLabel: 'Plan', group: 'planned' },
 		estimated_completions: { light: 'bg-success-300', dark: 'dark:bg-success-500', label: 'Due dates', shortLabel: 'Due', group: 'planned' }
 	};
@@ -310,7 +310,7 @@
 		showItem('sessions_run', cell.stat.sessions_run, 'Meetings');
 		showItem('completed_count', cell.stat.completed_count, 'Actions completed');
 		showItem('in_progress_count', cell.stat.in_progress_count, 'Actions started');
-		showItem('mentor_sessions', cell.stat.mentor_sessions, 'Mentor sessions');
+		showItem('mentor_sessions', cell.stat.mentor_sessions, 'Advisor sessions');
 
 		// Future/estimated activities
 		showItem('estimated_starts', cell.stat.estimated_starts ?? 0, 'Planned starts');

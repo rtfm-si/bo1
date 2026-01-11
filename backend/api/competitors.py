@@ -30,6 +30,10 @@ from backend.api.utils.db_helpers import (
     get_user_tier,
 )
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.services.competitor_intelligence import (
+    CompetitorIntelligenceService,
+    intel_to_dict,
+)
 from bo1.config import get_settings
 from bo1.logging.errors import ErrorCode, log_error
 
@@ -69,6 +73,11 @@ class CompetitorProfile(BaseModel):
     recent_news: list[dict[str, str]] | None = None
     funding_info: str | None = None
     employee_count: str | None = None
+    # Deep intelligence fields (Pro tier)
+    product_updates: list[dict[str, str | None]] | None = None
+    key_signals: list[str] | None = None
+    funding_rounds: list[dict[str, Any]] | None = None
+    intel_gathered_at: datetime | None = None
     # Metadata
     display_order: int = 0
     is_primary: bool = False
@@ -141,6 +150,12 @@ def row_to_profile(row: dict[str, Any]) -> CompetitorProfile:
         recent_news=row.get("recent_news"),
         funding_info=row.get("funding_info"),
         employee_count=row.get("employee_count"),
+        # Deep intelligence fields
+        product_updates=row.get("product_updates"),
+        key_signals=row.get("key_signals"),
+        funding_rounds=row.get("funding_rounds"),
+        intel_gathered_at=row.get("intel_gathered_at"),
+        # Metadata
         display_order=row.get("display_order", 0),
         is_primary=row.get("is_primary", False),
         data_depth=row.get("data_depth", "basic"),
@@ -422,11 +437,36 @@ async def enrich_competitor(
             tier_config["data_depth"],
         )
 
+        # For deep tier, also gather intelligence
+        intel_data: dict[str, Any] = {}
+        if tier_config["data_depth"] == "deep":
+            logger.info(f"Gathering deep intelligence for {row['name']}")
+            intel_service = CompetitorIntelligenceService()
+            intel = await intel_service.gather_competitor_intel(
+                name=row["name"],
+                website=row.get("website"),
+            )
+            if intel:
+                intel_data = intel_to_dict(intel)
+
         # Detect changes
         changes = []
         for key, value in enriched.items():
             if value and row.get(key) != value:
                 changes.append(key)
+        # Track intel changes
+        if intel_data.get("key_signals") and row.get("key_signals") != intel_data.get(
+            "key_signals"
+        ):
+            changes.append("key_signals")
+        if intel_data.get("product_updates") and row.get("product_updates") != intel_data.get(
+            "product_updates"
+        ):
+            changes.append("product_updates")
+        if intel_data.get("funding_rounds") and row.get("funding_rounds") != intel_data.get(
+            "funding_rounds"
+        ):
+            changes.append("funding_rounds")
 
         # Store previous snapshot for change detection
         previous_snapshot = {
@@ -447,6 +487,10 @@ async def enrich_competitor(
                 funding_info = COALESCE(%s, funding_info),
                 employee_count = COALESCE(%s, employee_count),
                 recent_news = COALESCE(%s, recent_news),
+                product_updates = COALESCE(%s, product_updates),
+                key_signals = COALESCE(%s, key_signals),
+                funding_rounds = COALESCE(%s, funding_rounds),
+                intel_gathered_at = CASE WHEN %s THEN NOW() ELSE intel_gathered_at END,
                 last_enriched_at = NOW(),
                 previous_snapshot = %s,
                 changes_detected = %s,
@@ -463,6 +507,16 @@ async def enrich_competitor(
                 enriched.get("funding_info"),
                 enriched.get("employee_count"),
                 enriched.get("recent_news"),
+                json.dumps(intel_data.get("product_updates"))
+                if intel_data.get("product_updates")
+                else None,
+                json.dumps(intel_data.get("key_signals"))
+                if intel_data.get("key_signals")
+                else None,
+                json.dumps(intel_data.get("funding_rounds"))
+                if intel_data.get("funding_rounds")
+                else None,
+                bool(intel_data),  # True if intel was gathered
                 json.dumps(previous_snapshot),
                 json.dumps(changes) if changes else None,
                 str(competitor_id),

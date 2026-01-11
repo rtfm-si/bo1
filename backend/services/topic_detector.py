@@ -38,6 +38,17 @@ class RepeatedTopic:
     similarity_score: float  # Average pairwise similarity in cluster
 
 
+@dataclass
+class SimilarMessage:
+    """A message similar to a search query."""
+
+    conversation_id: str
+    content: str
+    preview: str  # Truncated content for display
+    similarity: float
+    timestamp: str
+
+
 class TopicDetector:
     """Detects repeated help requests using embedding similarity.
 
@@ -263,6 +274,66 @@ class TopicDetector:
         # Sort by count descending
         results.sort(key=lambda t: t.count, reverse=True)
         return results
+
+    def find_similar_messages(
+        self,
+        user_id: str,
+        query: str,
+        messages: list[dict[str, Any]],
+        threshold: float = 0.7,
+        limit: int = 5,
+    ) -> list[SimilarMessage]:
+        """Find messages semantically similar to a query.
+
+        Args:
+            user_id: User ID for embedding cache scoping
+            query: Search query string
+            messages: List of message dicts with content, timestamp, conversation_id
+            threshold: Minimum similarity to include (0.0-1.0)
+            limit: Maximum results to return
+
+        Returns:
+            List of SimilarMessage instances sorted by similarity descending
+        """
+        if not query.strip() or not messages:
+            return []
+
+        # Get embeddings for existing messages (from cache where available)
+        messages_with_embeddings = self._get_embeddings_with_cache(user_id, messages)
+        if not messages_with_embeddings:
+            return []
+
+        # Embed the query
+        try:
+            query_embeddings = generate_embeddings_batch([query], input_type="query")
+            if not query_embeddings or not query_embeddings[0]:
+                logger.warning("Failed to generate query embedding")
+                return []
+            query_embedding = query_embeddings[0]
+        except Exception as e:
+            logger.warning(f"Failed to embed query: {e}")
+            return []
+
+        # Compute similarities
+        results: list[SimilarMessage] = []
+        for msg, embedding in messages_with_embeddings:
+            similarity = cosine_similarity(query_embedding, embedding)
+            if similarity >= threshold:
+                content = msg.get("content", "")
+                preview = content[:100] + "..." if len(content) > 100 else content
+                results.append(
+                    SimilarMessage(
+                        conversation_id=msg.get("conversation_id", ""),
+                        content=content,
+                        preview=preview,
+                        similarity=similarity,
+                        timestamp=msg.get("timestamp", ""),
+                    )
+                )
+
+        # Sort by similarity descending and limit
+        results.sort(key=lambda m: m.similarity, reverse=True)
+        return results[:limit]
 
 
 # Module-level singleton

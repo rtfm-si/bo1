@@ -46,6 +46,13 @@ from typing import Any
 
 from prometheus_client import Counter
 
+from bo1.config import (
+    ANTHROPIC_PRICING,
+    BRAVE_PRICING,
+    TAVILY_PRICING,
+    VOYAGE_PRICING,
+    resolve_model_alias,
+)
 from bo1.constants import CostAnomalyConfig
 from bo1.logging import ErrorCode, log_error
 from bo1.state.database import db_session
@@ -191,68 +198,6 @@ class AggregationCache:
 
 # Module-level cache instance
 _session_costs_cache = AggregationCache()
-
-
-# =============================================================================
-# Pricing Constants (per 1M tokens or per query)
-# Last updated: 2025-11-28
-# =============================================================================
-
-ANTHROPIC_PRICING = {
-    # Claude Sonnet 4.5
-    "claude-sonnet-4-5-20250929": {
-        "input": 3.00,  # $3 per 1M input tokens
-        "output": 15.00,  # $15 per 1M output tokens
-        "cache_write": 3.75,  # $3.75 per 1M (1.25x input)
-        "cache_read": 0.30,  # $0.30 per 1M (0.1x input)
-    },
-    # Claude Haiku 4.5
-    "claude-haiku-4-5-20251001": {
-        "input": 1.00,
-        "output": 5.00,
-        "cache_write": 1.25,
-        "cache_read": 0.10,
-    },
-    # Claude Opus 4
-    "claude-opus-4-20250514": {
-        "input": 15.00,
-        "output": 75.00,
-        "cache_write": 18.75,
-        "cache_read": 1.50,
-    },
-    # Claude 3.5 Haiku (for testing)
-    "claude-3-5-haiku-20241022": {
-        "input": 0.80,
-        "output": 4.00,
-        "cache_write": 1.00,
-        "cache_read": 0.08,
-    },
-}
-
-VOYAGE_PRICING = {
-    # Voyage AI embeddings (per 1M tokens)
-    "voyage-3": {
-        "embedding": 0.06,  # $0.06 per 1M tokens
-    },
-    "voyage-3-lite": {
-        "embedding": 0.02,  # $0.02 per 1M tokens
-    },
-    "voyage-3-large": {
-        "embedding": 0.18,  # $0.18 per 1M tokens
-    },
-}
-
-BRAVE_PRICING = {
-    # Brave Search API (per query)
-    "web_search": 0.003,  # $3 per 1K queries = $0.003/query
-    "ai_search": 0.005,  # $5 per 1K queries = $0.005/query
-}
-
-TAVILY_PRICING = {
-    # Tavily API (per query)
-    "basic_search": 0.001,  # 1 credit = ~$0.001
-    "advanced_search": 0.002,  # 2 credits = ~$0.002
-}
 
 
 @dataclass
@@ -416,7 +361,7 @@ class CostTracker:
             >>> input_cost, output_cost, cache_write, cache_read, total, without_cache = costs
             >>> print(f"Total: ${total:.6f}, Saved: ${without_cache - total:.6f}")
         """
-        pricing = ANTHROPIC_PRICING.get(model, ANTHROPIC_PRICING["claude-sonnet-4-5-20250929"])
+        pricing = ANTHROPIC_PRICING.get(model, ANTHROPIC_PRICING[resolve_model_alias("sonnet")])
 
         # Regular tokens (non-cached input)
         # Ensure non-negative: with high cache hit rates, reported token counts can vary

@@ -4346,6 +4346,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advisor/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat with mentor
+         * @description Ask questions or get guidance from the AI mentor (SSE streaming)
+         */
+        post: operations["mentor_chat_api_v1_advisor_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List mentor conversations
+         * @description List recent mentor conversations for the current user
+         */
+        get: operations["list_mentor_conversations_api_v1_advisor_conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get mentor conversation
+         * @description Get a mentor conversation with full message history
+         */
+        get: operations["get_mentor_conversation_api_v1_advisor_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete mentor conversation
+         * @description Delete a mentor conversation
+         */
+        delete: operations["delete_mentor_conversation_api_v1_advisor_conversations__conversation_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update mentor conversation
+         * @description Update a mentor conversation (currently supports label update)
+         */
+        patch: operations["update_mentor_conversation_api_v1_advisor_conversations__conversation_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/advisor/failure-patterns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detect action failure patterns
+         * @description Analyze actions to find failure patterns for proactive mentoring
+         */
+        get: operations["get_failure_patterns_api_v1_advisor_failure_patterns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/improvement-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get improvement plan
+         * @description Generate a proactive improvement plan based on detected patterns
+         */
+        get: operations["get_improvement_plan_api_v1_advisor_improvement_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/mentions/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search for mentionable entities
+         * @description Search meetings, actions, datasets, or chats for @mention autocomplete
+         */
+        get: operations["search_mentions_api_v1_advisor_mentions_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/personas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List available mentor personas
+         * @description Get all available mentor personas for manual selection
+         */
+        get: operations["list_personas_api_v1_advisor_personas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/repeated-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detect repeated help request topics
+         * @description Analyze mentor conversations to find repeated topic patterns
+         */
+        get: operations["get_repeated_topics_api_v1_advisor_repeated_topics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search advisor conversations
+         * @description Semantic search over past advisor conversations to find similar topics
+         */
+        get: operations["search_conversations_api_v1_advisor_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analysis/ask": {
         parameters: {
             query?: never;
@@ -5439,6 +5627,37 @@ export interface paths {
         patch: operations["update_insight_api_v1_context_insights__question_hash__patch"];
         trace?: never;
     };
+    "/api/v1/context/insights/{question_key}/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrich an insight with market context
+         * @description Manually trigger market context enrichment for a specific insight.
+         *
+         *         Finds matching industry benchmarks and adds percentile comparison data
+         *         to the insight. Useful for:
+         *         - Re-enriching insights after industry changes
+         *         - Enriching older insights that were created before this feature
+         *
+         *         **Requirements:**
+         *         - User must have an industry set in context
+         *         - Insight must have a metric with a numeric value
+         *
+         *         **Cost:** ~$0.005-0.01 if cache miss (web research + LLM extraction)
+         */
+        post: operations["enrich_insight_api_v1_context_insights__question_key__enrich_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/key-metrics": {
         parameters: {
             query?: never;
@@ -5516,6 +5735,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/context/managed-competitors/enrich-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrich all managed competitors (monthly refresh)
+         * @description Enrich all managed competitors with data from Tavily Search API.
+         *
+         *         This is an expensive operation - use sparingly (monthly refresh recommended).
+         *         Competitors are enriched sequentially with a small delay between requests.
+         */
+        post: operations["enrich_all_managed_competitors_api_v1_context_managed_competitors_enrich_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/managed-competitors/{name}": {
         parameters: {
             query?: never;
@@ -5546,6 +5788,34 @@ export interface paths {
         patch: operations["update_managed_competitor_api_v1_context_managed_competitors__name__patch"];
         trace?: never;
     };
+    "/api/v1/context/managed-competitors/{name}/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrich a managed competitor with Tavily data
+         * @description Enrich a single managed competitor with data from Tavily Search API.
+         *
+         *         Retrieves:
+         *         - Company tagline and description
+         *         - Funding information (deep tier)
+         *         - Employee count (deep tier)
+         *         - Recent news (deep tier)
+         *
+         *         Rate limited to prevent API abuse.
+         */
+        post: operations["enrich_managed_competitor_api_v1_context_managed_competitors__name__enrich_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/context/metric-suggestions": {
         parameters: {
             query?: never;
@@ -5572,6 +5842,169 @@ export interface paths {
          *         - Help users keep context metrics in sync with their meeting data
          */
         get: operations["get_metric_suggestions_api_v1_context_metric_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/calculable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List metrics with calculation support
+         * @description Get a list of metric keys that have Q&A-guided calculation support.
+         *
+         *         These metrics can be derived through guided questions rather than
+         *         direct input of the final value.
+         */
+        get: operations["get_calculable_metrics_api_v1_context_metrics_calculable_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get business metric suggestions from insights
+         * @description Get suggestions for auto-populating business metrics from clarification insights.
+         *
+         *         Uses keyword-based matching to detect metric values in user's clarification answers
+         *         (from meetings and calculations) and map them to specific business metrics like
+         *         MRR, churn, CAC, LTV, etc.
+         *
+         *         **Matching factors:**
+         *         - Category match (insight category → metric category)
+         *         - Keyword presence in question/answer text
+         *         - Value pattern extraction from text
+         *
+         *         **Filtering:**
+         *         - Only suggestions with confidence >= 0.5 are returned
+         *         - Only insights from the last 90 days are considered
+         *         - Suggestions matching current metric values are excluded
+         *         - Dismissed suggestions are excluded
+         *
+         *         **Use Cases:**
+         *         - Show "Suggested from insights" panel on business metrics page
+         *         - Help users keep metrics in sync with their meeting data
+         */
+        get: operations["get_business_metric_suggestions_api_v1_context_metrics_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/suggestions/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a business metric suggestion
+         * @description Apply a business metric suggestion to update the metric value.
+         *
+         *         Updates the specified business metric with the provided value. The source_question
+         *         is recorded for audit trail.
+         *
+         *         **Use Cases:**
+         *         - User clicks "Apply" on a suggestion in the metrics page
+         */
+        post: operations["apply_business_metric_suggestion_api_v1_context_metrics_suggestions_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/suggestions/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss a business metric suggestion
+         * @description Dismiss a business metric suggestion to prevent it from appearing again.
+         *
+         *         Stores the dismissal in user context. The suggestion can be un-dismissed by
+         *         clearing dismissed suggestions.
+         */
+        post: operations["dismiss_business_metric_suggestion_api_v1_context_metrics_suggestions_dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/{metric_key}/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calculate a metric from Q&A answers
+         * @description Calculate a metric value from user-provided answers to guided questions.
+         *
+         *         Optionally stores the Q&A answers as a ClarificationInsight with
+         *         source_type="calculation" for future reference.
+         *
+         *         **Process:**
+         *         1. Validates all required answers are provided
+         *         2. Applies the metric formula to calculate the value
+         *         3. Optionally saves the calculation as an insight
+         *         4. Returns the calculated value and formula used
+         */
+        post: operations["calculate_metric_api_v1_context_metrics__metric_key__calculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/context/metrics/{metric_key}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get calculation questions for a metric
+         * @description Get the guided Q&A questions for calculating a specific metric.
+         *
+         *         Returns a list of questions with input types (currency, number, percent)
+         *         and help text to guide the user through deriving the metric value.
+         */
+        get: operations["get_metric_questions_api_v1_context_metrics__metric_key__questions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6140,6 +6573,142 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Folders
+         * @description List user's dataset folders (flat list).
+         */
+        get: operations["list_folders_api_v1_datasets_folders_get"];
+        put?: never;
+        /**
+         * Create Folder
+         * @description Create a new dataset folder.
+         */
+        post: operations["create_folder_api_v1_datasets_folders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/folders/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tags
+         * @description List all unique folder tags for the user.
+         */
+        get: operations["list_tags_api_v1_datasets_folders_tags_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/folders/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Folders Tree
+         * @description Get folder tree with nested children.
+         */
+        get: operations["list_folders_tree_api_v1_datasets_folders_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/folders/{folder_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Folder
+         * @description Get a folder by ID.
+         */
+        get: operations["get_folder_api_v1_datasets_folders__folder_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Folder
+         * @description Delete a folder. Datasets are removed from folder (not deleted).
+         */
+        delete: operations["delete_folder_api_v1_datasets_folders__folder_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Folder
+         * @description Update a folder.
+         */
+        patch: operations["update_folder_api_v1_datasets_folders__folder_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/datasets/folders/{folder_id}/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Folder Datasets
+         * @description List datasets in a folder.
+         */
+        get: operations["get_folder_datasets_api_v1_datasets_folders__folder_id__datasets_get"];
+        put?: never;
+        /**
+         * Add Datasets To Folder
+         * @description Add datasets to a folder.
+         */
+        post: operations["add_datasets_to_folder_api_v1_datasets_folders__folder_id__datasets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/folders/{folder_id}/datasets/{dataset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Dataset From Folder
+         * @description Remove a dataset from a folder.
+         */
+        delete: operations["remove_dataset_from_folder_api_v1_datasets_folders__folder_id__datasets__dataset_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6997,6 +7566,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find similar datasets
+         * @description Find datasets semantically similar to this one based on metadata and columns
+         */
+        get: operations["get_similar_datasets_api_v1_datasets__dataset_id__similar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/email/unsubscribe": {
         parameters: {
             query?: never;
@@ -7373,174 +7962,6 @@ export interface paths {
          *         HTTPException: 404 if invitation not found
          */
         get: operations["get_invitation_api_v1_invitations__token__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Chat with mentor
-         * @description Ask questions or get guidance from the AI mentor (SSE streaming)
-         */
-        post: operations["mentor_chat_api_v1_mentor_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/conversations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List mentor conversations
-         * @description List recent mentor conversations for the current user
-         */
-        get: operations["list_mentor_conversations_api_v1_mentor_conversations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/conversations/{conversation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get mentor conversation
-         * @description Get a mentor conversation with full message history
-         */
-        get: operations["get_mentor_conversation_api_v1_mentor_conversations__conversation_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete mentor conversation
-         * @description Delete a mentor conversation
-         */
-        delete: operations["delete_mentor_conversation_api_v1_mentor_conversations__conversation_id__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update mentor conversation
-         * @description Update a mentor conversation (currently supports label update)
-         */
-        patch: operations["update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/mentor/failure-patterns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Detect action failure patterns
-         * @description Analyze actions to find failure patterns for proactive mentoring
-         */
-        get: operations["get_failure_patterns_api_v1_mentor_failure_patterns_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/improvement-plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get improvement plan
-         * @description Generate a proactive improvement plan based on detected patterns
-         */
-        get: operations["get_improvement_plan_api_v1_mentor_improvement_plan_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/mentions/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Search for mentionable entities
-         * @description Search meetings, actions, datasets, or chats for @mention autocomplete
-         */
-        get: operations["search_mentions_api_v1_mentor_mentions_search_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/personas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List available mentor personas
-         * @description Get all available mentor personas for manual selection
-         */
-        get: operations["list_personas_api_v1_mentor_personas_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mentor/repeated-topics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Detect repeated help request topics
-         * @description Analyze mentor conversations to find repeated topic patterns
-         */
-        get: operations["get_repeated_topics_api_v1_mentor_repeated_topics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8545,6 +8966,31 @@ export interface paths {
          *     Creates a topic from a keyword, optionally linked to a trend analysis.
          */
         post: operations["create_topic_api_v1_seo_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seo/topics/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Topics
+         * @description Analyze user-submitted words to suggest SEO topic ideas.
+         *
+         *     Takes a list of words/phrases and returns intelligent topic suggestions
+         *     with SEO potential scoring, trend status, and related keywords.
+         *
+         *     Rate limited to 5 requests per minute.
+         */
+        post: operations["analyze_topics_api_v1_seo_topics_analyze_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12007,6 +12453,33 @@ export interface components {
             sessions: components["schemas"]["ActiveSessionInfo"][];
         };
         /**
+         * AddDatasetsRequest
+         * @description Request to add datasets to a folder.
+         */
+        AddDatasetsRequest: {
+            /**
+             * Dataset Ids
+             * @description Dataset UUIDs to add
+             */
+            dataset_ids: string[];
+        };
+        /**
+         * AddDatasetsResponse
+         * @description Response for adding datasets to a folder.
+         */
+        AddDatasetsResponse: {
+            /**
+             * Added
+             * @description Number of datasets added
+             */
+            added: number;
+            /**
+             * Total Requested
+             * @description Total datasets requested
+             */
+            total_requested: number;
+        };
+        /**
          * AddPromotionRequest
          * @description Admin request to create a new promotion.
          *
@@ -12560,6 +13033,39 @@ export interface components {
             status: string;
         };
         /**
+         * AnalyzeTopicsRequest
+         * @description Request to analyze user-submitted words for topic suggestions.
+         */
+        AnalyzeTopicsRequest: {
+            /**
+             * Skip Validation
+             * @description Skip web research validation for faster response
+             * @default false
+             */
+            skip_validation: boolean;
+            /**
+             * Words
+             * @description Words/phrases to analyze (1-10)
+             */
+            words: string[];
+        };
+        /**
+         * AnalyzeTopicsResponse
+         * @description Response containing topic suggestions.
+         */
+        AnalyzeTopicsResponse: {
+            /**
+             * Analyzed Words
+             * @description Words that were analyzed
+             */
+            analyzed_words: string[];
+            /**
+             * Suggestions
+             * @description Topic suggestions
+             */
+            suggestions?: components["schemas"]["TopicSuggestion"][];
+        };
+        /**
          * ApiErrorItem
          * @description API error (500, 429, 401, etc.).
          */
@@ -12597,6 +13103,53 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /**
+         * ApplyBusinessMetricSuggestionRequest
+         * @description Request to apply a business metric suggestion.
+         */
+        ApplyBusinessMetricSuggestionRequest: {
+            /**
+             * Metric Key
+             * @description Business metric key to update (e.g., 'mrr')
+             */
+            metric_key: string;
+            /**
+             * Source Question
+             * @description Original question (for audit trail)
+             */
+            source_question?: string | null;
+            /**
+             * Value
+             * @description Numeric value to set
+             */
+            value: number;
+        };
+        /**
+         * ApplyBusinessMetricSuggestionResponse
+         * @description Response after applying a business metric suggestion.
+         */
+        ApplyBusinessMetricSuggestionResponse: {
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Metric Key
+             * @description Metric that was updated
+             */
+            metric_key: string;
+            /**
+             * New Value
+             * @description Value that was applied
+             */
+            new_value: number;
+            /**
+             * Success
+             * @description Whether update succeeded
+             */
+            success: boolean;
         };
         /**
          * ApplyMetricSuggestionRequest
@@ -13051,6 +13604,17 @@ export interface components {
              * @default 0
              */
             unassigned_count: number;
+        };
+        /**
+         * AvailableMetricsResponse
+         * @description Response listing metrics with calculation support.
+         */
+        AvailableMetricsResponse: {
+            /**
+             * Metrics
+             * @description List of metric keys with calculation support
+             */
+            metrics: string[];
         };
         /**
          * BadRequestErrorResponse
@@ -14002,6 +14566,84 @@ export interface components {
          */
         BusinessDomain: "ecommerce" | "saas" | "services" | "marketing" | "finance" | "operations" | "hr" | "product" | "unknown";
         /**
+         * BusinessMetricSuggestion
+         * @description A suggestion to auto-populate a business metric from insights.
+         *
+         *     Uses keyword-based matching to map insights to specific metrics like
+         *     MRR, churn, CAC, etc. Distinct from MetricSuggestion which targets
+         *     context fields.
+         */
+        BusinessMetricSuggestion: {
+            /**
+             * Answered At
+             * @description When the insight was recorded (ISO)
+             */
+            answered_at?: string | null;
+            /**
+             * Confidence
+             * @description Match confidence (0-1)
+             */
+            confidence: number;
+            /**
+             * Current Value
+             * @description Current metric value (if any)
+             */
+            current_value?: number | null;
+            /**
+             * Is Dismissed
+             * @description Whether user dismissed this suggestion
+             * @default false
+             */
+            is_dismissed: boolean;
+            /**
+             * Metric Key
+             * @description Business metric key (e.g., 'mrr', 'churn')
+             */
+            metric_key: string;
+            /**
+             * Metric Name
+             * @description Display name of the metric
+             */
+            metric_name?: string | null;
+            /**
+             * Source Question
+             * @description The clarification question that provided this
+             */
+            source_question: string;
+            /**
+             * Suggested Value
+             * @description Value extracted from insight
+             */
+            suggested_value: string;
+        };
+        /**
+         * BusinessMetricSuggestionsResponse
+         * @description Response containing business metric suggestions from insights.
+         */
+        BusinessMetricSuggestionsResponse: {
+            /**
+             * Count
+             * @description Number of suggestions
+             * @default 0
+             */
+            count: number;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether retrieval succeeded
+             */
+            success: boolean;
+            /**
+             * Suggestions
+             * @description List of business metric suggestions from insights
+             */
+            suggestions?: components["schemas"]["BusinessMetricSuggestion"][];
+        };
+        /**
          * BusinessStage
          * @description Business development stage.
          * @enum {string}
@@ -14765,6 +15407,8 @@ export interface components {
              * @description Mentioned entities
              */
             key_entities?: string[] | null;
+            /** @description Market benchmark context from auto-enrichment */
+            market_context?: components["schemas"]["ClarificationInsightMarketContext"] | null;
             /** @description Extracted metric data */
             metric?: components["schemas"]["InsightMetricResponse"] | null;
             /**
@@ -14787,6 +15431,32 @@ export interface components {
              * @description Brief one-line summary
              */
             summary?: string | null;
+        };
+        /**
+         * ClarificationInsightMarketContext
+         * @description Market context for API response (subset of full MarketContext).
+         */
+        ClarificationInsightMarketContext: {
+            /**
+             * Comparison Text
+             * @description Human-readable comparison
+             */
+            comparison_text?: string | null;
+            /**
+             * Enriched At
+             * @description When enriched
+             */
+            enriched_at?: string | null;
+            /**
+             * Percentile Position
+             * @description User's percentile (0-100)
+             */
+            percentile_position?: number | null;
+            /**
+             * Source Url
+             * @description Source URL for benchmark
+             */
+            source_url?: string | null;
         };
         /**
          * ClarificationRequest
@@ -15365,15 +16035,23 @@ export interface components {
             employee_count?: string | null;
             /** Funding Info */
             funding_info?: string | null;
+            /** Funding Rounds */
+            funding_rounds?: {
+                [key: string]: unknown;
+            }[] | null;
             /** Id */
             id?: string | null;
             /** Industry */
             industry?: string | null;
+            /** Intel Gathered At */
+            intel_gathered_at?: string | null;
             /**
              * Is Primary
              * @default false
              */
             is_primary: boolean;
+            /** Key Signals */
+            key_signals?: string[] | null;
             /** Last Enriched At */
             last_enriched_at?: string | null;
             /** Name */
@@ -15382,6 +16060,10 @@ export interface components {
             pricing_model?: string | null;
             /** Product Description */
             product_description?: string | null;
+            /** Product Updates */
+            product_updates?: {
+                [key: string]: string | null;
+            }[] | null;
             /** Recent News */
             recent_news?: {
                 [key: string]: string;
@@ -16107,6 +16789,48 @@ export interface components {
              * @description Last message timestamp (ISO)
              */
             updated_at: string;
+        };
+        /**
+         * ConversationSearchResponse
+         * @description Response model for conversation search.
+         */
+        ConversationSearchResponse: {
+            /**
+             * Matches
+             * @description Matching conversations sorted by similarity
+             */
+            matches: components["schemas"]["ConversationSearchResult"][];
+            /**
+             * Total
+             * @description Total number of matches
+             */
+            total: number;
+        };
+        /**
+         * ConversationSearchResult
+         * @description A single search result from conversation search.
+         */
+        ConversationSearchResult: {
+            /**
+             * Conversation Id
+             * @description ID of the matching conversation
+             */
+            conversation_id: string;
+            /**
+             * Created At
+             * @description ISO timestamp of the message
+             */
+            created_at: string;
+            /**
+             * Preview
+             * @description Preview of the matching message
+             */
+            preview: string;
+            /**
+             * Similarity
+             * @description Similarity score (0-1)
+             */
+            similarity: number;
         };
         /**
          * ConversionRequest
@@ -17700,6 +18424,217 @@ export interface components {
             success: boolean;
         };
         /**
+         * DatasetFolderCreate
+         * @description Request model for creating a folder.
+         */
+        DatasetFolderCreate: {
+            /**
+             * Color
+             * @description Hex color e.g. #FF5733
+             */
+            color?: string | null;
+            /**
+             * Description
+             * @description Optional description
+             */
+            description?: string | null;
+            /**
+             * Icon
+             * @description Icon name
+             */
+            icon?: string | null;
+            /**
+             * Name
+             * @description Folder name
+             */
+            name: string;
+            /**
+             * Parent Folder Id
+             * @description Parent folder UUID for nesting
+             */
+            parent_folder_id?: string | null;
+            /**
+             * Tags
+             * @description Tags for the folder
+             */
+            tags?: string[];
+        };
+        /**
+         * DatasetFolderListResponse
+         * @description Response for listing folders.
+         */
+        DatasetFolderListResponse: {
+            /** Folders */
+            folders?: components["schemas"]["DatasetFolderResponse"][];
+            /**
+             * Total
+             * @description Total folder count
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * DatasetFolderResponse
+         * @description Response model for a folder.
+         */
+        DatasetFolderResponse: {
+            /**
+             * Color
+             * @description Hex color e.g. #FF5733
+             */
+            color?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Dataset Count
+             * @description Number of datasets in folder
+             * @default 0
+             */
+            dataset_count: number;
+            /**
+             * Description
+             * @description Optional description
+             */
+            description?: string | null;
+            /**
+             * Icon
+             * @description Icon name
+             */
+            icon?: string | null;
+            /**
+             * Id
+             * @description Folder UUID
+             */
+            id: string;
+            /**
+             * Name
+             * @description Folder name
+             */
+            name: string;
+            /**
+             * Parent Folder Id
+             * @description Parent folder UUID
+             */
+            parent_folder_id?: string | null;
+            /**
+             * Tags
+             * @description Folder tags
+             */
+            tags?: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+        };
+        /**
+         * DatasetFolderTree
+         * @description Folder with nested children for tree view.
+         */
+        DatasetFolderTree: {
+            /**
+             * Children
+             * @description Child folders
+             */
+            children?: components["schemas"]["DatasetFolderTree"][];
+            /**
+             * Color
+             * @description Hex color e.g. #FF5733
+             */
+            color?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Dataset Count
+             * @description Number of datasets in folder
+             * @default 0
+             */
+            dataset_count: number;
+            /**
+             * Description
+             * @description Optional description
+             */
+            description?: string | null;
+            /**
+             * Icon
+             * @description Icon name
+             */
+            icon?: string | null;
+            /**
+             * Id
+             * @description Folder UUID
+             */
+            id: string;
+            /**
+             * Name
+             * @description Folder name
+             */
+            name: string;
+            /**
+             * Parent Folder Id
+             * @description Parent folder UUID
+             */
+            parent_folder_id?: string | null;
+            /**
+             * Tags
+             * @description Folder tags
+             */
+            tags?: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+        };
+        /**
+         * DatasetFolderTreeResponse
+         * @description Response for folder tree.
+         */
+        DatasetFolderTreeResponse: {
+            /** Folders */
+            folders?: components["schemas"]["DatasetFolderTree"][];
+            /**
+             * Total
+             * @description Total folder count
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * DatasetFolderUpdate
+         * @description Request model for updating a folder.
+         */
+        DatasetFolderUpdate: {
+            /** Color */
+            color?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon */
+            icon?: string | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * Parent Folder Id
+             * @description New parent folder or null for root
+             */
+            parent_folder_id?: string | null;
+            /**
+             * Tags
+             * @description Replace tags if provided
+             */
+            tags?: string[] | null;
+        };
+        /**
          * DatasetInsights
          * @description Complete structured intelligence for a dataset.
          */
@@ -18496,6 +19431,22 @@ export interface components {
              * @description Competitor website
              */
             url?: string | null;
+        };
+        /**
+         * DismissBusinessMetricSuggestionRequest
+         * @description Request to dismiss a business metric suggestion.
+         */
+        DismissBusinessMetricSuggestionRequest: {
+            /**
+             * Metric Key
+             * @description Business metric key to dismiss
+             */
+            metric_key: string;
+            /**
+             * Source Question
+             * @description The source question of the suggestion to dismiss
+             */
+            source_question: string;
         };
         /**
          * DismissRefreshRequest
@@ -19980,6 +20931,49 @@ export interface components {
             monthly_total: number;
         };
         /**
+         * FolderDatasetResponse
+         * @description Basic dataset info for folder membership listing.
+         */
+        FolderDatasetResponse: {
+            /**
+             * Added At
+             * Format: date-time
+             * @description When added to folder
+             */
+            added_at: string;
+            /**
+             * Id
+             * @description Dataset UUID
+             */
+            id: string;
+            /**
+             * Name
+             * @description Dataset name
+             */
+            name: string;
+        };
+        /**
+         * FolderDatasetsListResponse
+         * @description Response listing datasets in a folder.
+         */
+        FolderDatasetsListResponse: {
+            /** Datasets */
+            datasets?: components["schemas"]["FolderDatasetResponse"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * FolderTagsResponse
+         * @description Response listing all unique folder tags for a user.
+         */
+        FolderTagsResponse: {
+            /** Tags */
+            tags?: string[];
+        };
+        /**
          * ForbiddenErrorResponse
          * @description Error response for 403 Forbidden.
          *
@@ -21282,6 +22276,38 @@ export interface components {
          */
         InsightCategory: "revenue" | "growth" | "customers" | "team" | "product" | "operations" | "market" | "competition" | "funding" | "costs" | "uncategorized";
         /**
+         * InsightEnrichResponse
+         * @description Response from insight enrichment.
+         */
+        InsightEnrichResponse: {
+            /**
+             * Comparison Text
+             * @description Human-readable comparison
+             */
+            comparison_text?: string | null;
+            /**
+             * Enriched
+             * @description Whether market context was added
+             * @default false
+             */
+            enriched: boolean;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Percentile Position
+             * @description User's percentile (0-100)
+             */
+            percentile_position?: number | null;
+            /**
+             * Success
+             * @description Whether enrichment succeeded
+             */
+            success: boolean;
+        };
+        /**
          * InsightMetricResponse
          * @description Extracted metric from insight.
          */
@@ -21329,6 +22355,13 @@ export interface components {
          * @description Visualization configuration for an insight.
          */
         InsightVisualization: {
+            /**
+             * Figure Json
+             * @description Plotly figure spec for rendering
+             */
+            figure_json?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Group By
              * @description Grouping column
@@ -22071,6 +23104,43 @@ export interface components {
              */
             added_at: string;
             /**
+             * Changes Detected
+             * @description Fields that changed during last enrichment
+             */
+            changes_detected?: string[] | null;
+            /**
+             * Employee Count
+             * @description Employee count estimate
+             */
+            employee_count?: string | null;
+            /**
+             * Funding Info
+             * @description Funding information
+             */
+            funding_info?: string | null;
+            /**
+             * Funding Rounds
+             * @description Funding rounds: [{round_type, amount, date, investors[]}]
+             */
+            funding_rounds?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Intel Gathered At
+             * @description When deep intelligence was last gathered
+             */
+            intel_gathered_at?: string | null;
+            /**
+             * Key Signals
+             * @description Notable signals: ['Raised Series B', 'Launched AI feature']
+             */
+            key_signals?: string[] | null;
+            /**
+             * Last Enriched At
+             * @description When competitor was last enriched
+             */
+            last_enriched_at?: string | null;
+            /**
              * Name
              * @description Competitor company name
              */
@@ -22080,6 +23150,25 @@ export interface components {
              * @description User notes about the competitor
              */
             notes?: string | null;
+            /**
+             * Product Description
+             * @description Product/service description
+             */
+            product_description?: string | null;
+            /**
+             * Product Updates
+             * @description Product launches/updates: [{title, date, description, source_url}]
+             */
+            product_updates?: {
+                [key: string]: string | null;
+            }[] | null;
+            /**
+             * Recent News
+             * @description Recent news items with title, url, date
+             */
+            recent_news?: {
+                [key: string]: string;
+            }[] | null;
             /** @description Individual relevance check results */
             relevance_flags?: components["schemas"]["RelevanceFlags"] | null;
             /**
@@ -22093,10 +23182,47 @@ export interface components {
              */
             relevance_warning?: string | null;
             /**
+             * Tagline
+             * @description Company tagline
+             */
+            tagline?: string | null;
+            /**
+             * Tech Stack
+             * @description Technology stack
+             */
+            tech_stack?: string[] | null;
+            /**
              * Url
              * @description Competitor website URL
              */
             url?: string | null;
+        };
+        /**
+         * ManagedCompetitorBulkEnrichResponse
+         * @description Response from enriching all managed competitors.
+         */
+        ManagedCompetitorBulkEnrichResponse: {
+            /**
+             * Competitors
+             * @description All competitors with enrichment status
+             */
+            competitors?: components["schemas"]["ManagedCompetitor"][];
+            /**
+             * Enriched Count
+             * @description Number of competitors successfully enriched
+             * @default 0
+             */
+            enriched_count: number;
+            /**
+             * Errors
+             * @description Error messages if any failed
+             */
+            errors?: string[] | null;
+            /**
+             * Success
+             * @description Whether all enrichments succeeded
+             */
+            success: boolean;
         };
         /**
          * ManagedCompetitorCreate
@@ -22118,6 +23244,29 @@ export interface components {
              * @description Competitor website URL
              */
             url?: string | null;
+        };
+        /**
+         * ManagedCompetitorEnrichResponse
+         * @description Response from enriching a single managed competitor.
+         */
+        ManagedCompetitorEnrichResponse: {
+            /**
+             * Changes
+             * @description Fields that changed during enrichment
+             */
+            changes?: string[] | null;
+            /** @description Enriched competitor data */
+            competitor?: components["schemas"]["ManagedCompetitor"] | null;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Success
+             * @description Whether enrichment succeeded
+             */
+            success: boolean;
         };
         /**
          * ManagedCompetitorListResponse
@@ -22192,9 +23341,29 @@ export interface components {
         };
         /**
          * MarketTrend
-         * @description A market trend.
+         * @description A market trend with optional AI-generated summary.
+         *
+         *     Base fields (from search):
+         *     - trend: Original headline/description from search
+         *     - source: Source name (e.g., "TechCrunch")
+         *     - source_url: URL to the article
+         *
+         *     Enhanced fields (from article extraction + LLM):
+         *     - summary: AI-generated 2-3 sentence summary of the article
+         *     - key_points: Bullet-point takeaways (3 items)
+         *     - fetched_at: When the article content was extracted
          */
         MarketTrend: {
+            /**
+             * Fetched At
+             * @description When article content was extracted
+             */
+            fetched_at?: string | null;
+            /**
+             * Key Points
+             * @description Key takeaways (3 bullet points)
+             */
+            key_points?: string[] | null;
             /**
              * Source
              * @description Source name
@@ -22206,8 +23375,13 @@ export interface components {
              */
             source_url?: string | null;
             /**
+             * Summary
+             * @description AI-generated article summary (2-3 sentences)
+             */
+            summary?: string | null;
+            /**
              * Trend
-             * @description Trend description
+             * @description Trend description/headline
              */
             trend: string;
         };
@@ -22828,11 +24002,108 @@ export interface components {
             status: string;
         };
         /**
+         * MetricCalculationAnswer
+         * @description A single answer to a calculation question.
+         */
+        MetricCalculationAnswer: {
+            /**
+             * Question Id
+             * @description The question ID being answered
+             */
+            question_id: string;
+            /**
+             * Value
+             * @description Numeric value provided
+             */
+            value: number;
+        };
+        /**
+         * MetricCalculationRequest
+         * @description Request to calculate a metric from Q&A answers.
+         */
+        MetricCalculationRequest: {
+            /**
+             * Answers
+             * @description Answers to the calculation questions
+             */
+            answers: components["schemas"]["MetricCalculationAnswer"][];
+            /**
+             * Save Insight
+             * @description Whether to save answers as ClarificationInsight
+             * @default true
+             */
+            save_insight: boolean;
+        };
+        /**
+         * MetricCalculationResponse
+         * @description Response from metric calculation.
+         */
+        MetricCalculationResponse: {
+            /**
+             * Calculated Value
+             * @description The calculated metric value
+             */
+            calculated_value?: number | null;
+            /**
+             * Confidence
+             * @description Confidence score (1.0 for calculation)
+             * @default 1
+             */
+            confidence: number;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Formula Used
+             * @description Formula that was applied
+             */
+            formula_used?: string | null;
+            /**
+             * Insight Saved
+             * @description Whether insight was saved
+             * @default false
+             */
+            insight_saved: boolean;
+            /**
+             * Result Unit
+             * @description Unit of the result
+             */
+            result_unit?: string | null;
+            /**
+             * Success
+             * @description Whether calculation succeeded
+             */
+            success: boolean;
+        };
+        /**
          * MetricCategory
          * @description Metric category types.
          * @enum {string}
          */
         MetricCategory: "financial" | "growth" | "retention" | "efficiency" | "custom";
+        /**
+         * MetricFormulaResponse
+         * @description Response with questions for calculating a metric.
+         */
+        MetricFormulaResponse: {
+            /**
+             * Metric Key
+             * @description The metric identifier
+             */
+            metric_key: string;
+            /**
+             * Questions
+             * @description Questions to ask
+             */
+            questions: components["schemas"]["MetricQuestionDef"][];
+            /**
+             * Result Unit
+             * @description Unit of the result: $, %, months, ratio
+             */
+            result_unit: string;
+        };
         /**
          * MetricHistoryPoint
          * @description Single point in metric history for sparkline visualization.
@@ -22856,6 +24127,37 @@ export interface components {
          * @enum {string}
          */
         MetricImportance: "now" | "later" | "monitor";
+        /**
+         * MetricQuestionDef
+         * @description Definition of a metric calculation question.
+         */
+        MetricQuestionDef: {
+            /**
+             * Help Text
+             * @description Help text explaining the question
+             */
+            help_text?: string | null;
+            /**
+             * Id
+             * @description Question identifier for answer mapping
+             */
+            id: string;
+            /**
+             * Input Type
+             * @description Input type: currency, number, percent
+             */
+            input_type: string;
+            /**
+             * Placeholder
+             * @description Placeholder text for input
+             */
+            placeholder: string;
+            /**
+             * Question
+             * @description The question to ask the user
+             */
+            question: string;
+        };
         /**
          * MetricSource
          * @description Source of metric value.
@@ -28635,6 +29937,58 @@ export interface components {
             user_id: string;
         };
         /**
+         * SimilarDatasetItem
+         * @description A dataset similar to the query dataset.
+         */
+        SimilarDatasetItem: {
+            /**
+             * Dataset Id
+             * @description Dataset UUID
+             */
+            dataset_id: string;
+            /**
+             * Insight Preview
+             * @description Preview of dataset summary/insight
+             */
+            insight_preview?: string | null;
+            /**
+             * Name
+             * @description Dataset name
+             */
+            name: string;
+            /**
+             * Shared Columns
+             * @description Column names in common
+             */
+            shared_columns?: string[];
+            /**
+             * Similarity
+             * @description Similarity score (0-1)
+             */
+            similarity: number;
+        };
+        /**
+         * SimilarDatasetsResponse
+         * @description Response for similar datasets endpoint.
+         */
+        SimilarDatasetsResponse: {
+            /**
+             * Query Dataset Id
+             * @description Source dataset ID for the query
+             */
+            query_dataset_id: string;
+            /**
+             * Similar
+             * @description Similar datasets
+             */
+            similar?: components["schemas"]["SimilarDatasetItem"][];
+            /**
+             * Threshold
+             * @description Similarity threshold used
+             */
+            threshold: number;
+        };
+        /**
          * SimilarityBucket
          * @description A bucket in the similarity distribution histogram.
          *
@@ -29761,6 +31115,60 @@ export interface components {
              * @description Topic title
              */
             title: string;
+        };
+        /**
+         * TopicSuggestion
+         * @description A topic suggestion from user-submitted words analysis.
+         */
+        TopicSuggestion: {
+            /**
+             * Competitor Presence
+             * @description Competitor presence: high, medium, low, unknown
+             * @default unknown
+             */
+            competitor_presence: string;
+            /**
+             * Description
+             * @description Brief description of the topic opportunity
+             */
+            description: string;
+            /**
+             * Keyword
+             * @description Primary keyword/topic phrase
+             */
+            keyword: string;
+            /**
+             * Related Keywords
+             * @description Related keywords
+             */
+            related_keywords?: string[];
+            /**
+             * Search Volume Indicator
+             * @description Search volume indicator: high, medium, low, unknown
+             * @default unknown
+             */
+            search_volume_indicator: string;
+            /**
+             * Seo Potential
+             * @description SEO potential: high, medium, low
+             */
+            seo_potential: string;
+            /**
+             * Trend Status
+             * @description Trend status: rising, stable, declining
+             */
+            trend_status: string;
+            /**
+             * Validation Sources
+             * @description URLs from web research validation
+             */
+            validation_sources?: string[];
+            /**
+             * Validation Status
+             * @description Validation status: validated, unvalidated
+             * @default unvalidated
+             */
+            validation_status: string;
         };
         /**
          * TopicsResponse
@@ -32140,6 +33548,12 @@ export interface components {
              */
             history?: components["schemas"]["BenchmarkHistoryEntry"][];
             /**
+             * Is Objective Aligned
+             * @description True if metric matches user's primary objective
+             * @default false
+             */
+            is_objective_aligned: boolean;
+            /**
              * Locked
              * @description Whether this comparison is tier-locked
              * @default false
@@ -32175,6 +33589,16 @@ export interface components {
              * @description User's percentile rank (0-100)
              */
             percentile?: number | null;
+            /**
+             * Relevance Reason
+             * @description Why this metric matters for user's objective
+             */
+            relevance_reason?: string | null;
+            /**
+             * Relevance Score
+             * @description Relevance to user's objective (0.0-1.0)
+             */
+            relevance_score?: number | null;
             /**
              * Status
              * @description Performance status: below_average, average, above_average, top_performer
@@ -43059,6 +44483,627 @@ export interface operations {
             };
         };
     };
+    mentor_chat_api_v1_advisor_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MentorChatRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    /**
+                     * @example event: response
+                     *     data: {"content": "..."}
+                     */
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    list_mentor_conversations_api_v1_advisor_conversations_get: {
+        parameters: {
+            query?: {
+                /** @description Max conversations to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorConversationListResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mentor_conversation_api_v1_advisor_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorConversationDetailResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_mentor_conversation_api_v1_advisor_conversations__conversation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_mentor_conversation_api_v1_advisor_conversations__conversation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateConversationLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorConversationResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_failure_patterns_api_v1_advisor_failure_patterns_get: {
+        parameters: {
+            query?: {
+                /** @description Days to look back (7-90) */
+                days?: number;
+                /** @description Minimum failures to report (1-20) */
+                min_failures?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailurePatternsResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_improvement_plan_api_v1_advisor_improvement_plan_get: {
+        parameters: {
+            query?: {
+                /** @description Days to look back (7-90) */
+                days?: number;
+                /** @description Bypass cache and regenerate */
+                force_refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImprovementPlanResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    search_mentions_api_v1_advisor_mentions_search_get: {
+        parameters: {
+            query: {
+                /** @description Entity type: meeting, action, dataset, chat */
+                type: string;
+                /** @description Search query (optional, returns recent if empty) */
+                q?: string;
+                /** @description Max results */
+                limit?: number;
+                /** @description Current conversation ID to exclude from results */
+                conversation_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentionSearchResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_personas_api_v1_advisor_personas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorPersonaListResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    get_repeated_topics_api_v1_advisor_repeated_topics_get: {
+        parameters: {
+            query?: {
+                /** @description Similarity threshold (0.7-0.95) */
+                threshold?: number;
+                /** @description Minimum occurrences to report (2-10) */
+                min_occurrences?: number;
+                /** @description Days to look back (7-90) */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepeatedTopicsListResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_conversations_api_v1_advisor_search_get: {
+        parameters: {
+            query: {
+                /** @description Search query */
+                q: string;
+                /** @description Minimum similarity (0.5-0.95) */
+                threshold?: number;
+                /** @description Maximum results */
+                limit?: number;
+                /** @description Days to search back */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSearchResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ask_analysis_api_v1_analysis_ask_post: {
         parameters: {
             query?: never;
@@ -44951,6 +46996,72 @@ export interface operations {
             };
         };
     };
+    enrich_insight_api_v1_context_insights__question_key__enrich_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrichment completed (check enriched field) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "comparison_text": "Your CAC ($50) is in the 45th percentile for SaaS (below average)",
+                     *       "enriched": true,
+                     *       "percentile_position": 45,
+                     *       "success": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["InsightEnrichResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_key_metrics_api_v1_context_key_metrics_get: {
         parameters: {
             query?: never;
@@ -45124,6 +47235,46 @@ export interface operations {
             };
         };
     };
+    enrich_all_managed_competitors_api_v1_context_managed_competitors_enrich_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bulk enrichment completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedCompetitorBulkEnrichResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     remove_managed_competitor_api_v1_context_managed_competitors__name__delete: {
         parameters: {
             query?: never;
@@ -45228,6 +47379,66 @@ export interface operations {
             };
         };
     };
+    enrich_managed_competitor_api_v1_context_managed_competitors__name__enrich_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrichment completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedCompetitorEnrichResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     get_metric_suggestions_api_v1_context_metric_suggestions_get: {
         parameters: {
             query?: never;
@@ -45269,6 +47480,328 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    get_calculable_metrics_api_v1_context_metrics_calculable_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available metrics listed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "metrics": [
+                     *         "mrr",
+                     *         "arr",
+                     *         "churn",
+                     *         "nps",
+                     *         "cac",
+                     *         "ltv",
+                     *         "burn_rate",
+                     *         "runway"
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AvailableMetricsResponse"];
+                };
+            };
+        };
+    };
+    get_business_metric_suggestions_api_v1_context_metrics_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suggestions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "count": 1,
+                     *       "success": true,
+                     *       "suggestions": [
+                     *         {
+                     *           "answered_at": "2025-12-28T10:30:00Z",
+                     *           "confidence": 0.85,
+                     *           "current_value": 45000,
+                     *           "is_dismissed": false,
+                     *           "metric_key": "mrr",
+                     *           "metric_name": "Monthly Recurring Revenue",
+                     *           "source_question": "What's your current MRR?",
+                     *           "suggested_value": "$50,000"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BusinessMetricSuggestionsResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+        };
+    };
+    apply_business_metric_suggestion_api_v1_context_metrics_suggestions_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyBusinessMetricSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Suggestion applied successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "metric_key": "mrr",
+                     *       "new_value": 50000,
+                     *       "success": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApplyBusinessMetricSuggestionResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_business_metric_suggestion_api_v1_context_metrics_suggestions_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissBusinessMetricSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Suggestion dismissed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "metric_key": "mrr",
+                     *       "new_value": 0,
+                     *       "success": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApplyBusinessMetricSuggestionResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calculate_metric_api_v1_context_metrics__metric_key__calculate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                metric_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetricCalculationRequest"];
+            };
+        };
+        responses: {
+            /** @description Metric calculated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "calculated_value": 5,
+                     *       "confidence": 1,
+                     *       "formula_used": "(customers_lost / customers_start * 100)",
+                     *       "insight_saved": true,
+                     *       "result_unit": "%",
+                     *       "success": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MetricCalculationResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_metric_questions_api_v1_context_metrics__metric_key__questions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                metric_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Questions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "metric_key": "churn",
+                     *       "questions": [
+                     *         {
+                     *           "help_text": "Customers who canceled or didn't renew",
+                     *           "id": "customers_lost",
+                     *           "input_type": "number",
+                     *           "placeholder": "5",
+                     *           "question": "How many customers did you lose this month?"
+                     *         },
+                     *         {
+                     *           "help_text": "Total active customers at month start",
+                     *           "id": "customers_start",
+                     *           "input_type": "number",
+                     *           "placeholder": "100",
+                     *           "question": "How many customers did you have at the start of the month?"
+                     *         }
+                     *       ],
+                     *       "result_unit": "%"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MetricFormulaResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -46283,6 +48816,304 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DatasetListResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_folders_api_v1_datasets_folders_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by parent folder */
+                parent_id?: string | null;
+                /** @description Filter by tag */
+                tag?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFolderListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_folder_api_v1_datasets_folders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetFolderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFolderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tags_api_v1_datasets_folders_tags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderTagsResponse"];
+                };
+            };
+        };
+    };
+    list_folders_tree_api_v1_datasets_folders_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFolderTreeResponse"];
+                };
+            };
+        };
+    };
+    get_folder_api_v1_datasets_folders__folder_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFolderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_folder_api_v1_datasets_folders__folder_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_folder_api_v1_datasets_folders__folder_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetFolderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetFolderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_folder_datasets_api_v1_datasets_folders__folder_id__datasets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderDatasetsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_datasets_to_folder_api_v1_datasets_folders__folder_id__datasets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddDatasetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddDatasetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_dataset_from_folder_api_v1_datasets_folders__folder_id__datasets__dataset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -47924,6 +50755,42 @@ export interface operations {
             };
         };
     };
+    get_similar_datasets_api_v1_datasets__dataset_id__similar_get: {
+        parameters: {
+            query?: {
+                /** @description Minimum similarity threshold (0.4-0.9) */
+                threshold?: number;
+                /** @description Maximum results to return */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarDatasetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unsubscribe_api_v1_email_unsubscribe_get: {
         parameters: {
             query: {
@@ -48421,562 +51288,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotFoundErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mentor_chat_api_v1_mentor_chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MentorChatRequest"];
-            };
-        };
-        responses: {
-            /** @description SSE event stream */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                    /**
-                     * @example event: response
-                     *     data: {"content": "..."}
-                     */
-                    "text/event-stream": unknown;
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
-            429: {
-                headers: {
-                    /** @description Number of seconds until the rate limit window resets */
-                    "Retry-After"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimitResponse"];
-                };
-            };
-        };
-    };
-    list_mentor_conversations_api_v1_mentor_conversations_get: {
-        parameters: {
-            query?: {
-                /** @description Max conversations to return */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MentorConversationListResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_mentor_conversation_api_v1_mentor_conversations__conversation_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MentorConversationDetailResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Not found - the requested resource does not exist */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFoundErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_mentor_conversation_api_v1_mentor_conversations__conversation_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Not found - the requested resource does not exist */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFoundErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_mentor_conversation_api_v1_mentor_conversations__conversation_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateConversationLabelRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MentorConversationResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Not found - the requested resource does not exist */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFoundErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_failure_patterns_api_v1_mentor_failure_patterns_get: {
-        parameters: {
-            query?: {
-                /** @description Days to look back (7-90) */
-                days?: number;
-                /** @description Minimum failures to report (1-20) */
-                min_failures?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FailurePatternsResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_improvement_plan_api_v1_mentor_improvement_plan_get: {
-        parameters: {
-            query?: {
-                /** @description Days to look back (7-90) */
-                days?: number;
-                /** @description Bypass cache and regenerate */
-                force_refresh?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImprovementPlanResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
-            429: {
-                headers: {
-                    /** @description Number of seconds until the rate limit window resets */
-                    "Retry-After"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimitResponse"];
-                };
-            };
-        };
-    };
-    search_mentions_api_v1_mentor_mentions_search_get: {
-        parameters: {
-            query: {
-                /** @description Entity type: meeting, action, dataset, chat */
-                type: string;
-                /** @description Search query (optional, returns recent if empty) */
-                q?: string;
-                /** @description Max results */
-                limit?: number;
-                /** @description Current conversation ID to exclude from results */
-                conversation_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MentionSearchResponse"];
-                };
-            };
-            /** @description Bad request - validation failed or invalid parameters */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestErrorResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_personas_api_v1_mentor_personas_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MentorPersonaListResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
-                };
-            };
-        };
-    };
-    get_repeated_topics_api_v1_mentor_repeated_topics_get: {
-        parameters: {
-            query?: {
-                /** @description Similarity threshold (0.7-0.95) */
-                threshold?: number;
-                /** @description Minimum occurrences to report (2-10) */
-                min_occurrences?: number;
-                /** @description Days to look back (7-90) */
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RepeatedTopicsListResponse"];
-                };
-            };
-            /** @description Unauthorized - authentication required or invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
-                };
-            };
-            /** @description Forbidden - user lacks permission to access this resource */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -51079,6 +53390,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_topics_api_v1_seo_topics_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeTopicsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyzeTopicsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

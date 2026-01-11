@@ -1,7 +1,7 @@
 """Mentor chat prompts for business advisory conversations.
 
 Provides system prompts and formatters for the mentor chat feature.
-Personas: general, action_coach, data_analyst
+Personas: general, action_coach, data_analyst, researcher
 """
 
 from typing import TYPE_CHECKING, Any
@@ -77,11 +77,32 @@ Help the user understand their data, identify patterns, and translate insights i
 - Focus on actionable insights, not just numbers
 </constraints>"""
 
+MENTOR_SYSTEM_RESEARCHER = """<role>
+You are a strategic research advisor who investigates markets, competitors, and industry trends.
+Help the user gather intelligence and understand their business landscape to make informed decisions.
+</role>
+
+<style>
+- Provide well-researched, factual information
+- Cite sources and indicate confidence levels
+- Structure findings clearly (key points, details, implications)
+- Connect research to the user's specific business context
+- Adapt your communication style to match the user's brand tone and business type (see <communication_style> in context if provided)
+</style>
+
+<constraints>
+- Be clear about what you know vs. what requires further research
+- Focus on actionable intelligence, not just information
+- Consider the user's industry and competitive context
+- Highlight key takeaways and strategic implications
+</constraints>"""
+
 # Mapping of persona to system prompt
 MENTOR_PERSONAS = {
     "general": MENTOR_SYSTEM_GENERAL,
     "action_coach": MENTOR_SYSTEM_ACTION_COACH,
     "data_analyst": MENTOR_SYSTEM_DATA_ANALYST,
+    "researcher": MENTOR_SYSTEM_RESEARCHER,
 }
 
 
@@ -89,7 +110,7 @@ def get_mentor_system_prompt(persona: str = "general") -> str:
     """Get the system prompt for a mentor persona.
 
     Args:
-        persona: Persona name (general, action_coach, data_analyst)
+        persona: Persona name (general, action_coach, data_analyst, researcher)
 
     Returns:
         System prompt string

@@ -7,12 +7,13 @@
 	 * - Tier-based limits (Free: 3, Starter: 5, Pro: unlimited)
 	 * - Percentile ranking visualization
 	 * - Category filtering (growth, retention, efficiency, engagement)
+	 * - Objective-aligned benchmarks prioritized at top
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type {
 		IndustryInsight,
-		BenchmarkComparison,
+		AlignedBenchmarkComparison,
 		BenchmarkCategory
 	} from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
@@ -23,12 +24,13 @@
 	// State
 	let isLoading = $state(true);
 	let insights = $state<IndustryInsight[]>([]);
-	let comparisons = $state<BenchmarkComparison[]>([]);
+	let comparisons = $state<AlignedBenchmarkComparison[]>([]);
 	let industry = $state('');
 	let tier = $state('free');
 	let lockedCount = $state(0);
 	let upgradePrompt = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	let hasObjective = $state(false);
 
 	// Filter state
 	let selectedCategory = $state<BenchmarkCategory | 'all'>('all');
@@ -51,10 +53,11 @@
 		error = null;
 
 		try {
-			// Load insights and comparison in parallel
-			const [insightsRes, comparisonRes] = await Promise.all([
+			// Load insights, comparison, and context in parallel
+			const [insightsRes, comparisonRes, contextRes] = await Promise.all([
 				apiClient.getIndustryBenchmarks({ insightType: 'benchmark' }),
-				apiClient.compareBenchmarks()
+				apiClient.compareBenchmarks(),
+				apiClient.getUserContext()
 			]);
 
 			industry = insightsRes.industry;
@@ -62,7 +65,10 @@
 			tier = insightsRes.user_tier;
 			lockedCount = insightsRes.locked_count;
 			upgradePrompt = insightsRes.upgrade_prompt || null;
-			comparisons = comparisonRes.comparisons ?? [];
+			// Comparisons now come sorted by relevance from the API
+			comparisons = (comparisonRes.comparisons ?? []) as AlignedBenchmarkComparison[];
+			// Check if user has primary_objective set
+			hasObjective = !!(contextRes?.context?.primary_objective);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load benchmarks';
 		} finally {
@@ -80,8 +86,19 @@
 				})
 	);
 
+	// Split comparisons into aligned (high relevance) and other
+	let alignedComparisons = $derived(
+		comparisons.filter((c) => c.is_objective_aligned && !c.locked)
+	);
+	let otherComparisons = $derived(
+		comparisons.filter((c) => !c.is_objective_aligned && !c.locked)
+	);
+	let lockedComparisons = $derived(
+		comparisons.filter((c) => c.locked)
+	);
+
 	// Get comparison data for a benchmark
-	function getComparison(metricName: string): BenchmarkComparison | undefined {
+	function getComparison(metricName: string): AlignedBenchmarkComparison | undefined {
 		return comparisons.find((c) => c.metric_name === metricName);
 	}
 
@@ -251,6 +268,34 @@
 		<Alert variant="info">{upgradePrompt}</Alert>
 	{/if}
 
+	<!-- Set Objective CTA (if no objective set) -->
+	{#if !hasObjective && industry !== 'Unknown'}
+		<div class="bg-gradient-to-r from-brand-50 to-purple-50 dark:from-brand-900/20 dark:to-purple-900/20 border border-brand-200 dark:border-brand-800 rounded-xl p-4">
+			<div class="flex items-start gap-3">
+				<div class="flex-shrink-0 w-10 h-10 bg-brand-100 dark:bg-brand-800 rounded-lg flex items-center justify-center">
+					<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+				</div>
+				<div class="flex-1">
+					<h3 class="font-semibold text-brand-900 dark:text-brand-100">Get personalized benchmark recommendations</h3>
+					<p class="text-sm text-brand-700 dark:text-brand-300 mt-1">
+						Set your business objective to see which metrics matter most for your goals.
+					</p>
+					<a
+						href="/context/overview"
+						class="inline-flex items-center gap-1.5 mt-3 px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+					>
+						Set Your Objective
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
+					</a>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Category filters -->
 	<div class="flex flex-wrap gap-2">
 		{#each categories as cat}
@@ -275,7 +320,133 @@
 		</label>
 	</div>
 
-	<!-- Benchmarks grid -->
+	<!-- Most Relevant for Your Goals (if user has objective and aligned metrics exist) -->
+	{#if hasObjective && alignedComparisons.length > 0}
+		<div class="space-y-4">
+			<div class="flex items-center gap-2">
+				<div class="w-6 h-6 bg-brand-100 dark:bg-brand-900/30 rounded-full flex items-center justify-center">
+					<svg class="w-4 h-4 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+					</svg>
+				</div>
+				<h3 class="text-lg font-semibold text-slate-900 dark:text-white">Most Relevant for Your Goals</h3>
+				<span class="text-xs px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300">
+					{alignedComparisons.length} metrics
+				</span>
+			</div>
+			<div class="grid gap-4 md:grid-cols-2">
+				{#each alignedComparisons as comparison (comparison.metric_name)}
+					{@const benchmark = insights.find(i => (i.content as {metric_name?: string}).metric_name === comparison.metric_name)}
+					{@const content = benchmark?.content as {
+						title?: string;
+						description?: string;
+						metric_name?: string;
+						metric_unit?: string;
+						category?: string;
+						p25?: number;
+						p50?: number;
+						p75?: number;
+						sample_size?: number;
+					} | undefined}
+					<div
+						class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-brand-200 dark:border-brand-700 p-6 relative"
+					>
+						<!-- Relevance badge -->
+						{#if comparison.relevance_reason}
+							<div class="absolute -top-2 right-4">
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-brand-600 text-white rounded-full shadow-sm">
+									<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+										<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+									</svg>
+									{comparison.relevance_reason}
+								</span>
+							</div>
+						{/if}
+						<!-- Header -->
+						<div class="flex items-start justify-between mb-3 mt-2">
+							<div>
+								<h3 class="font-semibold text-slate-900 dark:text-white">
+									{content?.title || comparison.metric_name}
+								</h3>
+								<p class="text-sm text-slate-500 dark:text-slate-400">{content?.description || ''}</p>
+							</div>
+							{#if comparison.category}
+								<span
+									class={`text-xs px-2 py-1 rounded-full font-medium ${getCategoryColor(comparison.category)}`}
+								>
+									{comparison.category}
+								</span>
+							{/if}
+						</div>
+						<!-- 2-column layout -->
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+							<!-- Left: Industry Range -->
+							<div class="space-y-2">
+								<div class="flex items-center gap-2 mb-3">
+									<span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Industry</span>
+									{#if content?.sample_size}
+										<span class="text-xs text-slate-400">(n={content.sample_size})</span>
+									{/if}
+								</div>
+								<BenchmarkRangeBar
+									rangeMin={comparison.p25 ?? 0}
+									rangeMedian={comparison.p50 ?? 0}
+									rangeMax={comparison.p75 ?? 0}
+									unit={comparison.metric_unit}
+								/>
+							</div>
+							<!-- Right: Your Value -->
+							<div class="space-y-2 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
+								<div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">You</div>
+								{#if showComparison}
+									{#if comparison.user_value !== null && comparison.user_value !== undefined}
+										<div class="flex flex-col items-center justify-center py-2">
+											<div class="text-3xl font-bold text-slate-900 dark:text-white">
+												{comparison.user_value}{comparison.metric_unit === '%' ? '%' : ''}{comparison.metric_unit && comparison.metric_unit !== '%' ? ` ${comparison.metric_unit}` : ''}
+											</div>
+											<div class="mt-2 flex items-center gap-2">
+												<span
+													class={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(comparison.status)}`}
+												>
+													{getStatusLabel(comparison.status)}
+												</span>
+											</div>
+										</div>
+									{:else}
+										<div class="flex flex-col items-center justify-center py-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+											<div class="text-3xl font-bold text-slate-300 dark:text-slate-600 mb-2">-</div>
+											<span class="text-sm text-slate-500 dark:text-slate-400 mb-3">Not Set</span>
+											<a
+												href="/context/metrics#{comparison.category || 'metrics'}"
+												class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors"
+											>
+												Set My Value
+											</a>
+										</div>
+									{/if}
+								{:else}
+									<div class="flex flex-col items-center justify-center py-4 text-slate-400 dark:text-slate-500">
+										<span class="text-sm">Enable comparison above</span>
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Divider between aligned and other benchmarks -->
+		{#if otherComparisons.length > 0 || lockedComparisons.length > 0}
+			<div class="flex items-center gap-4 py-2">
+				<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+				<span class="text-sm text-slate-500 dark:text-slate-400">Other Benchmarks</span>
+				<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+			</div>
+		{/if}
+	{/if}
+
+	<!-- Benchmarks grid (remaining non-aligned benchmarks) -->
 	{#if filteredInsights.length > 0}
 		<div class="grid gap-4 md:grid-cols-2">
 			{#each filteredInsights as benchmark (benchmark.id)}

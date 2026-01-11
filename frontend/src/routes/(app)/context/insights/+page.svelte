@@ -8,7 +8,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient, type ClarificationInsight } from '$lib/api/client';
-	import type { InsightCategory, InsightMetric } from '$lib/api/types';
+	import type { InsightCategory, InsightMetric, InsightMarketContext } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import PendingUpdates from '$lib/components/context/PendingUpdates.svelte';
 
@@ -21,6 +21,7 @@
 	let editingQuestion = $state<string | null>(null);
 	let editValue = $state('');
 	let isSaving = $state(false);
+	let enrichingQuestion = $state<string | null>(null);
 
 	// Category display config
 	const categoryConfig: Record<InsightCategory, { label: string; color: string; icon: string }> = {
@@ -139,6 +140,30 @@
 		// Show last 8 characters of session ID for brevity
 		return sessionId.length > 12 ? `...${sessionId.slice(-8)}` : sessionId;
 	}
+
+	async function enrichInsight(question: string) {
+		enrichingQuestion = question;
+		try {
+			const result = await apiClient.enrichInsight(question);
+			if (result.enriched) {
+				// Reload insights to get updated market context
+				await loadInsights();
+			} else if (result.error) {
+				error = result.error;
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to enrich insight';
+		} finally {
+			enrichingQuestion = null;
+		}
+	}
+
+	function getPercentileColor(percentile: number): string {
+		if (percentile >= 75) return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300';
+		if (percentile >= 50) return 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300';
+		if (percentile >= 25) return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300';
+		return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+	}
 </script>
 
 <svelte:head>
@@ -244,6 +269,29 @@
 								</div>
 							{/if}
 
+							<!-- Market Context Badge (if enriched) -->
+							{#if (insight as any).market_context?.percentile_position != null}
+								{@const mc = (insight as any).market_context}
+								<div class="mb-3 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+									<div class="flex items-center gap-2">
+										<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+										</svg>
+										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {getPercentileColor(mc.percentile_position)}">
+											{mc.percentile_position}th percentile
+										</span>
+										{#if mc.source_url}
+											<a href={mc.source_url} target="_blank" rel="noopener noreferrer" class="text-xs text-brand-600 hover:underline">
+												Source
+											</a>
+										{/if}
+									</div>
+									{#if mc.comparison_text}
+										<p class="mt-1 text-xs text-slate-600 dark:text-slate-400">{mc.comparison_text}</p>
+									{/if}
+								</div>
+							{/if}
+
 							<!-- Question -->
 							<div class="flex items-start gap-2 mb-3">
 								<span
@@ -315,6 +363,24 @@
 
 						<!-- Action Buttons -->
 						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+							<!-- Enrich Button (for insights with metrics but no market context) -->
+							{#if insight.metric?.value != null && !(insight as any).market_context}
+								<button
+									class="p-2 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
+									onclick={() => enrichInsight(insight.question)}
+									disabled={enrichingQuestion === insight.question}
+									title="Add market context from industry benchmarks"
+								>
+									{#if enrichingQuestion === insight.question}
+										<div class="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
+									{:else}
+										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+										</svg>
+									{/if}
+								</button>
+							{/if}
+
 							<!-- Edit Button -->
 							<button
 								class="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"

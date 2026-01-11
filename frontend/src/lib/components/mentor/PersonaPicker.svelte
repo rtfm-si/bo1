@@ -7,7 +7,7 @@
 	 */
 	import type { MentorPersonaDetail } from '$lib/api/types';
 	import { apiClient } from '$lib/api/client';
-	import { User, Target, BarChart3, Sparkles, Briefcase, CheckCircle, ChevronDown } from 'lucide-svelte';
+	import { User, Target, BarChart3, Sparkles, Briefcase, CheckCircle, ChevronDown, Search } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
 	let {
@@ -26,7 +26,8 @@
 		'check-circle': CheckCircle,
 		'chart-bar': BarChart3,
 		user: User,
-		target: Target
+		target: Target,
+		search: Search
 	};
 
 	let personas = $state<MentorPersonaDetail[]>([]);
@@ -63,6 +64,13 @@
 					description: 'Expert in data interpretation, metrics analysis, and data-driven decisions.',
 					expertise: ['data analysis', 'metrics', 'KPIs', 'visualization', 'business intelligence'],
 					icon: 'chart-bar'
+				},
+				{
+					id: 'researcher',
+					name: 'Research',
+					description: 'Investigates market trends, competitors, and industry insights to inform your decisions.',
+					expertise: ['market research', 'competitive analysis', 'industry trends', 'benchmarking'],
+					icon: 'search'
 				}
 			];
 		} finally {

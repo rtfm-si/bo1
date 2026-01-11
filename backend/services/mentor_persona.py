@@ -8,7 +8,7 @@ import re
 from typing import Literal
 
 # Type alias for persona names
-PersonaType = Literal["general", "action_coach", "data_analyst"]
+PersonaType = Literal["general", "action_coach", "data_analyst", "researcher"]
 
 # Keywords that suggest action_coach persona
 ACTION_KEYWORDS = {
@@ -136,6 +136,55 @@ DATA_KEYWORDS = {
     "arr",
 }
 
+# Keywords that suggest researcher persona
+RESEARCH_KEYWORDS = {
+    # Research terms
+    "research",
+    "investigate",
+    "investigation",
+    "explore",
+    "exploration",
+    "study",
+    "studies",
+    "find out",
+    "look into",
+    "dig into",
+    # Market research
+    "market",
+    "market research",
+    "market size",
+    "market analysis",
+    "competitor",
+    "competitors",
+    "competition",
+    "competitive",
+    # Industry
+    "industry",
+    "sector",
+    "landscape",
+    "benchmark",
+    "benchmarks",
+    "benchmarking",
+    # Information gathering
+    "what is",
+    "who is",
+    "how does",
+    "why do",
+    "when did",
+    "where is",
+    "latest",
+    "recent",
+    "current",
+    "state of",
+    # Trends
+    "emerging",
+    "trend",
+    "trends",
+    "forecast",
+    "prediction",
+    "outlook",
+}
+
 
 def _normalize_text(text: str) -> str:
     """Normalize text for keyword matching.
@@ -182,19 +231,24 @@ def auto_select_persona(message: str) -> PersonaType:
         message: User's question/message
 
     Returns:
-        Persona name: 'general', 'action_coach', or 'data_analyst'
+        Persona name: 'general', 'action_coach', 'data_analyst', or 'researcher'
     """
     normalized = _normalize_text(message)
 
     # Count matches for each persona
     action_matches = _count_keyword_matches(normalized, ACTION_KEYWORDS)
     data_matches = _count_keyword_matches(normalized, DATA_KEYWORDS)
+    research_matches = _count_keyword_matches(normalized, RESEARCH_KEYWORDS)
 
     # Select persona with most matches (minimum 2 to override general)
-    if data_matches >= 2 and data_matches > action_matches:
-        return "data_analyst"
-    if action_matches >= 2 and action_matches > data_matches:
-        return "action_coach"
+    max_matches = max(action_matches, data_matches, research_matches)
+    if max_matches >= 2:
+        if research_matches == max_matches:
+            return "researcher"
+        if data_matches == max_matches:
+            return "data_analyst"
+        if action_matches == max_matches:
+            return "action_coach"
 
     # Default to general for ambiguous or general questions
     return "general"
@@ -209,7 +263,7 @@ def validate_persona(persona: str | None) -> PersonaType:
     Returns:
         Valid persona name, defaults to 'general'
     """
-    if persona in ("general", "action_coach", "data_analyst"):
+    if persona in ("general", "action_coach", "data_analyst", "researcher"):
         return persona  # type: ignore
     return "general"
 
@@ -245,6 +299,13 @@ PERSONA_DEFINITIONS: dict[PersonaType, dict[str, str | list[str]]] = {
         "description": "Expert in data interpretation, metrics analysis, and data-driven decisions.",
         "expertise": ["data analysis", "metrics", "KPIs", "visualization", "business intelligence"],
         "icon": "chart-bar",
+    },
+    "researcher": {
+        "id": "researcher",
+        "name": "Research",
+        "description": "Investigates market trends, competitors, and industry insights to inform your decisions.",
+        "expertise": ["market research", "competitive analysis", "industry trends", "benchmarking"],
+        "icon": "search",
     },
 }
 

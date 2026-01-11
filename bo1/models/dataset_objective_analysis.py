@@ -114,6 +114,7 @@ class InsightVisualization(BaseModel):
     y_axis: str | None = Field(None, description="Y-axis column")
     group_by: str | None = Field(None, description="Grouping column")
     title: str = Field(..., description="Chart title")
+    figure_json: dict[str, Any] | None = Field(None, description="Plotly figure spec for rendering")
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -12,6 +12,8 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
+	import MetricCalculatorModal from '$lib/components/context/MetricCalculatorModal.svelte';
+	import BusinessMetricSuggestions from '$lib/components/context/BusinessMetricSuggestions.svelte';
 	import { preferredCurrency } from '$lib/stores/preferences';
 	import { getCurrencySymbol } from '$lib/utils/currency';
 
@@ -41,6 +43,9 @@
 
 	// More metrics section (progressive disclosure)
 	let moreMetricsExpanded = $state(false);
+
+	// Calculator modal state
+	let calculatorOpen = $state(false);
 
 	// Group metrics by category
 	const categoryLabels: Record<MetricCategory, string> = {
@@ -234,6 +239,30 @@
 			restoringMetric = null;
 		}
 	}
+
+	async function handleCalculated(metricKey: string, value: number, unit: string) {
+		// Save the calculated value to the metric
+		try {
+			await apiClient.updateMetric(metricKey, value);
+			// Reload to refresh the display
+			await loadMetrics();
+			saveSuccess = metricKey;
+			setTimeout(() => {
+				saveSuccess = null;
+			}, 2000);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to save calculated value';
+		}
+	}
+
+	async function handleSuggestionApplied(event: { metricKey: string; value: number }) {
+		// Reload metrics to show the updated value
+		await loadMetrics();
+		saveSuccess = event.metricKey;
+		setTimeout(() => {
+			saveSuccess = null;
+		}, 2000);
+	}
 </script>
 
 {#snippet metricRow(metric: UserMetric, isSaved: boolean)}
@@ -421,6 +450,9 @@
 		</div>
 	</div>
 
+	<!-- Metric Suggestions from Insights -->
+	<BusinessMetricSuggestions onapplied={handleSuggestionApplied} />
+
 	<!-- Error Alert -->
 	{#if error}
 		<Alert variant="error">
@@ -590,6 +622,20 @@
 			</a>
 		</div>
 
+		<!-- Help Me Calculate CTA -->
+		<div class="bg-brand-50 dark:bg-brand-900/20 rounded-lg p-4 flex items-center justify-between border border-brand-200 dark:border-brand-800">
+			<div class="flex items-center gap-3">
+				<span class="text-xl">🧮</span>
+				<div>
+					<p class="font-medium text-slate-900 dark:text-white">Help me calculate</p>
+					<p class="text-sm text-slate-500 dark:text-slate-400">Answer a few questions to derive your metric values</p>
+				</div>
+			</div>
+			<Button variant="brand" size="sm" onclick={() => { calculatorOpen = true; }}>
+				Calculate
+			</Button>
+		</div>
+
 		<!-- Request Metric CTA -->
 		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
@@ -637,3 +683,10 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Metric Calculator Modal -->
+<MetricCalculatorModal
+	bind:open={calculatorOpen}
+	onClose={() => { calculatorOpen = false; }}
+	onCalculated={handleCalculated}
+/>

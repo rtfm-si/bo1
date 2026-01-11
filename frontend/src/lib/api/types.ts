@@ -113,6 +113,22 @@ export type InsightMetric = components['schemas']['InsightMetricResponse'];
 export type InsightsResponse = components['schemas']['InsightsResponse'];
 export type ClarificationInsight = components['schemas']['ClarificationInsight'];
 
+// ---- Market Context Types (for insight enrichment) ----
+export interface InsightMarketContext {
+	percentile_position: number | null;
+	comparison_text: string | null;
+	source_url: string | null;
+	enriched_at: string | null;
+}
+
+export interface InsightEnrichResponse {
+	success: boolean;
+	enriched: boolean;
+	percentile_position: number | null;
+	comparison_text: string | null;
+	error: string | null;
+}
+
 // ---- Context Update Types ----
 export type ContextUpdateSource = components['schemas']['ContextUpdateSource'];
 export type ContextUpdateSuggestion = components['schemas']['ContextUpdateSuggestion'];
@@ -179,6 +195,72 @@ export type ConversationDetailResponse = components['schemas']['ConversationDeta
 export type ConversationListResponse = components['schemas']['ConversationListResponse'];
 export type ConversationMessage = components['schemas']['ConversationMessage'];
 
+// ---- Dataset Folder Types ----
+export interface DatasetFolderResponse {
+	id: string;
+	name: string;
+	description: string | null;
+	color: string | null;
+	icon: string | null;
+	parent_folder_id: string | null;
+	tags: string[];
+	dataset_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface DatasetFolderTree extends DatasetFolderResponse {
+	children: DatasetFolderTree[];
+}
+
+export interface DatasetFolderListResponse {
+	folders: DatasetFolderResponse[];
+	total: number;
+}
+
+export interface DatasetFolderTreeResponse {
+	folders: DatasetFolderTree[];
+	total: number;
+}
+
+export interface DatasetFolderCreate {
+	name: string;
+	description?: string | null;
+	color?: string | null;
+	icon?: string | null;
+	parent_folder_id?: string | null;
+	tags?: string[];
+}
+
+export interface DatasetFolderUpdate {
+	name?: string | null;
+	description?: string | null;
+	color?: string | null;
+	icon?: string | null;
+	parent_folder_id?: string | null;
+	tags?: string[] | null;
+}
+
+export interface FolderDatasetResponse {
+	id: string;
+	name: string;
+	added_at: string;
+}
+
+export interface FolderDatasetsListResponse {
+	datasets: FolderDatasetResponse[];
+	total: number;
+}
+
+export interface FolderTagsResponse {
+	tags: string[];
+}
+
+export interface AddDatasetsResponse {
+	added: number;
+	total_requested: number;
+}
+
 // ---- Mentor Types ----
 export type MentorConversationResponse = components['schemas']['MentorConversationResponse'];
 export type MentorConversationDetailResponse = components['schemas']['MentorConversationDetailResponse'];
@@ -188,6 +270,60 @@ export type MentorPersonaResponse = components['schemas']['MentorPersonaResponse
 export type MentorPersonaListResponse = components['schemas']['MentorPersonaListResponse'];
 export type MentionSuggestion = components['schemas']['MentionSuggestion'];
 export type MentionSearchResponse = components['schemas']['MentionSearchResponse'];
+
+// ---- Advisor Search Types ----
+/**
+ * A single search result from conversation search.
+ */
+export interface ConversationSearchResult {
+	/** ID of the matching conversation */
+	conversation_id: string;
+	/** Preview of the matching message */
+	preview: string;
+	/** Similarity score (0-1) */
+	similarity: number;
+	/** ISO timestamp of the message */
+	created_at: string;
+}
+
+/**
+ * Response from searching advisor conversations.
+ */
+export interface ConversationSearchResponse {
+	/** Matching conversations sorted by similarity */
+	matches: ConversationSearchResult[];
+	/** Total number of matches */
+	total: number;
+}
+
+// ---- Dataset Similarity Types ----
+/**
+ * A dataset similar to the query dataset.
+ */
+export interface SimilarDataset {
+	/** Dataset UUID */
+	dataset_id: string;
+	/** Dataset name */
+	name: string;
+	/** Similarity score (0-1) */
+	similarity: number;
+	/** Column names in common with source dataset */
+	shared_columns: string[];
+	/** Preview of dataset summary/insight */
+	insight_preview: string | null;
+}
+
+/**
+ * Response from similar datasets endpoint.
+ */
+export interface SimilarDatasetsResponse {
+	/** Similar datasets sorted by similarity */
+	similar: SimilarDataset[];
+	/** Source dataset ID for the query */
+	query_dataset_id: string;
+	/** Similarity threshold used */
+	threshold: number;
+}
 
 // ---- Workspace & Invitation Types ----
 export type WorkspaceResponse = components['schemas']['WorkspaceResponse'];
@@ -206,6 +342,7 @@ export type RoleHistoryResponse = components['schemas']['RoleHistoryResponse'];
 
 // ---- Benchmark Types ----
 export type BenchmarkCategory = components['schemas']['BenchmarkCategory'];
+/** @deprecated Use AlignedBenchmarkComparison for objective-aware benchmarks */
 export type BenchmarkComparison = components['schemas']['backend__api__industry_insights__BenchmarkComparison'];
 export type BenchmarkComparisonResponse = components['schemas']['BenchmarkComparisonResponse'];
 export type BenchmarkHistoryEntry = components['schemas']['BenchmarkHistoryEntry'];
@@ -214,6 +351,15 @@ export type IndustryInsightsResponse = components['schemas']['IndustryInsightsRe
 export type StaleBenchmarkResponse = components['schemas']['StaleBenchmarkResponse'];
 export type StaleBenchmarksResponse = components['schemas']['StaleBenchmarksResponse'];
 export type StaleFieldSummary = components['schemas']['StaleFieldSummary'];
+
+/** Extended benchmark comparison with objective alignment fields */
+export interface AlignedBenchmarkComparison extends BenchmarkComparison {
+	/** Relevance to user's objective (0.0-1.0) */
+	relevance_score?: number | null;
+	/** Why this metric matters for user's objective */
+	relevance_reason?: string | null;
+	// is_objective_aligned inherited from BenchmarkComparison (required boolean)
+}
 
 /** @deprecated Use StaleBenchmarkResponse */
 export type StaleBenchmark = StaleBenchmarkResponse;
@@ -1204,6 +1350,30 @@ export interface ManagedCompetitor {
 	relevance_flags?: RelevanceFlags | null;
 	/** Warning message if <2 checks pass */
 	relevance_warning?: string | null;
+	// Enrichment fields
+	tagline?: string | null;
+	product_description?: string | null;
+	funding_info?: string | null;
+	employee_count?: string | null;
+	tech_stack?: string[] | null;
+	recent_news?: Array<{ title: string; url: string; date: string }> | null;
+	last_enriched_at?: string | null;
+	changes_detected?: string[] | null;
+	// Deep intelligence fields (Pro tier)
+	product_updates?: Array<{
+		title: string;
+		date: string | null;
+		description: string;
+		source_url: string | null;
+	}> | null;
+	key_signals?: string[] | null;
+	funding_rounds?: Array<{
+		round_type: string;
+		amount: string | null;
+		date: string | null;
+		investors: string[];
+	}> | null;
+	intel_gathered_at?: string | null;
 }
 
 /**
@@ -1242,6 +1412,26 @@ export interface ManagedCompetitorListResponse {
 	competitors: ManagedCompetitor[];
 	count: number;
 	error?: string | null;
+}
+
+/**
+ * Response from enriching a single managed competitor
+ */
+export interface ManagedCompetitorEnrichResponse {
+	success: boolean;
+	competitor: ManagedCompetitor | null;
+	changes: string[] | null;
+	error?: string | null;
+}
+
+/**
+ * Response from enriching all managed competitors
+ */
+export interface ManagedCompetitorBulkEnrichResponse {
+	success: boolean;
+	enriched_count: number;
+	competitors: ManagedCompetitor[];
+	errors?: string[] | null;
 }
 
 // =============================================================================
@@ -1473,6 +1663,42 @@ export interface SeoBlogArticleListResponse {
 export interface RegenerateArticleRequest {
 	tone?: string;
 	changes?: string[];
+}
+
+/**
+ * A topic suggestion from analyzing user-submitted words
+ */
+export interface TopicSuggestion {
+	keyword: string;
+	seo_potential: 'high' | 'medium' | 'low';
+	trend_status: 'rising' | 'stable' | 'declining';
+	related_keywords: string[];
+	description: string;
+	/** Validation status from web research */
+	validation_status: 'validated' | 'unvalidated';
+	/** Competitor presence indicator */
+	competitor_presence: 'high' | 'medium' | 'low' | 'unknown';
+	/** Search volume indicator */
+	search_volume_indicator: 'high' | 'medium' | 'low' | 'unknown';
+	/** URLs from validation research */
+	validation_sources: string[];
+}
+
+/**
+ * Request to analyze user-submitted words for topic suggestions
+ */
+export interface AnalyzeTopicsRequest {
+	words: string[];
+	/** Skip web research validation for faster response */
+	skip_validation?: boolean;
+}
+
+/**
+ * Response containing topic suggestions
+ */
+export interface AnalyzeTopicsResponse {
+	suggestions: TopicSuggestion[];
+	analyzed_words: string[];
 }
 
 // =============================================================================
@@ -1764,6 +1990,135 @@ export interface ApplyMetricSuggestionResponse {
 	field: string;
 	new_value: string;
 	error?: string | null;
+}
+
+// =============================================================================
+// Metric Calculation Types (Q&A-guided metric derivation)
+// =============================================================================
+
+/**
+ * Definition of a metric calculation question.
+ */
+export interface MetricQuestionDef {
+	id: string;
+	question: string;
+	input_type: 'currency' | 'number' | 'percent';
+	placeholder: string;
+	help_text?: string | null;
+}
+
+/**
+ * Response with questions for calculating a metric.
+ */
+export interface MetricFormulaResponse {
+	metric_key: string;
+	questions: MetricQuestionDef[];
+	result_unit: string;
+}
+
+/**
+ * A single answer to a calculation question.
+ */
+export interface MetricCalculationAnswer {
+	question_id: string;
+	value: number;
+}
+
+/**
+ * Request to calculate a metric from Q&A answers.
+ */
+export interface MetricCalculationRequest {
+	answers: MetricCalculationAnswer[];
+	save_insight?: boolean;
+}
+
+/**
+ * Response from metric calculation.
+ */
+export interface MetricCalculationResponse {
+	success: boolean;
+	calculated_value?: number | null;
+	formula_used?: string | null;
+	result_unit?: string | null;
+	confidence: number;
+	insight_saved: boolean;
+	error?: string | null;
+}
+
+/**
+ * Response listing metrics with calculation support.
+ */
+export interface AvailableMetricsResponse {
+	metrics: string[];
+}
+
+// =============================================================================
+// Business Metrics Insight Suggestion Types
+// =============================================================================
+
+/**
+ * A suggestion to auto-populate a business metric from insights.
+ * Uses keyword-based matching to map insights to specific metrics.
+ */
+export interface BusinessMetricSuggestion {
+	/** Business metric key (e.g., 'mrr', 'churn') */
+	metric_key: string;
+	/** Display name of the metric */
+	metric_name?: string | null;
+	/** Current metric value (if any) */
+	current_value?: number | null;
+	/** Value extracted from insight */
+	suggested_value: string;
+	/** The clarification question that provided this */
+	source_question: string;
+	/** Match confidence (0-1) */
+	confidence: number;
+	/** When the insight was recorded (ISO) */
+	answered_at?: string | null;
+	/** Whether user dismissed this suggestion */
+	is_dismissed: boolean;
+}
+
+/**
+ * Response containing business metric suggestions from insights.
+ */
+export interface BusinessMetricSuggestionsResponse {
+	success: boolean;
+	suggestions: BusinessMetricSuggestion[];
+	count: number;
+	error?: string | null;
+}
+
+/**
+ * Request to apply a business metric suggestion.
+ */
+export interface ApplyBusinessMetricSuggestionRequest {
+	/** Business metric key to update (e.g., 'mrr') */
+	metric_key: string;
+	/** Numeric value to set */
+	value: number;
+	/** Original question (for audit trail) */
+	source_question?: string | null;
+}
+
+/**
+ * Response after applying a business metric suggestion.
+ */
+export interface ApplyBusinessMetricSuggestionResponse {
+	success: boolean;
+	metric_key: string;
+	new_value: number;
+	error?: string | null;
+}
+
+/**
+ * Request to dismiss a business metric suggestion.
+ */
+export interface DismissBusinessMetricSuggestionRequest {
+	/** Business metric key to dismiss */
+	metric_key: string;
+	/** The source question of the suggestion to dismiss */
+	source_question: string;
 }
 
 // =============================================================================
@@ -2472,6 +2827,7 @@ export interface InsightVisualization {
 	y_axis?: string | null;
 	group_by?: string | null;
 	title: string;
+	figure_json?: Record<string, unknown> | null;
 }
 
 /**

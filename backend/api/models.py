@@ -4837,6 +4837,33 @@ class DatasetInsightsResponse(BaseModel):
 
 
 # =============================================================================
+# Dataset Similarity Models
+# =============================================================================
+
+
+class SimilarDatasetItem(BaseModel):
+    """A dataset similar to the query dataset."""
+
+    dataset_id: str = Field(description="Dataset UUID")
+    name: str = Field(description="Dataset name")
+    similarity: float = Field(ge=0.0, le=1.0, description="Similarity score (0-1)")
+    shared_columns: list[str] = Field(default_factory=list, description="Column names in common")
+    insight_preview: str | None = Field(
+        None, max_length=200, description="Preview of dataset summary/insight"
+    )
+
+
+class SimilarDatasetsResponse(BaseModel):
+    """Response for similar datasets endpoint."""
+
+    similar: list[SimilarDatasetItem] = Field(
+        default_factory=list, max_length=10, description="Similar datasets"
+    )
+    query_dataset_id: str = Field(description="Source dataset ID for the query")
+    threshold: float = Field(description="Similarity threshold used")
+
+
+# =============================================================================
 # Dataset Investigation Models (8 Deterministic Analyses)
 # =============================================================================
 

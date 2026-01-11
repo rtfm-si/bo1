@@ -11,7 +11,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { SeoBlogArticle } from '$lib/api/types';
 	import DOMPurify from 'isomorphic-dompurify';
-	import { Copy, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { Copy, FileText, RefreshCw, Pencil, X, Save } from 'lucide-svelte';
 
 	interface Props {
 		article: SeoBlogArticle;
@@ -26,8 +26,13 @@
 	// View state
 	let activeTab = $state<'content' | 'seo'>('content');
 
-	// Regenerate panel state
-	let showRegenerate = $state(false);
+	// Edit mode state
+	let editMode = $state(false);
+	let editContent = $state('');
+	let saving = $state(false);
+	let hasUnsavedChanges = $state(false);
+
+	// Regenerate panel state (visible by default for revision-first UX)
 	let regenerating = $state(false);
 	let regenerateError = $state<string | null>(null);
 
@@ -44,13 +49,22 @@
 		{ value: 'Conversational', label: 'Conversational' }
 	];
 
-	// Initialize tone when modal opens
+	// Initialize state when modal opens
 	$effect(() => {
 		if (open) {
 			selectedTone = defaultTone || 'Professional';
 			changes = ['', '', ''];
-			showRegenerate = false;
 			regenerateError = null;
+			editMode = false;
+			editContent = '';
+			hasUnsavedChanges = false;
+		}
+	});
+
+	// Track unsaved changes in edit mode
+	$effect(() => {
+		if (editMode && editContent !== article.content) {
+			hasUnsavedChanges = true;
 		}
 	});
 
@@ -109,7 +123,6 @@
 			});
 			onupdate(updated);
 			toast.success('Article regenerated successfully');
-			showRegenerate = false;
 			changes = ['', '', ''];
 		} catch (err: unknown) {
 			if (err && typeof err === 'object' && 'message' in err) {
@@ -125,9 +138,57 @@
 	function getStatusVariant(status: string): 'success' | 'neutral' {
 		return status === 'published' ? 'success' : 'neutral';
 	}
+
+	function enterEditMode() {
+		editContent = article.content;
+		editMode = true;
+		hasUnsavedChanges = false;
+	}
+
+	function cancelEditMode() {
+		if (hasUnsavedChanges) {
+			const confirmed = confirm('You have unsaved changes. Are you sure you want to discard them?');
+			if (!confirmed) return;
+		}
+		editMode = false;
+		editContent = '';
+		hasUnsavedChanges = false;
+	}
+
+	async function saveEdit() {
+		if (!editContent.trim()) {
+			toast.error('Content cannot be empty');
+			return;
+		}
+		saving = true;
+		try {
+			const updated = await apiClient.updateSeoArticle(article.id, { content: editContent });
+			onupdate(updated);
+			editMode = false;
+			editContent = '';
+			hasUnsavedChanges = false;
+			toast.success('Article saved');
+		} catch (err: unknown) {
+			if (err && typeof err === 'object' && 'message' in err) {
+				toast.error((err as { message: string }).message);
+			} else {
+				toast.error('Failed to save article');
+			}
+		} finally {
+			saving = false;
+		}
+	}
+
+	function handleCloseAttempt() {
+		if (hasUnsavedChanges) {
+			const confirmed = confirm('You have unsaved changes. Are you sure you want to close?');
+			if (!confirmed) return;
+		}
+		onclose();
+	}
 </script>
 
-<Modal {open} title={article.title} size="lg" onclose={onclose}>
+<Modal {open} title={article.title} size="lg" onclose={handleCloseAttempt}>
 	<!-- Tab Navigation -->
 	<div class="flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-700 -mx-6 px-6 mb-4">
 		<button
@@ -155,14 +216,22 @@
 	{#if activeTab === 'content'}
 		<div class="space-y-4">
 			<!-- Article metadata -->
-			<div class="flex items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
-				<Badge variant={getStatusVariant(article.status)}>{article.status}</Badge>
-				<span>{new Date(article.created_at).toLocaleDateString()}</span>
-				<span>{article.content.length.toLocaleString()} characters</span>
+			<div class="flex items-center justify-between">
+				<div class="flex items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+					<Badge variant={getStatusVariant(article.status)}>{article.status}</Badge>
+					<span>{new Date(article.created_at).toLocaleDateString()}</span>
+					<span>{article.content.length.toLocaleString()} characters</span>
+				</div>
+				{#if !editMode}
+					<BoButton variant="outline" size="sm" onclick={enterEditMode} disabled={regenerating}>
+						<Pencil class="w-4 h-4 mr-1" />
+						Edit
+					</BoButton>
+				{/if}
 			</div>
 
 			<!-- Excerpt -->
-			{#if article.excerpt}
+			{#if article.excerpt && !editMode}
 				<div class="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
 					<p class="text-sm text-neutral-600 dark:text-neutral-400 italic">
 						{article.excerpt}
@@ -170,43 +239,56 @@
 				</div>
 			{/if}
 
-			<!-- Article content -->
-			<div class="prose dark:prose-invert max-w-none max-h-[400px] overflow-y-auto p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-				{@html renderMarkdown(article.content)}
-			</div>
-
-			<!-- Action buttons -->
-			<div class="flex items-center gap-2">
-				<BoButton variant="outline" size="sm" onclick={copyContent}>
-					<Copy class="w-4 h-4 mr-1" />
-					Copy Markdown
-				</BoButton>
-				<BoButton variant="outline" size="sm" onclick={copyAsHtml}>
-					<Copy class="w-4 h-4 mr-1" />
-					Copy HTML
-				</BoButton>
-			</div>
-
-			<!-- Regenerate Panel Toggle -->
-			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4">
-				<button
-					type="button"
-					class="w-full flex items-center justify-between p-3 text-left bg-neutral-50 dark:bg-neutral-800/50 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-					onclick={() => showRegenerate = !showRegenerate}
-				>
-					<div class="flex items-center gap-2">
-						<RefreshCw class="w-4 h-4 text-brand-500" />
-						<span class="font-medium text-neutral-900 dark:text-white">Regenerate with changes</span>
+			<!-- Article content - Edit mode or Preview mode -->
+			{#if editMode}
+				<div class="space-y-3">
+					<textarea
+						bind:value={editContent}
+						class="w-full h-[400px] px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+						placeholder="Enter article content in markdown..."
+						disabled={saving}
+					></textarea>
+					<div class="flex items-center justify-between">
+						<p class="text-xs text-neutral-500">{editContent.length.toLocaleString()} characters</p>
+						<div class="flex items-center gap-2">
+							<BoButton variant="ghost" size="sm" onclick={cancelEditMode} disabled={saving}>
+								<X class="w-4 h-4 mr-1" />
+								Cancel
+							</BoButton>
+							<BoButton variant="brand" size="sm" onclick={saveEdit} loading={saving} disabled={saving}>
+								<Save class="w-4 h-4 mr-1" />
+								{saving ? 'Saving...' : 'Save'}
+							</BoButton>
+						</div>
 					</div>
-					{#if showRegenerate}
-						<ChevronUp class="w-4 h-4 text-neutral-500" />
-					{:else}
-						<ChevronDown class="w-4 h-4 text-neutral-500" />
-					{/if}
-				</button>
+				</div>
+			{:else}
+				<div class="prose dark:prose-invert max-w-none max-h-[400px] overflow-y-auto p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+					{@html renderMarkdown(article.content)}
+				</div>
 
-				{#if showRegenerate}
-					<div class="mt-4 p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-4">
+				<!-- Action buttons -->
+				<div class="flex items-center gap-2">
+					<BoButton variant="outline" size="sm" onclick={copyContent}>
+						<Copy class="w-4 h-4 mr-1" />
+						Copy Markdown
+					</BoButton>
+					<BoButton variant="outline" size="sm" onclick={copyAsHtml}>
+						<Copy class="w-4 h-4 mr-1" />
+						Copy HTML
+					</BoButton>
+				</div>
+			{/if}
+
+			<!-- Regenerate Panel (always visible for revision-first UX) -->
+			{#if !editMode}
+				<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4">
+					<div class="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg space-y-4">
+						<div class="flex items-center gap-2">
+							<RefreshCw class="w-4 h-4 text-brand-500" />
+							<span class="font-medium text-neutral-900 dark:text-white">Regenerate with changes</span>
+						</div>
+
 						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							Specify up to 3 changes you want to make to the article, and select a tone of voice.
 						</p>
@@ -268,8 +350,8 @@
 							</BoButton>
 						</div>
 					</div>
-				{/if}
-			</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 

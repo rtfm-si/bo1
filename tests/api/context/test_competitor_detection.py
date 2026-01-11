@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from backend.api.context.competitors import (
+    _build_competitor_search_query,
     _deduplicate_competitors,
     _extract_competitors_with_llm,
     _fallback_competitor_search,
@@ -503,3 +504,152 @@ class TestDeduplicateCompetitors:
         result = _deduplicate_competitors(competitors)
         assert len(result) == 1
         assert result[0]["name"] == "HubSpot"
+
+
+class TestBuildCompetitorSearchQuery:
+    """Tests for _build_competitor_search_query with context-aware query building."""
+
+    def test_company_name_takes_priority(self):
+        """Test that company name is used directly when available."""
+        result = _build_competitor_search_query(
+            company_name="Acme Corp",
+            industry="SaaS",
+            product_description="Project management tool",
+            target_market="Enterprise",
+            business_model="B2B",
+        )
+        assert result == '"Acme Corp" competitors alternatives'
+
+    def test_b2b_business_model(self):
+        """Test B2B business model is included in query."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Healthcare",
+            product_description=None,
+            target_market=None,
+            business_model="B2B SaaS",
+        )
+        assert "B2B" in result
+        assert "Healthcare" in result
+
+    def test_b2c_business_model(self):
+        """Test B2C business model is included in query."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="E-commerce",
+            product_description=None,
+            target_market=None,
+            business_model="B2C",
+        )
+        assert "B2C" in result
+        assert "E-commerce" in result
+
+    def test_saas_business_model(self):
+        """Test SaaS business model is included in query."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Project Management",
+            product_description=None,
+            target_market=None,
+            business_model="SaaS platform",
+        )
+        assert "SaaS" in result
+
+    def test_marketplace_business_model(self):
+        """Test marketplace business model is included in query."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Freelance",
+            product_description=None,
+            target_market=None,
+            business_model="Two-sided marketplace",
+        )
+        assert "marketplace" in result
+
+    def test_enterprise_target_market(self):
+        """Test enterprise target market is included."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="CRM",
+            product_description=None,
+            target_market="Large Enterprise companies",
+            business_model=None,
+        )
+        assert "enterprise" in result
+        assert "CRM" in result
+
+    def test_smb_target_market(self):
+        """Test SMB target market is included."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Accounting",
+            product_description=None,
+            target_market="SMBs and small businesses",
+            business_model=None,
+        )
+        assert "SMB" in result
+
+    def test_startup_target_market(self):
+        """Test startup target market is included."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Dev tools",
+            product_description=None,
+            target_market="Early-stage startups",
+            business_model=None,
+        )
+        assert "startup" in result
+
+    def test_product_description_truncated(self):
+        """Test long product descriptions are truncated properly."""
+        long_desc = "A comprehensive project management solution that helps teams collaborate effectively and track progress"
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry=None,
+            product_description=long_desc,
+            target_market=None,
+            business_model=None,
+        )
+        # Should not include the full description
+        assert len(result) < len(long_desc) + 50
+        # Should end at a word boundary
+        assert not result.endswith(" and")
+
+    def test_all_context_combined(self):
+        """Test all context fields are combined properly."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Marketing",
+            product_description="Email automation for marketers",
+            target_market="SMB companies",
+            business_model="B2B SaaS",
+        )
+        assert "B2B" in result
+        assert "Marketing" in result
+        assert "SMB" in result
+        # Product desc should be included
+        assert "Email automation" in result
+
+    def test_fallback_with_no_context(self):
+        """Test fallback query when no context is provided."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry=None,
+            product_description=None,
+            target_market=None,
+            business_model=None,
+        )
+        assert "software" in result.lower()
+        assert "competitors" in result.lower()
+
+    def test_industry_only(self):
+        """Test query with only industry provided."""
+        result = _build_competitor_search_query(
+            company_name=None,
+            industry="Fintech",
+            product_description=None,
+            target_market=None,
+            business_model=None,
+        )
+        assert "Fintech" in result
+        assert "competitors" in result.lower()

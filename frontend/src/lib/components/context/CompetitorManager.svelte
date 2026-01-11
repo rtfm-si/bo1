@@ -15,7 +15,11 @@
 		X,
 		ExternalLink,
 		Clock,
-		AlertTriangle
+		AlertTriangle,
+		RefreshCw,
+		Sparkles,
+		ChevronDown,
+		ChevronUp
 	} from 'lucide-svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Tooltip from '$lib/components/ui/Tooltip.svelte';
@@ -53,6 +57,11 @@
 	let editingName = $state<string | null>(null);
 	let editUrl = $state('');
 	let editNotes = $state('');
+
+	// Enrichment state
+	let enrichingName = $state<string | null>(null);
+	let isEnrichingAll = $state(false);
+	let expandedCompetitor = $state<string | null>(null);
 
 	function clearMessages() {
 		error = null;
@@ -160,6 +169,82 @@
 		}
 	}
 
+	async function enrichCompetitor(name: string) {
+		enrichingName = name;
+		clearMessages();
+		try {
+			const response = await apiClient.enrichManagedCompetitor(name);
+			if (response.success && response.competitor) {
+				competitors = competitors.map((c) =>
+					c.name.toLowerCase() === name.toLowerCase() ? response.competitor! : c
+				);
+				onUpdate?.(competitors);
+				const changes = response.changes?.length || 0;
+				success = changes > 0
+					? `Enriched "${name}" - ${changes} field(s) updated`
+					: `"${name}" is already up to date`;
+				// Auto-expand to show enriched data
+				expandedCompetitor = name;
+			} else {
+				error = response.error || 'Failed to enrich competitor';
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to enrich competitor';
+		} finally {
+			enrichingName = null;
+		}
+	}
+
+	async function enrichAllCompetitors() {
+		if (competitors.length === 0) return;
+
+		isEnrichingAll = true;
+		clearMessages();
+		try {
+			const response = await apiClient.enrichAllManagedCompetitors();
+			if (response.success) {
+				competitors = response.competitors;
+				onUpdate?.(competitors);
+				success = `Enriched ${response.enriched_count} competitor(s)`;
+			} else {
+				// Partial success - some may have failed
+				competitors = response.competitors;
+				onUpdate?.(competitors);
+				const errorMsg = response.errors?.join(', ') || 'Some enrichments failed';
+				error = `Enriched ${response.enriched_count}/${competitors.length}: ${errorMsg}`;
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to enrich competitors';
+		} finally {
+			isEnrichingAll = false;
+		}
+	}
+
+	function toggleExpand(name: string) {
+		expandedCompetitor = expandedCompetitor === name ? null : name;
+	}
+
+	function hasEnrichmentData(competitor: ManagedCompetitor): boolean {
+		return !!(
+			competitor.tagline ||
+			competitor.product_description ||
+			competitor.funding_info ||
+			competitor.employee_count ||
+			competitor.recent_news?.length ||
+			competitor.key_signals?.length ||
+			competitor.product_updates?.length ||
+			competitor.funding_rounds?.length
+		);
+	}
+
+	function hasDeepIntel(competitor: ManagedCompetitor): boolean {
+		return !!(
+			competitor.key_signals?.length ||
+			competitor.product_updates?.length ||
+			competitor.funding_rounds?.length
+		);
+	}
+
 	function resetAddForm() {
 		showAddForm = false;
 		newName = '';
@@ -201,12 +286,32 @@
 			<h3 class="font-semibold text-neutral-900 dark:text-neutral-100">Competitors</h3>
 			<span class="text-sm text-neutral-500">({competitors.length})</span>
 		</div>
-		{#if !showAddForm}
-			<BoButton variant="outline" size="sm" onclick={() => (showAddForm = true)}>
-				<Plus class="h-4 w-4 mr-1.5" />
-				Add Competitor
-			</BoButton>
-		{/if}
+		<div class="flex items-center gap-2">
+			{#if competitors.length > 0}
+				<Tooltip text="Enrich all competitors with latest data (monthly refresh)">
+					<BoButton
+						variant="outline"
+						size="sm"
+						onclick={enrichAllCompetitors}
+						disabled={isEnrichingAll || enrichingName !== null}
+					>
+						{#if isEnrichingAll}
+							<Loader2 class="h-4 w-4 mr-1.5 animate-spin" />
+							Enriching...
+						{:else}
+							<RefreshCw class="h-4 w-4 mr-1.5" />
+							Refresh All
+						{/if}
+					</BoButton>
+				</Tooltip>
+			{/if}
+			{#if !showAddForm}
+				<BoButton variant="outline" size="sm" onclick={() => (showAddForm = true)}>
+					<Plus class="h-4 w-4 mr-1.5" />
+					Add Competitor
+				</BoButton>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Success/Error Alerts -->
@@ -339,70 +444,268 @@
 						</div>
 					{:else}
 						<!-- View Mode -->
-						<div class="flex items-start justify-between">
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center gap-2">
-									<h4 class="font-medium text-neutral-900 dark:text-neutral-100 truncate">
-										{competitor.name}
-									</h4>
-									{#if competitor.url}
-										<a
-											href={competitor.url}
-											target="_blank"
-											rel="noopener noreferrer"
-											class="text-brand-600 hover:text-brand-700 dark:text-brand-400"
-											title="Visit website"
-										>
-											<ExternalLink class="h-4 w-4" />
-										</a>
-									{/if}
-									<!-- Relevance badge -->
-									{#if competitor.relevance_score !== null && competitor.relevance_score !== undefined}
-										{@const badge = getRelevanceBadge(competitor.relevance_score)}
-										<Tooltip text={badge.tooltip}>
-											<Badge variant={badge.variant} size="sm">{badge.label}</Badge>
-										</Tooltip>
-									{/if}
-									<!-- Warning indicator -->
-									{#if competitor.relevance_warning}
-										<Tooltip text={competitor.relevance_warning}>
-											<AlertTriangle class="h-4 w-4 text-amber-500" />
-										</Tooltip>
-									{/if}
-								</div>
+						<div>
+							<div class="flex items-start justify-between">
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center gap-2">
+										<h4 class="font-medium text-neutral-900 dark:text-neutral-100 truncate">
+											{competitor.name}
+										</h4>
+										{#if competitor.url}
+											<a
+												href={competitor.url}
+												target="_blank"
+												rel="noopener noreferrer"
+												class="text-brand-600 hover:text-brand-700 dark:text-brand-400"
+												title="Visit website"
+											>
+												<ExternalLink class="h-4 w-4" />
+											</a>
+										{/if}
+										<!-- Relevance badge -->
+										{#if competitor.relevance_score !== null && competitor.relevance_score !== undefined}
+											{@const badge = getRelevanceBadge(competitor.relevance_score)}
+											<Tooltip text={badge.tooltip}>
+												<Badge variant={badge.variant} size="sm">{badge.label}</Badge>
+											</Tooltip>
+										{/if}
+										<!-- Enriched indicator -->
+										{#if competitor.last_enriched_at}
+											<Tooltip text={`Last enriched ${formatDate(competitor.last_enriched_at)}`}>
+												<Sparkles class="h-4 w-4 text-brand-500" />
+											</Tooltip>
+										{/if}
+										<!-- Warning indicator -->
+										{#if competitor.relevance_warning}
+											<Tooltip text={competitor.relevance_warning}>
+												<AlertTriangle class="h-4 w-4 text-amber-500" />
+											</Tooltip>
+										{/if}
+									</div>
 
-								{#if competitor.notes}
-									<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1 line-clamp-2">
-										{competitor.notes}
-									</p>
-								{/if}
+									{#if competitor.tagline}
+										<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1 italic">
+											{competitor.tagline}
+										</p>
+									{:else if competitor.notes}
+										<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1 line-clamp-2">
+											{competitor.notes}
+										</p>
+									{/if}
 
-								<div class="flex items-center gap-4 mt-2 text-xs text-neutral-500">
-									<div class="flex items-center gap-1">
-										<Clock class="h-3 w-3" />
-										<span>Added {formatDate(competitor.added_at)}</span>
+									<div class="flex items-center gap-4 mt-2 text-xs text-neutral-500">
+										<div class="flex items-center gap-1">
+											<Clock class="h-3 w-3" />
+											<span>Added {formatDate(competitor.added_at)}</span>
+										</div>
+										{#if competitor.last_enriched_at}
+											<div class="flex items-center gap-1">
+												<RefreshCw class="h-3 w-3" />
+												<span>Updated {formatDate(competitor.last_enriched_at)}</span>
+											</div>
+										{/if}
 									</div>
 								</div>
+
+								<div class="flex items-center gap-1 ml-3">
+									<!-- Expand/Collapse button for enrichment data -->
+									{#if hasEnrichmentData(competitor)}
+										<Tooltip text={expandedCompetitor === competitor.name ? 'Collapse details' : 'Show enriched data'}>
+											<BoButton
+												variant="ghost"
+												size="sm"
+												onclick={() => toggleExpand(competitor.name)}
+												ariaLabel="Toggle details"
+											>
+												{#if expandedCompetitor === competitor.name}
+													<ChevronUp class="h-4 w-4" />
+												{:else}
+													<ChevronDown class="h-4 w-4" />
+												{/if}
+											</BoButton>
+										</Tooltip>
+									{/if}
+									<!-- Enrich button -->
+									<Tooltip text="Fetch latest data about this competitor">
+										<BoButton
+											variant="ghost"
+											size="sm"
+											onclick={() => enrichCompetitor(competitor.name)}
+											disabled={enrichingName !== null || isEnrichingAll}
+											ariaLabel="Enrich competitor"
+										>
+											{#if enrichingName === competitor.name}
+												<Loader2 class="h-4 w-4 animate-spin" />
+											{:else}
+												<RefreshCw class="h-4 w-4" />
+											{/if}
+										</BoButton>
+									</Tooltip>
+									<BoButton
+										variant="ghost"
+										size="sm"
+										onclick={() => startEdit(competitor)}
+										ariaLabel="Edit competitor"
+									>
+										<FileText class="h-4 w-4" />
+									</BoButton>
+									<BoButton
+										variant="ghost"
+										size="sm"
+										onclick={() => removeCompetitor(competitor.name)}
+										ariaLabel="Remove competitor"
+									>
+										<Trash2 class="h-4 w-4 text-red-500" />
+									</BoButton>
+								</div>
 							</div>
 
-							<div class="flex items-center gap-1 ml-3">
-								<BoButton
-									variant="ghost"
-									size="sm"
-									onclick={() => startEdit(competitor)}
-									ariaLabel="Edit competitor"
-								>
-									<FileText class="h-4 w-4" />
-								</BoButton>
-								<BoButton
-									variant="ghost"
-									size="sm"
-									onclick={() => removeCompetitor(competitor.name)}
-									ariaLabel="Remove competitor"
-								>
-									<Trash2 class="h-4 w-4 text-red-500" />
-								</BoButton>
-							</div>
+							<!-- Expandable Enrichment Details -->
+							{#if expandedCompetitor === competitor.name && hasEnrichmentData(competitor)}
+								<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700 space-y-3">
+									{#if competitor.product_description}
+										<div>
+											<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Description</span>
+											<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
+												{competitor.product_description}
+											</p>
+										</div>
+									{/if}
+
+									<div class="grid grid-cols-2 gap-4">
+										{#if competitor.employee_count}
+											<div>
+												<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Employees</span>
+												<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
+													{competitor.employee_count}
+												</p>
+											</div>
+										{/if}
+										{#if competitor.funding_info}
+											<div>
+												<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Funding</span>
+												<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1 line-clamp-2">
+													{competitor.funding_info}
+												</p>
+											</div>
+										{/if}
+									</div>
+
+									{#if competitor.recent_news && competitor.recent_news.length > 0}
+										<div>
+											<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Recent News</span>
+											<ul class="mt-1 space-y-1">
+												{#each competitor.recent_news.slice(0, 3) as news}
+													<li class="text-sm">
+														<a
+															href={news.url}
+															target="_blank"
+															rel="noopener noreferrer"
+															class="text-brand-600 hover:text-brand-700 dark:text-brand-400 hover:underline"
+														>
+															{news.title}
+														</a>
+													</li>
+												{/each}
+											</ul>
+										</div>
+									{/if}
+
+									<!-- Deep Intelligence Section (Pro tier) -->
+									{#if hasDeepIntel(competitor)}
+										<div class="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-700">
+											<div class="flex items-center gap-2 mb-3">
+												<Sparkles class="h-4 w-4 text-brand-500" />
+												<span class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase tracking-wide">Deep Intelligence</span>
+												{#if competitor.intel_gathered_at}
+													<span class="text-xs text-neutral-500">
+														(gathered {formatDate(competitor.intel_gathered_at)})
+													</span>
+												{/if}
+											</div>
+
+											<!-- Key Signals -->
+											{#if competitor.key_signals && competitor.key_signals.length > 0}
+												<div class="mb-3">
+													<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Key Signals</span>
+													<div class="flex flex-wrap gap-2 mt-1">
+														{#each competitor.key_signals as signal}
+															<Badge variant="neutral" size="sm">{signal}</Badge>
+														{/each}
+													</div>
+												</div>
+											{/if}
+
+											<!-- Funding Rounds -->
+											{#if competitor.funding_rounds && competitor.funding_rounds.length > 0}
+												<div class="mb-3">
+													<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Funding</span>
+													<div class="space-y-2 mt-1">
+														{#each competitor.funding_rounds.slice(0, 3) as round}
+															<div class="flex items-center gap-2 text-sm">
+																<Badge variant="success" size="sm">{round.round_type}</Badge>
+																{#if round.amount}
+																	<span class="font-medium text-neutral-700 dark:text-neutral-300">{round.amount}</span>
+																{/if}
+																{#if round.date}
+																	<span class="text-neutral-500">({round.date})</span>
+																{/if}
+															</div>
+															{#if round.investors && round.investors.length > 0}
+																<p class="text-xs text-neutral-500 ml-4">
+																	Investors: {round.investors.slice(0, 3).join(', ')}{round.investors.length > 3 ? '...' : ''}
+																</p>
+															{/if}
+														{/each}
+													</div>
+												</div>
+											{/if}
+
+											<!-- Product Updates -->
+											{#if competitor.product_updates && competitor.product_updates.length > 0}
+												<div>
+													<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Product Updates</span>
+													<ul class="mt-1 space-y-2">
+														{#each competitor.product_updates.slice(0, 3) as update}
+															<li class="text-sm">
+																<div class="flex items-start gap-2">
+																	{#if update.date}
+																		<span class="text-xs text-neutral-500 whitespace-nowrap">{update.date}</span>
+																	{/if}
+																	<div>
+																		{#if update.source_url}
+																			<a
+																				href={update.source_url}
+																				target="_blank"
+																				rel="noopener noreferrer"
+																				class="text-brand-600 hover:text-brand-700 dark:text-brand-400 hover:underline font-medium"
+																			>
+																				{update.title}
+																			</a>
+																		{:else}
+																			<span class="font-medium text-neutral-700 dark:text-neutral-300">{update.title}</span>
+																		{/if}
+																		{#if update.description}
+																			<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">{update.description}</p>
+																		{/if}
+																	</div>
+																</div>
+															</li>
+														{/each}
+													</ul>
+												</div>
+											{/if}
+										</div>
+									{/if}
+
+									{#if competitor.changes_detected && competitor.changes_detected.length > 0}
+										<div class="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+											<AlertTriangle class="h-3 w-3" />
+											<span>Changes detected: {competitor.changes_detected.join(', ')}</span>
+										</div>
+									{/if}
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</BoCard>

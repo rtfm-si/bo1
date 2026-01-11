@@ -35,6 +35,7 @@ backend/api/llm_health_probe.py  # 1 violation - probe results
 backend/api/context/routes.py  # TODO: P4 - 2 violations
 backend/api/context/services.py  # TODO: P4 - 1 violation
 backend/api/context/auto_detect.py  # TODO: P4 - 1 violation - auto-detect timing
+backend/api/context/metric_mapping.py  # TODO: P4 - 1 violation - metric suggestion timestamp
 backend/api/business_metrics.py  # TODO: P4 - 3 violations
 backend/api/competitors.py  # TODO: P4 - 1 violation
 
@@ -42,7 +43,7 @@ backend/api/competitors.py  # TODO: P4 - 1 violation
 backend/api/control.py  # TODO: P4 - 2 violations
 backend/api/datasets.py  # TODO: P4 - 1 violation - insights response
 backend/api/event_publisher.py  # TODO: P4 - 2 violations (event metadata)
-backend/api/mentor.py  # TODO: P4 - 2 violations
+backend/api/advisor.py  # TODO: P4 - 2 violations (renamed from mentor.py)
 backend/api/oauth_session_manager.py  # TODO: P4 - 2 violations
 backend/api/tags.py  # TODO: P4 - 2 violations
 backend/api/user.py  # TODO: P4 - 1 violation

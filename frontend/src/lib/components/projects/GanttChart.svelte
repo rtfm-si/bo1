@@ -429,9 +429,8 @@
 	}
 
 	.empty-icon {
-		color: var(--color-muted, #9ca3af);
+		color: var(--color-muted, #6b7280);
 		margin-bottom: 1rem;
-		opacity: 0.5;
 	}
 
 	.empty-title {
@@ -443,7 +442,7 @@
 
 	.empty-hint {
 		font-size: 0.875rem;
-		color: var(--color-muted, #6b7280);
+		color: var(--color-muted, #4b5563);
 		margin: 0;
 		max-width: 300px;
 	}

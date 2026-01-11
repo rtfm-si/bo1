@@ -429,11 +429,26 @@ class CompetitorDetectResponse(BaseModel):
 
 
 class MarketTrend(BaseModel):
-    """A market trend."""
+    """A market trend with optional AI-generated summary.
 
-    trend: str = Field(..., description="Trend description")
+    Base fields (from search):
+    - trend: Original headline/description from search
+    - source: Source name (e.g., "TechCrunch")
+    - source_url: URL to the article
+
+    Enhanced fields (from article extraction + LLM):
+    - summary: AI-generated 2-3 sentence summary of the article
+    - key_points: Bullet-point takeaways (3 items)
+    - fetched_at: When the article content was extracted
+    """
+
+    trend: str = Field(..., description="Trend description/headline")
     source: str | None = Field(None, description="Source name")
     source_url: str | None = Field(None, description="Source URL")
+    # Enhanced fields (populated by article summarizer)
+    summary: str | None = Field(None, description="AI-generated article summary (2-3 sentences)")
+    key_points: list[str] | None = Field(None, description="Key takeaways (3 bullet points)")
+    fetched_at: datetime | None = Field(None, description="When article content was extracted")
 
 
 class TrendsRefreshRequest(BaseModel):
@@ -481,6 +496,15 @@ class InsightMetricResponse(BaseModel):
     raw_text: str | None = Field(None, description="Original metric text")
 
 
+class ClarificationInsightMarketContext(BaseModel):
+    """Market context for API response (subset of full MarketContext)."""
+
+    percentile_position: int | None = Field(None, description="User's percentile (0-100)")
+    comparison_text: str | None = Field(None, description="Human-readable comparison")
+    source_url: str | None = Field(None, description="Source URL for benchmark")
+    enriched_at: datetime | None = Field(None, description="When enriched")
+
+
 class ClarificationInsight(BaseModel):
     """A clarification answer from a meeting.
 
@@ -499,6 +523,10 @@ class ClarificationInsight(BaseModel):
     summary: str | None = Field(None, description="Brief one-line summary")
     key_entities: list[str] | None = Field(None, description="Mentioned entities")
     parsed_at: datetime | None = Field(None, description="When parsing occurred")
+    # Market context (auto-enriched from industry benchmarks)
+    market_context: ClarificationInsightMarketContext | None = Field(
+        None, description="Market benchmark context from auto-enrichment"
+    )
 
 
 class UpdateInsightRequest(BaseModel):
@@ -638,7 +666,25 @@ class ContextWithTrends(BaseModel):
 # =============================================================================
 
 
-ClarificationSource = Literal["meeting", "manual", "migration"]
+ClarificationSource = Literal["meeting", "manual", "migration", "calculation"]
+
+
+class MarketContext(BaseModel):
+    """Market context from industry benchmark enrichment.
+
+    Added to insights when auto-enrichment finds matching industry benchmarks.
+    Shows how the user's metric compares to industry peers.
+    """
+
+    benchmark_value: float | None = Field(None, description="Industry benchmark value")
+    benchmark_percentile: str | None = Field(None, description="Which percentile: p25, p50, p75")
+    percentile_position: int | None = Field(
+        None, ge=0, le=100, description="User's percentile position (0-100)"
+    )
+    comparison_text: str | None = Field(None, description="Human-readable comparison")
+    source_url: str | None = Field(None, description="Source URL for benchmark data")
+    enriched_at: datetime | None = Field(None, description="When enrichment was performed")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Enrichment confidence")
 
 
 class ClarificationStorageEntry(BaseModel):
@@ -652,6 +698,8 @@ class ClarificationStorageEntry(BaseModel):
     answered_at: datetime | None = Field(None, description="When answer was provided")
     session_id: str | None = Field(None, description="Meeting session ID if applicable")
     source: ClarificationSource = Field(default="meeting", description="Source of clarification")
+    # Metric calculation fields
+    metric_key: str | None = Field(None, description="Metric key if from calculation (e.g., 'mrr')")
     # Structured parsing fields (populated by Haiku)
     category: InsightCategory | None = Field(None, description="Business category")
     metric: InsightMetricResponse | None = Field(None, description="Extracted metric")
@@ -664,6 +712,10 @@ class ClarificationStorageEntry(BaseModel):
     # Update tracking
     updated_at: datetime | None = Field(None, description="Last update timestamp")
     update_note: str | None = Field(None, description="Note for manual updates")
+    # Market context (auto-enrichment from industry benchmarks)
+    market_context: MarketContext | None = Field(
+        None, description="Market benchmark context from auto-enrichment"
+    )
 
 
 class ClarificationsStorage(RootModel[dict[str, ClarificationStorageEntry]]):
@@ -942,7 +994,7 @@ class ManagedCompetitor(BaseModel):
         description="User notes about the competitor",
     )
     added_at: datetime = Field(..., description="When competitor was added")
-    # Enrichment fields (from DetectedCompetitor skeptic check)
+    # Relevance fields (from skeptic check)
     relevance_score: float | None = Field(
         None,
         ge=0.0,
@@ -957,6 +1009,34 @@ class ManagedCompetitor(BaseModel):
         None,
         max_length=200,
         description="Warning message if <2 checks pass",
+    )
+    # Enrichment fields (from Tavily API)
+    tagline: str | None = Field(None, max_length=300, description="Company tagline")
+    product_description: str | None = Field(
+        None, max_length=1000, description="Product/service description"
+    )
+    funding_info: str | None = Field(None, max_length=500, description="Funding information")
+    employee_count: str | None = Field(None, max_length=50, description="Employee count estimate")
+    tech_stack: list[str] | None = Field(None, description="Technology stack")
+    recent_news: list[dict[str, str]] | None = Field(
+        None, description="Recent news items with title, url, date"
+    )
+    last_enriched_at: datetime | None = Field(None, description="When competitor was last enriched")
+    changes_detected: list[str] | None = Field(
+        None, description="Fields that changed during last enrichment"
+    )
+    # Deep intelligence fields (Pro tier, from CompetitorIntelligenceService)
+    product_updates: list[dict[str, str | None]] | None = Field(
+        None, description="Product launches/updates: [{title, date, description, source_url}]"
+    )
+    key_signals: list[str] | None = Field(
+        None, description="Notable signals: ['Raised Series B', 'Launched AI feature']"
+    )
+    funding_rounds: list[dict[str, Any]] | None = Field(
+        None, description="Funding rounds: [{round_type, amount, date, investors[]}]"
+    )
+    intel_gathered_at: datetime | None = Field(
+        None, description="When deep intelligence was last gathered"
     )
 
 
@@ -1025,6 +1105,26 @@ class ManagedCompetitorListResponse(BaseModel):
     )
     count: int = Field(0, description="Number of competitors")
     error: str | None = Field(None, description="Error message if failed")
+
+
+class ManagedCompetitorEnrichResponse(BaseModel):
+    """Response from enriching a single managed competitor."""
+
+    success: bool = Field(..., description="Whether enrichment succeeded")
+    competitor: ManagedCompetitor | None = Field(None, description="Enriched competitor data")
+    changes: list[str] | None = Field(None, description="Fields that changed during enrichment")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class ManagedCompetitorBulkEnrichResponse(BaseModel):
+    """Response from enriching all managed competitors."""
+
+    success: bool = Field(..., description="Whether all enrichments succeeded")
+    enriched_count: int = Field(0, description="Number of competitors successfully enriched")
+    competitors: list[ManagedCompetitor] = Field(
+        default_factory=list, description="All competitors with enrichment status"
+    )
+    errors: list[str] | None = Field(None, description="Error messages if any failed")
 
 
 # =============================================================================
@@ -1643,3 +1743,151 @@ class ApplyMetricSuggestionResponse(BaseModel):
     field: str = Field(..., description="Field that was updated")
     new_value: str = Field(..., description="Value that was applied")
     error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Metric Calculation Models (Q&A-guided metric derivation)
+# =============================================================================
+
+
+class MetricQuestionDef(BaseModel):
+    """Definition of a metric calculation question."""
+
+    id: str = Field(..., description="Question identifier for answer mapping")
+    question: str = Field(..., description="The question to ask the user")
+    input_type: str = Field(..., description="Input type: currency, number, percent")
+    placeholder: str = Field(..., description="Placeholder text for input")
+    help_text: str | None = Field(None, description="Help text explaining the question")
+
+
+class MetricFormulaResponse(BaseModel):
+    """Response with questions for calculating a metric."""
+
+    metric_key: str = Field(..., description="The metric identifier")
+    questions: list[MetricQuestionDef] = Field(..., description="Questions to ask")
+    result_unit: str = Field(..., description="Unit of the result: $, %, months, ratio")
+
+
+class MetricCalculationAnswer(BaseModel):
+    """A single answer to a calculation question."""
+
+    question_id: str = Field(..., description="The question ID being answered")
+    value: float = Field(..., description="Numeric value provided")
+
+
+class MetricCalculationRequest(BaseModel):
+    """Request to calculate a metric from Q&A answers."""
+
+    answers: list[MetricCalculationAnswer] = Field(
+        ...,
+        min_length=1,
+        description="Answers to the calculation questions",
+    )
+    save_insight: bool = Field(
+        default=True,
+        description="Whether to save answers as ClarificationInsight",
+    )
+
+
+class MetricCalculationResponse(BaseModel):
+    """Response from metric calculation."""
+
+    success: bool = Field(..., description="Whether calculation succeeded")
+    calculated_value: float | None = Field(None, description="The calculated metric value")
+    formula_used: str | None = Field(None, description="Formula that was applied")
+    result_unit: str | None = Field(None, description="Unit of the result")
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score (1.0 for calculation)",
+    )
+    insight_saved: bool = Field(False, description="Whether insight was saved")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class AvailableMetricsResponse(BaseModel):
+    """Response listing metrics with calculation support."""
+
+    metrics: list[str] = Field(..., description="List of metric keys with calculation support")
+
+
+# =============================================================================
+# Business Metrics Insight Suggestion Models
+# =============================================================================
+
+
+class BusinessMetricSuggestion(BaseModel):
+    """A suggestion to auto-populate a business metric from insights.
+
+    Uses keyword-based matching to map insights to specific metrics like
+    MRR, churn, CAC, etc. Distinct from MetricSuggestion which targets
+    context fields.
+    """
+
+    metric_key: str = Field(..., description="Business metric key (e.g., 'mrr', 'churn')")
+    metric_name: str | None = Field(None, description="Display name of the metric")
+    current_value: float | None = Field(None, description="Current metric value (if any)")
+    suggested_value: str = Field(..., description="Value extracted from insight")
+    source_question: str = Field(..., description="The clarification question that provided this")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Match confidence (0-1)")
+    answered_at: str | None = Field(None, description="When the insight was recorded (ISO)")
+    is_dismissed: bool = Field(default=False, description="Whether user dismissed this suggestion")
+
+
+class BusinessMetricSuggestionsResponse(BaseModel):
+    """Response containing business metric suggestions from insights."""
+
+    success: bool = Field(..., description="Whether retrieval succeeded")
+    suggestions: list[BusinessMetricSuggestion] = Field(
+        default_factory=list,
+        description="List of business metric suggestions from insights",
+    )
+    count: int = Field(0, description="Number of suggestions")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class ApplyBusinessMetricSuggestionRequest(BaseModel):
+    """Request to apply a business metric suggestion."""
+
+    metric_key: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Business metric key to update (e.g., 'mrr')",
+    )
+    value: float = Field(
+        ...,
+        description="Numeric value to set",
+    )
+    source_question: str | None = Field(
+        None,
+        max_length=500,
+        description="Original question (for audit trail)",
+    )
+
+
+class ApplyBusinessMetricSuggestionResponse(BaseModel):
+    """Response after applying a business metric suggestion."""
+
+    success: bool = Field(..., description="Whether update succeeded")
+    metric_key: str = Field(..., description="Metric that was updated")
+    new_value: float = Field(..., description="Value that was applied")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class DismissBusinessMetricSuggestionRequest(BaseModel):
+    """Request to dismiss a business metric suggestion."""
+
+    metric_key: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Business metric key to dismiss",
+    )
+    source_question: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="The source question of the suggestion to dismiss",
+    )

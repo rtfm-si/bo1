@@ -205,6 +205,54 @@ class SeoTopicStatus(str):
     PUBLISHED = "published"
 
 
+# =============================================================================
+# Topic Analysis Models
+# =============================================================================
+
+
+class TopicSuggestion(BaseModel):
+    """A topic suggestion from user-submitted words analysis."""
+
+    keyword: str = Field(..., description="Primary keyword/topic phrase")
+    seo_potential: str = Field(..., description="SEO potential: high, medium, low")
+    trend_status: str = Field(..., description="Trend status: rising, stable, declining")
+    related_keywords: list[str] = Field(default_factory=list, description="Related keywords")
+    description: str = Field(..., description="Brief description of the topic opportunity")
+    # Validation fields (populated via web research)
+    validation_status: str = Field(
+        "unvalidated", description="Validation status: validated, unvalidated"
+    )
+    competitor_presence: str = Field(
+        "unknown", description="Competitor presence: high, medium, low, unknown"
+    )
+    search_volume_indicator: str = Field(
+        "unknown", description="Search volume indicator: high, medium, low, unknown"
+    )
+    validation_sources: list[str] = Field(
+        default_factory=list, description="URLs from web research validation"
+    )
+
+
+class AnalyzeTopicsRequest(BaseModel):
+    """Request to analyze user-submitted words for topic suggestions."""
+
+    words: list[str] = Field(
+        ..., min_length=1, max_length=10, description="Words/phrases to analyze (1-10)"
+    )
+    skip_validation: bool = Field(
+        False, description="Skip web research validation for faster response"
+    )
+
+
+class AnalyzeTopicsResponse(BaseModel):
+    """Response containing topic suggestions."""
+
+    suggestions: list[TopicSuggestion] = Field(
+        default_factory=list, description="Topic suggestions"
+    )
+    analyzed_words: list[str] = Field(..., description="Words that were analyzed")
+
+
 class SeoTopic(BaseModel):
     """An SEO topic for blog generation."""
 
@@ -391,6 +439,128 @@ async def _perform_trend_analysis(
         industry=industry,
         sources=sources,
     )
+
+
+async def _validate_topic_with_web_research(
+    keyword: str,
+    industry: str | None,
+    competitors: list[str],
+    user_tier: str,
+) -> dict[str, Any]:
+    """Validate a topic suggestion using web research.
+
+    Performs web searches to determine:
+    - competitor_presence: How many competitors are actively targeting this keyword
+    - search_volume_indicator: Relative search interest based on result count/quality
+    - validation_sources: URLs from search results
+
+    Args:
+        keyword: Topic keyword to validate
+        industry: User's industry for context
+        competitors: List of competitor domains to check
+        user_tier: User's subscription tier
+
+    Returns:
+        Dictionary with:
+        - competitor_presence: "high"|"medium"|"low"|"unknown"
+        - search_volume_indicator: "high"|"medium"|"low"|"unknown"
+        - validation_sources: list[str]
+        - validation_status: "validated"|"unvalidated"
+    """
+    agent = ResearcherAgent()
+
+    # Build search queries
+    questions = []
+
+    # Main topic search for search volume estimation
+    search_query = f"{keyword}"
+    if industry:
+        search_query = f"{keyword} {industry}"
+
+    questions.append(
+        {
+            "question": f"What is the current search interest and content availability for '{search_query}'? How many quality articles and resources exist?",
+            "priority": "HIGH",
+            "reason": f"SEO validation for topic: {keyword}",
+        }
+    )
+
+    # Competitor presence check (if we have competitors)
+    competitor_mentions = 0
+    if competitors:
+        # Check top 3 competitors max
+        for comp_domain in competitors[:3]:
+            questions.append(
+                {
+                    "question": f"Does {comp_domain} have content about '{keyword}'?",
+                    "priority": "MEDIUM",
+                    "reason": f"Competitor check: {comp_domain}",
+                }
+            )
+
+    try:
+        results = await agent.research_questions(
+            questions,
+            category="seo_validation",
+            industry=industry,
+            research_depth="basic",
+            user_tier=user_tier,
+        )
+
+        # Parse results
+        sources: list[str] = []
+        total_source_count = 0
+
+        for result in results:
+            if result.get("sources"):
+                sources.extend(result["sources"][:3])  # Limit sources per result
+                total_source_count += len(result.get("sources", []))
+
+            # Check for competitor mentions in summary
+            summary = result.get("summary", "").lower()
+            for comp in competitors[:3]:
+                if comp.lower() in summary:
+                    competitor_mentions += 1
+
+        # Dedupe sources and limit
+        sources = list(dict.fromkeys(sources))[:5]
+
+        # Determine search volume indicator based on source count
+        if total_source_count >= 5:
+            search_volume = "high"
+        elif total_source_count >= 2:
+            search_volume = "medium"
+        elif total_source_count >= 1:
+            search_volume = "low"
+        else:
+            search_volume = "unknown"
+
+        # Determine competitor presence
+        if competitors:
+            if competitor_mentions >= 2:
+                competitor_presence = "high"
+            elif competitor_mentions >= 1:
+                competitor_presence = "medium"
+            else:
+                competitor_presence = "low"
+        else:
+            competitor_presence = "unknown"
+
+        return {
+            "validation_status": "validated",
+            "competitor_presence": competitor_presence,
+            "search_volume_indicator": search_volume,
+            "validation_sources": sources,
+        }
+
+    except Exception as e:
+        logger.warning(f"Topic validation failed for '{keyword}': {e}")
+        return {
+            "validation_status": "unvalidated",
+            "competitor_presence": "unknown",
+            "search_volume_indicator": "unknown",
+            "validation_sources": [],
+        }
 
 
 # =============================================================================
@@ -646,6 +816,218 @@ class SeoTopicsAutogenerateResponse(BaseModel):
 
     topics: list[SeoTopic] = Field(default_factory=list, description="Created topics")
     count: int = Field(0, ge=0, description="Number of topics created")
+
+
+@router.post(
+    "/topics/analyze",
+    response_model=AnalyzeTopicsResponse,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
+@handle_api_errors("analyze topics")
+@limiter.limit(SEO_ANALYZE_RATE_LIMIT)
+async def analyze_topics(
+    request: Request,
+    body: AnalyzeTopicsRequest,
+    user: dict = Depends(get_current_user),
+) -> AnalyzeTopicsResponse:
+    """Analyze user-submitted words to suggest SEO topic ideas.
+
+    Takes a list of words/phrases and returns intelligent topic suggestions
+    with SEO potential scoring, trend status, and related keywords.
+
+    Rate limited to 5 requests per minute.
+    """
+    import json
+
+    from anthropic import AsyncAnthropic
+
+    from bo1.config import ANTHROPIC_API_KEY, resolve_model_alias
+
+    user_id = extract_user_id(user)
+    tier = get_user_tier(user_id)
+
+    # Check feature access (tier or promo)
+    if not has_seo_access(user_id, tier):
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan.",
+            status=403,
+        )
+
+    # Validate input
+    words = [w.strip() for w in body.words if w.strip()]
+    if not words:
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "At least one non-empty word is required",
+            status=400,
+        )
+
+    # Get user context for personalization
+    industry = None
+    product_description = None
+    competitors: list[str] = []
+
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT industry, product_description FROM user_context
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                industry = row.get("industry")
+                product_description = row.get("product_description")
+
+            # Fetch competitors for validation (if not skipping)
+            if not body.skip_validation:
+                cursor.execute(
+                    """
+                    SELECT website FROM managed_competitors
+                    WHERE user_id = %s AND website IS NOT NULL
+                    LIMIT 5
+                    """,
+                    (user_id,),
+                )
+                competitors = [r["website"] for r in cursor.fetchall() if r.get("website")]
+
+    # Build prompt for LLM
+    context_parts = []
+    if industry:
+        context_parts.append(f"Industry: {industry}")
+    if product_description:
+        context_parts.append(f"Product/Service: {product_description[:200]}")
+
+    context_str = "\n".join(context_parts) if context_parts else "No business context available."
+
+    prompt = f"""Analyze the following words/phrases and suggest 3-5 SEO topic ideas based on them.
+
+User's words: {", ".join(words)}
+
+Business context:
+{context_str}
+
+For each topic suggestion, provide:
+1. keyword: The primary keyword/topic phrase (clear, searchable)
+2. seo_potential: Rate as "high", "medium", or "low" based on search intent and competition
+3. trend_status: Rate as "rising", "stable", or "declining" based on current relevance
+4. related_keywords: 2-4 related keywords that could be targeted
+5. description: A brief (1-2 sentence) description of the content opportunity
+
+Return your response as valid JSON in this format:
+{{
+  "suggestions": [
+    {{
+      "keyword": "example keyword",
+      "seo_potential": "high",
+      "trend_status": "rising",
+      "related_keywords": ["related1", "related2"],
+      "description": "Brief description of the opportunity"
+    }}
+  ]
+}}
+
+Focus on actionable, specific topics that would make good blog content. If the user has business context, tailor suggestions to their industry."""
+
+    logger.info(f"Analyzing topics for user {user_id[:8]}... words={words}")
+
+    try:
+        client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+        model = resolve_model_alias("haiku")
+
+        response = await client.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        # Parse response
+        content = response.content[0].text.strip()
+        # Handle potential markdown code blocks
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        content = content.strip()
+
+        data = json.loads(content)
+        suggestions = []
+
+        for item in data.get("suggestions", [])[:5]:
+            suggestions.append(
+                TopicSuggestion(
+                    keyword=item.get("keyword", "")[:100],
+                    seo_potential=item.get("seo_potential", "medium"),
+                    trend_status=item.get("trend_status", "stable"),
+                    related_keywords=item.get("related_keywords", [])[:5],
+                    description=item.get("description", "")[:300],
+                )
+            )
+
+        logger.info(f"Generated {len(suggestions)} topic suggestions for user {user_id[:8]}...")
+
+        # Validate top 5 suggestions via web research (unless skip_validation)
+        if not body.skip_validation and suggestions:
+            logger.info(f"Validating {len(suggestions)} suggestions for user {user_id[:8]}...")
+
+            validated_suggestions = []
+            for suggestion in suggestions[:5]:
+                validation = await _validate_topic_with_web_research(
+                    keyword=suggestion.keyword,
+                    industry=industry,
+                    competitors=competitors,
+                    user_tier=tier,
+                )
+                # Merge validation results
+                validated_suggestions.append(
+                    TopicSuggestion(
+                        keyword=suggestion.keyword,
+                        seo_potential=suggestion.seo_potential,
+                        trend_status=suggestion.trend_status,
+                        related_keywords=suggestion.related_keywords,
+                        description=suggestion.description,
+                        validation_status=validation["validation_status"],
+                        competitor_presence=validation["competitor_presence"],
+                        search_volume_indicator=validation["search_volume_indicator"],
+                        validation_sources=validation["validation_sources"],
+                    )
+                )
+
+            suggestions = validated_suggestions
+            logger.info(f"Validated {len(suggestions)} suggestions for user {user_id[:8]}...")
+
+        return AnalyzeTopicsResponse(
+            suggestions=suggestions,
+            analyzed_words=words,
+        )
+
+    except json.JSONDecodeError as e:
+        log_error(
+            logger,
+            ErrorCode.LLM_API_ERROR,
+            f"Failed to parse topic analysis response for user {user_id[:8]}...",
+            error=str(e),
+        )
+        raise http_error(
+            ErrorCode.LLM_API_ERROR,
+            "Failed to analyze topics - please try again",
+            status=500,
+        ) from e
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.LLM_API_ERROR,
+            f"Topic analysis failed for user {user_id[:8]}...",
+            error=str(e),
+        )
+        raise http_error(
+            ErrorCode.LLM_API_ERROR,
+            f"Failed to analyze topics: {e}",
+            status=500,
+        ) from e
 
 
 @router.post(

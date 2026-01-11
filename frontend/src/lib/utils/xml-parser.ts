@@ -26,6 +26,77 @@ export interface SynthesisSection {
 	sub_problems_addressed?: string[];
 }
 
+/**
+ * Robustly parse JSON that may have LLM-generated issues.
+ * Handles: unescaped control chars, trailing commas, truncated JSON.
+ */
+export function robustJSONParse<T>(jsonStr: string): T | null {
+	// 1. Direct parse attempt
+	try {
+		return JSON.parse(jsonStr) as T;
+	} catch {
+		// Continue to repair attempts
+	}
+
+	// 2. Fix common LLM JSON issues
+	let fixed = jsonStr
+		// Replace unescaped control characters in strings
+		.replace(/[\x00-\x1f]/g, (char) => {
+			if (char === '\n') return '\\n';
+			if (char === '\r') return '\\r';
+			if (char === '\t') return '\\t';
+			return '';
+		})
+		// Remove trailing commas before } or ]
+		.replace(/,\s*([\]}])/g, '$1');
+
+	try {
+		return JSON.parse(fixed) as T;
+	} catch {
+		// Continue to truncation repair
+	}
+
+	// 3. Try to repair truncated JSON by closing brackets
+	let bracketStack: string[] = [];
+	let inString = false;
+	let escapeNext = false;
+
+	for (const char of fixed) {
+		if (escapeNext) {
+			escapeNext = false;
+			continue;
+		}
+		if (char === '\\' && inString) {
+			escapeNext = true;
+			continue;
+		}
+		if (char === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (!inString) {
+			if (char === '{') bracketStack.push('}');
+			else if (char === '[') bracketStack.push(']');
+			else if (char === '}' || char === ']') bracketStack.pop();
+		}
+	}
+
+	// Close any unclosed brackets
+	if (bracketStack.length > 0) {
+		// If in string, close it first
+		if (inString) fixed += '"';
+		// Close all open brackets in reverse order
+		fixed += bracketStack.reverse().join('');
+		try {
+			return JSON.parse(fixed) as T;
+		} catch {
+			// Give up
+		}
+	}
+
+	return null;
+}
+
 // JSON meta-synthesis format from backend
 export interface MetaSynthesisAction {
 	action: string;
@@ -289,66 +360,65 @@ function extractJSONFromContent(content: string): string {
  * Parse JSON meta-synthesis format into SynthesisSection
  */
 function parseMetaSynthesisJSON(content: string): SynthesisSection {
-	try {
-		const jsonContent = extractJSONFromContent(content);
-		const json: MetaSynthesisJSON = JSON.parse(jsonContent);
-		const sections: SynthesisSection = {};
-
-		// Map synthesis_summary to executive_summary
-		if (json.synthesis_summary) {
-			sections.executive_summary = json.synthesis_summary;
-		}
-
-		// Store problem_statement for recommendation context
-		if (json.problem_statement) {
-			sections.problem_statement = json.problem_statement;
-			sections.recommendation = `**Decision:** ${json.problem_statement}`;
-		}
-
-		// Store sub_problems_addressed
-		if (json.sub_problems_addressed?.length > 0) {
-			sections.sub_problems_addressed = json.sub_problems_addressed;
-		}
-
-		// Store recommended_actions directly for structured display
-		if (json.recommended_actions?.length > 0) {
-			sections.recommended_actions = json.recommended_actions;
-
-			// Also format as implementation_considerations for fallback display
-			const actionsList = json.recommended_actions.map((action, i) => {
-				const parts = [
-					`### ${i + 1}. ${action.action.split(':')[0] || 'Action ' + (i + 1)}`,
-					'',
-					action.action,
-					'',
-					`**Priority:** ${action.priority}`,
-					`**Timeline:** ${action.timeline}`,
-					'',
-					'**Rationale:**',
-					action.rationale,
-				];
-
-				if (action.success_metrics?.length > 0) {
-					parts.push('', '**Success Metrics:**');
-					action.success_metrics.forEach((m) => parts.push(`- ${m}`));
-				}
-
-				if (action.risks?.length > 0) {
-					parts.push('', '**Risks:**');
-					action.risks.forEach((r) => parts.push(`- ${r}`));
-				}
-
-				return parts.join('\n');
-			});
-
-			sections.implementation_considerations = actionsList.join('\n\n---\n\n');
-		}
-
-		return sections;
-	} catch (e) {
-		console.error('[xml-parser] Failed to parse JSON meta-synthesis:', e);
+	const jsonContent = extractJSONFromContent(content);
+	const json = robustJSONParse<MetaSynthesisJSON>(jsonContent);
+	if (!json) {
+		console.warn('[xml-parser] Could not parse meta-synthesis JSON, falling back to text display');
 		return {};
 	}
+	const sections: SynthesisSection = {};
+
+	// Map synthesis_summary to executive_summary
+	if (json.synthesis_summary) {
+		sections.executive_summary = json.synthesis_summary;
+	}
+
+	// Store problem_statement for recommendation context
+	if (json.problem_statement) {
+		sections.problem_statement = json.problem_statement;
+		sections.recommendation = `**Decision:** ${json.problem_statement}`;
+	}
+
+	// Store sub_problems_addressed
+	if (json.sub_problems_addressed?.length > 0) {
+		sections.sub_problems_addressed = json.sub_problems_addressed;
+	}
+
+	// Store recommended_actions directly for structured display
+	if (json.recommended_actions?.length > 0) {
+		sections.recommended_actions = json.recommended_actions;
+
+		// Also format as implementation_considerations for fallback display
+		const actionsList = json.recommended_actions.map((action, i) => {
+			const parts = [
+				`### ${i + 1}. ${action.action.split(':')[0] || 'Action ' + (i + 1)}`,
+				'',
+				action.action,
+				'',
+				`**Priority:** ${action.priority}`,
+				`**Timeline:** ${action.timeline}`,
+				'',
+				'**Rationale:**',
+				action.rationale,
+			];
+
+			if (action.success_metrics?.length > 0) {
+				parts.push('', '**Success Metrics:**');
+				action.success_metrics.forEach((m) => parts.push(`- ${m}`));
+			}
+
+			if (action.risks?.length > 0) {
+				parts.push('', '**Risks:**');
+				action.risks.forEach((r) => parts.push(`- ${r}`));
+			}
+
+			return parts.join('\n');
+		});
+
+		sections.implementation_considerations = actionsList.join('\n\n---\n\n');
+	}
+
+	return sections;
 }
 
 /**

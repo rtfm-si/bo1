@@ -23,6 +23,7 @@ __all__ = [
     "MODEL_BY_ROLE",
     "TIER_ALIASES",
     "TASK_MODEL_DEFAULTS",
+    "HEALTH_PROBE_MODEL",
     "ANTHROPIC_PRICING",
     "OPENAI_PRICING",
     "VOYAGE_PRICING",
@@ -73,6 +74,7 @@ class CacheConfig:
             "competitor_analysis": 30,  # Competitive landscape changes monthly
             "market_trends": 60,  # Market trends updated bimonthly
             "regulations": 365,  # Regulations change annually
+            "seo_validation": 30,  # SEO topic validation - competitive data changes monthly
         }
     )
     research_cache_default_freshness_days: int = 90  # Default 90-day freshness
@@ -664,6 +666,9 @@ MODEL_ALIASES = {
     "gpt-5.1": "gpt-5.1-2025-04-14",  # Current: GPT-5.1 (Apr 2025)
     "gpt-5.1-mini": "gpt-5.1-mini-2025-07-18",  # Current: GPT-5.1 Mini (Jul 2025)
 }
+
+# Health probe model - cheap model for lightweight API health checks
+HEALTH_PROBE_MODEL = "haiku"
 
 # =============================================================================
 # Provider-Agnostic Tier Aliases

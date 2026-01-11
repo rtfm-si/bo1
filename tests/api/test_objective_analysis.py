@@ -10,7 +10,13 @@ Tests for:
 
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import patch
 
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from backend.api.middleware.auth import get_current_user
 from backend.api.routes.dataset_objective_analysis import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -19,6 +25,7 @@ from backend.api.routes.dataset_objective_analysis import (
 from backend.api.routes.objective_data_requirements import (
     AllObjectivesRequirementsResponse,
     ObjectiveDataRequirementsResponse,
+    router,
 )
 
 
@@ -358,3 +365,115 @@ class TestDataRequirementsModel:
         assert len(req.valuable_additions) == 1
         assert req.valuable_additions[0].priority == DataPriority.HIGH
         assert len(req.data_sources) == 1
+
+
+# --- Integration Tests for Route Ordering ---
+# These tests verify that FastAPI correctly routes:
+# - /data-requirements → get_all_data_requirements (static route)
+# - /{objective_index}/data-requirements → get_data_requirements (parameterized route)
+
+
+def mock_user_override():
+    """Override auth to return test user."""
+    return {"user_id": "test-user-123", "email": "test@example.com"}
+
+
+@pytest.fixture
+def test_app():
+    """Create test app with objectives router and auth override."""
+    app = FastAPI()
+    app.dependency_overrides[get_current_user] = mock_user_override
+    app.include_router(router, prefix="/api")
+    return app
+
+
+@pytest.fixture
+def client(test_app):
+    """Create test client with auth bypass."""
+    return TestClient(test_app)
+
+
+class TestDataRequirementsRouteOrdering:
+    """Integration tests verifying route ordering fix for /data-requirements endpoints.
+
+    These tests verify the fix for:
+    - GET /api/v1/objectives/data-requirements returning 401/500
+    - The issue was FastAPI matching the parameterized route first, treating
+      "data-requirements" as an objective_index value.
+    """
+
+    def test_get_all_objectives_data_requirements_returns_200(self, client):
+        """GET /data-requirements should return 200 with valid auth, no context."""
+        with patch("backend.api.routes.objective_data_requirements._get_user_context") as mock_ctx:
+            # User has no context set up yet
+            mock_ctx.return_value = None
+
+            response = client.get("/api/v1/objectives/data-requirements")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["objectives"] == []
+            assert data["count"] == 0
+            assert data["north_star_goal"] is None
+
+    def test_get_all_objectives_data_requirements_with_context(self, client):
+        """GET /data-requirements should return objectives list when context exists."""
+        with patch("backend.api.routes.objective_data_requirements._get_user_context") as mock_ctx:
+            mock_ctx.return_value = {
+                "strategic_objectives": [
+                    "Reduce customer churn by 20%",
+                    "Increase MRR to $100K",
+                ],
+                "north_star_goal": "Build a sustainable SaaS",
+            }
+
+            response = client.get("/api/v1/objectives/data-requirements")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["count"] == 2
+            assert len(data["objectives"]) == 2
+            assert data["north_star_goal"] == "Build a sustainable SaaS"
+            # Verify objective summaries are populated
+            assert data["objectives"][0]["index"] == 0
+            assert data["objectives"][0]["name"] == "Reduce customer churn by 20%"
+            assert data["objectives"][1]["index"] == 1
+
+    def test_get_specific_objective_data_requirements_returns_404_no_context(self, client):
+        """GET /{index}/data-requirements should return 404 when no context exists."""
+        with patch("backend.api.routes.objective_data_requirements._get_user_context") as mock_ctx:
+            mock_ctx.return_value = None
+
+            response = client.get("/api/v1/objectives/0/data-requirements")
+
+            assert response.status_code == 404
+
+    def test_get_specific_objective_data_requirements_returns_404_invalid_index(self, client):
+        """GET /{index}/data-requirements should return 404 for out-of-range index."""
+        with patch("backend.api.routes.objective_data_requirements._get_user_context") as mock_ctx:
+            mock_ctx.return_value = {
+                "strategic_objectives": ["Only one objective"],
+            }
+
+            response = client.get("/api/v1/objectives/5/data-requirements")
+
+            assert response.status_code == 404
+
+    def test_route_ordering_static_before_parameterized(self, client):
+        """Verify /data-requirements is matched before /{objective_index}/data-requirements.
+
+        This is the core regression test for the route ordering bug.
+        Previously, "data-requirements" was captured as the objective_index parameter,
+        causing validation errors (500) or auth issues (401).
+        """
+        with patch("backend.api.routes.objective_data_requirements._get_user_context") as mock_ctx:
+            mock_ctx.return_value = None
+
+            # This should match the static route and return 200 (empty list)
+            response = client.get("/api/v1/objectives/data-requirements")
+
+            # Should NOT be 422 (validation error from treating "data-requirements" as int)
+            # Should NOT be 500 (server error)
+            # Should NOT be 404 (only returned when context exists but objective not found)
+            assert response.status_code == 200
+            assert "objectives" in response.json()

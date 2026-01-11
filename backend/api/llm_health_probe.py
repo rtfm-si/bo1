@@ -159,11 +159,12 @@ class LLMHealthProbe:
             client = AsyncAnthropic(api_key=api_key, timeout=LLM_HEALTH_PROBE_TIMEOUT_SECONDS)
 
             # Use count_tokens endpoint - lightweight and doesn't incur generation costs
-            # Alternatively, could use models.list() if available
+            from bo1.config import HEALTH_PROBE_MODEL, resolve_model_alias
+
             async with asyncio.timeout(LLM_HEALTH_PROBE_TIMEOUT_SECONDS):
                 # Simple message count - minimal tokens
                 _ = await client.messages.count_tokens(
-                    model="claude-3-haiku-20240307",
+                    model=resolve_model_alias(HEALTH_PROBE_MODEL),
                     messages=[{"role": "user", "content": "hi"}],
                 )
             return True, None

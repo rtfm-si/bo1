@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg2 import DatabaseError, OperationalError
 from pydantic import BaseModel, Field
 
+from backend.api.context.benchmark_alignment import score_benchmark_relevance
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
@@ -125,6 +126,16 @@ class BenchmarkComparison(BaseModel):
         description="Performance status: below_average, average, above_average, top_performer",
     )
     locked: bool = Field(False, description="Whether this comparison is tier-locked")
+    # Objective-alignment fields
+    relevance_score: float | None = Field(
+        None, ge=0.0, le=1.0, description="Relevance to user's objective (0.0-1.0)"
+    )
+    relevance_reason: str | None = Field(
+        None, description="Why this metric matters for user's objective"
+    )
+    is_objective_aligned: bool = Field(
+        False, description="True if metric matches user's primary objective"
+    )
 
 
 class BenchmarkComparisonResponse(BaseModel):
@@ -717,6 +728,10 @@ async def compare_benchmarks(
         tier = get_user_tier(user_id)
         limit = PlanConfig.get_benchmark_limit(tier)
 
+        # Get user's objective and stage for relevance scoring
+        primary_objective = context_data.get("primary_objective") if context_data else None
+        business_stage = context_data.get("business_stage") if context_data else None
+
         # Get benchmarks for industry
         benchmarks = get_benchmarks_for_industry(industry)
         comparisons: list[BenchmarkComparison] = []
@@ -727,13 +742,17 @@ async def compare_benchmarks(
         benchmark_timestamps = context_data.get("benchmark_timestamps", {}) if context_data else {}
         benchmark_history = context_data.get("benchmark_history", {}) if context_data else {}
 
-        for i, bm in enumerate(benchmarks):
-            is_locked = limit != -1 and i >= limit
-            if is_locked:
-                locked_count += 1
+        # Build comparisons with relevance scores
+        temp_comparisons: list[tuple[float, BenchmarkComparison]] = []
 
+        for bm in benchmarks:
             metric_name = bm["metric_name"]
             context_field = METRIC_TO_CONTEXT_FIELD.get(metric_name)
+
+            # Calculate relevance score based on objective and stage
+            relevance_score, relevance_reason, is_aligned = score_benchmark_relevance(
+                metric_name, primary_objective, business_stage
+            )
 
             # Try to get user's value for this metric
             user_value = None
@@ -760,7 +779,7 @@ async def compare_benchmarks(
             # Calculate percentile if we have user data
             percentile = None
             status = "unknown"
-            if user_value is not None and not is_locked:
+            if user_value is not None:
                 compared_count += 1
                 lower_is_better = metric_name in LOWER_IS_BETTER_METRICS
                 percentile = calculate_percentile(
@@ -772,26 +791,44 @@ async def compare_benchmarks(
                 )
                 status = get_performance_status(percentile)
 
-            comparisons.append(
-                BenchmarkComparison(
-                    metric_name=metric_name,
-                    metric_unit=bm["metric_unit"],
-                    category=bm["category"],
-                    user_value=float(user_value)
-                    if user_value is not None and not is_locked
-                    else None,
-                    user_value_updated_at=user_value_updated_at
-                    if user_value is not None and not is_locked
-                    else None,
-                    history=history_entries if not is_locked else [],
-                    p25=bm["p25"] if not is_locked else None,
-                    p50=bm["p50"] if not is_locked else None,
-                    p75=bm["p75"] if not is_locked else None,
-                    percentile=round(percentile, 1) if percentile is not None else None,
-                    status=status if not is_locked else "locked",
-                    locked=is_locked,
-                )
+            comparison = BenchmarkComparison(
+                metric_name=metric_name,
+                metric_unit=bm["metric_unit"],
+                category=bm["category"],
+                user_value=float(user_value) if user_value is not None else None,
+                user_value_updated_at=user_value_updated_at if user_value is not None else None,
+                history=history_entries,
+                p25=bm["p25"],
+                p50=bm["p50"],
+                p75=bm["p75"],
+                percentile=round(percentile, 1) if percentile is not None else None,
+                status=status,
+                locked=False,  # Applied after sorting
+                relevance_score=round(relevance_score, 2),
+                relevance_reason=relevance_reason,
+                is_objective_aligned=is_aligned,
             )
+            temp_comparisons.append((relevance_score, comparison))
+
+        # Sort by relevance score (highest first), then by metric name for stability
+        temp_comparisons.sort(key=lambda x: (-x[0], x[1].metric_name))
+
+        # Apply tier locking after sorting
+        for i, (_, comparison) in enumerate(temp_comparisons):
+            is_locked = limit != -1 and i >= limit
+            if is_locked:
+                locked_count += 1
+                # Clear sensitive data for locked metrics
+                comparison.locked = True
+                comparison.p25 = None
+                comparison.p50 = None
+                comparison.p75 = None
+                comparison.user_value = None
+                comparison.user_value_updated_at = None
+                comparison.history = []
+                comparison.percentile = None
+                comparison.status = "locked"
+            comparisons.append(comparison)
 
         # Get upgrade prompt if needed
         upgrade_prompt = get_upgrade_prompt(tier, locked_count)

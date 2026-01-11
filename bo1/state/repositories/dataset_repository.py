@@ -1121,7 +1121,7 @@ class DatasetRepository(BaseRepository):
                            title, content, chart_spec, figure_json,
                            user_note, sort_order, created_at
                     FROM dataset_favourites
-                    WHERE id = ANY(%s) AND user_id = %s
+                    WHERE id = ANY(%s::uuid[]) AND user_id = %s
                     ORDER BY sort_order ASC
                     """,
                     (favourite_ids, user_id),

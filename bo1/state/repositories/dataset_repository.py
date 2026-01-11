@@ -1179,6 +1179,24 @@ class DatasetRepository(BaseRepository):
             return self._row_to_report(row)
         return {}
 
+    def _parse_uuid_array(self, value: Any) -> list[str]:
+        """Parse PostgreSQL UUID[] to Python list of strings.
+
+        Handles both:
+        - String format: "{uuid1,uuid2}" (psycopg2 raw)
+        - List format: [uuid1, uuid2] (psycopg2 parsed)
+        """
+        if not value:
+            return []
+        if isinstance(value, str):
+            # PostgreSQL array string format: "{uuid1,uuid2,...}"
+            stripped = value.strip("{}")
+            if not stripped:
+                return []
+            return [uid.strip() for uid in stripped.split(",")]
+        # Already a list (psycopg2 parsed it)
+        return [str(uid) for uid in value]
+
     def _row_to_report(self, row: Any) -> dict[str, Any]:
         """Convert database row to report dict."""
         return {
@@ -1187,9 +1205,7 @@ class DatasetRepository(BaseRepository):
             "title": row["title"],
             "executive_summary": row["executive_summary"],
             "report_content": row["report_content"],
-            "favourite_ids": [str(fid) for fid in row["favourite_ids"]]
-            if row["favourite_ids"]
-            else [],
+            "favourite_ids": self._parse_uuid_array(row["favourite_ids"]),
             "model_used": row["model_used"],
             "tokens_used": row["tokens_used"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,

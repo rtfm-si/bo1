@@ -1,7 +1,7 @@
 # E2E Test Fixme Tracker
 
 ## Summary
-~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ ~~8 tests~~ ~~9 tests~~ ~~10 tests~~ ~~13 tests~~ **18 tests** marked as `test.fixme()` or `test.describe.skip()` for CI stability. This document tracks issues and fixes.
+~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ ~~2 tests~~ ~~6 tests~~ ~~8 tests~~ ~~9 tests~~ ~~10 tests~~ ~~13 tests~~ ~~18 tests~~ **24 tests** marked as `test.fixme()` or `test.describe.skip()` for CI stability. This document tracks issues and fixes.
 
 **Fixed**:
 - Settings Page (18 tests → 19 tests now passing)
@@ -247,6 +247,39 @@ npx playwright test
 5. `datasets.spec.ts:794` - "unprofiled dataset shows profiling message"
 
 **Root cause**: `selectOption` times out waiting for the dataset dropdown. The select element is not available/visible in CI. May be related to mentor page auth state or component not rendering.
+
+---
+
+### Datasets UI Refactor - AddData Dropdown (2026-01-11)
+**6 tests marked as fixme**
+
+1. `datasets.spec.ts:202` - "file picker button works"
+   - **Issue**: Upload zone replaced with AddData dropdown + modal
+   - **Selector**: `input[type="file"]` no longer in list page
+
+2. `datasets.spec.ts:218` - "upload shows progress indicator"
+   - **Issue**: Upload moved to modal, progress indicator in different location
+   - **Selector**: File upload button/progress in modal not list page
+
+3. `datasets.spec.ts:264` - "upload error displays message"
+   - **Issue**: Error display moved to UploadDataModal component
+   - **Selector**: Error message location changed
+
+4. `datasets.spec.ts:319` - "shows connected state when Sheets linked"
+   - **Issue**: Sheets import moved to SheetsImportModal
+   - **Selector**: Connected state displayed in modal not list page
+
+5. `datasets.spec.ts:447` - "chat input is visible"
+   - **Issue**: Chat bar selector changed in dataset detail page
+   - **Selector**: `getByRole('button', { name: /Ask a question about your data/i })`
+
+6. `datasets.spec.ts:470` - "can submit question"
+   - **Issue**: Same chat bar selector issue
+   - **Selector**: Chat input expand button not found
+
+**Root cause**: UI refactored to use AddData dropdown with modals (UploadDataModal, SheetsImportModal) instead of inline upload zone. Chat interface also changed.
+
+**Fix needed**: Update tests to click AddData dropdown, then interact with modal components.
 
 ---
 

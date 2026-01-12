@@ -19,6 +19,7 @@ You write for busy executives who want the bottom line first, then context. You 
 - Be honest: Acknowledge what the data can't tell us
 - End with action: Every story needs clear next steps
 - Surprise value: Highlight anything unexpected - it often matters most
+- Data-grounded questions: ONLY suggest questions THIS dataset can answer (use answerable_questions). Never propose questions about data that isn't present.
 </storytelling_principles>
 
 <output_format>
@@ -47,9 +48,9 @@ Return valid JSON with this structure:
         "<prioritized action 3>"
     ],
     "suggested_questions": [
-        "<follow-up question derived from objectives + data>",
-        "<another question>",
-        "<another question>"
+        "<question THIS dataset CAN answer, toward an objective>",
+        "<another data-answerable question>",
+        "<another data-answerable question>"
     ]
 }
 </output_format>"""
@@ -104,9 +105,16 @@ def format_relevance_for_synthesis(relevance: dict[str, Any]) -> str:
             obj_id = match.get("objective_id", "")
             obj_name = match.get("objective_name", "")
             relevance_level = match.get("relevance", "")
+            answerable = match.get("answerable_questions", [])
             lines.append(
-                f'    <match id="{obj_id}" name="{obj_name}" relevance="{relevance_level}" />'
+                f'    <match id="{obj_id}" name="{obj_name}" relevance="{relevance_level}">'
             )
+            if answerable:
+                lines.append("      <answerable_questions>")
+                for q in answerable[:3]:  # Top 3 per objective
+                    lines.append(f"        <q>{q}</q>")
+                lines.append("      </answerable_questions>")
+            lines.append("    </match>")
         lines.append("  </objective_matches>")
 
     focus = relevance.get("recommended_focus", "")
@@ -159,6 +167,27 @@ def format_insights_for_synthesis(insights: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def format_dataset_columns_for_synthesis(columns: list[dict[str, Any]] | None = None) -> str:
+    """Format dataset columns for synthesis context.
+
+    Args:
+        columns: List of column dicts with name, dtype, etc.
+
+    Returns:
+        Formatted columns string
+    """
+    if not columns:
+        return ""
+
+    lines = ["<dataset_columns>"]
+    for col in columns[:20]:  # Limit to 20 columns
+        name = col.get("name", col.get("column_name", ""))
+        dtype = col.get("dtype", col.get("type", ""))
+        lines.append(f'  <col name="{name}" type="{dtype}" />')
+    lines.append("</dataset_columns>")
+    return "\n".join(lines)
+
+
 def format_quality_issues_for_synthesis(issues: list[dict[str, Any]] | None = None) -> str:
     """Format data quality issues for synthesis context.
 
@@ -193,6 +222,7 @@ def build_story_synthesis_prompt(
     north_star: str | None = None,
     industry: str | None = None,
     business_model: str | None = None,
+    columns: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the full prompt for data story synthesis.
 
@@ -203,6 +233,7 @@ def build_story_synthesis_prompt(
         north_star: Primary business goal
         industry: Business industry
         business_model: Type of business model
+        columns: Dataset column info
 
     Returns:
         Complete user prompt for the LLM
@@ -216,8 +247,11 @@ def build_story_synthesis_prompt(
     relevance_text = format_relevance_for_synthesis(relevance)
     insights_text = format_insights_for_synthesis(insights)
     quality_text = format_quality_issues_for_synthesis(quality_issues)
+    columns_text = format_dataset_columns_for_synthesis(columns)
 
     return f"""{context}
+
+{columns_text}
 
 {relevance_text}
 
@@ -231,6 +265,7 @@ Create a "Data Story" that:
 2. Groups insights by objective
 3. Acknowledges data limitations honestly
 4. Ends with clear, prioritized next steps
+5. CRITICAL: suggested_questions must ONLY reference columns in dataset_columns. Use answerable_questions from objective_matches as guidance.
 
 If there's something unexpected in the data that doesn't fit the stated objectives,
 highlight it as an "unexpected finding" - these often reveal the most valuable insights.

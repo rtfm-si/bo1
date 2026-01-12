@@ -330,8 +330,10 @@ def match_insight_to_metrics(
         if suggested_value is None and extracted_value:
             suggested_value = extracted_value
 
-        # Skip if no value
+        # Skip if no value or value has no digits (e.g., ", per month")
         if suggested_value is None:
+            continue
+        if not any(c.isdigit() for c in str(suggested_value)):
             continue
 
         # Boost score with original confidence if available

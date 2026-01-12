@@ -30,6 +30,7 @@ async def compile_data_story(
     relevance: RelevanceAssessment | None = None,
     data_quality: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
+    columns: list[dict[str, Any]] | None = None,
 ) -> DataStory:
     """Synthesize insights into a coherent data story narrative.
 
@@ -45,6 +46,7 @@ async def compile_data_story(
             - north_star_goal: Primary business goal
             - industry: Business industry
             - business_model: Type of business model
+        columns: Dataset column info for grounding suggested questions
 
     Returns:
         DataStory with opening hook, objective sections, and next steps
@@ -85,6 +87,7 @@ async def compile_data_story(
                     "objective_id": match.objective_id,
                     "objective_name": match.objective_name,
                     "relevance": match.relevance.value,
+                    "answerable_questions": match.answerable_questions,
                 }
                 for match in relevance.objective_matches
             ],
@@ -109,6 +112,7 @@ async def compile_data_story(
         north_star=north_star,
         industry=industry,
         business_model=business_model,
+        columns=columns,
     )
 
     # Call LLM

@@ -117,11 +117,13 @@ class DatasetAnalysisPipeline:
 
         # 6. Compile data story
         data_quality = investigation.get("data_quality") if investigation else None
+        columns = profile.get("column_profiles", profile.get("columns", []))
         data_story = await compile_data_story(
             insights=insights,
             relevance=relevance,
             data_quality=data_quality,
             context=context,
+            columns=columns,
         )
         logger.info("Compiled data story")
 

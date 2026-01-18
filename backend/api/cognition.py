@@ -461,3 +461,94 @@ async def get_cognition_insights(
         insights=insights,
         blindspots=blindspots,
     )
+
+
+# =============================================================================
+# CALIBRATION ENDPOINTS
+# =============================================================================
+
+
+class CalibrationOption(BaseModel):
+    """Single calibration option."""
+
+    value: float
+    label: str
+
+
+class CalibrationPromptResponse(BaseModel):
+    """Calibration prompt for user feedback."""
+
+    show_prompt: bool = False
+    question: str | None = None
+    options: list[CalibrationOption] = []
+    dimension: str | None = None
+
+
+class CalibrationSubmitRequest(BaseModel):
+    """Request to submit calibration response."""
+
+    dimension: str
+    value: float = Field(ge=0, le=1)
+
+
+@router.get("/calibration", response_model=CalibrationPromptResponse)
+@handle_api_errors("get calibration prompt")
+async def get_calibration_prompt(
+    current_user: dict = Depends(get_current_user),
+) -> CalibrationPromptResponse:
+    """Get a calibration prompt if one is due.
+
+    Calibration prompts are shown periodically to refine inferred dimensions.
+    Returns show_prompt=false if no calibration is needed.
+    """
+    user_id = extract_user_id(current_user)
+
+    if not cognition_repository.should_show_calibration(user_id):
+        return CalibrationPromptResponse(show_prompt=False)
+
+    prompt = cognition_repository.get_calibration_prompt(user_id)
+    if not prompt:
+        return CalibrationPromptResponse(show_prompt=False)
+
+    return CalibrationPromptResponse(
+        show_prompt=True,
+        question=prompt["question"],
+        options=[CalibrationOption(**opt) for opt in prompt["options"]],
+        dimension=prompt["dimension"],
+    )
+
+
+@router.post("/calibration", response_model=CognitionProfileResponse)
+@handle_api_errors("submit calibration response")
+async def submit_calibration(
+    request: CalibrationSubmitRequest,
+    current_user: dict = Depends(get_current_user),
+) -> CognitionProfileResponse:
+    """Submit a calibration response.
+
+    Updates the inferred dimension with the user's explicit feedback.
+    """
+    user_id = extract_user_id(current_user)
+
+    # Validate dimension is a valid inferred dimension
+    valid_dimensions = {
+        "inferred_planning_depth",
+        "inferred_iteration_style",
+        "inferred_deadline_response",
+        "inferred_accountability_pref",
+        "inferred_challenge_appetite",
+        "inferred_format_preference",
+        "inferred_example_preference",
+    }
+
+    if request.dimension not in valid_dimensions:
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"Invalid dimension: {request.dimension}",
+            400,
+        )
+
+    cognition_repository.save_calibration_response(user_id, request.dimension, request.value)
+
+    profile = cognition_repository.get_profile(user_id)
+    return _build_profile_response(profile)

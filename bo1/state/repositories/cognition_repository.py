@@ -716,7 +716,296 @@ class CognitionRepository(BaseRepository):
             "uncertainty_exploration_drive": profile.get("uncertainty_exploration_drive"),
             "primary_blindspots": profile.get("primary_blindspots", []),
             "cognitive_style_summary": profile.get("cognitive_style_summary"),
+            # Tier 2
+            "leverage_structural": profile.get("leverage_structural"),
+            "leverage_informational": profile.get("leverage_informational"),
+            "leverage_relational": profile.get("leverage_relational"),
+            "leverage_temporal": profile.get("leverage_temporal"),
+            "tension_autonomy_security": profile.get("tension_autonomy_security"),
+            "tension_mastery_speed": profile.get("tension_mastery_speed"),
+            "tension_growth_stability": profile.get("tension_growth_stability"),
+            "time_bias_score": profile.get("time_bias_score"),
+            # Behavioral observations
+            "behavioral_observations": profile.get("behavioral_observations", {}),
+            # Inferred dimensions
+            "inferred_planning_depth": profile.get("inferred_planning_depth"),
+            "inferred_iteration_style": profile.get("inferred_iteration_style"),
+            "inferred_deadline_response": profile.get("inferred_deadline_response"),
+            "inferred_accountability_pref": profile.get("inferred_accountability_pref"),
+            "inferred_challenge_appetite": profile.get("inferred_challenge_appetite"),
+            "inferred_format_preference": profile.get("inferred_format_preference"),
+            "inferred_example_preference": profile.get("inferred_example_preference"),
+            "inference_confidence": profile.get("inference_confidence", {}),
         }
+
+    # =========================================================================
+    # INFERENCE ENGINE
+    # =========================================================================
+
+    def compute_inferred_dimensions(self, user_id: str) -> dict[str, Any]:
+        """Compute inferred cognitive dimensions from behavioral patterns.
+
+        Uses behavioral observations to infer dimensions that weren't asked
+        directly. Updates the database with new inferences.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dict of inferred dimensions with confidence scores
+        """
+        profile = self.get_profile(user_id)
+        if not profile:
+            return {}
+
+        obs = profile.get("behavioral_observations", {})
+        if not obs:
+            return {}
+
+        inferred: dict[str, float] = {}
+        confidence: dict[str, float] = {}
+
+        # --- Infer planning_depth from meeting patterns ---
+        # Users who have longer meetings with more rounds tend to value thorough planning
+        avg_duration = obs.get("avg_meeting_duration_seconds", 0)
+        avg_rounds = obs.get("avg_rounds_per_meeting", 0)
+
+        if avg_duration > 0 and avg_rounds > 0:
+            # Normalize: 5min=0.2, 15min=0.8
+            duration_score = min(1.0, max(0.0, (avg_duration - 180) / 720))
+            # Normalize: 1 round=0.2, 5+ rounds=0.8
+            rounds_score = min(1.0, max(0.0, (avg_rounds - 1) / 5))
+            inferred["inferred_planning_depth"] = round((duration_score + rounds_score) / 2, 2)
+            confidence["inferred_planning_depth"] = min(
+                0.8, profile.get("completed_meetings_count", 0) / 10
+            )
+
+        # --- Infer iteration_style from action completion patterns ---
+        # Low completion rate may indicate perfectionism (waiting to do it right)
+        # or shipping fast without follow-through
+        completion_rate = obs.get("action_completion_rate")
+        if completion_rate is not None:
+            # Cross-reference with risk sensitivity
+            risk_sens = _get_decimal(profile, "friction_risk_sensitivity", 0.5)
+            if completion_rate < 0.4 and risk_sens > 0.6:
+                # Low completion + risk averse = perfectionist (iteration_style high)
+                inferred["inferred_iteration_style"] = 0.7
+            elif completion_rate > 0.7:
+                # High completion = ships fast
+                inferred["inferred_iteration_style"] = 0.3
+            confidence["inferred_iteration_style"] = 0.5
+
+        # --- Infer deadline_response from time-to-first-action ---
+        # (Would need to track this metric - placeholder for now)
+        # For now, use clarification skip rate as proxy
+        skip_rate = obs.get("clarification_skip_rate", 0)
+        if skip_rate > 0.5:
+            # Skipping clarifications suggests deadline pressure / urgency
+            inferred["inferred_deadline_response"] = 0.3  # energized
+        elif skip_rate < 0.2:
+            # Taking time for clarifications suggests comfort with process
+            inferred["inferred_deadline_response"] = 0.6
+        if "inferred_deadline_response" in inferred:
+            confidence["inferred_deadline_response"] = 0.4
+
+        # --- Infer accountability_pref from action completion ---
+        if completion_rate is not None:
+            if completion_rate < 0.3:
+                # Low completion suggests may need external accountability
+                inferred["inferred_accountability_pref"] = 0.7
+            elif completion_rate > 0.7:
+                # High completion suggests self-accountable
+                inferred["inferred_accountability_pref"] = 0.3
+            confidence["inferred_accountability_pref"] = 0.5
+
+        # --- Infer challenge_appetite from exploration drive + risk ---
+        explore = _get_decimal(profile, "uncertainty_exploration_drive", 0.5)
+        risk = _get_decimal(profile, "friction_risk_sensitivity", 0.5)
+        if explore > 0 or risk < 1:
+            # High exploration + low risk sensitivity = high challenge appetite
+            challenge = (explore + (1 - risk)) / 2
+            inferred["inferred_challenge_appetite"] = round(challenge, 2)
+            confidence["inferred_challenge_appetite"] = 0.6
+
+        # --- Infer format_preference from info density preference ---
+        info_density = _get_decimal(profile, "gravity_information_density", 0.5)
+        # High info density often correlates with structured format preference
+        inferred["inferred_format_preference"] = round(
+            0.3 + (info_density * 0.4), 2
+        )  # 0.3-0.7 range
+        confidence["inferred_format_preference"] = 0.4
+
+        # --- Infer example_preference from cognitive load + ambiguity tolerance ---
+        cog_load = _get_decimal(profile, "friction_cognitive_load", 0.5)
+        ambiguity = _get_decimal(profile, "friction_ambiguity_tolerance", 0.5)
+        # High cognitive load need + low ambiguity tolerance = wants concrete examples
+        if cog_load > 0.5 or ambiguity > 0.5:
+            example_pref = (cog_load + ambiguity) / 2
+            inferred["inferred_example_preference"] = round(example_pref, 2)
+            confidence["inferred_example_preference"] = 0.5
+
+        # Save to database if we have inferences
+        if inferred:
+            self._save_inferred_dimensions(user_id, inferred, confidence)
+
+        return {"inferred": inferred, "confidence": confidence}
+
+    def _save_inferred_dimensions(
+        self,
+        user_id: str,
+        inferred: dict[str, float],
+        confidence: dict[str, float],
+    ) -> None:
+        """Save inferred dimensions to database."""
+        # Build SET clause dynamically
+        set_parts: list[str] = []
+        values: list[Any] = []
+
+        for key, value in inferred.items():
+            set_parts.append(f"{key} = %s")
+            values.append(value)
+
+        set_parts.append("inference_confidence = inference_confidence || %s::jsonb")
+        values.append(Json(confidence))
+
+        set_parts.append("inferred_dimensions_updated_at = NOW()")
+        set_parts.append("updated_at = NOW()")
+
+        values.append(user_id)
+
+        self._execute_count(
+            f"""
+            UPDATE user_cognition
+            SET {", ".join(set_parts)}
+            WHERE user_id = %s
+            """,
+            tuple(values),
+            user_id=user_id,
+        )
+        logger.info(f"Saved {len(inferred)} inferred dimensions for user {user_id[:8]}...")
+
+    # =========================================================================
+    # CALIBRATION PROMPTS
+    # =========================================================================
+
+    def should_show_calibration(self, user_id: str) -> bool:
+        """Check if user should see a calibration prompt.
+
+        Shows calibration every 5 meetings, but not more than once per week.
+        """
+        profile = self.get_profile(user_id)
+        if not profile:
+            return False
+
+        meetings = int(profile.get("completed_meetings_count", 0))
+        if meetings < 3:
+            return False  # Need some history first
+
+        # Check last calibration
+        last_cal = profile.get("last_calibration_at")
+        if last_cal:
+            try:
+                last_cal_dt = datetime.fromisoformat(str(last_cal).replace("Z", "+00:00"))
+                days_since = (datetime.now(UTC) - last_cal_dt).days
+                if days_since < 7:
+                    return False
+            except (ValueError, TypeError):
+                pass
+
+        # Show every 5 meetings
+        return bool(meetings % 5 == 0)
+
+    def get_calibration_prompt(self, user_id: str) -> dict[str, Any] | None:
+        """Get a calibration prompt for the user.
+
+        Returns a question to refine inferred dimensions.
+        """
+        profile = self.get_profile(user_id)
+        if not profile:
+            return None
+
+        confidence = profile.get("inference_confidence", {})
+
+        # Find lowest confidence dimension to calibrate
+        calibration_questions = {
+            "inferred_format_preference": {
+                "question": "How did you find the format of recommendations?",
+                "options": [
+                    {"value": 0.2, "label": "Too structured, prefer flowing narrative"},
+                    {"value": 0.5, "label": "Good balance"},
+                    {"value": 0.8, "label": "Could be more structured with clear bullets"},
+                ],
+                "dimension": "inferred_format_preference",
+            },
+            "inferred_planning_depth": {
+                "question": "How much planning detail works best for you?",
+                "options": [
+                    {"value": 0.2, "label": "Just the key actions, I'll figure it out"},
+                    {"value": 0.5, "label": "Main steps with some detail"},
+                    {"value": 0.8, "label": "Detailed breakdown with dependencies"},
+                ],
+                "dimension": "inferred_planning_depth",
+            },
+            "inferred_challenge_appetite": {
+                "question": "How ambitious should recommendations be?",
+                "options": [
+                    {"value": 0.2, "label": "Conservative, safe wins"},
+                    {"value": 0.5, "label": "Balanced risk/reward"},
+                    {"value": 0.8, "label": "Ambitious, I like stretch goals"},
+                ],
+                "dimension": "inferred_challenge_appetite",
+            },
+        }
+
+        # Find lowest confidence dimension we have a question for
+        lowest_conf = 1.0
+        selected_prompt = None
+
+        for dim, question in calibration_questions.items():
+            conf = confidence.get(dim, 0.0)
+            if conf < lowest_conf:
+                lowest_conf = conf
+                selected_prompt = question
+
+        return selected_prompt
+
+    def save_calibration_response(self, user_id: str, dimension: str, value: float) -> None:
+        """Save a calibration response and update the dimension.
+
+        Args:
+            user_id: User identifier
+            dimension: Dimension being calibrated
+            value: User-selected value
+        """
+        # Update the dimension directly (user feedback overrides inference)
+        self._execute_count(
+            f"""
+            UPDATE user_cognition
+            SET
+                {dimension} = %s,
+                inference_confidence = inference_confidence || %s::jsonb,
+                calibration_responses = calibration_responses || %s::jsonb,
+                last_calibration_at = NOW(),
+                updated_at = NOW()
+            WHERE user_id = %s
+            """,
+            (
+                value,
+                Json({dimension: 0.9}),  # High confidence after explicit feedback
+                Json(
+                    [
+                        {
+                            "dimension": dimension,
+                            "value": value,
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        }
+                    ]
+                ),
+                user_id,
+            ),
+            user_id=user_id,
+        )
+        logger.info(f"Saved calibration for {dimension}={value} for user {user_id[:8]}...")
 
 
 # Singleton instance

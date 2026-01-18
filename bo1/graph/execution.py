@@ -307,6 +307,10 @@ class SessionManager:
                                 clarifications_asked=clarifications_asked,
                                 clarifications_skipped=clarifications_skipped,
                             )
+
+                            # Recompute inferred dimensions with new behavioral data
+                            cognition_repository.compute_inferred_dimensions(completed_user_id)
+                            logger.info(f"[{session_id}] Updated inferred cognitive dimensions")
                     except Exception as cog_err:
                         logger.warning(
                             f"[{session_id}] Failed to track cognitive metrics: {cog_err}"

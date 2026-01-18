@@ -5084,6 +5084,140 @@ export interface paths {
         patch: operations["set_metric_relevance_api_v1_business_metrics__metric_key__relevance_patch"];
         trace?: never;
     };
+    "/api/v1/cognition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cognition Profile
+         * @description Get user's cognitive profile.
+         *
+         *     Returns the full cognitive profile including:
+         *     - Tier 1 instruments (Gravity, Friction, Uncertainty)
+         *     - Tier 2 instruments if unlocked (Leverage, Tension, Time Bias)
+         *     - Identified blindspots
+         *     - Style summary
+         *     - Unlock progress
+         */
+        get: operations["get_cognition_profile_api_v1_cognition_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cognition/assess": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Tier2 Assessment
+         * @description Submit Tier 2 cognitive assessment.
+         *
+         *     Requires Tier 2 to be unlocked (3+ completed meetings).
+         *
+         *     Instruments:
+         *     - leverage: Leverage Instinct Index
+         *     - tension: Value Tension Scan
+         *     - time_bias: Strategic Time Bias
+         *
+         *     Returns updated full profile.
+         */
+        post: operations["submit_tier2_assessment_api_v1_cognition_assess_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cognition/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Calibration Prompt
+         * @description Get a calibration prompt if one is due.
+         *
+         *     Calibration prompts are shown periodically to refine inferred dimensions.
+         *     Returns show_prompt=false if no calibration is needed.
+         */
+        get: operations["get_calibration_prompt_api_v1_cognition_calibration_get"];
+        put?: never;
+        /**
+         * Submit Calibration
+         * @description Submit a calibration response.
+         *
+         *     Updates the inferred dimension with the user's explicit feedback.
+         */
+        post: operations["submit_calibration_api_v1_cognition_calibration_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cognition/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cognition Insights
+         * @description Get personalized cognitive insights.
+         *
+         *     Returns insights based on profile analysis and blindspot recommendations.
+         */
+        get: operations["get_cognition_insights_api_v1_cognition_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cognition/lite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Lite Assessment
+         * @description Submit lite (onboarding) cognitive assessment.
+         *
+         *     Saves Tier 1 dimensions (9 questions):
+         *     - Cognitive Gravity Map (3 dimensions)
+         *     - Decision Friction Profile (3 dimensions)
+         *     - Uncertainty Posture Matrix (3 dimensions)
+         *
+         *     Returns profile summary and identified blindspots.
+         */
+        post: operations["submit_lite_assessment_api_v1_cognition_lite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/competitors": {
         parameters: {
             query?: never;
@@ -13897,6 +14031,18 @@ export interface components {
             type: string;
         };
         /**
+         * Blindspot
+         * @description Identified blindspot.
+         */
+        Blindspot: {
+            /** Compensation */
+            compensation: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * BlockActionRequest
          * @description Request model for blocking an action.
          *
@@ -14928,6 +15074,46 @@ export interface components {
             enabled: boolean;
         };
         /**
+         * CalibrationOption
+         * @description Single calibration option.
+         */
+        CalibrationOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+        };
+        /**
+         * CalibrationPromptResponse
+         * @description Calibration prompt for user feedback.
+         */
+        CalibrationPromptResponse: {
+            /** Dimension */
+            dimension?: string | null;
+            /**
+             * Options
+             * @default []
+             */
+            options: components["schemas"]["CalibrationOption"][];
+            /** Question */
+            question?: string | null;
+            /**
+             * Show Prompt
+             * @default false
+             */
+            show_prompt: boolean;
+        };
+        /**
+         * CalibrationSubmitRequest
+         * @description Request to submit calibration response.
+         */
+        CalibrationSubmitRequest: {
+            /** Dimension */
+            dimension: string;
+            /** Value */
+            value: number;
+        };
+        /**
          * CategoriesResponse
          * @description Response model for research cache categories.
          */
@@ -15677,6 +15863,51 @@ export interface components {
              * @description Human-readable cluster label
              */
             label: string;
+        };
+        /**
+         * CognitionInsightsResponse
+         * @description Cognitive insights response.
+         */
+        CognitionInsightsResponse: {
+            /** Blindspots */
+            blindspots?: components["schemas"]["Blindspot"][];
+            /** Insights */
+            insights?: components["schemas"]["InsightItem"][];
+        };
+        /**
+         * CognitionProfileResponse
+         * @description Full cognitive profile response.
+         */
+        CognitionProfileResponse: {
+            /** Cognitive Style Summary */
+            cognitive_style_summary?: string | null;
+            /**
+             * Completed Meetings Count
+             * @default 0
+             */
+            completed_meetings_count: number;
+            /**
+             * Exists
+             * @description Whether profile exists
+             * @default false
+             */
+            exists: boolean;
+            friction?: components["schemas"]["FrictionProfile"] | null;
+            gravity?: components["schemas"]["GravityProfile"] | null;
+            leverage?: components["schemas"]["LeverageProfile"] | null;
+            /** Primary Blindspots */
+            primary_blindspots?: components["schemas"]["Blindspot"][];
+            tension?: components["schemas"]["TensionProfile"] | null;
+            /**
+             * Tier2 Unlocked
+             * @default false
+             */
+            tier2_unlocked: boolean;
+            /** Tier2 Unlocked At */
+            tier2_unlocked_at?: string | null;
+            time_bias?: components["schemas"]["TimeBiasProfile"] | null;
+            uncertainty?: components["schemas"]["UncertaintyProfile"] | null;
+            unlock_prompt?: components["schemas"]["UnlockPrompt"] | null;
         };
         /**
          * CohortResponse
@@ -21002,6 +21233,29 @@ export interface components {
             message: string;
         };
         /**
+         * FrictionProfile
+         * @description Decision Friction Profile.
+         */
+        FrictionProfile: {
+            /**
+             * Ambiguity Tolerance
+             * @description 0=tolerant, 1=needs clarity
+             */
+            ambiguity_tolerance?: number | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Cognitive Load
+             * @description 0=complex, 1=simple
+             */
+            cognitive_load?: number | null;
+            /**
+             * Risk Sensitivity
+             * @description 0=tolerant, 1=averse
+             */
+            risk_sensitivity?: number | null;
+        };
+        /**
          * FullSessionResponse
          * @description Response model for full session details.
          *
@@ -21412,6 +21666,29 @@ export interface components {
              * @default Resource no longer available
              */
             message: string;
+        };
+        /**
+         * GravityProfile
+         * @description Cognitive Gravity Map profile.
+         */
+        GravityProfile: {
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Control Style
+             * @description 0=delegate, 1=hands-on
+             */
+            control_style?: number | null;
+            /**
+             * Information Density
+             * @description 0=summary, 1=detail
+             */
+            information_density?: number | null;
+            /**
+             * Time Horizon
+             * @description 0=immediate, 1=long-term
+             */
+            time_horizon?: number | null;
         };
         /**
          * GroupBySpec
@@ -22308,6 +22585,20 @@ export interface components {
             success: boolean;
         };
         /**
+         * InsightItem
+         * @description Single insight item.
+         */
+        InsightItem: {
+            /** Description */
+            description: string;
+            /** Key */
+            key: string;
+            /** Recommendation */
+            recommendation: string;
+            /** Title */
+            title: string;
+        };
+        /**
          * InsightMetricResponse
          * @description Extracted metric from insight.
          */
@@ -23027,6 +23318,76 @@ export interface components {
             geo_breakdown: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * LeverageProfile
+         * @description Leverage Instinct Index profile (Tier 2).
+         */
+        LeverageProfile: {
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Informational
+             * @description Data/research preference
+             */
+            informational?: number | null;
+            /**
+             * Relational
+             * @description People/networks preference
+             */
+            relational?: number | null;
+            /**
+             * Structural
+             * @description Systems/processes preference
+             */
+            structural?: number | null;
+            /**
+             * Temporal
+             * @description Timing/patience preference
+             */
+            temporal?: number | null;
+        };
+        /**
+         * LiteAssessmentRequest
+         * @description Lite assessment (onboarding) request.
+         */
+        LiteAssessmentRequest: {
+            /** Friction Ambiguity Tolerance */
+            friction_ambiguity_tolerance: number;
+            /** Friction Cognitive Load */
+            friction_cognitive_load: number;
+            /** Friction Risk Sensitivity */
+            friction_risk_sensitivity: number;
+            /** Gravity Control Style */
+            gravity_control_style: number;
+            /** Gravity Information Density */
+            gravity_information_density: number;
+            /** Gravity Time Horizon */
+            gravity_time_horizon: number;
+            /** Uncertainty Control Need */
+            uncertainty_control_need: number;
+            /** Uncertainty Exploration Drive */
+            uncertainty_exploration_drive: number;
+            /** Uncertainty Threat Lens */
+            uncertainty_threat_lens: number;
+        };
+        /**
+         * LiteAssessmentResponse
+         * @description Lite assessment response.
+         */
+        LiteAssessmentResponse: {
+            /** Primary Blindspots */
+            primary_blindspots?: components["schemas"]["Blindspot"][];
+            /**
+             * Profile Summary
+             * @description One-liner cognitive style summary
+             */
+            profile_summary: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
         };
         /**
          * LockUserRequest
@@ -30713,6 +31074,29 @@ export interface components {
             what_and_how?: string[];
         };
         /**
+         * TensionProfile
+         * @description Value Tension Scan profile (Tier 2).
+         */
+        TensionProfile: {
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Autonomy Security
+             * @description -1=autonomy, +1=security
+             */
+            autonomy_security?: number | null;
+            /**
+             * Growth Stability
+             * @description -1=growth, +1=stability
+             */
+            growth_stability?: number | null;
+            /**
+             * Mastery Speed
+             * @description -1=mastery, +1=speed
+             */
+            mastery_speed?: number | null;
+        };
+        /**
          * TerminationRequest
          * @description Request to terminate a session early.
          *
@@ -30950,6 +31334,21 @@ export interface components {
             window_minutes: number;
         };
         /**
+         * Tier2AssessmentRequest
+         * @description Tier 2 assessment request.
+         */
+        Tier2AssessmentRequest: {
+            /**
+             * Instrument
+             * @enum {string}
+             */
+            instrument: "leverage" | "tension" | "time_bias";
+            /** Responses */
+            responses: {
+                [key: string]: number;
+            };
+        };
+        /**
          * TierLimitsResponse
          * @description Tier limits information.
          */
@@ -31007,6 +31406,19 @@ export interface components {
              * @description User identifier
              */
             user_id: string;
+        };
+        /**
+         * TimeBiasProfile
+         * @description Strategic Time Bias profile (Tier 2).
+         */
+        TimeBiasProfile: {
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Score
+             * @description 0=short-term, 1=long-term
+             */
+            score?: number | null;
         };
         /**
          * TimePeriod
@@ -31737,6 +32149,29 @@ export interface components {
             rationale: string;
         };
         /**
+         * UncertaintyProfile
+         * @description Uncertainty Posture Matrix profile.
+         */
+        UncertaintyProfile: {
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Control Need
+             * @description 0=flow, 1=control
+             */
+            control_need?: number | null;
+            /**
+             * Exploration Drive
+             * @description 0=cautious, 1=explorer
+             */
+            exploration_drive?: number | null;
+            /**
+             * Threat Lens
+             * @description 0=opportunity, 1=threat
+             */
+            threat_lens?: number | null;
+        };
+        /**
          * UnexpectedFinding
          * @description Something interesting not directly related to objectives.
          */
@@ -31781,6 +32216,27 @@ export interface components {
             prompt: components["schemas"]["CacheTypeMetrics"];
             /** @description Research semantic cache metrics */
             research: components["schemas"]["CacheTypeMetrics"];
+        };
+        /**
+         * UnlockPrompt
+         * @description Tier 2 unlock prompt info.
+         */
+        UnlockPrompt: {
+            /**
+             * Meetings Remaining
+             * @default 0
+             */
+            meetings_remaining: number;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Show
+             * @default false
+             */
+            show: boolean;
         };
         /**
          * UpdateBudgetSettingsRequest
@@ -45861,6 +46317,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserMetric"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cognition_profile_api_v1_cognition_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CognitionProfileResponse"];
+                };
+            };
+        };
+    };
+    submit_tier2_assessment_api_v1_cognition_assess_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Tier2AssessmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CognitionProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_calibration_prompt_api_v1_cognition_calibration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationPromptResponse"];
+                };
+            };
+        };
+    };
+    submit_calibration_api_v1_cognition_calibration_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrationSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CognitionProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cognition_insights_api_v1_cognition_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CognitionInsightsResponse"];
+                };
+            };
+        };
+    };
+    submit_lite_assessment_api_v1_cognition_lite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LiteAssessmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiteAssessmentResponse"];
                 };
             };
             /** @description Validation Error */

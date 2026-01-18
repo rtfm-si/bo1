@@ -3929,6 +3929,30 @@
         "title": "BillingProduct",
         "type": "object"
       },
+      "Blindspot": {
+        "description": "Identified blindspot.",
+        "properties": {
+          "compensation": {
+            "title": "Compensation",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "compensation"
+        ],
+        "title": "Blindspot",
+        "type": "object"
+      },
       "BlockActionRequest": {
         "description": "Request model for blocking an action.\n\nAttributes:\n    blocking_reason: Why the action is blocked (max 2000 chars for detailed reasons)\n    auto_unblock: Whether to auto-unblock when dependencies complete",
         "properties": {
@@ -5688,6 +5712,88 @@
         "title": "CalendarSyncToggleRequest",
         "type": "object"
       },
+      "CalibrationOption": {
+        "description": "Single calibration option.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "CalibrationOption",
+        "type": "object"
+      },
+      "CalibrationPromptResponse": {
+        "description": "Calibration prompt for user feedback.",
+        "properties": {
+          "dimension": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dimension"
+          },
+          "options": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CalibrationOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "show_prompt": {
+            "default": false,
+            "title": "Show Prompt",
+            "type": "boolean"
+          }
+        },
+        "title": "CalibrationPromptResponse",
+        "type": "object"
+      },
+      "CalibrationSubmitRequest": {
+        "description": "Request to submit calibration response.",
+        "properties": {
+          "dimension": {
+            "title": "Dimension",
+            "type": "string"
+          },
+          "value": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "dimension",
+          "value"
+        ],
+        "title": "CalibrationSubmitRequest",
+        "type": "object"
+      },
       "CategoriesResponse": {
         "description": "Response model for research cache categories.",
         "properties": {
@@ -6869,6 +6975,149 @@
           "centroid"
         ],
         "title": "ClusterInfo",
+        "type": "object"
+      },
+      "CognitionInsightsResponse": {
+        "description": "Cognitive insights response.",
+        "properties": {
+          "blindspots": {
+            "items": {
+              "$ref": "#/components/schemas/Blindspot"
+            },
+            "title": "Blindspots",
+            "type": "array"
+          },
+          "insights": {
+            "items": {
+              "$ref": "#/components/schemas/InsightItem"
+            },
+            "title": "Insights",
+            "type": "array"
+          }
+        },
+        "title": "CognitionInsightsResponse",
+        "type": "object"
+      },
+      "CognitionProfileResponse": {
+        "description": "Full cognitive profile response.",
+        "properties": {
+          "cognitive_style_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cognitive Style Summary"
+          },
+          "completed_meetings_count": {
+            "default": 0,
+            "title": "Completed Meetings Count",
+            "type": "integer"
+          },
+          "exists": {
+            "default": false,
+            "description": "Whether profile exists",
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "friction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrictionProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gravity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GravityProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeverageProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_blindspots": {
+            "items": {
+              "$ref": "#/components/schemas/Blindspot"
+            },
+            "title": "Primary Blindspots",
+            "type": "array"
+          },
+          "tension": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TensionProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier2_unlocked": {
+            "default": false,
+            "title": "Tier2 Unlocked",
+            "type": "boolean"
+          },
+          "tier2_unlocked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier2 Unlocked At"
+          },
+          "time_bias": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeBiasProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UncertaintyProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unlock_prompt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnlockPrompt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "CognitionProfileResponse",
         "type": "object"
       },
       "CohortResponse": {
@@ -15148,6 +15397,66 @@
         "title": "ForbiddenErrorResponse",
         "type": "object"
       },
+      "FrictionProfile": {
+        "description": "Decision Friction Profile.",
+        "properties": {
+          "ambiguity_tolerance": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=tolerant, 1=needs clarity",
+            "title": "Ambiguity Tolerance"
+          },
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "cognitive_load": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=complex, 1=simple",
+            "title": "Cognitive Load"
+          },
+          "risk_sensitivity": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=tolerant, 1=averse",
+            "title": "Risk Sensitivity"
+          }
+        },
+        "title": "FrictionProfile",
+        "type": "object"
+      },
       "FullSessionResponse": {
         "description": "Response model for full session details.\n\nAttributes:\n    session_id: Session identifier\n    metadata: Full session metadata\n    state: Full deliberation state\n    is_active: Whether session is currently running",
         "properties": {
@@ -15680,6 +15989,66 @@
           }
         },
         "title": "GoneErrorResponse",
+        "type": "object"
+      },
+      "GravityProfile": {
+        "description": "Cognitive Gravity Map profile.",
+        "properties": {
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "control_style": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=delegate, 1=hands-on",
+            "title": "Control Style"
+          },
+          "information_density": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=summary, 1=detail",
+            "title": "Information Density"
+          },
+          "time_horizon": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=immediate, 1=long-term",
+            "title": "Time Horizon"
+          }
+        },
+        "title": "GravityProfile",
         "type": "object"
       },
       "GroupBySpec": {
@@ -16900,6 +17269,35 @@
         "title": "InsightEnrichResponse",
         "type": "object"
       },
+      "InsightItem": {
+        "description": "Single insight item.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "recommendation": {
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "recommendation"
+        ],
+        "title": "InsightItem",
+        "type": "object"
+      },
       "InsightMetricResponse": {
         "description": "Extracted metric from insight.",
         "properties": {
@@ -18070,6 +18468,179 @@
           "bounce_rate"
         ],
         "title": "LandingPageMetricsResponse",
+        "type": "object"
+      },
+      "LeverageProfile": {
+        "description": "Leverage Instinct Index profile (Tier 2).",
+        "properties": {
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "informational": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Data/research preference",
+            "title": "Informational"
+          },
+          "relational": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "People/networks preference",
+            "title": "Relational"
+          },
+          "structural": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Systems/processes preference",
+            "title": "Structural"
+          },
+          "temporal": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Timing/patience preference",
+            "title": "Temporal"
+          }
+        },
+        "title": "LeverageProfile",
+        "type": "object"
+      },
+      "LiteAssessmentRequest": {
+        "description": "Lite assessment (onboarding) request.",
+        "properties": {
+          "friction_ambiguity_tolerance": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Friction Ambiguity Tolerance",
+            "type": "number"
+          },
+          "friction_cognitive_load": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Friction Cognitive Load",
+            "type": "number"
+          },
+          "friction_risk_sensitivity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Friction Risk Sensitivity",
+            "type": "number"
+          },
+          "gravity_control_style": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Gravity Control Style",
+            "type": "number"
+          },
+          "gravity_information_density": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Gravity Information Density",
+            "type": "number"
+          },
+          "gravity_time_horizon": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Gravity Time Horizon",
+            "type": "number"
+          },
+          "uncertainty_control_need": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Uncertainty Control Need",
+            "type": "number"
+          },
+          "uncertainty_exploration_drive": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Uncertainty Exploration Drive",
+            "type": "number"
+          },
+          "uncertainty_threat_lens": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Uncertainty Threat Lens",
+            "type": "number"
+          }
+        },
+        "required": [
+          "gravity_time_horizon",
+          "gravity_information_density",
+          "gravity_control_style",
+          "friction_risk_sensitivity",
+          "friction_cognitive_load",
+          "friction_ambiguity_tolerance",
+          "uncertainty_threat_lens",
+          "uncertainty_control_need",
+          "uncertainty_exploration_drive"
+        ],
+        "title": "LiteAssessmentRequest",
+        "type": "object"
+      },
+      "LiteAssessmentResponse": {
+        "description": "Lite assessment response.",
+        "properties": {
+          "primary_blindspots": {
+            "items": {
+              "$ref": "#/components/schemas/Blindspot"
+            },
+            "title": "Primary Blindspots",
+            "type": "array"
+          },
+          "profile_summary": {
+            "description": "One-liner cognitive style summary",
+            "title": "Profile Summary",
+            "type": "string"
+          },
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profile_summary"
+        ],
+        "title": "LiteAssessmentResponse",
         "type": "object"
       },
       "LockUserRequest": {
@@ -29717,6 +30288,66 @@
         "title": "TaskWithStatus",
         "type": "object"
       },
+      "TensionProfile": {
+        "description": "Value Tension Scan profile (Tier 2).",
+        "properties": {
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "autonomy_security": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "-1=autonomy, +1=security",
+            "title": "Autonomy Security"
+          },
+          "growth_stability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "-1=growth, +1=stability",
+            "title": "Growth Stability"
+          },
+          "mastery_speed": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "-1=mastery, +1=speed",
+            "title": "Mastery Speed"
+          }
+        },
+        "title": "TensionProfile",
+        "type": "object"
+      },
       "TerminationRequest": {
         "description": "Request to terminate a session early.\n\nAttributes:\n    termination_type: Type of termination action\n    reason: User-provided reason for termination (optional)",
         "examples": [
@@ -30041,6 +30672,33 @@
         "title": "ThresholdResponse",
         "type": "object"
       },
+      "Tier2AssessmentRequest": {
+        "description": "Tier 2 assessment request.",
+        "properties": {
+          "instrument": {
+            "enum": [
+              "leverage",
+              "tension",
+              "time_bias"
+            ],
+            "title": "Instrument",
+            "type": "string"
+          },
+          "responses": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Responses",
+            "type": "object"
+          }
+        },
+        "required": [
+          "instrument",
+          "responses"
+        ],
+        "title": "Tier2AssessmentRequest",
+        "type": "object"
+      },
       "TierLimitsResponse": {
         "description": "Tier limits information.",
         "properties": {
@@ -30112,6 +30770,38 @@
           "message"
         ],
         "title": "TierOverrideResponse",
+        "type": "object"
+      },
+      "TimeBiasProfile": {
+        "description": "Strategic Time Bias profile (Tier 2).",
+        "properties": {
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=short-term, 1=long-term",
+            "title": "Score"
+          }
+        },
+        "title": "TimeBiasProfile",
         "type": "object"
       },
       "TimePeriod": {
@@ -31202,6 +31892,66 @@
         "title": "UnblockSuggestionModel",
         "type": "object"
       },
+      "UncertaintyProfile": {
+        "description": "Uncertainty Posture Matrix profile.",
+        "properties": {
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "control_need": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=flow, 1=control",
+            "title": "Control Need"
+          },
+          "exploration_drive": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=cautious, 1=explorer",
+            "title": "Exploration Drive"
+          },
+          "threat_lens": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0=opportunity, 1=threat",
+            "title": "Threat Lens"
+          }
+        },
+        "title": "UncertaintyProfile",
+        "type": "object"
+      },
       "UnexpectedFinding": {
         "description": "Something interesting not directly related to objectives.",
         "properties": {
@@ -31256,6 +32006,28 @@
           "aggregate"
         ],
         "title": "UnifiedCacheMetricsResponse",
+        "type": "object"
+      },
+      "UnlockPrompt": {
+        "description": "Tier 2 unlock prompt info.",
+        "properties": {
+          "meetings_remaining": {
+            "default": 0,
+            "title": "Meetings Remaining",
+            "type": "integer"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "show": {
+            "default": false,
+            "title": "Show",
+            "type": "boolean"
+          }
+        },
+        "title": "UnlockPrompt",
         "type": "object"
       },
       "UpdateBudgetSettingsRequest": {
@@ -52948,6 +53720,202 @@
         "tags": [
           "business-metrics",
           "business-metrics"
+        ]
+      }
+    },
+    "/api/v1/cognition": {
+      "get": {
+        "description": "Get user's cognitive profile.\n\nReturns the full cognitive profile including:\n- Tier 1 instruments (Gravity, Friction, Uncertainty)\n- Tier 2 instruments if unlocked (Leverage, Tension, Time Bias)\n- Identified blindspots\n- Style summary\n- Unlock progress",
+        "operationId": "get_cognition_profile_api_v1_cognition_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CognitionProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Cognition Profile",
+        "tags": [
+          "cognition",
+          "cognition"
+        ]
+      }
+    },
+    "/api/v1/cognition/assess": {
+      "post": {
+        "description": "Submit Tier 2 cognitive assessment.\n\nRequires Tier 2 to be unlocked (3+ completed meetings).\n\nInstruments:\n- leverage: Leverage Instinct Index\n- tension: Value Tension Scan\n- time_bias: Strategic Time Bias\n\nReturns updated full profile.",
+        "operationId": "submit_tier2_assessment_api_v1_cognition_assess_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Tier2AssessmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CognitionProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Tier2 Assessment",
+        "tags": [
+          "cognition",
+          "cognition"
+        ]
+      }
+    },
+    "/api/v1/cognition/calibration": {
+      "get": {
+        "description": "Get a calibration prompt if one is due.\n\nCalibration prompts are shown periodically to refine inferred dimensions.\nReturns show_prompt=false if no calibration is needed.",
+        "operationId": "get_calibration_prompt_api_v1_cognition_calibration_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationPromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Calibration Prompt",
+        "tags": [
+          "cognition",
+          "cognition"
+        ]
+      },
+      "post": {
+        "description": "Submit a calibration response.\n\nUpdates the inferred dimension with the user's explicit feedback.",
+        "operationId": "submit_calibration_api_v1_cognition_calibration_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CognitionProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Calibration",
+        "tags": [
+          "cognition",
+          "cognition"
+        ]
+      }
+    },
+    "/api/v1/cognition/insights": {
+      "get": {
+        "description": "Get personalized cognitive insights.\n\nReturns insights based on profile analysis and blindspot recommendations.",
+        "operationId": "get_cognition_insights_api_v1_cognition_insights_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CognitionInsightsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Cognition Insights",
+        "tags": [
+          "cognition",
+          "cognition"
+        ]
+      }
+    },
+    "/api/v1/cognition/lite": {
+      "post": {
+        "description": "Submit lite (onboarding) cognitive assessment.\n\nSaves Tier 1 dimensions (9 questions):\n- Cognitive Gravity Map (3 dimensions)\n- Decision Friction Profile (3 dimensions)\n- Uncertainty Posture Matrix (3 dimensions)\n\nReturns profile summary and identified blindspots.",
+        "operationId": "submit_lite_assessment_api_v1_cognition_lite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiteAssessmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiteAssessmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Lite Assessment",
+        "tags": [
+          "cognition",
+          "cognition"
         ]
       }
     },

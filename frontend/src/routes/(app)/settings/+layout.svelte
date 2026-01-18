@@ -35,6 +35,12 @@
 			]
 		},
 		{
+			title: 'Intelligence',
+			items: [
+				{ href: '/settings/cognition', label: 'Cognitive Profile', icon: '🧠' }
+			]
+		},
+		{
 			title: 'Billing',
 			items: [
 				{ href: '/settings/billing', label: 'Plan & Usage', icon: '💳' }

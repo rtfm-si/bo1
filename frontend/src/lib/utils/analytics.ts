@@ -84,7 +84,7 @@ export function trackOnboardingStarted(): void {
  *
  * @param data - Completion data
  */
-export function trackOnboardingCompleted(data?: { has_context?: boolean }): void {
+export function trackOnboardingCompleted(data?: { has_context?: boolean; cognition_completed?: boolean }): void {
 	trackEvent(AnalyticsEvents.ONBOARDING_COMPLETED, data);
 }
 

@@ -407,6 +407,7 @@ def get_auth_url(redirect_uri: str, state: str | None = None) -> str:
         "scope": " ".join(CALENDAR_SCOPES),
         "access_type": "offline",  # Get refresh token
         "prompt": "consent",  # Force consent to get refresh token
+        "include_granted_scopes": "true",  # Incremental authorization
     }
 
     if state:

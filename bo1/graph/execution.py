@@ -10,11 +10,13 @@ import asyncio
 import logging
 import signal
 import time
+from datetime import UTC
 from typing import Any
 
 from bo1.constants import SessionManagerConfig
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories import session_repository
+from bo1.state.repositories.cognition_repository import cognition_repository
 from bo1.utils.async_context import create_task_with_context
 
 logger = logging.getLogger(__name__)
@@ -263,6 +265,53 @@ class SessionManager:
 
                 # Update metadata on successful completion
                 self._update_session_status(session_id, "completed")
+
+                # Track meeting completion for cognitive profile
+                completed_user_id = state.get("user_id")
+                if completed_user_id:
+                    try:
+                        # Increment meeting count for tier unlock
+                        cognition_repository.increment_meeting_count(completed_user_id)
+                        logger.info(
+                            f"[{session_id}] Incremented meeting count for user {completed_user_id[:8]}..."
+                        )
+
+                        # Track behavioral metrics
+                        session_data = session_repository.get(session_id)
+                        if session_data and session_data.get("created_at"):
+                            from datetime import datetime
+
+                            created_at = session_data["created_at"]
+                            if isinstance(created_at, str):
+                                created_at = datetime.fromisoformat(
+                                    created_at.replace("Z", "+00:00")
+                                )
+                            duration_seconds = int((datetime.now(UTC) - created_at).total_seconds())
+
+                            # Get round count and clarification info from state
+                            rounds_count = state.get("round_number", 1)
+                            clarification_answers = state.get("clarification_answers") or {}
+                            skip_clarification = state.get("skip_clarification", False)
+
+                            # Estimate clarifications: if answers exist, they were asked
+                            clarifications_asked = len(clarification_answers)
+                            # If skip_clarification was set and no answers, count as skipped
+                            clarifications_skipped = (
+                                1 if skip_clarification and not clarification_answers else 0
+                            )
+
+                            cognition_repository.track_meeting_completion(
+                                user_id=completed_user_id,
+                                duration_seconds=duration_seconds,
+                                rounds_count=rounds_count,
+                                clarifications_asked=clarifications_asked,
+                                clarifications_skipped=clarifications_skipped,
+                            )
+                    except Exception as cog_err:
+                        logger.warning(
+                            f"[{session_id}] Failed to track cognitive metrics: {cog_err}"
+                        )
+
                 return result
             except asyncio.CancelledError:
                 logger.info(f"[{session_id}] Graph execution was cancelled")

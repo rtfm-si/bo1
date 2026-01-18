@@ -1005,6 +1005,25 @@ async def complete_action(
             "name": generated_project.get("name"),
         }
 
+    # Track action completion rate for cognitive profile (non-blocking)
+    try:
+        from bo1.state.repositories.cognition_repository import cognition_repository
+
+        # Calculate completion rate from user's actions using direct query
+        totals_query = """
+            SELECT
+                COALESCE(SUM(CASE WHEN status IN ('done', 'cancelled') THEN 1 ELSE 0 END), 0) AS completed,
+                COUNT(*) AS total
+            FROM actions
+            WHERE user_id = %s AND deleted_at IS NULL
+        """
+        totals_row = execute_query(totals_query, (user_id,), fetch="one")
+        if totals_row and totals_row["total"] > 0:
+            completion_rate = totals_row["completed"] / totals_row["total"]
+            cognition_repository.update_action_completion_rate(user_id, completion_rate)
+    except Exception as e:
+        logger.debug(f"Action completion rate tracking failed (non-blocking): {e}")
+
     return ActionCompletedResponse(
         message="Action completed successfully",
         action_id=action_id,

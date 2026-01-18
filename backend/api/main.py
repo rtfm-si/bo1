@@ -55,6 +55,7 @@ from backend.api import (  # noqa: E402
     business_metrics,
     client_errors,
     client_metrics,
+    cognition,
     competitors,
     context,
     control,
@@ -597,6 +598,7 @@ app.include_router(business_metrics.router, prefix="/api", tags=["business-metri
 app.include_router(billing.router, prefix="/api", tags=["billing"])
 app.include_router(industry_insights.router, prefix="/api", tags=["industry-insights"])
 app.include_router(competitors.router, prefix="/api", tags=["competitors"])
+app.include_router(cognition.router, prefix="/api", tags=["cognition"])
 app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])

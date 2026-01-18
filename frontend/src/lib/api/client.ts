@@ -308,6 +308,109 @@ export interface DemoQuestionsResponse {
 }
 
 // ============================================================================
+// Cognition Types
+// ============================================================================
+
+export interface CognitionGravityProfile {
+	time_horizon: number | null;
+	information_density: number | null;
+	control_style: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionFrictionProfile {
+	risk_sensitivity: number | null;
+	cognitive_load: number | null;
+	ambiguity_tolerance: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionUncertaintyProfile {
+	threat_lens: number | null;
+	control_need: number | null;
+	exploration_drive: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionLeverageProfile {
+	structural: number | null;
+	informational: number | null;
+	relational: number | null;
+	temporal: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionTensionProfile {
+	autonomy_security: number | null;
+	mastery_speed: number | null;
+	growth_stability: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionTimeBiasProfile {
+	score: number | null;
+	assessed_at: string | null;
+}
+
+export interface CognitionBlindspot {
+	id: string;
+	label: string;
+	compensation: string;
+}
+
+export interface CognitionUnlockPrompt {
+	show: boolean;
+	message: string;
+	meetings_remaining: number;
+}
+
+export interface CognitionProfileResponse {
+	exists: boolean;
+	gravity: CognitionGravityProfile | null;
+	friction: CognitionFrictionProfile | null;
+	uncertainty: CognitionUncertaintyProfile | null;
+	tier2_unlocked: boolean;
+	tier2_unlocked_at: string | null;
+	leverage: CognitionLeverageProfile | null;
+	tension: CognitionTensionProfile | null;
+	time_bias: CognitionTimeBiasProfile | null;
+	primary_blindspots: CognitionBlindspot[];
+	cognitive_style_summary: string | null;
+	completed_meetings_count: number;
+	unlock_prompt: CognitionUnlockPrompt | null;
+}
+
+export interface LiteCognitionAssessmentRequest {
+	gravity_time_horizon: number;
+	gravity_information_density: number;
+	gravity_control_style: number;
+	friction_risk_sensitivity: number;
+	friction_cognitive_load: number;
+	friction_ambiguity_tolerance: number;
+	uncertainty_threat_lens: number;
+	uncertainty_control_need: number;
+	uncertainty_exploration_drive: number;
+}
+
+export interface LiteCognitionAssessmentResponse {
+	success: boolean;
+	profile_summary: string;
+	primary_blindspots: CognitionBlindspot[];
+}
+
+export interface CognitionInsightItem {
+	key: string;
+	title: string;
+	description: string;
+	recommendation: string;
+}
+
+export interface CognitionInsightsResponse {
+	insights: CognitionInsightItem[];
+	blindspots: CognitionBlindspot[];
+}
+
+// ============================================================================
 // Terms & Conditions Types
 // ============================================================================
 
@@ -1450,6 +1553,34 @@ export class ApiClient {
 
 	async resetOnboarding(): Promise<OnboardingStatus> {
 		return this.post<OnboardingStatus>('/api/v1/onboarding/reset');
+	}
+
+	// ==========================================================================
+	// Cognition Endpoints
+	// ==========================================================================
+
+	async getCognitionProfile(): Promise<CognitionProfileResponse> {
+		return this.fetch<CognitionProfileResponse>('/api/v1/cognition');
+	}
+
+	async submitLiteCognitionAssessment(
+		responses: LiteCognitionAssessmentRequest
+	): Promise<LiteCognitionAssessmentResponse> {
+		return this.post<LiteCognitionAssessmentResponse>('/api/v1/cognition/lite', responses);
+	}
+
+	async submitTier2CognitionAssessment(
+		instrument: 'leverage' | 'tension' | 'time_bias',
+		responses: Record<string, number>
+	): Promise<CognitionProfileResponse> {
+		return this.post<CognitionProfileResponse>('/api/v1/cognition/assess', {
+			instrument,
+			responses
+		});
+	}
+
+	async getCognitionInsights(): Promise<CognitionInsightsResponse> {
+		return this.fetch<CognitionInsightsResponse>('/api/v1/cognition/insights');
 	}
 
 	// ==========================================================================

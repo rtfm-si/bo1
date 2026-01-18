@@ -21,6 +21,7 @@
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import RecentMeetingsWidget from '$lib/components/dashboard/RecentMeetingsWidget.svelte';
 	import ResearchHeadlinesWidget from '$lib/components/dashboard/ResearchHeadlinesWidget.svelte';
+	import CognitionWidget from '$lib/components/dashboard/CognitionWidget.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
@@ -369,6 +370,11 @@
 			onSave={handleSaveProgress}
 			onClose={handleCloseProgressModal}
 		/>
+
+		<!-- Cognitive Profile Widget -->
+		<div class="mb-6">
+			<CognitionWidget />
+		</div>
 
 		<!-- Smart Focus Banner - Context-aware primary CTA -->
 		<SmartFocusBanner

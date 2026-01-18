@@ -215,6 +215,7 @@ async def initiate_sheets_connect(
         "scope": f"openid email profile {SHEETS_SCOPE}",
         "access_type": "offline",  # Get refresh token
         "prompt": "consent",  # Force consent to get refresh token
+        "include_granted_scopes": "true",  # Incremental authorization
         "state": state,
     }
 

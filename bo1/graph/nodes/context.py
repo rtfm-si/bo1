@@ -20,8 +20,84 @@ from bo1.graph.state import (
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.state.repositories import user_repository
+from bo1.state.repositories.cognition_repository import cognition_repository
 
 logger = logging.getLogger(__name__)
+
+
+def build_cognitive_context_block(profile: dict[str, Any]) -> str:
+    """Build cognitive context block for prompt injection.
+
+    Includes:
+    - Resonance guidance (how to frame advice)
+    - Blindspot compensation (what to actively counter)
+
+    Args:
+        profile: Cognitive profile dict from cognition_repository
+
+    Returns:
+        Formatted string for injection into problem.context
+    """
+    if not profile:
+        return ""
+
+    lines = ["\n\n## User Cognitive Profile"]
+
+    # Style summary
+    if profile.get("cognitive_style_summary"):
+        lines.append(f"**Decision Style:** {profile['cognitive_style_summary']}")
+
+    lines.append("\n### Communication Guidance")
+
+    # Time horizon framing
+    th = profile.get("gravity_time_horizon")
+    if th is not None:
+        if th < 0.3:
+            lines.append("- Frame recommendations with immediate actionability and quick wins")
+        elif th > 0.7:
+            lines.append("- Frame recommendations with long-term strategic implications")
+
+    # Information density
+    info = profile.get("gravity_information_density")
+    if info is not None:
+        if info < 0.3:
+            lines.append("- Keep analysis high-level, lead with conclusions")
+        elif info > 0.7:
+            lines.append("- Provide detailed supporting data and nuanced analysis")
+
+    # Risk sensitivity
+    risk = profile.get("friction_risk_sensitivity")
+    if risk is not None:
+        if risk > 0.7:
+            lines.append("- Emphasize risk mitigation strategies and downside protection")
+        elif risk < 0.3:
+            lines.append("- User is comfortable with calculated risks; focus on upside potential")
+
+    # Ambiguity tolerance
+    ambig = profile.get("friction_ambiguity_tolerance")
+    if ambig is not None:
+        if ambig > 0.7:
+            lines.append("- Provide clear, bounded options; avoid open-ended recommendations")
+
+    # Control style
+    control = profile.get("gravity_control_style")
+    if control is not None:
+        if control > 0.7:
+            lines.append("- Include detailed execution steps; user prefers hands-on involvement")
+        elif control < 0.3:
+            lines.append("- Focus on outcomes and delegation options")
+
+    # Blindspot Compensation
+    blindspots = profile.get("primary_blindspots", [])
+    if blindspots:
+        lines.append("\n### Blindspot Awareness (Actively Counter These)")
+        for bs in blindspots[:3]:
+            if isinstance(bs, dict):
+                label = bs.get("label", "Unknown")
+                compensation = bs.get("compensation", "")
+                lines.append(f"- **{label}**: {compensation}")
+
+    return "\n".join(lines)
 
 
 async def context_collection_node(state: DeliberationGraphState) -> dict[str, Any]:
@@ -228,6 +304,20 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                 logger.info("Injected business context into problem.context")
         except Exception as e:
             logger.warning(f"Failed to load business context: {e}")
+
+    # Step 1b: Load cognitive profile for prompt shaping
+    if user_id:
+        try:
+            cognitive_profile = cognition_repository.get_profile_for_prompt(user_id)
+            if cognitive_profile:
+                cognitive_block = build_cognitive_context_block(cognitive_profile)
+                if cognitive_block:
+                    problem.context = problem.context + cognitive_block
+                    logger.info(
+                        f"Injected cognitive profile into context for user {user_id[:8]}..."
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to load cognitive profile: {e}")
 
     # Step 2: Load user-selected context (meetings, actions, datasets)
     context_ids = state.get("context_ids")

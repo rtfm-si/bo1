@@ -53,6 +53,8 @@
 	const workingPatternData = useDataFetch(() => apiClient.getWorkingPattern());
 	// Fetch heatmap depth preference
 	const heatmapDepthData = useDataFetch(() => apiClient.getHeatmapDepth());
+	// Fetch cognition profile for onboarding checklist
+	const cognitionData = useDataFetch(() => apiClient.getCognitionProfile());
 
 	// Goal staleness state (fetched separately as it's a new endpoint)
 	interface GoalStaleness {
@@ -340,6 +342,7 @@
 			<OnboardingChecklist
 				userContext={contextData.data?.context}
 				sessionCount={sessions.length}
+				hasCognitionProfile={cognitionData.data?.exists && !!cognitionData.data?.gravity?.assessed_at}
 				onDismiss={dismissOnboarding}
 			/>
 		{/if}

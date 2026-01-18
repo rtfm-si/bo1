@@ -12,10 +12,12 @@
 	let {
 		userContext = null,
 		sessionCount = 0,
+		hasCognitionProfile = false,
 		onDismiss,
 	}: {
 		userContext?: UserContext | null;
 		sessionCount?: number;
+		hasCognitionProfile?: boolean;
 		onDismiss: () => void;
 	} = $props();
 
@@ -27,6 +29,13 @@
 			description: 'Help us understand your business for better recommendations',
 			href: '/context/overview',
 			completed: !!(userContext?.business_model || userContext?.product_description),
+		},
+		{
+			id: 'cognition',
+			title: 'Set up your decision profile',
+			description: 'Personalize recommendations to your thinking style',
+			href: '/settings/cognition',
+			completed: hasCognitionProfile,
 		},
 		{
 			id: 'meeting',

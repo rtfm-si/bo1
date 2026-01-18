@@ -2,3 +2,10 @@
 # https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
 
 # Add CVE IDs here with justification comments
+
+# GHSA-58pv-8j8x-9vj2: jaraco.context path traversal vulnerability
+# This is vendored inside setuptools and not directly exploitable in our app.
+# setuptools 80.9.0 still bundles jaraco.context 5.3.0 internally.
+# We don't use jaraco.context directly - it's only used by setuptools internals.
+# Tracked: https://github.com/pypa/setuptools/issues - waiting for upstream fix
+GHSA-58pv-8j8x-9vj2

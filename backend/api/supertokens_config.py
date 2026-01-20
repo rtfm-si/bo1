@@ -91,6 +91,7 @@ from bo1.feature_flags import (
 )
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
+from bo1.state.repositories.auth_provider_repository import auth_provider_repository
 from bo1.state.repositories.workspace_repository import workspace_repository
 
 logger = logging.getLogger(__name__)
@@ -528,28 +529,63 @@ def override_thirdparty_functions(
             return result
 
         try:
-            user_id = result.user.id
+            st_user_id = result.user.id
 
-            # Log account linking status
-            # With AccountLinking, an OAuth sign-in may link to an existing email account
+            # ================================================================
+            # ACCOUNT LINKING: Check if this email already exists
+            # ================================================================
+            existing = auth_provider_repository.get_primary_user_by_email(email)
+
+            if existing:
+                # Email exists - link this OAuth provider to existing primary user
+                primary_user_id = existing["primary_user_id"]
+                auth_provider_repository.link_provider_to_user(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider=third_party_id,
+                    email=email,
+                    email_verified=True,  # OAuth = trusted email verification
+                )
+                logger.info(
+                    f"Account linked: {_mask_email(email)} OAuth ({third_party_id}) "
+                    f"linked to existing user {primary_user_id[:8]}..."
+                )
+                # Update user record with latest auth info
+                user_repository.ensure_exists(
+                    user_id=primary_user_id,
+                    email=email,
+                    auth_provider=third_party_id,
+                    subscription_tier="free",
+                )
+            else:
+                # New email - this SuperTokens user becomes the primary user
+                primary_user_id = st_user_id
+                user_repository.ensure_exists(
+                    user_id=primary_user_id,
+                    email=email,
+                    auth_provider=third_party_id,
+                    subscription_tier="free",
+                )
+                auth_provider_repository.create_provider_record(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider=third_party_id,
+                    email=email,
+                    email_verified=True,  # OAuth = trusted
+                )
+                logger.info(
+                    f"New user created: {_mask_email(email)} via {third_party_id} "
+                    f"(primary_user_id: {primary_user_id[:8]}...)"
+                )
+
+            # Log account linking status for debugging
             login_methods = len(result.user.login_methods) if result.user.login_methods else 1
             if login_methods > 1:
                 logger.info(
-                    f"Account linked: {_mask_email(email)} now has {login_methods} login methods "
-                    f"(user_id: {user_id}, added: {third_party_id})"
+                    f"SuperTokens reports {login_methods} login methods for {_mask_email(email)}"
                 )
 
-            user_repository.ensure_exists(
-                user_id=user_id,
-                email=email,
-                auth_provider=third_party_id,  # "google", "linkedin", "github"
-                subscription_tier="free",  # Default tier for new users
-            )
-            logger.info(
-                f"User synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id}, provider: {third_party_id})"
-            )
-
-            # Save Google OAuth tokens for Sheets API access
+            # Save Google OAuth tokens for Sheets API access (use primary_user_id)
             if third_party_id == "google" and oauth_tokens:
                 from datetime import UTC, datetime, timedelta
 
@@ -567,33 +603,34 @@ def override_thirdparty_functions(
 
                 if access_token:
                     user_repository.save_google_tokens(
-                        user_id=user_id,
+                        user_id=primary_user_id,
                         access_token=access_token,
                         refresh_token=refresh_token,
                         expires_at=expires_at,
                         scopes=scope,
                     )
                     logger.info(
-                        f"Saved Google OAuth tokens for user {user_id} (scopes: {scope[:50]}...)"
+                        f"Saved Google OAuth tokens for user {primary_user_id[:8]}... (scopes: {scope[:50]}...)"
                     )
 
-            # Check if user account is locked or deleted
-            if is_user_locked_or_deleted(user_id):
+            # Check if user account is locked or deleted (check primary user)
+            if is_user_locked_or_deleted(primary_user_id):
                 logger.warning(
-                    f"Sign-in rejected: user {user_id} ({_mask_email(email)}) is locked or deleted"
+                    f"Sign-in rejected: user {primary_user_id[:8]}... ({_mask_email(email)}) is locked or deleted"
                 )
                 # Raise sanitized message to prevent information disclosure
                 raise Exception(sanitize_supertokens_message("account locked"))
 
-            # Send welcome email for new users (fire-and-forget)
-            if result.created_new_recipe_user:
+            # Send welcome email for new users (only if this is a new primary user)
+            is_new_primary_user = not existing and result.created_new_recipe_user
+            if is_new_primary_user:
                 try:
                     # Extract name from provider info if available
                     user_name = None
                     if raw_user_info_from_provider.from_user_info_api:
                         user_name = raw_user_info_from_provider.from_user_info_api.get("name")
 
-                    html, text = render_welcome_email(user_name=user_name, user_id=user_id)
+                    html, text = render_welcome_email(user_name=user_name, user_id=primary_user_id)
                     send_email_async(
                         to=email,
                         subject="Welcome to Board of One",
@@ -610,10 +647,10 @@ def override_thirdparty_functions(
                     workspace_name = "Personal Workspace"
                     workspace = workspace_repository.create_workspace(
                         name=workspace_name,
-                        owner_id=user_id,
+                        owner_id=primary_user_id,
                     )
                     # Set as user's default workspace
-                    user_repository.set_default_workspace(user_id, workspace.id)
+                    user_repository.set_default_workspace(primary_user_id, workspace.id)
                     logger.info(
                         f"Created personal workspace for new user: {_mask_email(email)} "
                         f"(workspace_id: {workspace.id})"
@@ -631,7 +668,7 @@ def override_thirdparty_functions(
                 logger,
                 ErrorCode.DB_WRITE_ERROR,
                 f"Failed to sync user to PostgreSQL: {e}",
-                user_id=user_id,
+                user_id=st_user_id,
                 email=_mask_email(email),
             )
 
@@ -739,7 +776,7 @@ def override_emailpassword_functions(
         should_try_linking_with_session_user: bool | None,
         user_context: dict[str, Any],
     ) -> Any:
-        """Override sign_up to add whitelist validation and user sync."""
+        """Override sign_up to add whitelist validation, user sync, and account linking."""
         # Check closed beta whitelist
         if os.getenv("CLOSED_BETA_MODE", "false").lower() == "true":
             if not is_whitelisted(email):
@@ -761,46 +798,87 @@ def override_emailpassword_functions(
         if not isinstance(result, EmailPasswordSignUpOkResult):
             return result
 
-        # Sync user to PostgreSQL
+        # Sync user to PostgreSQL with account linking
         try:
-            user_id = result.user.id
-            user_repository.ensure_exists(
-                user_id=user_id,
-                email=email,
-                auth_provider="email",
-                subscription_tier="free",
-            )
-            logger.info(
-                f"Email user synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id})"
-            )
+            st_user_id = result.user.id
 
-            # Create workspace and send welcome email for new users
-            if result.user.login_methods and len(result.user.login_methods) == 1:
-                # New user - send welcome email
-                try:
-                    html, text = render_welcome_email(user_name=None, user_id=user_id)
-                    send_email_async(
-                        to=email,
-                        subject="Welcome to Board of One",
-                        html=html,
-                        text=text,
-                    )
-                    logger.info(f"Welcome email queued for new email user: {_mask_email(email)}")
-                except Exception as welcome_err:
-                    logger.warning(f"Failed to send welcome email: {welcome_err}")
+            # ================================================================
+            # ACCOUNT LINKING: Check if this email already exists
+            # ================================================================
+            existing = auth_provider_repository.get_primary_user_by_email(email)
 
-                # Create default workspace
+            if existing:
+                # Email exists via another method - link this email/password account
+                # Email/Password signup is UNTRUSTED - must verify email before access
+                primary_user_id = existing["primary_user_id"]
+                auth_provider_repository.link_provider_to_user(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider="email",
+                    email=email,
+                    email_verified=False,  # MUST verify before access
+                )
+                logger.info(
+                    f"Account linked: {_mask_email(email)} email/password linked to existing "
+                    f"user {primary_user_id[:8]}... (UNVERIFIED - verification required)"
+                )
+                # Store that verification is needed in user_context for API response
+                user_context["email_verification_required"] = True
+                user_context["primary_user_id"] = primary_user_id
+            else:
+                # New email - create new primary user with unverified email
+                primary_user_id = st_user_id
+                user_repository.ensure_exists(
+                    user_id=primary_user_id,
+                    email=email,
+                    auth_provider="email",
+                    subscription_tier="free",
+                )
+                auth_provider_repository.create_provider_record(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider="email",
+                    email=email,
+                    email_verified=False,  # New email/password users must verify
+                )
+                logger.info(
+                    f"New user created: {_mask_email(email)} via email/password "
+                    f"(primary_user_id: {primary_user_id[:8]}..., UNVERIFIED)"
+                )
+                user_context["email_verification_required"] = True
+                user_context["primary_user_id"] = primary_user_id
+
+                # Only create workspace for truly new users (not linking accounts)
                 try:
                     workspace = workspace_repository.create_workspace(
                         name="Personal Workspace",
-                        owner_id=user_id,
+                        owner_id=primary_user_id,
                     )
-                    user_repository.set_default_workspace(user_id, workspace.id)
+                    user_repository.set_default_workspace(primary_user_id, workspace.id)
                     logger.info(
                         f"Created personal workspace for new email user: {_mask_email(email)}"
                     )
                 except Exception as workspace_err:
                     logger.warning(f"Failed to create workspace: {workspace_err}")
+
+            # Send verification email (not welcome email - they need to verify first)
+            try:
+                from backend.services.email_templates import render_verification_email
+
+                token = auth_provider_repository.create_verification_token(st_user_id, email)
+                frontend_url = os.getenv("SUPERTOKENS_WEBSITE_DOMAIN", "http://localhost:5173")
+                verify_url = f"{frontend_url}/verify-email?token={token}"
+
+                html, text = render_verification_email(verify_url)
+                send_email_async(
+                    to=email,
+                    subject="Verify your email - Board of One",
+                    html=html,
+                    text=text,
+                )
+                logger.info(f"Verification email sent to {_mask_email(email)}")
+            except Exception as email_err:
+                logger.warning(f"Failed to send verification email: {email_err}")
 
         except Exception as e:
             log_error(
@@ -820,7 +898,7 @@ def override_emailpassword_functions(
         should_try_linking_with_session_user: bool | None,
         user_context: dict[str, Any],
     ) -> Any:
-        """Override sign_in to check account lock status and password strength."""
+        """Override sign_in to check account lock status, email verification, and password strength."""
         result = await original_sign_in(
             email,
             password,
@@ -834,11 +912,36 @@ def override_emailpassword_functions(
         if not isinstance(result, EmailPasswordSignInOkResult):
             return result
 
-        # Check if user is locked or deleted
-        user_id = result.user.id
-        if is_user_locked_or_deleted(user_id):
+        st_user_id = result.user.id
+
+        # ================================================================
+        # ACCOUNT LINKING: Check email verification status
+        # ================================================================
+        provider = auth_provider_repository.get_provider_by_st_user_id(st_user_id)
+
+        if provider:
+            primary_user_id = provider["primary_user_id"]
+
+            # SECURITY: Block unverified email/password login
+            if provider["provider"] == "email" and not provider["email_verified"]:
+                logger.warning(
+                    f"Email sign-in blocked: {_mask_email(email)} email not verified "
+                    f"(st_user_id: {st_user_id[:8]}...)"
+                )
+                # Store in context for API response to show verification message
+                user_context["email_verification_required"] = True
+                raise Exception(sanitize_supertokens_message("email not verified"))
+
+            # Update last_used_at for this provider
+            auth_provider_repository.update_last_used(st_user_id)
+        else:
+            # Legacy user without provider record - use ST user_id as primary
+            primary_user_id = st_user_id
+
+        # Check if primary user is locked or deleted
+        if is_user_locked_or_deleted(primary_user_id):
             logger.warning(
-                f"Email sign-in rejected: user {user_id} ({_mask_email(email)}) is locked/deleted"
+                f"Email sign-in rejected: user {primary_user_id[:8]}... ({_mask_email(email)}) is locked/deleted"
             )
             raise Exception(sanitize_supertokens_message("account locked"))
 
@@ -847,13 +950,17 @@ def override_emailpassword_functions(
         password_weak = await validate_password_strength(password, tenant_id) is not None
         if password_weak:
             try:
-                _set_password_upgrade_flag(user_id, True)
-                logger.info(f"Flagged user {user_id} for password upgrade (weak password detected)")
+                _set_password_upgrade_flag(primary_user_id, True)
+                logger.info(
+                    f"Flagged user {primary_user_id[:8]}... for password upgrade (weak password detected)"
+                )
             except Exception as e:
                 # Don't block login on flag update failure
                 logger.warning(f"Failed to set password upgrade flag: {e}")
 
-        logger.info(f"Email user signed in: {_mask_email(email)} (user_id: {user_id})")
+        logger.info(
+            f"Email user signed in: {_mask_email(email)} (primary_user_id: {primary_user_id[:8]}...)"
+        )
         return result
 
     original_implementation.sign_up = sign_up  # type: ignore[method-assign]
@@ -1005,7 +1112,6 @@ def override_passwordless_functions(
             return result
 
         user = result.user
-        user_id = user.id
         email = None
 
         # Get email from login methods
@@ -1014,8 +1120,10 @@ def override_passwordless_functions(
                 email = login_method.email
                 break
 
+        st_user_id = user.id
+
         if not email:
-            logger.warning(f"Passwordless user {user_id} has no email")
+            logger.warning(f"Passwordless user {st_user_id} has no email")
             return result
 
         # Check closed beta whitelist
@@ -1024,32 +1132,71 @@ def override_passwordless_functions(
                 logger.warning(f"Magic link rejected: {_mask_email(email.lower())} not whitelisted")
                 raise Exception(sanitize_supertokens_message("whitelist rejection"))
 
-        # Check if user is locked or deleted
-        if is_user_locked_or_deleted(user_id):
-            logger.warning(
-                f"Magic link rejected: user {user_id} ({_mask_email(email)}) is locked/deleted"
-            )
-            raise Exception(sanitize_supertokens_message("account locked"))
-
-        # Sync user to PostgreSQL
+        # Sync user to PostgreSQL with account linking
         try:
-            user_repository.ensure_exists(
-                user_id=user_id,
-                email=email,
-                auth_provider="magic_link",
-                subscription_tier="free",
-            )
-            logger.info(
-                f"Magic link user synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id})"
-            )
+            # ================================================================
+            # ACCOUNT LINKING: Check if this email already exists
+            # Magic link = clicking link = email verified (trusted)
+            # ================================================================
+            existing = auth_provider_repository.get_primary_user_by_email(email)
+
+            if existing:
+                # Email exists - link this passwordless provider to existing primary user
+                primary_user_id = existing["primary_user_id"]
+                auth_provider_repository.link_provider_to_user(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider="passwordless",
+                    email=email,
+                    email_verified=True,  # Magic link = verified (user clicked link)
+                )
+                logger.info(
+                    f"Account linked: {_mask_email(email)} passwordless linked to existing "
+                    f"user {primary_user_id[:8]}..."
+                )
+                # Update user record
+                user_repository.ensure_exists(
+                    user_id=primary_user_id,
+                    email=email,
+                    auth_provider="magic_link",
+                    subscription_tier="free",
+                )
+            else:
+                # New email - this SuperTokens user becomes the primary user
+                primary_user_id = st_user_id
+                user_repository.ensure_exists(
+                    user_id=primary_user_id,
+                    email=email,
+                    auth_provider="magic_link",
+                    subscription_tier="free",
+                )
+                auth_provider_repository.create_provider_record(
+                    primary_user_id=primary_user_id,
+                    supertokens_user_id=st_user_id,
+                    provider="passwordless",
+                    email=email,
+                    email_verified=True,  # Magic link = verified
+                )
+                logger.info(
+                    f"New user created: {_mask_email(email)} via passwordless "
+                    f"(primary_user_id: {primary_user_id[:8]}...)"
+                )
+
+            # Check if primary user is locked or deleted
+            if is_user_locked_or_deleted(primary_user_id):
+                logger.warning(
+                    f"Magic link rejected: user {primary_user_id[:8]}... ({_mask_email(email)}) is locked/deleted"
+                )
+                raise Exception(sanitize_supertokens_message("account locked"))
 
             # Track magic link usage for rate limiting
-            _update_last_magic_link_at(user_id)
+            _update_last_magic_link_at(primary_user_id)
 
-            # Send welcome email for new users
-            if result.created_new_recipe_user:
+            # Send welcome email for new primary users
+            is_new_primary_user = not existing and result.created_new_recipe_user
+            if is_new_primary_user:
                 try:
-                    html, text = render_welcome_email(user_name=None, user_id=user_id)
+                    html, text = render_welcome_email(user_name=None, user_id=primary_user_id)
                     send_email_async(
                         to=email,
                         subject="Welcome to Board of One",
@@ -1066,9 +1213,9 @@ def override_passwordless_functions(
                 try:
                     workspace = workspace_repository.create_workspace(
                         name="Personal Workspace",
-                        owner_id=user_id,
+                        owner_id=primary_user_id,
                     )
-                    user_repository.set_default_workspace(user_id, workspace.id)
+                    user_repository.set_default_workspace(primary_user_id, workspace.id)
                     logger.info(
                         f"Created personal workspace for new magic link user: {_mask_email(email)}"
                     )
@@ -1085,7 +1232,9 @@ def override_passwordless_functions(
                 email=_mask_email(email),
             )
 
-        logger.info(f"Magic link user signed in: {_mask_email(email)} (user_id: {user_id})")
+        logger.info(
+            f"Magic link user signed in: {_mask_email(email)} (primary_user_id: {primary_user_id[:8]}...)"
+        )
         return result
 
     original_implementation.consume_code = consume_code  # type: ignore[method-assign]

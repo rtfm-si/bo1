@@ -88,19 +88,42 @@ async def _get_current_user_with_session(
 ) -> dict[str, Any]:
     """Internal function that requires SuperTokens session verification.
 
-    Supports admin impersonation: if admin has active impersonation session,
-    returns target user's data while preserving admin identity for audit.
+    Supports:
+    - Account linking: resolves SuperTokens user_id to primary_user_id
+    - Admin impersonation: if admin has active impersonation session,
+      returns target user's data while preserving admin identity for audit
     """
     try:
-        user_id = session.get_user_id()
+        st_user_id = session.get_user_id()
         session_handle = session.get_handle()
 
-        logger.info(f"Authenticated user via SuperTokens: {user_id}")
+        logger.info(f"Authenticated user via SuperTokens: {st_user_id[:8]}...")
 
-        # Fetch user data from database including is_admin flag
+        # ================================================================
+        # ACCOUNT LINKING: Resolve to primary_user_id
+        # ================================================================
+        from bo1.state.repositories.auth_provider_repository import auth_provider_repository
+
+        provider = auth_provider_repository.get_provider_by_st_user_id(st_user_id)
+
+        if provider:
+            primary_user_id = provider["primary_user_id"]
+            # Check email verification for email/password users
+            if provider["provider"] == "email" and not provider["email_verified"]:
+                logger.warning(f"Access denied: unverified email/password user {st_user_id[:8]}...")
+                raise http_error(
+                    ErrorCode.API_FORBIDDEN,
+                    "Email verification required. Please check your email.",
+                    status=403,
+                )
+        else:
+            # Legacy user without provider record - use ST user_id as primary
+            primary_user_id = st_user_id
+
+        # Fetch user data from database using primary_user_id
         from bo1.state.repositories import user_repository
 
-        user_data = user_repository.get(user_id)
+        user_data = user_repository.get(primary_user_id)
 
         # Check for impersonation (set by ImpersonationMiddleware)
         is_impersonation = getattr(request.state, "is_impersonation", False)
@@ -111,7 +134,7 @@ async def _get_current_user_with_session(
             target_data = user_repository.get(impersonation_target_id)
             if target_data:
                 logger.info(
-                    f"Impersonation active: admin {user_id} viewing as {impersonation_target_id}"
+                    f"Impersonation active: admin {primary_user_id[:8]}... viewing as {impersonation_target_id[:8]}..."
                 )
                 return {
                     "user_id": impersonation_target_id,
@@ -122,15 +145,16 @@ async def _get_current_user_with_session(
                     "session_handle": session_handle,
                     # Impersonation metadata for audit
                     "is_impersonation": True,
-                    "real_admin_id": user_id,
+                    "real_admin_id": primary_user_id,
                     "impersonation_write_mode": getattr(
                         request.state, "impersonation_write_mode", False
                     ),
                 }
 
         # Use database values if available, otherwise defaults
+        # Return primary_user_id as user_id - this is the canonical ID for the app
         return {
-            "user_id": user_id,
+            "user_id": primary_user_id,
             "email": user_data.get("email") if user_data else None,
             "role": "authenticated",
             "subscription_tier": user_data.get("subscription_tier", "free")
@@ -190,7 +214,7 @@ if E2E_MODE:
     get_current_user = _get_current_user_e2e
     logger.warning("E2E mode: auth bypassed with real test user (PUBLIC_E2E_MODE=true)")
 elif ENABLE_SUPERTOKENS_AUTH:
-    get_current_user = _get_current_user_with_session
+    get_current_user = _get_current_user_with_session  # type: ignore[assignment]
 else:
     get_current_user = _get_current_user_mvp
 
@@ -218,10 +242,11 @@ def require_auth(user: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _require_admin_with_session(
+    request: Request,
     session: SessionContainer = Depends(verify_session()),
 ) -> dict[str, Any]:
     """Internal admin function with session verification."""
-    user = await _get_current_user_with_session(session)
+    user = await _get_current_user_with_session(request, session)
 
     if not user or not user.get("user_id"):
         raise http_error(ErrorCode.API_UNAUTHORIZED, "Authentication required", status=401)
@@ -263,6 +288,6 @@ async def _require_admin_e2e() -> dict[str, Any]:
 if E2E_MODE:
     require_admin = _require_admin_e2e
 elif ENABLE_SUPERTOKENS_AUTH:
-    require_admin = _require_admin_with_session
+    require_admin = _require_admin_with_session  # type: ignore[assignment]
 else:
     require_admin = _require_admin_mvp

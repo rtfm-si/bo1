@@ -1,72 +1,136 @@
-# Plan: Competitor Intelligence - Deeper Web Research
+# Codebase Cleanup Audit Report
 
 ## Summary
 
-- Enhance competitor enrichment with deeper web research (news, funding, product updates)
-- Extend Tavily integration to include Crunchbase, LinkedIn, TechCrunch, industry blogs
-- Add intelligence categories: recent news, funding rounds, product launches, key hires
-- Display enriched data in CompetitorManager with collapsible intelligence panels
+**Overall Assessment:** Mature, well-maintained codebase with minimal dead code. Most deprecations are intentional with documented migration paths. No major cleanup required.
 
-## Implementation Steps
+---
 
-1. **Create `CompetitorIntelligenceService`** (`backend/services/competitor_intelligence.py`)
-   - `gather_competitor_intel(name: str, website: str | None, depth: str) -> CompetitorIntel`
-   - Multi-query Tavily search:
-     - `"{name}" funding OR raised OR series` (Crunchbase, TechCrunch)
-     - `"{name}" product launch OR release OR update` (press, blogs)
-     - `"{name}" news 2025 OR 2026` (recent coverage)
-   - Parse results with LLM (Haiku) into structured intelligence categories
-   - Return: `funding_rounds`, `product_updates`, `recent_news`, `key_signals`
+## Step 1: Domain Classification
 
-2. **Extend `ManagedCompetitor` model** (`backend/api/context/models.py`)
-   - Add fields: `product_updates: list[dict] | None`, `key_signals: list[str] | None`
-   - Add `intel_gathered_at: datetime | None` timestamp for freshness
-   - `product_updates`: list of `{title, date, description, source_url}`
-   - `key_signals`: list of notable signals (e.g., "Raised Series B", "Launched AI feature")
+| Domain | Files | Status |
+|--------|-------|--------|
+| `bo1/` | 228 | Core deliberation engine - active |
+| `backend/` | 304 | API + services - active |
+| `frontend/src/` | 470 | SvelteKit UI - active |
+| `migrations/` | 213 | Alembic migrations - active |
 
-3. **Update `enrich_competitor_with_tavily()`** (`backend/api/competitors.py`)
-   - For `deep` tier: call `CompetitorIntelligenceService.gather_competitor_intel()`
-   - Merge intel results into existing enrichment flow
-   - Update DB columns: `product_updates`, `key_signals`, `intel_gathered_at`
+**Legacy Patterns Found:**
+- `TierLimits` / `TierFeatureFlags` classes in `bo1/constants.py` (DEPRECATED - migration to `PlanConfig` 90% complete)
+- `next_speaker` field in facilitator (deprecated for parallel mode, still referenced)
 
-4. **Add migration for new columns** (`migrations/versions/zzz_competitor_intel.py`)
-   - Add `product_updates JSONB`, `key_signals JSONB`, `intel_gathered_at TIMESTAMPTZ`
-   - Add index on `intel_gathered_at` for freshness queries
+---
 
-5. **Frontend: Extend CompetitorManager UI** (`frontend/src/lib/components/context/CompetitorManager.svelte`)
-   - Add TypeScript types for new intel fields
-   - Display intelligence panel when expanded:
-     - Recent news cards with date, headline, source link
-     - Funding info with badge (if available)
-     - Product updates as timeline
-     - Key signals as chips/badges
-   - Add "Gather Intel" button (separate from basic Enrich) for pro tier
+## Step 2: Consolidation Targets
 
-6. **Add tests** (`tests/services/test_competitor_intelligence.py`)
-   - Unit tests for `CompetitorIntelligenceService`
-   - Mock Tavily responses, test LLM parsing
-   - Integration test for enrichment flow with intel
+### HIGH PRIORITY
 
-## Tests
+1. **Conversation Repository Duplication** (4 files → 2)
+   - `backend/services/conversation_repo.py`
+   - `backend/services/dataset_conversation_pg_repo.py`
+   - `backend/services/mentor_conversation_repo.py`
+   - `backend/services/mentor_conversation_pg_repo.py`
+   - **Action:** Extract `CachedRepository` base class
 
-- Unit tests:
-  - `CompetitorIntelligenceService.gather_competitor_intel()` with mock Tavily
-  - LLM parsing of search results into structured intel
-  - Handling missing/empty results gracefully
-- Integration tests:
-  - Full enrichment flow with deep tier calling intel service
-  - Intel fields persisted to DB and returned in GET
-  - Frontend displays intel correctly (Playwright optional)
-- Manual validation:
-  - Test with real competitor (e.g., "Notion") to verify quality
+2. **Generator Service Duplication** (3 files)
+   - `backend/services/summary_generator.py`
+   - `backend/services/trend_summary_generator.py`
+   - `backend/services/improvement_plan_generator.py`
+   - **Action:** Create `LLMCachedGenerator` base
 
-## Dependencies & Risks
+### MEDIUM PRIORITY
 
-- Dependencies:
-  - Tavily API key (already configured, $0.001/query)
-  - Haiku for parsing (~$0.002/call)
-  - Pro tier gate for deep intel (already exists)
-- Risks:
-  - API cost: ~$0.01 per competitor deep refresh (3 queries + parsing)
-  - Rate limiting: Tavily has limits; add backoff
-  - Stale intel: Add 30-day freshness indicator, "Refresh Intel" button
+3. **Analyzer Service Duplication** (6 files)
+   - `backend/services/{trend,competitor,blocker,feedback,multi_dataset,deterministic}_analyzer.py`
+   - **Action:** Extract `AnalyzerBase` with common LLM + cost tracking
+
+4. **Response Parsing** (3 files → 1)
+   - `bo1/llm/response_parser.py` (987 lines)
+   - `bo1/utils/json_parsing.py` (256 lines)
+   - `bo1/utils/xml_parsing.py` (118 lines)
+   - **Action:** Consolidate into single module
+
+---
+
+## Step 3: File Deletion Assessment
+
+### DELETE NOW
+- None identified (codebase is clean)
+
+### REVIEW BEFORE DELETE
+
+| File | Reason | Action |
+|------|--------|--------|
+| `bo1/constants.py:908-1083` | `TierLimits`/`TierFeatureFlags` deprecated | Complete migration in test files, then remove |
+
+### KEEP (Verified Active)
+- `backend/services/google_calendar.py` - Feature-flagged, actively used
+- `backend/services/action_calendar_sync.py` - Actively used for calendar sync
+- All soft-delete patterns (actions, datasets, etc.) - Working correctly
+
+---
+
+## Step 4: Database Schema Cleanup
+
+### Already Cleaned (Historical)
+- `votes` table (dropped)
+- `schema_migrations` table (dropped)
+- `sessions.max_rounds` column (dropped)
+- `research_cache.source_count`, `freshness_days` (dropped)
+
+### No New Cleanup Required
+- All tables are actively referenced
+- CTEs (`dep_tree`, `matched_actions`, `similarity_buckets`) are query optimizations, not orphan tables
+- Soft-delete tables have proper indexes and RLS policies
+
+### Recommendation: Add TTL Policy
+- Soft-deleted records have no purge policy
+- **Action:** Add migration for 90-365 day retention before hard delete (GDPR compliance)
+
+---
+
+## Step 5-6: Refactor Plan
+
+### Quick Wins (Can execute now)
+
+1. **Remove deprecated TierLimits from tests** (~30 min)
+   - Files: `tests/billing/test_plan_config.py`, `tests/services/test_usage_tracking.py`, etc.
+   - Replace with `from bo1.billing import PlanConfig`
+
+2. **Consolidate parsing utilities** (~20 min)
+   - Move `json_parsing.py` + `xml_parsing.py` into `response_parser.py`
+   - Update imports
+
+### Defer (Larger refactor)
+- Repository consolidation (needs careful testing)
+- Analyzer base class extraction (6+ files affected)
+- Generator consolidation (needs cost tracking verification)
+
+---
+
+## Step 7: Final Summary
+
+### Cleanup Status
+- **Dead Code:** Minimal (TierLimits/TierFeatureFlags only significant item)
+- **Duplication:** Moderate (repository/analyzer patterns can be consolidated)
+- **Database:** Clean (historical deprecations already removed)
+- **Orphan Files:** None
+
+### Recommended Actions
+
+| Priority | Action | Effort |
+|----------|--------|--------|
+| HIGH | Remove TierLimits/TierFeatureFlags after test migration | 30 min |
+| MEDIUM | Consolidate parsing utilities | 20 min |
+| MEDIUM | Add soft-delete TTL policy migration | 1 hour |
+| LOW | Extract CachedRepository base | 2 hours |
+| LOW | Extract AnalyzerBase | 2 hours |
+
+### Build/Test Verification Required
+- Run `make test` after any changes
+- Run `uv run alembic upgrade head` after migrations
+- Verify `make pre-commit` passes
+
+---
+
+*Generated by /clean audit - 2026-01-19*

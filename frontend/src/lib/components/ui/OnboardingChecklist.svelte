@@ -34,7 +34,7 @@
 			id: 'cognition',
 			title: 'Set up your decision profile',
 			description: 'Personalize recommendations to your thinking style',
-			href: '/settings/cognition',
+			href: '/cognition',
 			completed: hasCognitionProfile,
 		},
 		{

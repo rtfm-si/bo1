@@ -18,6 +18,10 @@ Usage:
     contribution_repository.save(session_id, persona_code, content, ...)
 """
 
+from bo1.state.repositories.auth_provider_repository import (
+    AuthProviderRepository,
+    auth_provider_repository,
+)
 from bo1.state.repositories.base import BaseRepository
 from bo1.state.repositories.cache_repository import CacheRepository, cache_repository
 from bo1.state.repositories.contribution_repository import (
@@ -61,4 +65,6 @@ __all__ = [
     "template_repository",
     "TermsRepository",
     "terms_repository",
+    "AuthProviderRepository",
+    "auth_provider_repository",
 ]

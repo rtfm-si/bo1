@@ -52956,6 +52956,94 @@
         ]
       }
     },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "description": "Resend email verification link.\n\nRate limited to 1 per minute per IP to prevent abuse.\nReturns same response regardless of whether email exists (prevent enumeration).\n\nArgs:\n    request: FastAPI request object (for rate limiting)\n    email: Email address to resend verification to\n\nReturns:\n    {\"status\": \"ok\"} always (don't reveal if email exists)",
+        "operationId": "resend_verification_api_v1_auth_resend_verification_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "title": "Email",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Resend Verification Api V1 Auth Resend Verification Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Verification",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "get": {
+        "description": "Verify email address using token from verification email.\n\nThis endpoint is called when user clicks the verification link in their email.\nOn success, marks the email as verified and redirects to login with success message.\nOn failure, redirects to login with error message.\n\nArgs:\n    request: FastAPI request object (for rate limiting)\n    token: Verification token from email link\n\nReturns:\n    Redirect to login page with appropriate message",
+        "operationId": "verify_email_api_v1_auth_verify_email_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Email",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
     "/api/v1/benchmarks/stale": {
       "get": {
         "description": "Check which benchmark values need refreshing (monthly check-in).\n\n    Returns benchmarks that haven't been updated in 30+ days.\n    Use this to prompt users to confirm their values are still accurate.\n\n    **Use Cases:**\n    - Show refresh banner on Reports > Benchmarks page\n    - Prompt user during monthly check-in flow",

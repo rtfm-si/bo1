@@ -15,6 +15,7 @@
 		loading = false,
 		ariaLabel,
 		title,
+		href,
 		onclick,
 		class: className = '',
 		children,
@@ -26,6 +27,7 @@
 		loading?: boolean;
 		ariaLabel?: string;
 		title?: string;
+		href?: string;
 		onclick?: (event: MouseEvent) => void;
 		class?: string;
 		children?: Snippet;
@@ -68,6 +70,7 @@
 	disabled={disabled || loading}
 	aria-label={ariaLabel}
 	{title}
+	{href}
 	{onclick}
 	class="{customClass} {className}"
 >

@@ -4720,6 +4720,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Resend email verification link.
+         *
+         *     Rate limited to 1 per minute per IP to prevent abuse.
+         *     Returns same response regardless of whether email exists (prevent enumeration).
+         *
+         *     Args:
+         *         request: FastAPI request object (for rate limiting)
+         *         email: Email address to resend verification to
+         *
+         *     Returns:
+         *         {"status": "ok"} always (don't reveal if email exists)
+         */
+        post: operations["resend_verification_api_v1_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Email
+         * @description Verify email address using token from verification email.
+         *
+         *     This endpoint is called when user clicks the verification link in their email.
+         *     On success, marks the email as verified and redirects to login with success message.
+         *     On failure, redirects to login with error message.
+         *
+         *     Args:
+         *         request: FastAPI request object (for rate limiting)
+         *         token: Verification token from email link
+         *
+         *     Returns:
+         *         Redirect to login page with appropriate message
+         */
+        get: operations["verify_email_api_v1_auth_verify_email_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/benchmarks/stale": {
         parameters: {
             query?: never;
@@ -45803,6 +45864,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    resend_verification_api_v1_auth_resend_verification_post: {
+        parameters: {
+            query: {
+                email: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_v1_auth_verify_email_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

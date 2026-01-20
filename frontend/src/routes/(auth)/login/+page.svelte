@@ -27,6 +27,11 @@
 	let magicLinkSent = $state(false);
 	let showMagicLinkForm = $state(false);
 
+	// Email verification state
+	let verificationMessage = $state<string | null>(null);
+	let showResendVerification = $state(false);
+	let resendEmail = $state('');
+
 	// Redirect if already authenticated
 	onMount(() => {
 		// Initialize SuperTokens
@@ -38,11 +43,22 @@
 			}
 		});
 
-		// Check for error query param (from backend redirect)
+		// Check for error/message query params (from backend redirect)
 		if (browser) {
 			const params = new URLSearchParams(window.location.search);
 			const errorParam = params.get('error');
+			const messageParam = params.get('message');
 
+			// Handle success messages
+			if (messageParam) {
+				const successMessages: Record<string, string> = {
+					email_verified: 'Email verified successfully! You can now sign in.',
+					email_already_verified: 'Your email is already verified. Please sign in.',
+				};
+				verificationMessage = successMessages[messageParam] || null;
+			}
+
+			// Handle error messages
 			if (errorParam) {
 				// Map error codes to user-friendly messages
 				const errorMessages: Record<string, string> = {
@@ -57,9 +73,17 @@
 					missing_user_data: 'Failed to get user data from Google.',
 					closed_beta: 'Access limited to beta users. Join our waitlist!',
 					callback_failed: 'Authentication callback failed. Please try again.',
+					verification_invalid: 'Invalid verification link. Please request a new one.',
+					verification_expired: 'Verification link has expired. Please request a new one.',
+					email_not_verified: 'Please verify your email before signing in.',
 				};
 
 				error = errorMessages[errorParam] || 'Authentication failed. Please try again.';
+
+				// Show resend option for verification-related errors
+				if (errorParam === 'verification_expired' || errorParam === 'verification_invalid' || errorParam === 'email_not_verified') {
+					showResendVerification = true;
+				}
 			}
 		}
 
@@ -212,6 +236,41 @@
 	}
 
 	/**
+	 * Handle resending verification email
+	 */
+	async function handleResendVerification() {
+		if (!resendEmail) {
+			error = "Please enter your email address to resend verification.";
+			return;
+		}
+
+		isLoading = true;
+		loadingProvider = 'email';
+		error = null;
+
+		try {
+			const response = await fetch('/api/v1/auth/resend-verification', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: resendEmail }),
+			});
+
+			if (response.ok) {
+				verificationMessage = `If an account exists for ${resendEmail}, a verification link has been sent.`;
+				showResendVerification = false;
+			} else {
+				error = "Failed to resend verification email. Please try again.";
+			}
+		} catch (err) {
+			console.error('Resend verification error:', err);
+			error = "Failed to resend verification email. Please try again.";
+		} finally {
+			isLoading = false;
+			loadingProvider = null;
+		}
+	}
+
+	/**
 	 * Handle email/password sign-in or sign-up
 	 */
 	async function handleEmailPasswordSubmit(e: Event) {
@@ -234,6 +293,7 @@
 		isLoading = true;
 		loadingProvider = 'email';
 		error = null;
+		verificationMessage = null;
 
 		try {
 			if (isSignUp) {
@@ -246,8 +306,13 @@
 				});
 
 				if (response.status === "OK") {
-					// Successful sign-up, redirect to dashboard
-					goto('/dashboard');
+					// Account created - show verification message instead of redirecting
+					// Email/password users must verify their email before accessing the app
+					verificationMessage = `Account created! Please check your email (${email}) for a verification link.`;
+					// Clear the form
+					email = '';
+					password = '';
+					isSignUp = false;  // Switch to sign-in mode
 				} else if (response.status === "FIELD_ERROR") {
 					// Handle field validation errors from backend
 					for (const field of response.formFields) {
@@ -289,7 +354,15 @@
 			}
 		} catch (err: any) {
 			console.error('Email/password auth error:', err);
-			error = err.message || "Authentication failed. Please try again.";
+			const errMsg = err.message || "";
+			// Check for email verification error
+			if (errMsg.includes("email not verified") || errMsg.includes("EMAIL_NOT_VERIFIED")) {
+				error = "Please verify your email before signing in.";
+				showResendVerification = true;
+				resendEmail = email;
+			} else {
+				error = errMsg || "Authentication failed. Please try again.";
+			}
 		} finally {
 			isLoading = false;
 			loadingProvider = null;
@@ -330,6 +403,18 @@
 				</p>
 			</div>
 
+			<!-- Verification success message -->
+			{#if verificationMessage}
+				<div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+					<div class="flex items-start gap-3">
+						<svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+						</svg>
+						<p class="text-sm text-green-900 dark:text-green-200">{verificationMessage}</p>
+					</div>
+				</div>
+			{/if}
+
 			<!-- Error message -->
 			{#if error}
 				<div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -341,6 +426,35 @@
 							Join our waitlist for early access
 						</a>
 					{/if}
+				</div>
+			{/if}
+
+			<!-- Resend verification email form -->
+			{#if showResendVerification}
+				<div class="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+					<p class="text-sm text-amber-900 dark:text-amber-200 mb-3">
+						Need a new verification link? Enter your email below:
+					</p>
+					<div class="flex gap-2">
+						<input
+							type="email"
+							bind:value={resendEmail}
+							placeholder="your@email.com"
+							class="flex-1 px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+						/>
+						<button
+							type="button"
+							onclick={handleResendVerification}
+							disabled={isLoading || !resendEmail}
+							class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{#if isLoading && loadingProvider === 'email'}
+								Sending...
+							{:else}
+								Resend
+							{/if}
+						</button>
+					</div>
 				</div>
 			{/if}
 

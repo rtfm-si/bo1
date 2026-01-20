@@ -1124,3 +1124,56 @@ Don't want these reminders? Turn them off: {suppress_url}
 """
 
     return html, plain_text
+
+
+# =============================================================================
+# Email Verification
+# =============================================================================
+
+
+def render_verification_email(verify_url: str) -> tuple[str, str]:
+    """Render email verification email.
+
+    Args:
+        verify_url: URL to verify email address
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    content = f"""
+<h2>Verify your email address</h2>
+
+<p>Thanks for signing up for Board of One! Please verify your email address by clicking the button below:</p>
+
+<p style="text-align: center;">
+<a href="{verify_url}" class="button">Verify Email Address</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+This link will expire in 24 hours. If you didn't create an account with Board of One, you can safely ignore this email.
+</p>
+
+<p style="font-size: 14px; color: #666;">
+If the button doesn't work, copy and paste this link into your browser:<br>
+<a href="{verify_url}" style="word-break: break-all; color: #2563eb;">{verify_url}</a>
+</p>
+"""
+
+    # No user_id for verification emails (they haven't completed signup yet)
+    html = _wrap_email(content, user_id=None, email_type="all")
+
+    plain_text = f"""Verify your email address
+
+Thanks for signing up for Board of One! Please verify your email address by visiting this link:
+
+{verify_url}
+
+This link will expire in 24 hours.
+
+If you didn't create an account with Board of One, you can safely ignore this email.
+
+---
+Board of One - AI-powered decision making
+"""
+
+    return html, plain_text

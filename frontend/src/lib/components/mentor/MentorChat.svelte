@@ -402,7 +402,7 @@
 </script>
 
 <div
-	class="flex flex-col h-[600px] bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700"
+	class="flex flex-col h-full bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700"
 >
 	<!-- Header -->
 	<div class="flex flex-col gap-3 px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">

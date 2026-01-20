@@ -20,7 +20,6 @@
 	import WeeklyPlanView from '$lib/components/dashboard/WeeklyPlanView.svelte';
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import RecentMeetingsWidget from '$lib/components/dashboard/RecentMeetingsWidget.svelte';
-	import ResearchHeadlinesWidget from '$lib/components/dashboard/ResearchHeadlinesWidget.svelte';
 	import CognitionWidget from '$lib/components/dashboard/CognitionWidget.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -342,7 +341,7 @@
 			<OnboardingChecklist
 				userContext={contextData.data?.context}
 				sessionCount={sessions.length}
-				hasCognitionProfile={cognitionData.data?.exists && !!cognitionData.data?.gravity?.assessed_at}
+				hasCognitionProfile={!!cognitionData.data?.cognitive_style_summary}
 				onDismiss={dismissOnboarding}
 			/>
 		{/if}
@@ -457,11 +456,6 @@
 
 		<!-- Daily Activities / Today's Focus -->
 		<DailyActivities actionsData={actionsData.data} />
-
-		<!-- Research Headlines Widget -->
-		<div class="mb-8">
-			<ResearchHeadlinesWidget />
-		</div>
 
 		<!-- Recent Meetings Widget -->
 		{#if sessionsData.isLoading}

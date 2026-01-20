@@ -39,17 +39,17 @@
 	<meta name="description" content="Chat with your AI advisor for business guidance" />
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-	<div class="mb-6">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-4rem)] flex flex-col">
+	<div class="mb-6 flex-shrink-0">
 		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Discuss</h1>
 		<p class="mt-1 text-neutral-600 dark:text-neutral-400">
 			Chat with your AI advisor for strategic guidance and insights.
 		</p>
 	</div>
 
-	<div class="flex gap-6">
+	<div class="flex gap-6 flex-1 min-h-0">
 		<aside class="hidden lg:block w-64 flex-shrink-0">
-			<div class="h-[600px] bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+			<div class="h-full bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
 				<MentorChatHistory
 					bind:this={historyComponent}
 					selectedId={selectedConversationId}

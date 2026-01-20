@@ -31,7 +31,7 @@
 	let selectedMetric = $state<string | null>(null);
 	let availableMetrics = $state<string[]>([]);
 	let formula = $state<MetricFormulaResponse | null>(null);
-	let answers = $state<Record<string, string>>({});
+	let answers = $state<Record<string, string | number>>({});
 	let calculatedValue = $state<number | null>(null);
 	let resultUnit = $state<string>('');
 	let isLoading = $state(false);
@@ -113,11 +113,12 @@
 
 		// Validate all answers are filled
 		for (const q of formula.questions) {
-			if (!answers[q.id] || answers[q.id].trim() === '') {
+			const val = answers[q.id];
+			if (val === '' || val === undefined || val === null) {
 				error = `Please answer: ${q.question}`;
 				return;
 			}
-			const numVal = parseFloat(answers[q.id]);
+			const numVal = typeof val === 'number' ? val : parseFloat(val);
 			if (isNaN(numVal)) {
 				error = `Please enter a valid number for: ${q.question}`;
 				return;
@@ -129,7 +130,7 @@
 		try {
 			const answersList = Object.entries(answers).map(([question_id, value]) => ({
 				question_id,
-				value: parseFloat(value)
+				value: typeof value === 'number' ? value : parseFloat(value)
 			}));
 
 			const response = await apiClient.calculateMetric(selectedMetric, {

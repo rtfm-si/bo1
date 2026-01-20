@@ -3,8 +3,7 @@
 	 * Reports > Data Page - Shows all data analysis reports across datasets
 	 *
 	 * Lists generated reports from data analysis across all user datasets.
-	 * Supports orphaned reports where the dataset has been deleted.
-	 * Click-through to view full report.
+	 * Reports where the dataset has been deleted are filtered out.
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
@@ -12,18 +11,10 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { toast } from '$lib/stores/toast';
-	import { FileBarChart, Database, ChevronRight, AlertTriangle } from 'lucide-svelte';
+	import { FileBarChart, Database, ChevronRight } from 'lucide-svelte';
 
-	/**
-	 * Get the appropriate URL for viewing a report.
-	 * Uses standalone route for orphaned reports (where dataset was deleted).
-	 */
 	function getReportUrl(report: AllReportItem): string {
-		if (report.dataset_id) {
-			return `/datasets/${report.dataset_id}/report/${report.id}`;
-		}
-		// Orphaned report - use standalone route
-		return `/reports/data/${report.id}`;
+		return `/datasets/${report.dataset_id}/report/${report.id}`;
 	}
 
 	let isLoading = $state(true);
@@ -33,7 +24,8 @@
 		isLoading = true;
 		try {
 			const response = await apiClient.listAllReports();
-			reports = response.reports || [];
+			// Filter out reports where dataset was deleted (no dataset_name)
+			reports = (response.reports || []).filter((r) => r.dataset_name);
 		} catch (err) {
 			console.error('Failed to fetch reports:', err);
 			toast.error(err instanceof Error ? err.message : 'Failed to load data reports');
@@ -100,17 +92,10 @@
 						<div class="flex items-start justify-between gap-4">
 							<div class="flex-1 min-w-0">
 								<div class="flex items-center gap-3 mb-2">
-									{#if report.dataset_name}
-										<span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400">
-											<Database class="w-3 h-3" />
-											{report.dataset_name}
-										</span>
-									{:else}
-										<span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-											<AlertTriangle class="w-3 h-3" />
-											Dataset Deleted
-										</span>
-									{/if}
+									<span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400">
+										<Database class="w-3 h-3" />
+										{report.dataset_name}
+									</span>
 									<span class="text-xs text-neutral-500 dark:text-neutral-400">
 										{formatCompactRelativeTime(report.created_at)}
 									</span>

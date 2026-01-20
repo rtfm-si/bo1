@@ -11,9 +11,11 @@
 	// Read query params for pre-filling
 	const initialMessage = $page.url.searchParams.get('message') || undefined;
 	const initialPersona = $page.url.searchParams.get('persona') as MentorPersonaId | undefined;
+	const initialBlindspotId = $page.url.searchParams.get('blindspot_id') || undefined;
+	const initialConversationId = $page.url.searchParams.get('conversation_id') || null;
 
-	// Conversation state
-	let selectedConversationId = $state<string | null>(null);
+	// Conversation state - initialize from URL param if provided
+	let selectedConversationId = $state<string | null>(initialConversationId);
 	let historyComponent: { refresh: () => void } | undefined;
 
 	function handleSelectConversation(id: string) {
@@ -60,6 +62,7 @@
 			<MentorChat
 				{initialMessage}
 				{initialPersona}
+				{initialBlindspotId}
 				loadConversationId={selectedConversationId}
 				onConversationChange={handleConversationChange}
 			/>

@@ -8,9 +8,10 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { CognitionProfileResponse, LiteCognitionAssessmentRequest } from '$lib/api/client';
+	import type { CognitionProfileResponse, LiteCognitionAssessmentRequest, CognitionBlindspot } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import CognitionQuestionFlow from '$lib/components/cognition/CognitionQuestionFlow.svelte';
+	import { MessageCircle } from 'lucide-svelte';
 
 	// State
 	let profile = $state<CognitionProfileResponse | null>(null);
@@ -19,9 +20,39 @@
 	let isSaving = $state(false);
 	let showRetakeFlow = $state(false);
 	let showSuccess = $state(false);
+	let discussionCounts = $state<Record<string, number>>({});
 
 	// Computed
 	const hasProfile = $derived(profile?.exists && profile?.gravity?.assessed_at);
+
+	// Generate blindspot discussion URL
+	function getBlindspotDiscussUrl(blindspot: CognitionBlindspot): string {
+		const message = encodeURIComponent(
+			`I'd like to discuss my "${blindspot.label}" blindspot. ${blindspot.compensation}\n\nCan you help me understand this better and suggest strategies to address it?`
+		);
+		const blindspotId = blindspot.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+		return `/advisor/discuss?message=${message}&blindspot_id=${blindspotId}`;
+	}
+
+	// Get blindspot ID from label
+	function getBlindspotId(label: string): string {
+		return label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+	}
+
+	// Load discussion counts for blindspots
+	async function loadDiscussionCounts() {
+		if (!profile?.primary_blindspots?.length) return;
+
+		for (const blindspot of profile.primary_blindspots) {
+			const blindspotId = getBlindspotId(blindspot.label);
+			try {
+				const resp = await apiClient.getBlindspotDiscussions(blindspotId, 1);
+				discussionCounts[blindspotId] = resp.total;
+			} catch {
+				// Ignore errors
+			}
+		}
+	}
 
 	onMount(async () => {
 		await loadProfile();
@@ -32,6 +63,8 @@
 		error = null;
 		try {
 			profile = await apiClient.getCognitionProfile();
+			// Load discussion counts after profile is loaded
+			await loadDiscussionCounts();
 		} catch (e) {
 			error = 'Failed to load cognitive profile';
 			console.error(e);
@@ -202,13 +235,31 @@
 						Blindspot Awareness
 					</h3>
 					<p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
-						Areas where your natural tendencies may create blind spots.
+						Areas where your natural tendencies may create blind spots. Click to discuss with your advisor.
 					</p>
 					<div class="space-y-2">
 						{#each profile.primary_blindspots.slice(0, 2) as blindspot (blindspot.label)}
-							<div class="bg-white dark:bg-slate-800 rounded-lg p-3">
-								<span class="font-medium text-slate-900 dark:text-white">{blindspot.label}</span>
-							</div>
+							{@const blindspotId = getBlindspotId(blindspot.label)}
+							{@const count = discussionCounts[blindspotId] || 0}
+							<a
+								href={getBlindspotDiscussUrl(blindspot)}
+								class="block bg-white dark:bg-slate-800 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group"
+							>
+								<div class="flex items-center justify-between">
+									<span class="font-medium text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400">{blindspot.label}</span>
+									<div class="flex items-center gap-2">
+										{#if count > 0}
+											<span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+												<MessageCircle class="w-3 h-3" />
+												{count}
+											</span>
+										{/if}
+										<svg class="w-4 h-4 text-slate-400 group-hover:text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+										</svg>
+									</div>
+								</div>
+							</a>
 						{/each}
 					</div>
 				</div>

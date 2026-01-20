@@ -83,6 +83,11 @@ class MentorChatRequest(HoneypotMixin):
         None,
         description="Persona to use: general, action_coach, data_analyst (auto-selects if not provided)",
     )
+    blindspot_id: str | None = Field(
+        None,
+        max_length=50,
+        description="Cognitive blindspot ID for context (e.g., 'over_planning')",
+    )
 
 
 class MentorConversationResponse(BaseModel):
@@ -291,6 +296,16 @@ class ConversationSearchResponse(BaseModel):
     total: int = Field(..., description="Total number of matches")
 
 
+class BlindspotDiscussionResponse(BaseModel):
+    """Response model for blindspot discussions."""
+
+    blindspot_id: str = Field(..., description="The blindspot ID queried")
+    discussions: list[MentorConversationResponse] = Field(
+        default_factory=list, description="Conversations about this blindspot"
+    )
+    total: int = Field(..., description="Total discussion count")
+
+
 # =============================================================================
 # SSE Streaming
 # =============================================================================
@@ -301,6 +316,7 @@ async def _stream_mentor_response(
     message: str,
     conversation_id: str | None,
     persona: str | None,
+    blindspot_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the mentor response as SSE events.
 
@@ -342,6 +358,10 @@ async def _stream_mentor_response(
                 context_sources.append("mentioned_datasets")
             if resolved_mentions.chats:
                 context_sources.append("mentioned_chats")
+
+        # Add blindspot context source if provided
+        if blindspot_id:
+            context_sources.append(f"blindspot:{blindspot_id}")
 
         yield f"event: context\ndata: {json.dumps({'sources': context_sources})}\n\n"
 
@@ -535,6 +555,7 @@ async def mentor_chat(
             body.message,
             body.conversation_id,
             body.persona,
+            body.blindspot_id,
         ),
         media_type="text/event-stream",
         headers={
@@ -574,6 +595,50 @@ async def list_personas(
             for p in personas
         ],
         total=len(personas),
+    )
+
+
+@router.get(
+    "/blindspot-discussions",
+    response_model=BlindspotDiscussionResponse,
+    summary="Get discussions about a cognitive blindspot",
+    description="List conversations that discuss a specific cognitive blindspot",
+    responses={401: ERROR_401_RESPONSE, 403: ERROR_403_RESPONSE},
+)
+@handle_api_errors("get blindspot discussions")
+async def get_blindspot_discussions(
+    blindspot_id: str = Query(
+        ..., min_length=1, max_length=50, description="Blindspot ID (e.g., 'over_planning')"
+    ),
+    limit: int = Query(10, ge=1, le=50, description="Max conversations to return"),
+    user: dict = Depends(get_current_user),
+) -> BlindspotDiscussionResponse:
+    """Get advisor conversations discussing a specific cognitive blindspot."""
+    from backend.services.mentor_conversation_pg_repo import get_mentor_conversation_pg_repo
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
+
+    repo = get_mentor_conversation_pg_repo()
+    conversations = repo.list_by_context_source(user_id, f"blindspot:{blindspot_id}", limit)
+
+    return BlindspotDiscussionResponse(
+        blindspot_id=blindspot_id,
+        discussions=[
+            MentorConversationResponse(
+                id=c["id"],
+                user_id=c["user_id"],
+                persona=c.get("persona", "general"),
+                label=c.get("label"),
+                created_at=c["created_at"],
+                updated_at=c["updated_at"],
+                message_count=c["message_count"],
+                context_sources=c.get("context_sources", []),
+            )
+            for c in conversations
+        ],
+        total=len(conversations),
     )
 
 

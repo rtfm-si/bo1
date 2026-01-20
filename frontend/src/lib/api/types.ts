@@ -296,6 +296,18 @@ export interface ConversationSearchResponse {
 	total: number;
 }
 
+/**
+ * Response for blindspot discussions endpoint.
+ */
+export interface BlindspotDiscussionResponse {
+	/** The blindspot ID queried */
+	blindspot_id: string;
+	/** Conversations about this blindspot */
+	discussions: MentorConversationResponse[];
+	/** Total discussion count */
+	total: number;
+}
+
 // ---- Dataset Similarity Types ----
 /**
  * A dataset similar to the query dataset.

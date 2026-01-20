@@ -11,10 +11,12 @@
 		CognitionBlindspot,
 		LiteCognitionAssessmentRequest
 	} from '$lib/api/client';
+	import type { MentorConversationResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import CognitionQuestionFlow from '$lib/components/cognition/CognitionQuestionFlow.svelte';
 	import Tier2AssessmentFlow from '$lib/components/cognition/Tier2AssessmentFlow.svelte';
+	import { MessageCircle, ChevronDown, ChevronUp } from 'lucide-svelte';
 
 	type Tier2Instrument = 'leverage' | 'tension' | 'time_bias';
 
@@ -26,6 +28,9 @@
 	let showTier2Modal = $state(false);
 	let selectedTier2Instrument = $state<Tier2Instrument>('leverage');
 	let isSaving = $state(false);
+	let discussionCounts = $state<Record<string, number>>({});
+	let blindspotDiscussions = $state<Record<string, MentorConversationResponse[]>>({});
+	let expandedBlindspots = $state<Record<string, boolean>>({});
 
 	// Computed
 	const hasProfile = $derived(profile?.exists && profile?.gravity?.assessed_at);
@@ -41,6 +46,47 @@
 	const timeBiasAssessed = $derived(!!profile?.time_bias?.assessed_at);
 	const allTier2Complete = $derived(leverageAssessed && tensionAssessed && timeBiasAssessed);
 
+	// Get blindspot ID from label
+	function getBlindspotId(label: string): string {
+		return label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+	}
+
+	// Generate blindspot discussion URL
+	function getBlindspotDiscussUrl(blindspot: CognitionBlindspot): string {
+		const message = encodeURIComponent(
+			`I'd like to discuss my "${blindspot.label}" blindspot. ${blindspot.compensation}\n\nCan you help me understand this better and suggest strategies to address it?`
+		);
+		const blindspotId = getBlindspotId(blindspot.label);
+		return `/advisor/discuss?message=${message}&blindspot_id=${blindspotId}`;
+	}
+
+	// Load discussion counts for blindspots
+	async function loadDiscussionCounts() {
+		if (!profile?.primary_blindspots?.length) return;
+
+		for (const blindspot of profile.primary_blindspots) {
+			const blindspotId = getBlindspotId(blindspot.label);
+			try {
+				const resp = await apiClient.getBlindspotDiscussions(blindspotId, 5);
+				discussionCounts[blindspotId] = resp.total;
+				blindspotDiscussions[blindspotId] = resp.discussions;
+			} catch {
+				// Ignore errors
+			}
+		}
+	}
+
+	// Toggle expanded state for a blindspot
+	function toggleBlindspot(blindspotId: string) {
+		expandedBlindspots[blindspotId] = !expandedBlindspots[blindspotId];
+	}
+
+	// Format date for display
+	function formatDate(isoDate: string): string {
+		const date = new Date(isoDate);
+		return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	}
+
 	onMount(async () => {
 		await loadProfile();
 	});
@@ -50,6 +96,8 @@
 		error = null;
 		try {
 			profile = await apiClient.getCognitionProfile();
+			// Load discussion counts after profile is loaded
+			await loadDiscussionCounts();
 		} catch (e) {
 			error = 'Failed to load cognitive profile';
 			console.error(e);
@@ -244,16 +292,66 @@
 						Blindspot Awareness
 					</h3>
 					<p class="text-sm text-amber-700 dark:text-amber-300 mb-4">
-						These are areas where your natural tendencies may create blind spots. Our
-						recommendations will actively address these.
+						These are areas where your natural tendencies may create blind spots. Click to discuss with your advisor.
 					</p>
 					<div class="space-y-3">
 						{#each profile.primary_blindspots as blindspot}
-							<div class="bg-white dark:bg-slate-800 rounded-lg p-4">
-								<h4 class="font-medium text-slate-900 dark:text-white">{blindspot.label}</h4>
-								<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
-									{blindspot.compensation}
-								</p>
+							{@const blindspotId = getBlindspotId(blindspot.label)}
+							{@const count = discussionCounts[blindspotId] || 0}
+							{@const discussions = blindspotDiscussions[blindspotId] || []}
+							{@const isExpanded = expandedBlindspots[blindspotId] || false}
+							<div class="bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
+								<div class="p-4">
+									<div class="flex items-start justify-between gap-3">
+										<div class="flex-1 min-w-0">
+											<h4 class="font-medium text-slate-900 dark:text-white">{blindspot.label}</h4>
+											<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+												{blindspot.compensation}
+											</p>
+										</div>
+										<a
+											href={getBlindspotDiscussUrl(blindspot)}
+											class="flex-shrink-0 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+										>
+											Discuss
+										</a>
+									</div>
+									{#if count > 0}
+										<button
+											onclick={() => toggleBlindspot(blindspotId)}
+											class="mt-3 flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+										>
+											<MessageCircle class="w-4 h-4" />
+											<span>{count} past discussion{count !== 1 ? 's' : ''}</span>
+											{#if isExpanded}
+												<ChevronUp class="w-4 h-4" />
+											{:else}
+												<ChevronDown class="w-4 h-4" />
+											{/if}
+										</button>
+									{/if}
+								</div>
+								{#if isExpanded && discussions.length > 0}
+									<div class="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50 dark:bg-slate-900/50">
+										<div class="space-y-2">
+											{#each discussions as discussion}
+												<a
+													href={`/advisor/discuss?conversation_id=${discussion.id}`}
+													class="block p-2 rounded-md hover:bg-white dark:hover:bg-slate-800 transition-colors"
+												>
+													<div class="flex items-center justify-between text-sm">
+														<span class="text-slate-700 dark:text-slate-300 truncate">
+															{discussion.label || 'Conversation'}
+														</span>
+														<span class="text-slate-500 dark:text-slate-400 text-xs flex-shrink-0 ml-2">
+															{formatDate(discussion.updated_at)}
+														</span>
+													</div>
+												</a>
+											{/each}
+										</div>
+									</div>
+								{/if}
 							</div>
 						{/each}
 					</div>

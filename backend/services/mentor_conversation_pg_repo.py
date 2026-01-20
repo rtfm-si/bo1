@@ -169,6 +169,83 @@ class MentorConversationPgRepository(BaseRepository):
         messages = [self._row_to_message(dict(r)) for r in msg_rows]
         return self._row_to_conversation(dict(conv_row), messages)
 
+    def list_by_context_source(
+        self,
+        user_id: str,
+        source_prefix: str,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """List conversations with a specific context source prefix.
+
+        Args:
+            user_id: User ID
+            source_prefix: Prefix to match (e.g., "blindspot:" matches "blindspot:over_planning")
+            limit: Maximum conversations to return
+
+        Returns:
+            List of conversation dicts with message counts
+        """
+        query = """
+            SELECT
+                c.id, c.user_id, c.persona, c.label, c.context_sources,
+                c.created_at, c.updated_at,
+                COUNT(m.id) as message_count
+            FROM mentor_conversations c
+            LEFT JOIN mentor_messages m ON c.id = m.conversation_id
+            WHERE c.user_id = %s
+              AND EXISTS (
+                  SELECT 1 FROM unnest(c.context_sources) AS src
+                  WHERE src LIKE %s
+              )
+            GROUP BY c.id
+            ORDER BY c.updated_at DESC
+            LIMIT %s
+        """
+        rows = self._execute_query(query, (user_id, f"{source_prefix}%", limit), user_id=user_id)
+
+        conversations = []
+        for row in rows:
+            conversations.append(
+                {
+                    "id": str(row["id"]),
+                    "user_id": str(row["user_id"]),
+                    "persona": row.get("persona", "general"),
+                    "label": row.get("label"),
+                    "created_at": self._to_iso_string(row["created_at"]),
+                    "updated_at": self._to_iso_string(row["updated_at"]),
+                    "message_count": row.get("message_count", 0),
+                    "context_sources": row.get("context_sources") or [],
+                }
+            )
+
+        return conversations
+
+    def count_by_context_source(
+        self,
+        user_id: str,
+        source_prefix: str,
+    ) -> int:
+        """Count conversations with a specific context source prefix.
+
+        Args:
+            user_id: User ID
+            source_prefix: Prefix to match (e.g., "blindspot:")
+
+        Returns:
+            Count of matching conversations
+        """
+        query = """
+            SELECT COUNT(*) as count
+            FROM mentor_conversations
+            WHERE user_id = %s
+              AND EXISTS (
+                  SELECT 1 FROM unnest(context_sources) AS src
+                  WHERE src LIKE %s
+              )
+        """
+        row = self._execute_one(query, (user_id, f"{source_prefix}%"), user_id=user_id)
+        return row["count"] if row else 0
+
     def list_by_user(
         self,
         user_id: str,

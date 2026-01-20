@@ -3142,7 +3142,8 @@ export class ApiClient {
 		message: string,
 		conversationId?: string | null,
 		persona?: string | null,
-		honeypot?: import('./types').HoneypotFields
+		honeypot?: import('./types').HoneypotFields,
+		blindspotId?: string | null
 	): {
 		connect: () => AsyncGenerator<{ event: string; data: string }, void, unknown>;
 		abort: () => void;
@@ -3169,6 +3170,7 @@ export class ApiClient {
 					message,
 					conversation_id: conversationId,
 					persona,
+					blindspot_id: blindspotId,
 					...honeypot
 				})
 			});
@@ -3297,6 +3299,22 @@ export class ApiClient {
 		}
 		return this.fetch<import('./types').ConversationSearchResponse>(
 			`/api/v1/advisor/search?${params}`
+		);
+	}
+
+	/**
+	 * Get discussions about a specific cognitive blindspot
+	 */
+	async getBlindspotDiscussions(
+		blindspotId: string,
+		limit: number = 10
+	): Promise<import('./types').BlindspotDiscussionResponse> {
+		const params = new URLSearchParams({
+			blindspot_id: blindspotId,
+			limit: String(limit)
+		});
+		return this.fetch<import('./types').BlindspotDiscussionResponse>(
+			`/api/v1/advisor/blindspot-discussions?${params}`
 		);
 	}
 

@@ -17,10 +17,14 @@
 	interface Props {
 		initialMessage?: string;
 		initialPersona?: string;
+		initialBlindspotId?: string;
 		loadConversationId?: string | null;
 		onConversationChange?: (id: string | null) => void;
 	}
-	let { initialMessage, initialPersona, loadConversationId = null, onConversationChange }: Props = $props();
+	let { initialMessage, initialPersona, initialBlindspotId, loadConversationId = null, onConversationChange }: Props = $props();
+
+	// Track active blindspot for current conversation
+	let activeBlindspotId = $state<string | null>(initialBlindspotId || null);
 
 	// Chat state
 	let messages = $state<MessageType[]>([]);
@@ -196,7 +200,7 @@
 		streamingContent = '';
 
 		try {
-			const stream = apiClient.chatWithMentor(question, conversationId, selectedPersona, honeypotValues);
+			const stream = apiClient.chatWithMentor(question, conversationId, selectedPersona, honeypotValues, activeBlindspotId);
 			currentAbort = stream.abort;
 
 			for await (const { event, data } of stream.connect()) {
@@ -269,6 +273,8 @@
 							if (doneData.persona) {
 								activePersona = doneData.persona;
 							}
+							// Clear blindspot after first message to avoid tagging all messages
+							activeBlindspotId = null;
 							isGenerating = false;
 						} catch {
 							// Ignore parse errors
@@ -337,6 +343,7 @@
 		error = null;
 		contextSources = [];
 		activePersona = null;
+		activeBlindspotId = null;
 		// Notify parent to update sidebar selection
 		onConversationChange?.(null);
 	}

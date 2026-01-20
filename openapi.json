@@ -3953,6 +3953,35 @@
         "title": "Blindspot",
         "type": "object"
       },
+      "BlindspotDiscussionResponse": {
+        "description": "Response model for blindspot discussions.",
+        "properties": {
+          "blindspot_id": {
+            "description": "The blindspot ID queried",
+            "title": "Blindspot Id",
+            "type": "string"
+          },
+          "discussions": {
+            "description": "Conversations about this blindspot",
+            "items": {
+              "$ref": "#/components/schemas/MentorConversationResponse"
+            },
+            "title": "Discussions",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total discussion count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "blindspot_id",
+          "total"
+        ],
+        "title": "BlindspotDiscussionResponse",
+        "type": "object"
+      },
       "BlockActionRequest": {
         "description": "Request model for blocking an action.\n\nAttributes:\n    blocking_reason: Why the action is blocked (max 2000 chars for detailed reasons)\n    auto_unblock: Whether to auto-unblock when dependencies complete",
         "properties": {
@@ -20044,6 +20073,19 @@
             "description": "Hidden honeypot field - should always be empty",
             "hidden": true,
             "title": "Hp Url"
+          },
+          "blindspot_id": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cognitive blindspot ID for context (e.g., 'over_planning')",
+            "title": "Blindspot Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -51669,6 +51711,88 @@
         "tags": [
           "admin",
           "admin"
+        ]
+      }
+    },
+    "/api/v1/advisor/blindspot-discussions": {
+      "get": {
+        "description": "List conversations that discuss a specific cognitive blindspot",
+        "operationId": "get_blindspot_discussions_api_v1_advisor_blindspot_discussions_get",
+        "parameters": [
+          {
+            "description": "Blindspot ID (e.g., 'over_planning')",
+            "in": "query",
+            "name": "blindspot_id",
+            "required": true,
+            "schema": {
+              "description": "Blindspot ID (e.g., 'over_planning')",
+              "maxLength": 50,
+              "minLength": 1,
+              "title": "Blindspot Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max conversations to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Max conversations to return",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlindspotDiscussionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized - authentication required or invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get discussions about a cognitive blindspot",
+        "tags": [
+          "advisor",
+          "advisor"
         ]
       }
     },

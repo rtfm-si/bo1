@@ -4346,6 +4346,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advisor/blindspot-discussions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get discussions about a cognitive blindspot
+         * @description List conversations that discuss a specific cognitive blindspot
+         */
+        get: operations["get_blindspot_discussions_api_v1_advisor_blindspot_discussions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advisor/chat": {
         parameters: {
             query?: never;
@@ -14102,6 +14122,27 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /**
+         * BlindspotDiscussionResponse
+         * @description Response model for blindspot discussions.
+         */
+        BlindspotDiscussionResponse: {
+            /**
+             * Blindspot Id
+             * @description The blindspot ID queried
+             */
+            blindspot_id: string;
+            /**
+             * Discussions
+             * @description Conversations about this blindspot
+             */
+            discussions?: components["schemas"]["MentorConversationResponse"][];
+            /**
+             * Total
+             * @description Total discussion count
+             */
+            total: number;
         };
         /**
          * BlockActionRequest
@@ -24260,6 +24301,11 @@ export interface components {
              * @description Hidden honeypot field - should always be empty
              */
             _hp_url?: string | null;
+            /**
+             * Blindspot Id
+             * @description Cognitive blindspot ID for context (e.g., 'over_planning')
+             */
+            blindspot_id?: string | null;
             /**
              * Conversation Id
              * @description Existing conversation ID to continue (optional)
@@ -44987,6 +45033,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_blindspot_discussions_api_v1_advisor_blindspot_discussions_get: {
+        parameters: {
+            query: {
+                /** @description Blindspot ID (e.g., 'over_planning') */
+                blindspot_id: string;
+                /** @description Max conversations to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlindspotDiscussionResponse"];
+                };
+            };
+            /** @description Unauthorized - authentication required or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedErrorResponse"];
+                };
+            };
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
             /** @description Validation Error */

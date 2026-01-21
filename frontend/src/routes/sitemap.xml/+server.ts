@@ -8,8 +8,13 @@ export const GET: RequestHandler = async () => {
 	const staticPages = [
 		{ url: '/', priority: 1.0, changefreq: 'weekly' },
 		{ url: '/blog', priority: 0.9, changefreq: 'daily' },
+		{ url: '/features', priority: 0.8, changefreq: 'monthly' },
 		{ url: '/pricing', priority: 0.8, changefreq: 'monthly' },
-		{ url: '/contact', priority: 0.6, changefreq: 'monthly' }
+		{ url: '/about', priority: 0.7, changefreq: 'monthly' },
+		{ url: '/waitlist', priority: 0.6, changefreq: 'monthly' },
+		{ url: '/legal/privacy', priority: 0.3, changefreq: 'yearly' },
+		{ url: '/legal/terms', priority: 0.3, changefreq: 'yearly' },
+		{ url: '/legal/cookies', priority: 0.3, changefreq: 'yearly' }
 	];
 
 	// Fetch published blog posts - use internal API URL for server-side

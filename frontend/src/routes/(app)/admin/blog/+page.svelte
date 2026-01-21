@@ -44,8 +44,18 @@
 		}
 	}
 
-	function openEditor(post?: BlogPost) {
-		editingPost = post || null;
+	async function openEditor(post?: BlogPost) {
+		if (post) {
+			// Fetch full post with content before editing
+			try {
+				editingPost = await adminApi.getBlogPost(post.id);
+			} catch (err) {
+				error = err instanceof Error ? err.message : 'Failed to load post';
+				return;
+			}
+		} else {
+			editingPost = null;
+		}
 		showEditorModal = true;
 	}
 

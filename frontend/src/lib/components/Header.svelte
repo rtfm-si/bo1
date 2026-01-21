@@ -222,6 +222,14 @@
 					>
 						Features
 					</a>
+					<a
+						href="/blog"
+						class="text-sm {isActive('/blog')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}"
+					>
+						Blog
+					</a>
 				{/if}
 			</div>
 
@@ -467,6 +475,15 @@
 						onclick={closeMobileMenu}
 					>
 						Features
+					</a>
+					<a
+						href="/blog"
+						class={isActive('/blog')
+							? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+							: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
+						onclick={closeMobileMenu}
+					>
+						Blog
 					</a>
 					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
 						<div class="flex flex-col gap-2 pt-2">

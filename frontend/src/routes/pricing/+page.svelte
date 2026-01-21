@@ -23,6 +23,16 @@
 		name="description"
 		content="Simple, transparent pricing for Board of One. Choose the plan that fits your decision-making needs."
 	/>
+	<link rel="canonical" href="https://boardof.one/pricing" />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://boardof.one/pricing" />
+	<meta property="og:title" content="Pricing - Board of One" />
+	<meta property="og:description" content="Simple, transparent pricing for Board of One. Choose the plan that fits your decision-making needs." />
+	<meta property="og:image" content="https://boardof.one/og-image.png" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="Pricing - Board of One" />
+	<meta name="twitter:description" content="Simple, transparent pricing. Choose the plan that fits your decision-making needs." />
+	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col bg-neutral-50 dark:bg-neutral-900">

@@ -97,6 +97,16 @@
 <svelte:head>
 	<title>About - Board of One</title>
 	<meta name="description" content="Board of One gives independent founders the thinking power of a high-quality board—on demand. Make better decisions without going it alone." />
+	<link rel="canonical" href="https://boardof.one/about" />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://boardof.one/about" />
+	<meta property="og:title" content="About - Board of One" />
+	<meta property="og:description" content="Board of One gives independent founders the thinking power of a high-quality board—on demand." />
+	<meta property="og:image" content="https://boardof.one/og-image.png" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="About - Board of One" />
+	<meta name="twitter:description" content="Board of One gives independent founders the thinking power of a high-quality board—on demand." />
+	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">

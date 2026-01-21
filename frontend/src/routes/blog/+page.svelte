@@ -93,11 +93,21 @@
 </script>
 
 <svelte:head>
-	<title>Blog - Board of One</title>
+	<title>Blog - Board of One | The Board Room</title>
 	<meta
 		name="description"
-		content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders."
+		content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders. Expert thinking for solo founders."
 	/>
+	<link rel="canonical" href="https://boardof.one/blog" />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://boardof.one/blog" />
+	<meta property="og:title" content="The Board Room - Board of One Blog" />
+	<meta property="og:description" content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders." />
+	<meta property="og:image" content="https://boardof.one/og-image.png" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="The Board Room - Board of One Blog" />
+	<meta name="twitter:description" content="Insights on decision-making, startup strategy, and AI-powered advisory for founders." />
+	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
 	<!-- JSON-LD Structured Data -->
 	{@html `<script type="application/ld+json">${blogJsonLd}</script>`}
 </svelte:head>

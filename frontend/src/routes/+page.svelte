@@ -5,6 +5,7 @@
 	 * Design Token System: Applied throughout with alive animations
 	 */
 	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
@@ -142,6 +143,19 @@
 		name="description"
 		content="A management operating system for founders making real calls. Compress management work, delay management hires, get senior-team leverage without senior-team overhead."
 	/>
+	<!-- Canonical -->
+	<link rel="canonical" href="https://boardof.one/" />
+	<!-- Open Graph -->
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://boardof.one/" />
+	<meta property="og:title" content="Board of One - Management-Grade Thinking" />
+	<meta property="og:description" content="A management operating system for founders making real calls. Get senior-team leverage without senior-team overhead." />
+	<meta property="og:image" content="https://boardof.one/og-image.png" />
+	<!-- Twitter -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="Board of One - Management-Grade Thinking" />
+	<meta name="twitter:description" content="A management operating system for founders making real calls. Get senior-team leverage without senior-team overhead." />
+	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
 </svelte:head>
 
 <style>
@@ -1142,6 +1156,21 @@
 	</section>
 
 	<FAQAccordion {faqs} />
+
+	<!-- Blog Section -->
+	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700">
+		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+			<h2 class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
+				From <span class="text-brand-600 dark:text-brand-400 italic">The Board Room</span>
+			</h2>
+			<p class="text-lg text-neutral-600 dark:text-neutral-400 mb-8 max-w-2xl mx-auto">
+				Insights on decision-making, startup strategy, and AI-powered advisory for founders building solo.
+			</p>
+			<Button variant="outline" size="lg" onclick={() => goto('/blog')}>
+				Read the Blog →
+			</Button>
+		</div>
+	</section>
 
 	<!-- Final CTA -->
 	<section

@@ -29,6 +29,9 @@ Requirements:
 1. Write in a professional but engaging tone
 2. Include the target keywords naturally (aim for 1-2% keyword density)
 3. Structure with clear headings (H2, H3) for SEO
+   - CRITICAL: Each heading must be on its own line, followed by a blank line before content
+   - Correct: "## My Heading\\n\\nParagraph text here..."
+   - Wrong: "## My Heading Paragraph text continues on same line..."
 4. Include a compelling introduction that hooks the reader
 5. Provide actionable insights and practical takeaways
 6. End with a conclusion that summarizes key points

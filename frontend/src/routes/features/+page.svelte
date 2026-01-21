@@ -238,6 +238,16 @@
 		name="description"
 		content="Explore the full capabilities of Board of One. A management operating system organized around the 6 core functions of management."
 	/>
+	<link rel="canonical" href="https://boardof.one/features" />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://boardof.one/features" />
+	<meta property="og:title" content="Features - Board of One" />
+	<meta property="og:description" content="A management operating system organized around the 6 core functions of management." />
+	<meta property="og:image" content="https://boardof.one/og-image.png" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="Features - Board of One" />
+	<meta name="twitter:description" content="A management operating system organized around the 6 core functions of management." />
+	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col bg-white dark:bg-neutral-900">

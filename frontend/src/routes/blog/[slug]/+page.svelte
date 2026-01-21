@@ -107,21 +107,74 @@
 			.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-brand-600 dark:text-brand-400 hover:underline">$1</a>');
 	}
 
+	// Split malformed heading that has content on same line
+	// e.g., "### The Common Mistake Most solo business owners..." -> heading + paragraph
+	function splitLongHeading(headingText: string, level: number): { title: string; content: string | null } {
+		// If short heading, no split needed
+		if (headingText.length < 80) return { title: headingText, content: null };
+
+		// Known patterns that indicate title/content boundary
+		const patterns = [
+			/^(The Common Mistake)\s+(.+)$/i,
+			/^(How to Decide Right)\s+(.+)$/i,
+			/^(Gather Data)\s+(.+)$/i,
+			/^(Define Your Criteria)\s+(.+)$/i,
+			/^(Test Before Committing)\s+(.+)$/i,
+			/^(Set Decision Deadlines)\s+(.+)$/i,
+			/^(Review and Adjust)\s+(.+)$/i
+		];
+
+		for (const pattern of patterns) {
+			const match = headingText.match(pattern);
+			if (match) {
+				return { title: match[1], content: match[2] };
+			}
+		}
+
+		// Fallback: split at first sentence boundary if heading is very long
+		if (headingText.length > 120) {
+			const sentenceEnd = headingText.indexOf('. ');
+			if (sentenceEnd > 20 && sentenceEnd < 80) {
+				return {
+					title: headingText.slice(0, sentenceEnd + 1),
+					content: headingText.slice(sentenceEnd + 2)
+				};
+			}
+		}
+
+		return { title: headingText, content: null };
+	}
+
 	// Render markdown content
 	function renderContent(content: string | undefined): string {
 		if (!content) return '';
 		return content
 			.split('\n\n')
 			.map((para) => {
-				// Headers
+				// Headers with malformed content detection
 				if (para.startsWith('### ')) {
-					return `<h3 class="text-xl font-bold mt-8 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(4))}</h3>`;
+					const { title, content: extraContent } = splitLongHeading(para.slice(4), 3);
+					let html = `<h3 class="text-xl font-bold mt-8 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(title)}</h3>`;
+					if (extraContent) {
+						html += `<p class="my-4 text-neutral-700 dark:text-neutral-300 leading-relaxed">${processInline(extraContent)}</p>`;
+					}
+					return html;
 				}
 				if (para.startsWith('## ')) {
-					return `<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(3))}</h2>`;
+					const { title, content: extraContent } = splitLongHeading(para.slice(3), 2);
+					let html = `<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-100">${processInline(title)}</h2>`;
+					if (extraContent) {
+						html += `<p class="my-4 text-neutral-700 dark:text-neutral-300 leading-relaxed">${processInline(extraContent)}</p>`;
+					}
+					return html;
 				}
 				if (para.startsWith('# ')) {
-					return `<h1 class="text-3xl font-bold mt-12 mb-6 text-neutral-900 dark:text-neutral-100">${processInline(para.slice(2))}</h1>`;
+					const { title, content: extraContent } = splitLongHeading(para.slice(2), 1);
+					let html = `<h1 class="text-3xl font-bold mt-12 mb-6 text-neutral-900 dark:text-neutral-100">${processInline(title)}</h1>`;
+					if (extraContent) {
+						html += `<p class="my-4 text-neutral-700 dark:text-neutral-300 leading-relaxed">${processInline(extraContent)}</p>`;
+					}
+					return html;
 				}
 				// Lists
 				if (para.match(/^[-*] /m)) {

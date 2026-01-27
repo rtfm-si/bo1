@@ -1,23 +1,3 @@
-20:18:51 | INFO     | backend.api.logging_config | Logging configured: level=INFO, format=text, verbose_libs=False
-20:18:52 | INFO     | backend.api.middleware.rate_limit | Rate limiter initialized with Redis storage: redis://localhost:6379/0
-20:19:02 | INFO     | visions.backends | Pandas backend loaded 2.3.3
-20:19:02 | INFO     | visions.backends | Numpy backend loaded 2.3.5
-20:19:02 | INFO     | visions.backends | Pyspark backend NOT loaded
-20:19:02 | INFO     | visions.backends | Python backend loaded
-20:19:04 | WARNING  | bo1.state.redis_manager | ⚠️  Redis unavailable: Error 61 connecting to localhost:6379. Connection refused.. Continuing without persistence.
-⏱️  Module imports: 13166.2ms
-20:19:04 | INFO     | backend.api.supertokens_config | Cookie configuration: env=development, secure=False, domain=localhost
-20:19:04 | WARNING  | backend.api.supertokens_config | Google OAuth enabled but credentials missing (GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET)
-20:19:04 | WARNING  | backend.api.supertokens_config | LinkedIn OAuth enabled but credentials missing (LINKEDIN_OAUTH_CLIENT_ID, LINKEDIN_OAUTH_CLIENT_SECRET)
-20:19:04 | WARNING  | backend.api.supertokens_config | GitHub OAuth enabled but credentials missing (GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET)
-20:19:04 | INFO     | backend.api.supertokens_config | Passwordless (magic link) recipe enabled
-20:19:04 | INFO     | backend.api.supertokens_config | SuperTokens initialized (cookie_secure=False, cookie_domain=localhost)
-20:19:04 | INFO     | backend.api.supertokens_config | SuperTokens middleware added to FastAPI app
-⏱️  SuperTokens init: 11.2ms
-⏱️  Middleware setup: 0.3ms
-⏱️  Router registration: 690.3ms
-⏱️  Prometheus init: 0.4ms
-🔧 Module init complete in 13868.4ms (before lifespan)
 {
   "openapi": "3.1.0",
   "info": {

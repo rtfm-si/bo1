@@ -1,4 +1,7 @@
-"""Tests for Google Sheets integration service."""
+"""Tests for Google Drive integration service (sheets.py).
+
+Tests the Drive API-based data import functionality.
+"""
 
 from unittest.mock import MagicMock, patch
 
@@ -33,7 +36,7 @@ def sheets_client(mock_settings):
 class TestSheetsClientUrlParsing:
     """Tests for URL parsing."""
 
-    def test_parse_standard_url(self, sheets_client):
+    def test_parse_standard_sheets_url(self, sheets_client):
         """Test parsing standard Google Sheets URL."""
         url = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0"
         result = sheets_client.parse_sheets_url(url)
@@ -45,11 +48,23 @@ class TestSheetsClientUrlParsing:
         result = sheets_client.parse_sheets_url(url)
         assert result == "abc123_xyz-ABC"
 
+    def test_parse_drive_file_url(self, sheets_client):
+        """Test parsing Google Drive file URL."""
+        url = "https://drive.google.com/file/d/1abc123xyz/view"
+        result = sheets_client.parse_sheets_url(url)
+        assert result == "1abc123xyz"
+
+    def test_parse_drive_open_url(self, sheets_client):
+        """Test parsing Google Drive open URL."""
+        url = "https://drive.google.com/open?id=1abc123xyz"
+        result = sheets_client.parse_sheets_url(url)
+        assert result == "1abc123xyz"
+
     def test_parse_invalid_url_raises_error(self, sheets_client):
         """Test that invalid URL raises SheetsError."""
         with pytest.raises(SheetsError) as exc_info:
             sheets_client.parse_sheets_url("https://example.com/not-a-sheet")
-        assert "Invalid Google Sheets URL" in str(exc_info.value)
+        assert "Invalid Google Drive/Sheets URL" in str(exc_info.value)
 
     def test_parse_partial_url_raises_error(self, sheets_client):
         """Test that partial URL raises SheetsError."""
@@ -58,23 +73,26 @@ class TestSheetsClientUrlParsing:
 
 
 class TestSheetsClientGetInfo:
-    """Tests for getting spreadsheet info."""
+    """Tests for getting file info via Drive API."""
 
-    def test_get_spreadsheet_info_success(self, sheets_client):
-        """Test successful spreadsheet info retrieval."""
+    def test_get_file_metadata_success(self, sheets_client):
+        """Test successful file metadata retrieval."""
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "properties": {"title": "Test Sheet"},
-            "sheets": [{"properties": {"title": "Sheet1"}}],
+            "id": "test_id",
+            "name": "Test Sheet",
+            "mimeType": "application/vnd.google-apps.spreadsheet",
+            "size": "1234",
         }
         mock_response.raise_for_status = MagicMock()
 
         with patch.object(sheets_client._session, "get", return_value=mock_response):
             result = sheets_client.get_spreadsheet_info("test_id")
 
-        assert result["properties"]["title"] == "Test Sheet"
+        assert result["name"] == "Test Sheet"
+        assert result["mimeType"] == "application/vnd.google-apps.spreadsheet"
 
-    def test_get_spreadsheet_info_not_found(self, sheets_client):
+    def test_get_file_metadata_not_found(self, sheets_client):
         """Test 404 error handling."""
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -85,7 +103,7 @@ class TestSheetsClientGetInfo:
                 sheets_client.get_spreadsheet_info("nonexistent_id")
             assert "not found" in str(exc_info.value).lower()
 
-    def test_get_spreadsheet_info_access_denied(self, sheets_client):
+    def test_get_file_metadata_access_denied(self, sheets_client):
         """Test 403 error handling."""
         mock_response = MagicMock()
         mock_response.status_code = 403
@@ -97,113 +115,108 @@ class TestSheetsClientGetInfo:
             assert "access denied" in str(exc_info.value).lower()
 
 
-class TestSheetsClientFetchData:
-    """Tests for fetching sheet data."""
-
-    def test_fetch_sheet_data_success(self, sheets_client):
-        """Test successful data fetch."""
-        # Mock get_spreadsheet_info
-        with patch.object(
-            sheets_client,
-            "get_spreadsheet_info",
-            return_value={
-                "properties": {"title": "Test Data"},
-                "sheets": [{"properties": {"title": "Data"}}],
-            },
-        ):
-            mock_response = MagicMock()
-            mock_response.json.return_value = {
-                "values": [
-                    ["Name", "Age", "City"],
-                    ["Alice", 30, "NYC"],
-                    ["Bob", 25, "LA"],
-                ]
-            }
-            mock_response.raise_for_status = MagicMock()
-
-            with patch.object(sheets_client._session, "get", return_value=mock_response):
-                df, metadata = sheets_client.fetch_sheet_data("test_id")
-
-        assert len(df) == 2
-        assert list(df.columns) == ["Name", "Age", "City"]
-        assert metadata.title == "Test Data"
-        assert metadata.row_count == 2
-        assert metadata.column_count == 3
-
-    def test_fetch_sheet_data_empty_sheet(self, sheets_client):
-        """Test error on empty sheet."""
-        with patch.object(
-            sheets_client,
-            "get_spreadsheet_info",
-            return_value={
-                "properties": {"title": "Empty"},
-                "sheets": [{"properties": {"title": "Sheet1"}}],
-            },
-        ):
-            mock_response = MagicMock()
-            mock_response.json.return_value = {"values": []}
-            mock_response.raise_for_status = MagicMock()
-
-            with patch.object(sheets_client._session, "get", return_value=mock_response):
-                with pytest.raises(SheetsError) as exc_info:
-                    sheets_client.fetch_sheet_data("test_id")
-                assert "empty" in str(exc_info.value).lower()
-
-    def test_fetch_sheet_data_normalizes_row_lengths(self, sheets_client):
-        """Test that short rows are padded."""
-        with patch.object(
-            sheets_client,
-            "get_spreadsheet_info",
-            return_value={
-                "properties": {"title": "Sparse"},
-                "sheets": [{"properties": {"title": "Sheet1"}}],
-            },
-        ):
-            mock_response = MagicMock()
-            mock_response.json.return_value = {
-                "values": [
-                    ["A", "B", "C"],
-                    ["1"],  # Short row
-                    ["2", "3"],  # Short row
-                    ["4", "5", "6"],  # Full row
-                ]
-            }
-            mock_response.raise_for_status = MagicMock()
-
-            with patch.object(sheets_client._session, "get", return_value=mock_response):
-                df, _ = sheets_client.fetch_sheet_data("test_id")
-
-        assert len(df) == 3
-        assert df.iloc[0, 2] == ""  # Padded value
-        assert df.iloc[1, 2] == ""  # Padded value
-        assert df.iloc[2, 2] == "6"
-
-
 class TestSheetsClientFetchAsCsv:
     """Tests for fetch_as_csv method."""
 
-    def test_fetch_as_csv_returns_bytes(self, sheets_client):
-        """Test that fetch_as_csv returns CSV bytes."""
-        with patch.object(
-            sheets_client,
-            "fetch_sheet_data",
-            return_value=(
-                pd.DataFrame({"Name": ["Alice", "Bob"], "Age": [30, 25]}),
-                SheetMetadata(
-                    spreadsheet_id="test",
-                    title="Test",
-                    sheet_name="Sheet1",
-                    row_count=2,
-                    column_count=2,
-                ),
-            ),
-        ):
+    def test_fetch_google_sheet_as_csv(self, sheets_client):
+        """Test fetching a Google Sheet exports as CSV."""
+        # Mock metadata response
+        metadata_response = MagicMock()
+        metadata_response.json.return_value = {
+            "id": "test_id",
+            "name": "Test Sheet",
+            "mimeType": "application/vnd.google-apps.spreadsheet",
+        }
+        metadata_response.raise_for_status = MagicMock()
+
+        # Mock export response
+        export_response = MagicMock()
+        export_response.content = b"Name,Age\nAlice,30\nBob,25\n"
+        export_response.raise_for_status = MagicMock()
+
+        def mock_get(url, **kwargs):
+            if "/export" in url:
+                return export_response
+            return metadata_response
+
+        with patch.object(sheets_client._session, "get", side_effect=mock_get):
             csv_bytes, metadata = sheets_client.fetch_as_csv("test_id")
 
         assert isinstance(csv_bytes, bytes)
         assert b"Name,Age" in csv_bytes
-        assert b"Alice,30" in csv_bytes
+        assert metadata.title == "Test Sheet"
         assert metadata.row_count == 2
+        assert metadata.column_count == 2
+
+    def test_fetch_csv_file_directly(self, sheets_client):
+        """Test downloading a CSV file directly."""
+        # Mock metadata response
+        metadata_response = MagicMock()
+        metadata_response.json.return_value = {
+            "id": "test_id",
+            "name": "data.csv",
+            "mimeType": "text/csv",
+            "size": "100",
+        }
+        metadata_response.raise_for_status = MagicMock()
+
+        # Mock download response
+        download_response = MagicMock()
+        download_response.content = b"Col1,Col2\nA,B\nC,D\n"
+        download_response.raise_for_status = MagicMock()
+
+        def mock_get(url, **kwargs):
+            if kwargs.get("params", {}).get("alt") == "media":
+                return download_response
+            return metadata_response
+
+        with patch.object(sheets_client._session, "get", side_effect=mock_get):
+            csv_bytes, metadata = sheets_client.fetch_as_csv("test_id")
+
+        assert isinstance(csv_bytes, bytes)
+        assert b"Col1,Col2" in csv_bytes
+        assert metadata.title == "data.csv"
+
+    def test_fetch_file_too_large(self, sheets_client):
+        """Test error when file exceeds size limit."""
+        metadata_response = MagicMock()
+        metadata_response.json.return_value = {
+            "id": "test_id",
+            "name": "huge.csv",
+            "mimeType": "text/csv",
+            "size": str(100 * 1024 * 1024),  # 100MB
+        }
+        metadata_response.raise_for_status = MagicMock()
+
+        with patch.object(sheets_client._session, "get", return_value=metadata_response):
+            with pytest.raises(SheetsError) as exc_info:
+                sheets_client.fetch_as_csv("test_id")
+            assert "too large" in str(exc_info.value).lower()
+
+    def test_fetch_unsupported_mime_type(self, sheets_client):
+        """Test error on unsupported file type."""
+        metadata_response = MagicMock()
+        metadata_response.json.return_value = {
+            "id": "test_id",
+            "name": "image.png",
+            "mimeType": "image/png",
+            "size": "1000",
+        }
+        metadata_response.raise_for_status = MagicMock()
+
+        download_response = MagicMock()
+        download_response.content = b"PNG binary data"
+        download_response.raise_for_status = MagicMock()
+
+        def mock_get(url, **kwargs):
+            if kwargs.get("params", {}).get("alt") == "media":
+                return download_response
+            return metadata_response
+
+        with patch.object(sheets_client._session, "get", side_effect=mock_get):
+            with pytest.raises(SheetsError) as exc_info:
+                sheets_client.fetch_as_csv("test_id")
+            assert "unsupported" in str(exc_info.value).lower()
 
 
 class TestSheetsClientSingleton:

@@ -4,7 +4,6 @@
 	 * Data management and analysis tools with compact "Add Data" dropdown
 	 */
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import type {
@@ -77,10 +76,7 @@
 	let pendingDataset = $state<{ id: string; name: string; pii_warnings: PiiWarning[] } | null>(null);
 
 	// Google Sheets state
-	let sheetsConnected = $state(false);
-	let sheetsConnectionLoading = $state(true);
 	let isImportingSheets = $state(false);
-	let sheetsConnectionMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	// ==========================================================================
 	// Objectives / Data Requirements Functions
@@ -165,52 +161,6 @@
 		} finally {
 			datasetsLoading = false;
 		}
-	}
-
-	async function checkSheetsConnection() {
-		try {
-			const status = await apiClient.getSheetsConnectionStatus();
-			sheetsConnected = status.connected;
-		} catch (err) {
-			console.error('Failed to check sheets connection:', err);
-		} finally {
-			sheetsConnectionLoading = false;
-		}
-	}
-
-	function handleUrlParams() {
-		const params = $page.url.searchParams;
-		const sheetsErrorParam = params.get('sheets_error');
-		const sheetsSuccess = params.get('sheets_connected');
-
-		if (sheetsSuccess === 'true') {
-			sheetsConnectionMessage = { type: 'success', text: 'Google Sheets connected successfully!' };
-			sheetsConnected = true;
-			goto('/advisor/analyze', { replaceState: true });
-		} else if (sheetsErrorParam) {
-			const errorMessages: Record<string, string> = {
-				auth_failed: 'Authentication failed. Please try again.',
-				access_denied: 'Access denied. Please contact support.',
-				config_error: 'Service configuration error. Please try again later.',
-				session_expired: 'Your session has expired. Please try again.',
-				rate_limited: 'Too many attempts. Please try again later.'
-			};
-			sheetsConnectionMessage = {
-				type: 'error',
-				text: errorMessages[sheetsErrorParam] || 'Connection failed. Please try again.'
-			};
-			goto('/advisor/analyze', { replaceState: true });
-		}
-
-		if (sheetsConnectionMessage) {
-			setTimeout(() => {
-				sheetsConnectionMessage = null;
-			}, 5000);
-		}
-	}
-
-	function connectGoogleSheets() {
-		window.location.href = apiClient.getSheetsConnectUrl();
 	}
 
 	async function handleSheetsImport(url: string) {
@@ -382,8 +332,6 @@
 
 	onMount(() => {
 		loadDatasets();
-		checkSheetsConnection();
-		handleUrlParams();
 	});
 </script>
 
@@ -407,19 +355,6 @@
 			onWhatDataClick={startWhatDataFlow}
 		/>
 	</div>
-
-	<!-- Google Sheets Connection Message -->
-	{#if sheetsConnectionMessage}
-		<div
-			class="mb-4 p-4 rounded-lg {sheetsConnectionMessage.type === 'success'
-				? 'bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800'
-				: 'bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800'}"
-		>
-			<span class="{sheetsConnectionMessage.type === 'success' ? 'text-success-700 dark:text-success-300' : 'text-error-700 dark:text-error-300'}">
-				{sheetsConnectionMessage.text}
-			</span>
-		</div>
-	{/if}
 
 	<!-- Data Requirements Panel (when viewing requirements) -->
 	{#if objectiveFlowState === 'viewing_requirements'}
@@ -616,11 +551,8 @@
 <!-- Sheets Import Modal -->
 <SheetsImportModal
 	bind:open={showSheetsModal}
-	{sheetsConnected}
-	{sheetsConnectionLoading}
 	isImporting={isImportingSheets}
 	onImport={handleSheetsImport}
-	onConnect={connectGoogleSheets}
 	onclose={() => (showSheetsModal = false)}
 />
 

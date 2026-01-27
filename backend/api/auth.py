@@ -43,8 +43,8 @@ router = APIRouter()
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 
-# Sheets scope for incremental auth
-SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
+# Drive file scope for Google Picker (no Google verification required)
+DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 
 # Session manager for OAuth state
 _session_manager: SessionManager | None = None
@@ -171,11 +171,11 @@ async def get_sheets_connection_status(
         return {"connected": False, "scopes": None}
 
     scopes = tokens.get("scopes", "")
-    has_sheets = "spreadsheets" in scopes
+    has_drive_file = "drive.file" in scopes
 
     return {
-        "connected": has_sheets,
-        "scopes": scopes if has_sheets else None,
+        "connected": has_drive_file,
+        "scopes": scopes if has_drive_file else None,
     }
 
 
@@ -190,7 +190,7 @@ async def initiate_sheets_connect(
     For existing users who signed up before Sheets scope was added,
     or users who want to grant Sheets access.
 
-    Redirects to Google OAuth consent screen with spreadsheets.readonly scope.
+    Redirects to Google OAuth consent screen with drive.file scope.
     """
     user_id = session.get_user_id()
 
@@ -215,7 +215,7 @@ async def initiate_sheets_connect(
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": f"openid email profile {SHEETS_SCOPE}",
+        "scope": f"openid email profile {DRIVE_FILE_SCOPE}",
         "access_type": "offline",  # Get refresh token
         "prompt": "consent",  # Force consent to get refresh token
         "include_granted_scopes": "true",  # Incremental authorization

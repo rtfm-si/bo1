@@ -1,8 +1,10 @@
-"""Google Sheets integration service.
+"""Google Drive integration service for data file imports.
 
-Fetches data from Google Sheets using the Sheets API v4.
-- Public sheets: Uses GOOGLE_API_KEY
-- Private sheets: Uses user's OAuth tokens
+Fetches data from Google Drive using Drive API v3 (drive.file scope).
+- Google Sheets: Exported as CSV via Drive API
+- Uploaded files (CSV, XLSX, etc.): Downloaded directly
+
+No Sheets API required - only Drive API with drive.file scope.
 """
 
 import io
@@ -21,25 +23,34 @@ from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Google Sheets API base URL
-SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
+# Google Drive API base URL
+DRIVE_API_BASE = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 
-# URL patterns for Google Sheets
-SHEETS_URL_PATTERNS = [
-    # https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid=0
+# URL patterns for Google Drive files
+DRIVE_URL_PATTERNS = [
+    # Google Sheets: https://docs.google.com/spreadsheets/d/{fileId}/edit
     r"docs\.google\.com/spreadsheets/d/([a-zA-Z0-9_-]+)",
-    # https://docs.google.com/spreadsheets/d/{spreadsheet_id}
-    r"docs\.google\.com/spreadsheets/d/([a-zA-Z0-9_-]+)",
+    # Google Drive file: https://drive.google.com/file/d/{fileId}/view
+    r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)",
+    # Google Drive open: https://drive.google.com/open?id={fileId}
+    r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)",
 ]
 
+# MIME types
+GOOGLE_SHEETS_MIME = "application/vnd.google-apps.spreadsheet"
+CSV_MIME = "text/csv"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+XLS_MIME = "application/vnd.ms-excel"
+TSV_MIME = "text/tab-separated-values"
+TEXT_MIME = "text/plain"
+
 # Limits
-MAX_ROWS = 50_000  # Max rows to fetch
-MAX_CELLS = 500_000  # Max total cells (API limit is 10M but we're conservative)
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB max download
 
 
 class SheetsError(Exception):
-    """Error during Google Sheets operation."""
+    """Error during Google Drive/Sheets operation."""
 
     def __init__(self, message: str, spreadsheet_id: str | None = None) -> None:
         """Initialize SheetsError."""
@@ -49,24 +60,24 @@ class SheetsError(Exception):
 
 @dataclass
 class SheetMetadata:
-    """Metadata about a fetched sheet."""
+    """Metadata about a fetched file."""
 
     spreadsheet_id: str
     title: str
-    sheet_name: str
+    sheet_name: str  # For compatibility - will be "Sheet1" for non-Sheets files
     row_count: int
     column_count: int
 
 
 class SheetsClient:
-    """Client for fetching data from Google Sheets.
+    """Client for fetching data from Google Drive.
 
-    Uses Google Sheets API v4 with API key authentication.
-    Only supports public sheets (anyone with link can view).
+    Uses Google Drive API v3 with API key authentication.
+    Only supports public files (anyone with link can view).
     """
 
     def __init__(self, api_key: str | None = None) -> None:
-        """Initialize Sheets client.
+        """Initialize Drive client.
 
         Args:
             api_key: Google API key (defaults to settings)
@@ -90,40 +101,40 @@ class SheetsClient:
         self._session.mount("https://", adapter)
 
     def parse_sheets_url(self, url: str) -> str:
-        """Extract spreadsheet ID from a Google Sheets URL.
+        """Extract file ID from a Google Drive/Sheets URL.
 
         Args:
-            url: Google Sheets URL
+            url: Google Drive or Sheets URL
 
         Returns:
-            Spreadsheet ID
+            File ID
 
         Raises:
-            SheetsError: If URL is not a valid Google Sheets URL
+            SheetsError: If URL is not a valid Google Drive URL
         """
-        for pattern in SHEETS_URL_PATTERNS:
+        for pattern in DRIVE_URL_PATTERNS:
             match = re.search(pattern, url)
             if match:
                 return match.group(1)
 
-        raise SheetsError(f"Invalid Google Sheets URL: {url}")
+        raise SheetsError(f"Invalid Google Drive/Sheets URL: {url}")
 
-    def get_spreadsheet_info(self, spreadsheet_id: str) -> dict:
-        """Get spreadsheet metadata.
+    def _get_file_metadata(self, file_id: str) -> dict:
+        """Get file metadata from Drive API.
 
         Args:
-            spreadsheet_id: Google Sheets spreadsheet ID
+            file_id: Google Drive file ID
 
         Returns:
-            Spreadsheet metadata dict
+            File metadata dict with name, mimeType, size
 
         Raises:
             SheetsError: If API request fails
         """
-        url = f"{SHEETS_API_BASE}/{spreadsheet_id}"
+        url = f"{DRIVE_API_BASE}/{file_id}"
         params = {
             "key": self._api_key,
-            "fields": "properties.title,sheets.properties",
+            "fields": "id,name,mimeType,size",
         }
 
         try:
@@ -134,150 +145,193 @@ class SheetsClient:
             status_code = e.response.status_code if e.response is not None else None
             if status_code == 404:
                 raise SheetsError(
-                    "Spreadsheet not found. Make sure the URL is correct and the sheet is publicly accessible.",
-                    spreadsheet_id,
+                    "File not found. Make sure the URL is correct and the file is publicly accessible.",
+                    file_id,
                 ) from None
             elif status_code == 403:
                 raise SheetsError(
-                    "Access denied. Make sure the sheet is set to 'Anyone with the link can view'.",
-                    spreadsheet_id,
+                    "Access denied. Make sure the file is set to 'Anyone with the link can view'.",
+                    file_id,
                 ) from None
             else:
-                raise SheetsError(f"Failed to fetch spreadsheet info: {e}", spreadsheet_id) from e
+                raise SheetsError(f"Failed to fetch file info: {e}", file_id) from e
         except requests.exceptions.RequestException as e:
-            raise SheetsError(f"Network error fetching spreadsheet: {e}", spreadsheet_id) from e
+            raise SheetsError(f"Network error fetching file: {e}", file_id) from e
 
-    def fetch_sheet_data(
-        self,
-        spreadsheet_id: str,
-        sheet_name: str | None = None,
-        max_rows: int = MAX_ROWS,
-    ) -> tuple[pd.DataFrame, SheetMetadata]:
-        """Fetch data from a Google Sheet as a DataFrame.
+    def _export_google_sheet(self, file_id: str) -> bytes:
+        """Export a Google Sheet as CSV using Drive API.
 
         Args:
-            spreadsheet_id: Google Sheets spreadsheet ID
-            sheet_name: Name of specific sheet (defaults to first sheet)
-            max_rows: Maximum rows to fetch (default: 50,000)
+            file_id: Google Drive file ID
 
         Returns:
-            Tuple of (DataFrame, SheetMetadata)
+            CSV content as bytes
 
         Raises:
-            SheetsError: If API request fails or sheet is empty
+            SheetsError: If export fails
         """
-        # Get spreadsheet info to find sheet names
-        info = self.get_spreadsheet_info(spreadsheet_id)
-        title = info.get("properties", {}).get("title", "Untitled")
-        sheets = info.get("sheets", [])
-
-        if not sheets:
-            raise SheetsError("Spreadsheet has no sheets", spreadsheet_id)
-
-        # Find target sheet
-        if sheet_name:
-            target_sheet = None
-            for sheet in sheets:
-                props = sheet.get("properties", {})
-                if props.get("title") == sheet_name:
-                    target_sheet = props
-                    break
-            if not target_sheet:
-                available = [s.get("properties", {}).get("title") for s in sheets]
-                raise SheetsError(
-                    f"Sheet '{sheet_name}' not found. Available sheets: {available}",
-                    spreadsheet_id,
-                )
-        else:
-            target_sheet = sheets[0].get("properties", {})
-            sheet_name = target_sheet.get("title", "Sheet1")
-
-        # Fetch sheet data
-        range_notation = f"'{sheet_name}'!A1:ZZ{max_rows}"
-        url = f"{SHEETS_API_BASE}/{spreadsheet_id}/values/{range_notation}"
+        url = f"{DRIVE_API_BASE}/{file_id}/export"
         params = {
             "key": self._api_key,
-            "valueRenderOption": "UNFORMATTED_VALUE",
-            "dateTimeRenderOption": "FORMATTED_STRING",
+            "mimeType": CSV_MIME,
         }
 
         try:
             response = self._session.get(url, params=params, timeout=60)
             response.raise_for_status()
-            data = response.json()
+            return response.content
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code if e.response is not None else None
             if status_code == 403:
                 raise SheetsError(
-                    "Access denied. Make sure the sheet is set to 'Anyone with the link can view'.",
-                    spreadsheet_id,
+                    "Access denied. Make sure the file is set to 'Anyone with the link can view'.",
+                    file_id,
                 ) from None
             else:
-                raise SheetsError(f"Failed to fetch sheet data: {e}", spreadsheet_id) from e
+                raise SheetsError(f"Failed to export file: {e}", file_id) from e
         except requests.exceptions.RequestException as e:
-            raise SheetsError(f"Network error fetching sheet data: {e}", spreadsheet_id) from e
+            raise SheetsError(f"Network error exporting file: {e}", file_id) from e
 
-        values = data.get("values", [])
-        if not values:
-            raise SheetsError("Sheet is empty", spreadsheet_id)
+    def _download_file(self, file_id: str) -> bytes:
+        """Download a file directly from Drive.
 
-        # Convert to DataFrame
-        # First row is header
-        headers = values[0] if values else []
-        rows = values[1:] if len(values) > 1 else []
+        Args:
+            file_id: Google Drive file ID
 
-        # Normalize row lengths (pad short rows)
-        max_cols = len(headers)
-        normalized_rows = []
-        for row in rows:
-            if len(row) < max_cols:
-                row = row + [""] * (max_cols - len(row))
-            elif len(row) > max_cols:
-                row = row[:max_cols]
-            normalized_rows.append(row)
+        Returns:
+            File content as bytes
 
-        df = pd.DataFrame(normalized_rows, columns=headers)
+        Raises:
+            SheetsError: If download fails
+        """
+        url = f"{DRIVE_API_BASE}/{file_id}"
+        params = {
+            "key": self._api_key,
+            "alt": "media",
+        }
 
-        # Create metadata
-        metadata = SheetMetadata(
-            spreadsheet_id=spreadsheet_id,
-            title=title,
-            sheet_name=sheet_name,
-            row_count=len(df),
-            column_count=len(df.columns),
-        )
+        try:
+            response = self._session.get(url, params=params, timeout=60)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else None
+            if status_code == 403:
+                raise SheetsError(
+                    "Access denied. Make sure the file is set to 'Anyone with the link can view'.",
+                    file_id,
+                ) from None
+            else:
+                raise SheetsError(f"Failed to download file: {e}", file_id) from e
+        except requests.exceptions.RequestException as e:
+            raise SheetsError(f"Network error downloading file: {e}", file_id) from e
 
-        logger.info(
-            f"Fetched sheet '{sheet_name}' from '{title}': "
-            f"{metadata.row_count} rows x {metadata.column_count} cols"
-        )
+    def _convert_to_csv(self, content: bytes, mime_type: str, filename: str) -> bytes:
+        """Convert file content to CSV format.
 
-        return df, metadata
+        Args:
+            content: Raw file bytes
+            mime_type: MIME type of the file
+            filename: Original filename
+
+        Returns:
+            CSV content as bytes
+
+        Raises:
+            SheetsError: If conversion fails
+        """
+        try:
+            if mime_type in (CSV_MIME, TEXT_MIME, TSV_MIME):
+                # Already text-based, just return (handle TSV)
+                if mime_type == TSV_MIME:
+                    df = pd.read_csv(io.BytesIO(content), sep="\t")
+                    buffer = io.BytesIO()
+                    df.to_csv(buffer, index=False, encoding="utf-8")
+                    return buffer.getvalue()
+                return content
+
+            elif mime_type in (XLSX_MIME, XLS_MIME):
+                # Excel file - convert with pandas
+                df = pd.read_excel(io.BytesIO(content))
+                buffer = io.BytesIO()
+                df.to_csv(buffer, index=False, encoding="utf-8")
+                return buffer.getvalue()
+
+            else:
+                raise SheetsError(f"Unsupported file type: {mime_type}")
+
+        except Exception as e:
+            if isinstance(e, SheetsError):
+                raise
+            raise SheetsError(f"Failed to convert file to CSV: {e}") from e
 
     def fetch_as_csv(
         self,
-        spreadsheet_id: str,
-        sheet_name: str | None = None,
-        max_rows: int = MAX_ROWS,
+        file_id: str,
+        sheet_name: str | None = None,  # Ignored for Drive API (exports first sheet)
+        max_rows: int = 50_000,  # Applied after download
     ) -> tuple[bytes, SheetMetadata]:
-        """Fetch sheet data and convert to CSV bytes.
+        """Fetch file data as CSV bytes.
+
+        For Google Sheets: exports as CSV via Drive API
+        For other files: downloads and converts to CSV
 
         Args:
-            spreadsheet_id: Google Sheets spreadsheet ID
-            sheet_name: Name of specific sheet (defaults to first sheet)
-            max_rows: Maximum rows to fetch
+            file_id: Google Drive file ID
+            sheet_name: Ignored (Drive API exports first sheet only)
+            max_rows: Maximum rows to keep (applied after download)
 
         Returns:
             Tuple of (CSV bytes, SheetMetadata)
         """
-        df, metadata = self.fetch_sheet_data(spreadsheet_id, sheet_name, max_rows)
+        # Get file metadata
+        metadata = self._get_file_metadata(file_id)
+        name = metadata.get("name", "Untitled")
+        mime_type = metadata.get("mimeType", "")
+        file_size = int(metadata.get("size", 0) or 0)
 
-        # Convert to CSV
-        buffer = io.BytesIO()
-        df.to_csv(buffer, index=False, encoding="utf-8")
-        csv_bytes = buffer.getvalue()
+        # Check file size for non-Google-native files
+        if mime_type != GOOGLE_SHEETS_MIME and file_size > MAX_FILE_SIZE:
+            raise SheetsError(
+                f"File too large ({file_size} bytes). Maximum is {MAX_FILE_SIZE} bytes."
+            )
 
-        return csv_bytes, metadata
+        # Fetch content based on type
+        if mime_type == GOOGLE_SHEETS_MIME:
+            # Google Sheets - export as CSV
+            csv_content = self._export_google_sheet(file_id)
+            logger.info(f"Exported Google Sheet '{name}' as CSV ({len(csv_content)} bytes)")
+        else:
+            # Regular file - download and convert
+            content = self._download_file(file_id)
+            csv_content = self._convert_to_csv(content, mime_type, name)
+            logger.info(
+                f"Downloaded and converted '{name}' ({mime_type}) to CSV ({len(csv_content)} bytes)"
+            )
+
+        # Parse CSV to get row/column counts and apply max_rows
+        df = pd.read_csv(io.BytesIO(csv_content))
+        if len(df) > max_rows:
+            df = df.head(max_rows)
+            buffer = io.BytesIO()
+            df.to_csv(buffer, index=False, encoding="utf-8")
+            csv_content = buffer.getvalue()
+            logger.info(f"Truncated to {max_rows} rows")
+
+        sheet_metadata = SheetMetadata(
+            spreadsheet_id=file_id,
+            title=name,
+            sheet_name="Sheet1",  # Drive API exports first sheet
+            row_count=len(df),
+            column_count=len(df.columns),
+        )
+
+        return csv_content, sheet_metadata
+
+    # Compatibility aliases
+    def get_spreadsheet_info(self, spreadsheet_id: str) -> dict:
+        """Get file metadata (compatibility method)."""
+        return self._get_file_metadata(spreadsheet_id)
 
 
 # Singleton instance
@@ -299,16 +353,16 @@ def reset_sheets_client() -> None:
 
 
 class OAuthSheetsClient:
-    """Client for fetching data from Google Sheets using OAuth tokens.
+    """Client for fetching data from Google Drive using OAuth tokens.
 
-    Uses user's OAuth access token for private sheets access.
+    Uses user's OAuth access token for private file access.
     Handles token refresh automatically when expired.
     """
 
     def __init__(
         self, user_id: str, access_token: str, refresh_token: str | None, expires_at: str | None
     ) -> None:
-        """Initialize OAuth Sheets client.
+        """Initialize OAuth Drive client.
 
         Args:
             user_id: User ID for token refresh persistence
@@ -407,18 +461,21 @@ class OAuthSheetsClient:
         if self._is_token_expired():
             if not self._refresh_access_token():
                 raise SheetsError(
-                    "Google access token expired and refresh failed. Please reconnect Google Sheets."
+                    "Google access token expired and refresh failed. Please reconnect Google Drive."
                 )
 
-    def _make_request(self, url: str, params: dict | None = None) -> dict:
-        """Make authenticated request to Sheets API.
+    def _make_request(
+        self, url: str, params: dict | None = None, stream: bool = False
+    ) -> requests.Response:
+        """Make authenticated request to Drive API.
 
         Args:
             url: API URL
             params: Query parameters
+            stream: Whether to stream response
 
         Returns:
-            JSON response
+            Response object
 
         Raises:
             SheetsError: If request fails
@@ -428,150 +485,159 @@ class OAuthSheetsClient:
         headers = {"Authorization": f"Bearer {self._access_token}"}
 
         try:
-            response = self._session.get(url, headers=headers, params=params, timeout=60)
+            response = self._session.get(
+                url, headers=headers, params=params, timeout=60, stream=stream
+            )
 
             # Handle 401 - try refresh once
             if response.status_code == 401:
                 if self._refresh_access_token():
                     headers = {"Authorization": f"Bearer {self._access_token}"}
-                    response = self._session.get(url, headers=headers, params=params, timeout=60)
-                else:
-                    raise SheetsError(
-                        "Google access token invalid. Please reconnect Google Sheets."
+                    response = self._session.get(
+                        url, headers=headers, params=params, timeout=60, stream=stream
                     )
+                else:
+                    raise SheetsError("Google access token invalid. Please reconnect Google Drive.")
 
             response.raise_for_status()
-            return response.json()
+            return response
 
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code if e.response is not None else None
             if status_code == 404:
-                raise SheetsError("Spreadsheet not found. Make sure the URL is correct.") from None
+                raise SheetsError("File not found. Make sure the URL is correct.") from None
             elif status_code == 403:
                 raise SheetsError(
-                    "Access denied. You don't have permission to view this spreadsheet."
+                    "Access denied. You don't have permission to view this file."
                 ) from None
             else:
-                raise SheetsError(f"Failed to fetch spreadsheet: {e}") from e
+                raise SheetsError(f"Failed to fetch file: {e}") from e
         except requests.exceptions.RequestException as e:
             raise SheetsError(f"Network error: {e}") from e
 
     def parse_sheets_url(self, url: str) -> str:
-        """Extract spreadsheet ID from a Google Sheets URL."""
-        for pattern in SHEETS_URL_PATTERNS:
+        """Extract file ID from a Google Drive/Sheets URL."""
+        for pattern in DRIVE_URL_PATTERNS:
             match = re.search(pattern, url)
             if match:
                 return match.group(1)
-        raise SheetsError(f"Invalid Google Sheets URL: {url}")
+        raise SheetsError(f"Invalid Google Drive/Sheets URL: {url}")
 
-    def get_spreadsheet_info(self, spreadsheet_id: str) -> dict:
-        """Get spreadsheet metadata."""
-        url = f"{SHEETS_API_BASE}/{spreadsheet_id}"
-        params = {"fields": "properties.title,sheets.properties"}
-        return self._make_request(url, params)
+    def _get_file_metadata(self, file_id: str) -> dict:
+        """Get file metadata from Drive API."""
+        url = f"{DRIVE_API_BASE}/{file_id}"
+        params = {"fields": "id,name,mimeType,size"}
+        response = self._make_request(url, params)
+        return response.json()
 
-    def fetch_sheet_data(
+    def _export_google_sheet(self, file_id: str) -> bytes:
+        """Export a Google Sheet as CSV."""
+        url = f"{DRIVE_API_BASE}/{file_id}/export"
+        params = {"mimeType": CSV_MIME}
+        response = self._make_request(url, params)
+        return response.content
+
+    def _download_file(self, file_id: str) -> bytes:
+        """Download a file directly from Drive."""
+        url = f"{DRIVE_API_BASE}/{file_id}"
+        params = {"alt": "media"}
+        response = self._make_request(url, params)
+        return response.content
+
+    def _convert_to_csv(self, content: bytes, mime_type: str, filename: str) -> bytes:
+        """Convert file content to CSV format."""
+        try:
+            if mime_type in (CSV_MIME, TEXT_MIME, TSV_MIME):
+                if mime_type == TSV_MIME:
+                    df = pd.read_csv(io.BytesIO(content), sep="\t")
+                    buffer = io.BytesIO()
+                    df.to_csv(buffer, index=False, encoding="utf-8")
+                    return buffer.getvalue()
+                return content
+
+            elif mime_type in (XLSX_MIME, XLS_MIME):
+                df = pd.read_excel(io.BytesIO(content))
+                buffer = io.BytesIO()
+                df.to_csv(buffer, index=False, encoding="utf-8")
+                return buffer.getvalue()
+
+            else:
+                raise SheetsError(f"Unsupported file type: {mime_type}")
+
+        except Exception as e:
+            if isinstance(e, SheetsError):
+                raise
+            raise SheetsError(f"Failed to convert file to CSV: {e}") from e
+
+    def fetch_as_csv(
         self,
-        spreadsheet_id: str,
+        file_id: str,
         sheet_name: str | None = None,
-        max_rows: int = MAX_ROWS,
-    ) -> tuple[pd.DataFrame, SheetMetadata]:
-        """Fetch data from a Google Sheet as a DataFrame.
+        max_rows: int = 50_000,
+    ) -> tuple[bytes, SheetMetadata]:
+        """Fetch file data as CSV bytes using OAuth.
+
+        For Google Sheets: exports as CSV via Drive API
+        For other files: downloads and converts to CSV
 
         Args:
-            spreadsheet_id: Google Sheets spreadsheet ID
-            sheet_name: Name of specific sheet (defaults to first sheet)
-            max_rows: Maximum rows to fetch
+            file_id: Google Drive file ID
+            sheet_name: Ignored (Drive API exports first sheet only)
+            max_rows: Maximum rows to keep
 
         Returns:
-            Tuple of (DataFrame, SheetMetadata)
+            Tuple of (CSV bytes, SheetMetadata)
         """
-        # Get spreadsheet info
-        info = self.get_spreadsheet_info(spreadsheet_id)
-        title = info.get("properties", {}).get("title", "Untitled")
-        sheets = info.get("sheets", [])
+        # Get file metadata
+        metadata = self._get_file_metadata(file_id)
+        name = metadata.get("name", "Untitled")
+        mime_type = metadata.get("mimeType", "")
+        file_size = int(metadata.get("size", 0) or 0)
 
-        if not sheets:
-            raise SheetsError("Spreadsheet has no sheets", spreadsheet_id)
+        # Check file size for non-Google-native files
+        if mime_type != GOOGLE_SHEETS_MIME and file_size > MAX_FILE_SIZE:
+            raise SheetsError(
+                f"File too large ({file_size} bytes). Maximum is {MAX_FILE_SIZE} bytes."
+            )
 
-        # Find target sheet
-        if sheet_name:
-            target_sheet = None
-            for sheet in sheets:
-                props = sheet.get("properties", {})
-                if props.get("title") == sheet_name:
-                    target_sheet = props
-                    break
-            if not target_sheet:
-                available = [s.get("properties", {}).get("title") for s in sheets]
-                raise SheetsError(
-                    f"Sheet '{sheet_name}' not found. Available: {available}", spreadsheet_id
-                )
+        # Fetch content based on type
+        if mime_type == GOOGLE_SHEETS_MIME:
+            csv_content = self._export_google_sheet(file_id)
+            logger.info(f"[OAuth] Exported Google Sheet '{name}' as CSV ({len(csv_content)} bytes)")
         else:
-            target_sheet = sheets[0].get("properties", {})
-            sheet_name = target_sheet.get("title", "Sheet1")
+            content = self._download_file(file_id)
+            csv_content = self._convert_to_csv(content, mime_type, name)
+            logger.info(
+                f"[OAuth] Downloaded '{name}' ({mime_type}) to CSV ({len(csv_content)} bytes)"
+            )
 
-        # Fetch sheet data
-        range_notation = f"'{sheet_name}'!A1:ZZ{max_rows}"
-        url = f"{SHEETS_API_BASE}/{spreadsheet_id}/values/{range_notation}"
-        params = {
-            "valueRenderOption": "UNFORMATTED_VALUE",
-            "dateTimeRenderOption": "FORMATTED_STRING",
-        }
+        # Parse CSV to get row/column counts and apply max_rows
+        df = pd.read_csv(io.BytesIO(csv_content))
+        if len(df) > max_rows:
+            df = df.head(max_rows)
+            buffer = io.BytesIO()
+            df.to_csv(buffer, index=False, encoding="utf-8")
+            csv_content = buffer.getvalue()
+            logger.info(f"[OAuth] Truncated to {max_rows} rows")
 
-        data = self._make_request(url, params)
-        values = data.get("values", [])
-
-        if not values:
-            raise SheetsError("Sheet is empty", spreadsheet_id)
-
-        # Convert to DataFrame
-        headers = values[0] if values else []
-        rows = values[1:] if len(values) > 1 else []
-
-        # Normalize row lengths
-        max_cols = len(headers)
-        normalized_rows = []
-        for row in rows:
-            if len(row) < max_cols:
-                row = row + [""] * (max_cols - len(row))
-            elif len(row) > max_cols:
-                row = row[:max_cols]
-            normalized_rows.append(row)
-
-        df = pd.DataFrame(normalized_rows, columns=headers)
-
-        metadata = SheetMetadata(
-            spreadsheet_id=spreadsheet_id,
-            title=title,
-            sheet_name=sheet_name,
+        sheet_metadata = SheetMetadata(
+            spreadsheet_id=file_id,
+            title=name,
+            sheet_name="Sheet1",
             row_count=len(df),
             column_count=len(df.columns),
         )
 
-        logger.info(
-            f"[OAuth] Fetched sheet '{sheet_name}' from '{title}': {metadata.row_count}x{metadata.column_count}"
-        )
-        return df, metadata
+        return csv_content, sheet_metadata
 
-    def fetch_as_csv(
-        self,
-        spreadsheet_id: str,
-        sheet_name: str | None = None,
-        max_rows: int = MAX_ROWS,
-    ) -> tuple[bytes, SheetMetadata]:
-        """Fetch sheet data and convert to CSV bytes."""
-        df, metadata = self.fetch_sheet_data(spreadsheet_id, sheet_name, max_rows)
-
-        buffer = io.BytesIO()
-        df.to_csv(buffer, index=False, encoding="utf-8")
-        csv_bytes = buffer.getvalue()
-
-        return csv_bytes, metadata
+    # Compatibility alias
+    def get_spreadsheet_info(self, spreadsheet_id: str) -> dict:
+        """Get file metadata (compatibility method)."""
+        return self._get_file_metadata(spreadsheet_id)
 
 
 def get_oauth_sheets_client(user_id: str) -> OAuthSheetsClient | None:
-    """Get an OAuth Sheets client for a user if they have tokens.
+    """Get an OAuth Drive client for a user if they have tokens.
 
     Args:
         user_id: User ID

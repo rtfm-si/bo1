@@ -302,6 +302,9 @@ services:
       - VITE_API_BASE_URL=http://localhost:8000
       - ADMIN_API_KEY=${ADMIN_API_KEY:-}
       - PUBLIC_E2E_MODE=${PUBLIC_E2E_MODE:-false}
+      # Google Picker API (for drive.file scope)
+      - PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - PUBLIC_GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
     ports:
       - "5173:5173"  # Vite dev server
     volumes:

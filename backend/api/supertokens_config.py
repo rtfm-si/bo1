@@ -325,7 +325,7 @@ def get_oauth_providers() -> list[ProviderInput]:
                                     "openid",
                                     "email",
                                     "profile",
-                                    "https://www.googleapis.com/auth/spreadsheets.readonly",
+                                    "https://www.googleapis.com/auth/drive.file",
                                 ],
                             )
                         ],

@@ -78,6 +78,7 @@ dependencies = [
     # Security fixes (transitive deps)
     "jaraco.context>=6.1.0",  # CVE-2026-23949 (path traversal)
     "wheel>=0.46.2",  # CVE-2026-24049 (privilege escalation)
+    "orjson>=3.11.5",  # CVE-2025-67221 (recursion DoS)
 ]
 
 [project.optional-dependencies]

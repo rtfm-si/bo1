@@ -4651,7 +4651,7 @@ export interface paths {
          *     For existing users who signed up before Sheets scope was added,
          *     or users who want to grant Sheets access.
          *
-         *     Redirects to Google OAuth consent screen with spreadsheets.readonly scope.
+         *     Redirects to Google OAuth consent screen with drive.file scope.
          */
         get: operations["initiate_sheets_connect_api_v1_auth_google_sheets_connect_get"];
         put?: never;

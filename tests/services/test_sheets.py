@@ -5,12 +5,10 @@ Tests the Drive API-based data import functionality.
 
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
 from requests.exceptions import HTTPError
 
 from backend.services.sheets import (
-    SheetMetadata,
     SheetsClient,
     SheetsError,
     get_sheets_client,

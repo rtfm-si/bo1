@@ -28,6 +28,10 @@ from bo1.state.repositories.contribution_repository import (
     ContributionRepository,
     contribution_repository,
 )
+from bo1.state.repositories.decision_repository import (
+    DecisionRepository,
+    decision_repository,
+)
 from bo1.state.repositories.feedback_repository import (
     FeedbackRepository,
     feedback_repository,
@@ -57,6 +61,8 @@ __all__ = [
     "cache_repository",
     "ContributionRepository",
     "contribution_repository",
+    "DecisionRepository",
+    "decision_repository",
     "FeedbackRepository",
     "feedback_repository",
     "PromotionRepository",

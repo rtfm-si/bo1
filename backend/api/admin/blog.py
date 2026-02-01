@@ -22,13 +22,20 @@ from backend.api.models import (
     BlogPostResponse,
     BlogPostUpdate,
     ErrorResponse,
+    TopicProposalResponse,
+    TopicProposalsResponse,
     TopicResponse,
     TopicsResponse,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors, http_error
 from backend.services.content_generator import generate_blog_post
-from backend.services.topic_discovery import TopicDiscoveryError, discover_topics, filter_topics
+from backend.services.topic_discovery import (
+    TopicDiscoveryError,
+    discover_topics,
+    filter_topics,
+    propose_topics,
+)
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.blog_repository import blog_repository
 from bo1.utils.logging import get_logger
@@ -382,3 +389,47 @@ async def schedule_post(
     logger.info(f"Admin: Scheduled blog post {post_id} for {body.published_at}")
 
     return BlogPostResponse(id=str(post["id"]), **{k: v for k, v in post.items() if k != "id"})
+
+
+@router.post(
+    "/propose-topics",
+    response_model=TopicProposalsResponse,
+    summary="Propose blog topics",
+    description="Get AI-suggested blog topics based on positioning gaps.",
+    responses={
+        200: {"description": "Topics proposed successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("propose blog topics")
+async def propose_blog_topics(
+    request: Request,
+    count: int = Query(5, ge=1, le=10, description="Number of topics to propose"),
+    _admin: str = Depends(require_admin_any),
+) -> TopicProposalsResponse:
+    """Propose blog topics based on positioning gaps and SEO strategy.
+
+    Combines seed topics from SEO analysis with LLM-generated suggestions
+    that align with Board of One's positioning.
+    """
+    # Get existing post titles to avoid duplication
+    existing = blog_repository.list(limit=100)
+    existing_titles = [p["title"] for p in existing]
+
+    proposals = await propose_topics(existing_titles, count=count)
+
+    logger.info(f"Admin: Proposed {len(proposals)} blog topics")
+
+    return TopicProposalsResponse(
+        topics=[
+            TopicProposalResponse(
+                title=p.title,
+                rationale=p.rationale,
+                suggested_keywords=p.suggested_keywords,
+                source=p.source,
+            )
+            for p in proposals
+        ]
+    )

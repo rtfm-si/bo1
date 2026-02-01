@@ -998,6 +998,76 @@ export interface PublicBlogPostListResponse {
 }
 
 /**
+ * Public decision (SEO decision library)
+ */
+export interface PublicDecision {
+	category: string;
+	slug: string;
+	title: string;
+	meta_description?: string;
+	founder_context?: {
+		stage?: string;
+		constraints?: string[];
+		situation?: string;
+	};
+	expert_perspectives?: Array<{
+		persona_name: string;
+		persona_code?: string;
+		quote: string;
+	}>;
+	synthesis?: string;
+	faqs?: Array<{
+		question: string;
+		answer: string;
+	}>;
+	published_at?: string;
+}
+
+/**
+ * Public decision list item (for index pages)
+ */
+export interface PublicDecisionListItem {
+	id: string;
+	category: string;
+	slug: string;
+	title: string;
+	meta_description?: string;
+	founder_context?: {
+		stage?: string;
+		constraints?: string[];
+		situation?: string;
+	};
+	published_at?: string;
+	created_at: string;
+	updated_at: string;
+	view_count: number;
+	click_through_count: number;
+}
+
+/**
+ * Public decision list response
+ */
+export interface PublicDecisionListResponse {
+	decisions: PublicDecisionListItem[];
+	total: number;
+}
+
+/**
+ * Decision category with count
+ */
+export interface DecisionCategoryCount {
+	category: string;
+	count: number;
+}
+
+/**
+ * Decision categories response
+ */
+export interface DecisionCategoriesResponse {
+	categories: DecisionCategoryCount[];
+}
+
+/**
  * Waitlist response (admin)
  */
 export interface WaitlistResponse {

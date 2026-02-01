@@ -9,13 +9,15 @@
 	interface Props {
 		onclose: () => void;
 		ongenerated: (post: BlogPost) => void;
+		initialTopic?: string;
+		initialKeywords?: string[];
 	}
 
-	let { onclose, ongenerated }: Props = $props();
+	let { onclose, ongenerated, initialTopic = '', initialKeywords = [] }: Props = $props();
 
 	// Form state
-	let topic = $state('');
-	let keywords = $state('');
+	let topic = $state(initialTopic);
+	let keywords = $state(initialKeywords.join(', '));
 	let industry = $state('');
 
 	// UI state

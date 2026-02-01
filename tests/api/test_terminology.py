@@ -32,6 +32,10 @@ LEGACY_EXCEPTIONS = frozenset(
         "expert_count",
         # sessions.py - meeting credits (user-facing tier limit field)
         "meeting_credits_remaining",
+        # decisions.py - Public SEO decision library (user-facing terminology intentional)
+        "decisions",
+        "expert_perspectives",
+        "related_decision_ids",
     }
 )
 

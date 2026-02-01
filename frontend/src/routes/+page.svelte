@@ -33,6 +33,12 @@
 		trackWaitlistSubmit,
 		trackSignupClick
 	} from '$lib/analytics/page-tracker';
+	import {
+		createOrganizationSchema,
+		createSoftwareApplicationSchema,
+		createHomepageFAQSchema,
+		serializeJsonLd
+	} from '$lib/utils/jsonld';
 
 	// Waitlist form state
 	let email = $state('');
@@ -125,6 +131,11 @@
 	}
 
 	// Icon SVG paths (Lucide-inspired, theme-aligned)
+	// JSON-LD structured data
+	const organizationJsonLd = serializeJsonLd(createOrganizationSchema());
+	const softwareAppJsonLd = serializeJsonLd(createSoftwareApplicationSchema());
+	const faqJsonLd = serializeJsonLd(createHomepageFAQSchema([...faqs]));
+
 	function getIconPath(icon: string): string {
 		const icons: Record<string, string> = {
 			target:
@@ -156,6 +167,11 @@
 	<meta name="twitter:title" content="Board of One - Management-Grade Thinking" />
 	<meta name="twitter:description" content="A management operating system for founders making real calls. Get senior-team leverage without senior-team overhead." />
 	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
+
+	<!-- JSON-LD Structured Data -->
+	{@html `<script type="application/ld+json">${organizationJsonLd}</script>`}
+	{@html `<script type="application/ld+json">${softwareAppJsonLd}</script>`}
+	{@html `<script type="application/ld+json">${faqJsonLd}</script>`}
 </svelte:head>
 
 <style>

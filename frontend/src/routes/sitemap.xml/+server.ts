@@ -8,6 +8,7 @@ export const GET: RequestHandler = async () => {
 	const staticPages = [
 		{ url: '/', priority: 1.0, changefreq: 'weekly' },
 		{ url: '/blog', priority: 0.9, changefreq: 'daily' },
+		{ url: '/decisions', priority: 0.9, changefreq: 'weekly' },
 		{ url: '/features', priority: 0.8, changefreq: 'monthly' },
 		{ url: '/pricing', priority: 0.8, changefreq: 'monthly' },
 		{ url: '/about', priority: 0.7, changefreq: 'monthly' },
@@ -35,6 +36,27 @@ export const GET: RequestHandler = async () => {
 		console.error('Sitemap: Failed to fetch blog posts:', e);
 	}
 
+	// Fetch published decisions
+	let decisions: Array<{ category: string; slug: string; published_at?: string; updated_at?: string }> = [];
+	try {
+		const url = `${INTERNAL_API_URL}/api/v1/decisions?limit=100`;
+		console.log('Sitemap: fetching decisions from', url);
+		const response = await fetch(url);
+		console.log('Sitemap: decisions response status', response.status);
+		if (response.ok) {
+			const data = await response.json();
+			decisions = data.decisions || [];
+			console.log('Sitemap: found', decisions.length, 'decisions');
+		} else {
+			console.error('Sitemap: decisions API returned', response.status, response.statusText);
+		}
+	} catch (e) {
+		console.error('Sitemap: Failed to fetch decisions:', e);
+	}
+
+	// Get unique decision categories
+	const decisionCategories = [...new Set(decisions.map((d) => d.category))];
+
 	// Build XML
 	const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -54,6 +76,25 @@ ${blogPosts
     <lastmod>${post.updated_at || post.published_at || new Date().toISOString()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>`
+	)
+	.join('\n')}
+${decisionCategories
+	.map(
+		(category) => `  <url>
+    <loc>${SITE_URL}/decisions/${category}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`
+	)
+	.join('\n')}
+${decisions
+	.map(
+		(decision) => `  <url>
+    <loc>${SITE_URL}/decisions/${decision.category}/${decision.slug}</loc>
+    <lastmod>${decision.updated_at || decision.published_at || new Date().toISOString()}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>`
 	)
 	.join('\n')}

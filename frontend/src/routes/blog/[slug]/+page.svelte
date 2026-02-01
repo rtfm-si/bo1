@@ -10,7 +10,8 @@
 	import Footer from '$lib/components/Footer.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { PublicBlogPost } from '$lib/api/types';
-	import { createArticleSchema, serializeJsonLd } from '$lib/utils/jsonld';
+	import { createArticleSchema, createBlogBreadcrumbSchema, serializeJsonLd } from '$lib/utils/jsonld';
+	import { ChevronRight } from 'lucide-svelte';
 
 	// State
 	let post = $state<PublicBlogPost | null>(null);
@@ -29,6 +30,7 @@
 
 	// JSON-LD structured data
 	const articleJsonLd = $derived(post ? serializeJsonLd(createArticleSchema(post)) : null);
+	const breadcrumbJsonLd = $derived(post ? serializeJsonLd(createBlogBreadcrumbSchema(post)) : null);
 
 	async function loadPost() {
 		if (!slug) return;
@@ -236,6 +238,9 @@
 	{#if articleJsonLd}
 		{@html `<script type="application/ld+json">${articleJsonLd}</script>`}
 	{/if}
+	{#if breadcrumbJsonLd}
+		{@html `<script type="application/ld+json">${breadcrumbJsonLd}</script>`}
+	{/if}
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">
@@ -295,21 +300,12 @@
 			<!-- Article -->
 			<article class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
 				<!-- Breadcrumb -->
-				<nav class="mb-8">
-					<a
-						href="/blog"
-						class="inline-flex items-center text-sm text-brand-600 dark:text-brand-400 hover:underline"
-					>
-						<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-						Back to Blog
-					</a>
+				<nav class="flex items-center text-sm text-neutral-500 dark:text-neutral-400 mb-8">
+					<a href="/" class="hover:text-brand-600 dark:hover:text-brand-400">Home</a>
+					<ChevronRight class="w-4 h-4 mx-2" />
+					<a href="/blog" class="hover:text-brand-600 dark:hover:text-brand-400">Blog</a>
+					<ChevronRight class="w-4 h-4 mx-2" />
+					<span class="text-neutral-900 dark:text-white truncate max-w-xs">{post.title}</span>
 				</nav>
 
 				<!-- Header -->

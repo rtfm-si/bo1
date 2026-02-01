@@ -273,7 +273,11 @@ import type {
 	DatasetFolderUpdate,
 	FolderDatasetsListResponse,
 	FolderTagsResponse,
-	AddDatasetsResponse
+	AddDatasetsResponse,
+	// Public Decision types
+	PublicDecision,
+	PublicDecisionListResponse,
+	DecisionCategoriesResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -3887,6 +3891,70 @@ export class ApiClient {
 	 */
 	async trackBlogClick(slug: string): Promise<void> {
 		await this.fetch<void>(`/api/v1/blog/posts/${slug}/click`, { method: 'POST' });
+	}
+
+	// =========================================================================
+	// Public Decisions (SEO decision library, no auth required)
+	// =========================================================================
+
+	/**
+	 * Get published decisions list (public)
+	 */
+	async getPublishedDecisions(params?: {
+		category?: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<PublicDecisionListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.category) searchParams.set('category', params.category);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<PublicDecisionListResponse>(
+			`/api/v1/decisions${query ? `?${query}` : ''}`
+		);
+	}
+
+	/**
+	 * Get decision categories with counts (public)
+	 */
+	async getDecisionCategories(): Promise<DecisionCategoriesResponse> {
+		return this.fetch<DecisionCategoriesResponse>('/api/v1/decisions/categories');
+	}
+
+	/**
+	 * Get a published decision by category and slug (public)
+	 */
+	async getPublishedDecision(category: string, slug: string): Promise<PublicDecision> {
+		return this.fetch<PublicDecision>(`/api/v1/decisions/${category}/${slug}`);
+	}
+
+	/**
+	 * Track a decision page view (public, no auth)
+	 */
+	async trackDecisionView(category: string, slug: string): Promise<void> {
+		await this.fetch<void>(`/api/v1/decisions/${category}/${slug}/view`, { method: 'POST' });
+	}
+
+	/**
+	 * Track a decision CTA click (public, no auth)
+	 */
+	async trackDecisionClick(category: string, slug: string): Promise<void> {
+		await this.fetch<void>(`/api/v1/decisions/${category}/${slug}/click`, { method: 'POST' });
+	}
+
+	/**
+	 * Get related decisions (public)
+	 */
+	async getRelatedDecisions(
+		category: string,
+		slug: string,
+		limit: number = 5
+	): Promise<PublicDecisionListResponse> {
+		return this.fetch<PublicDecisionListResponse>(
+			`/api/v1/decisions/${category}/${slug}/related?limit=${limit}`
+		);
 	}
 
 	// =========================================================================

@@ -1285,6 +1285,86 @@ class AdminApiClient {
 	}
 
 	// =========================================================================
+	// Published Decisions
+	// =========================================================================
+
+	async listDecisions(params?: {
+		status?: 'draft' | 'published';
+		category?: DecisionCategory;
+		limit?: number;
+		offset?: number;
+	}): Promise<DecisionListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.status) searchParams.set('status', params.status);
+		if (params?.category) searchParams.set('category', params.category);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<DecisionListResponse>(
+			`/api/admin/decisions${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getDecision(id: string): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/${id}`);
+	}
+
+	async createDecision(request: DecisionCreate): Promise<Decision> {
+		return this.fetch<Decision>('/api/admin/decisions', {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async updateDecision(id: string, request: DecisionUpdate): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/${id}`, {
+			method: 'PATCH',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async deleteDecision(id: string): Promise<{ success: boolean; message: string }> {
+		return this.fetch<{ success: boolean; message: string }>(`/api/admin/decisions/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async publishDecision(id: string): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/${id}/publish`, {
+			method: 'POST'
+		});
+	}
+
+	async unpublishDecision(id: string): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/${id}/unpublish`, {
+			method: 'POST'
+		});
+	}
+
+	async generateDecision(request: DecisionGenerateRequest, saveDraft: boolean = true): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/generate?save_draft=${saveDraft}`, {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async getDecisionCategories(): Promise<CategoriesResponse> {
+		return this.fetch<CategoriesResponse>('/api/admin/decisions/categories');
+	}
+
+	// =========================================================================
+	// Blog Topic Proposer
+	// =========================================================================
+
+	async proposeTopics(count: number = 5): Promise<TopicProposalsResponse> {
+		return this.fetch<TopicProposalsResponse>('/api/admin/blog/propose-topics', {
+			method: 'POST',
+			body: JSON.stringify({ count })
+		});
+	}
+
+	// =========================================================================
 	// Runtime Config (Emergency Toggles)
 	// =========================================================================
 
@@ -2156,6 +2236,119 @@ export interface SeoAccessResponse {
 	granted_at: string | null;
 	via_promotion: boolean;
 	message: string;
+}
+
+// =============================================================================
+// Published Decisions Types
+// =============================================================================
+
+export const DECISION_CATEGORIES = [
+	'hiring',
+	'pricing',
+	'fundraising',
+	'marketing',
+	'strategy',
+	'product',
+	'operations',
+	'growth'
+] as const;
+
+export type DecisionCategory = (typeof DECISION_CATEGORIES)[number];
+
+export interface FounderContext {
+	stage?: string;
+	constraints?: string[];
+	situation?: string;
+}
+
+export interface ExpertPerspective {
+	persona_name: string;
+	persona_code?: string;
+	quote: string;
+}
+
+export interface FAQ {
+	question: string;
+	answer: string;
+}
+
+export interface Decision {
+	id: string;
+	session_id?: string;
+	category: DecisionCategory;
+	slug: string;
+	title: string;
+	meta_description?: string;
+	founder_context?: FounderContext;
+	expert_perspectives?: ExpertPerspective[];
+	synthesis?: string;
+	faqs?: FAQ[];
+	related_decision_ids?: string[];
+	status: 'draft' | 'published';
+	published_at?: string;
+	created_at: string;
+	updated_at: string;
+	view_count: number;
+	click_through_count: number;
+}
+
+export interface DecisionListResponse {
+	decisions: Decision[];
+	total: number;
+}
+
+export interface DecisionCreate {
+	title: string;
+	category: DecisionCategory;
+	founder_context: FounderContext;
+	session_id?: string;
+	meta_description?: string;
+	expert_perspectives?: ExpertPerspective[];
+	synthesis?: string;
+	faqs?: FAQ[];
+}
+
+export interface DecisionUpdate {
+	title?: string;
+	category?: DecisionCategory;
+	slug?: string;
+	meta_description?: string;
+	founder_context?: FounderContext;
+	expert_perspectives?: ExpertPerspective[];
+	synthesis?: string;
+	faqs?: FAQ[];
+	related_decision_ids?: string[];
+	status?: 'draft' | 'published';
+}
+
+export interface DecisionGenerateRequest {
+	question: string;
+	category: DecisionCategory;
+	founder_context: FounderContext;
+}
+
+export interface CategoryWithCount {
+	category: DecisionCategory;
+	count: number;
+}
+
+export interface CategoriesResponse {
+	categories: CategoryWithCount[];
+}
+
+// =============================================================================
+// Topic Proposer Types
+// =============================================================================
+
+export interface TopicProposal {
+	title: string;
+	rationale: string;
+	suggested_keywords: string[];
+	source: 'chatgpt-seo-seed' | 'positioning-gap' | 'llm-generated';
+}
+
+export interface TopicProposalsResponse {
+	topics: TopicProposal[];
 }
 
 export const adminApi = new AdminApiClient();

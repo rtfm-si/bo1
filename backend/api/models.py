@@ -4199,6 +4199,203 @@ class TopicsResponse(BaseModel):
 
 
 # ============================================================================
+# Published Decisions Models (SEO Decision Library)
+# ============================================================================
+
+
+DECISION_CATEGORIES = [
+    "hiring",
+    "pricing",
+    "fundraising",
+    "marketing",
+    "strategy",
+    "product",
+    "operations",
+    "growth",
+]
+
+
+class DecisionStatus:
+    """Valid decision statuses."""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
+class FounderContextModel(BaseModel):
+    """Founder context for decision pages."""
+
+    stage: str | None = Field(None, description="Business stage (e.g., '£50-200k ARR')")
+    constraints: list[str] | None = Field(None, description="Key constraints")
+    situation: str | None = Field(None, description="Current situation description")
+
+
+class ExpertPerspectiveModel(BaseModel):
+    """Expert perspective from deliberation."""
+
+    persona_name: str = Field(..., description="Expert name (e.g., 'Growth Operator')")
+    persona_code: str | None = Field(None, description="Persona code if from session")
+    quote: str = Field(..., description="Expert's viewpoint/recommendation")
+
+
+class FAQModel(BaseModel):
+    """FAQ item for schema markup."""
+
+    question: str = Field(..., description="FAQ question")
+    answer: str = Field(..., description="FAQ answer")
+
+
+class DecisionCreate(BaseModel):
+    """Request model for creating a published decision."""
+
+    title: str = Field(..., min_length=10, max_length=200, description="Decision question (H1)")
+    category: str = Field(..., description="Category: hiring, pricing, fundraising, etc.")
+    founder_context: FounderContextModel = Field(..., description="Founder context for display")
+    session_id: str | None = Field(None, description="Source session UUID (optional)")
+    meta_description: str | None = Field(None, max_length=300, description="SEO description")
+    expert_perspectives: list[ExpertPerspectiveModel] | None = Field(
+        None, description="Expert viewpoints"
+    )
+    synthesis: str | None = Field(None, description="Board synthesis/recommendation")
+    faqs: list[FAQModel] | None = Field(None, description="FAQ pairs for schema")
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        """Validate category."""
+        if v not in DECISION_CATEGORIES:
+            raise ValueError(f"Invalid category. Must be one of: {DECISION_CATEGORIES}")
+        return v
+
+
+class DecisionUpdate(BaseModel):
+    """Request model for updating a published decision."""
+
+    title: str | None = Field(None, min_length=10, max_length=200, description="Decision question")
+    category: str | None = Field(None, description="Category")
+    slug: str | None = Field(None, max_length=100, description="URL slug (rename)")
+    meta_description: str | None = Field(None, max_length=300, description="SEO description")
+    founder_context: FounderContextModel | None = Field(None, description="Founder context")
+    expert_perspectives: list[ExpertPerspectiveModel] | None = Field(
+        None, description="Expert viewpoints"
+    )
+    synthesis: str | None = Field(None, description="Synthesis/recommendation")
+    faqs: list[FAQModel] | None = Field(None, description="FAQ pairs")
+    related_decision_ids: list[str] | None = Field(None, description="Related decision UUIDs")
+    status: str | None = Field(None, description="draft or published")
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str | None) -> str | None:
+        """Validate category if provided."""
+        if v is None:
+            return v
+        if v not in DECISION_CATEGORIES:
+            raise ValueError(f"Invalid category. Must be one of: {DECISION_CATEGORIES}")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str | None) -> str | None:
+        """Validate status if provided."""
+        if v is None:
+            return v
+        valid = {DecisionStatus.DRAFT, DecisionStatus.PUBLISHED}
+        if v not in valid:
+            raise ValueError(f"Invalid status. Must be one of: {valid}")
+        return v
+
+
+class DecisionResponse(BaseModel):
+    """Response model for a published decision."""
+
+    id: str = Field(..., description="Decision UUID")
+    session_id: str | None = Field(None, description="Source session UUID")
+    category: str = Field(..., description="Category")
+    slug: str = Field(..., description="URL slug")
+    title: str = Field(..., description="Decision question (H1)")
+    meta_description: str | None = Field(None, description="SEO description")
+    founder_context: dict[str, Any] | None = Field(None, description="Founder context")
+    expert_perspectives: list[dict[str, Any]] | None = Field(None, description="Expert viewpoints")
+    synthesis: str | None = Field(None, description="Board synthesis")
+    faqs: list[dict[str, Any]] | None = Field(None, description="FAQ pairs")
+    related_decision_ids: list[str] | None = Field(None, description="Related decision UUIDs")
+    status: str = Field(..., description="draft or published")
+    published_at: datetime | None = Field(None, description="Publication datetime")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    view_count: int = Field(default=0, description="View count")
+    click_through_count: int = Field(default=0, description="CTA click count")
+
+
+class DecisionListResponse(BaseModel):
+    """Response model for decision list."""
+
+    decisions: list[DecisionResponse] = Field(..., description="List of decisions")
+    total: int = Field(..., description="Total count")
+
+
+class DecisionPublicResponse(BaseModel):
+    """Public response model for decision page (no admin fields)."""
+
+    category: str = Field(..., description="Category")
+    slug: str = Field(..., description="URL slug")
+    title: str = Field(..., description="Decision question (H1)")
+    meta_description: str | None = Field(None, description="SEO description")
+    founder_context: dict[str, Any] | None = Field(None, description="Founder context")
+    expert_perspectives: list[dict[str, Any]] | None = Field(None, description="Expert viewpoints")
+    synthesis: str | None = Field(None, description="Board synthesis")
+    faqs: list[dict[str, Any]] | None = Field(None, description="FAQ pairs")
+    published_at: datetime | None = Field(None, description="Publication datetime")
+
+
+class CategoryWithCount(BaseModel):
+    """Category with decision count."""
+
+    category: str = Field(..., description="Category name")
+    count: int = Field(..., description="Number of published decisions")
+
+
+class CategoriesResponse(BaseModel):
+    """Response model for category listing."""
+
+    categories: list[CategoryWithCount] = Field(..., description="Categories with counts")
+
+
+class DecisionGenerateRequest(BaseModel):
+    """Request model for generating decision from question."""
+
+    question: str = Field(
+        ..., min_length=10, max_length=500, description="Decision question to deliberate"
+    )
+    category: str = Field(..., description="Category for the decision")
+    founder_context: FounderContextModel = Field(..., description="Founder context to inject")
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        """Validate category."""
+        if v not in DECISION_CATEGORIES:
+            raise ValueError(f"Invalid category. Must be one of: {DECISION_CATEGORIES}")
+        return v
+
+
+class TopicProposalResponse(BaseModel):
+    """Response model for a proposed blog topic."""
+
+    title: str = Field(..., description="Proposed topic title")
+    rationale: str = Field(..., description="Why this topic is suggested")
+    suggested_keywords: list[str] = Field(..., description="SEO keywords")
+    source: str = Field(..., description="Source: chatgpt-seo-seed, positioning-gap, llm-generated")
+
+
+class TopicProposalsResponse(BaseModel):
+    """Response model for topic proposals."""
+
+    topics: list[TopicProposalResponse] = Field(..., description="Proposed topics")
+
+
+# ============================================================================
 # Generic Response Models
 # ============================================================================
 

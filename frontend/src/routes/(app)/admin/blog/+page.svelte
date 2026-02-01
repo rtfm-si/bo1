@@ -4,8 +4,8 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
-	import { Plus, RefreshCw, FileText, Sparkles, Calendar, Eye, Trash2, Edit } from 'lucide-svelte';
-	import { adminApi, type BlogPost } from '$lib/api/admin';
+	import { Plus, RefreshCw, FileText, Sparkles, Calendar, Eye, Trash2, Edit, Lightbulb, X } from 'lucide-svelte';
+	import { adminApi, type BlogPost, type TopicProposal } from '$lib/api/admin';
 	import BlogEditorModal from '$lib/components/admin/BlogEditorModal.svelte';
 	import BlogGenerateModal from '$lib/components/admin/BlogGenerateModal.svelte';
 
@@ -22,6 +22,13 @@
 	let editingPost = $state<BlogPost | null>(null);
 	let deleteConfirm = $state<BlogPost | null>(null);
 	let isDeleting = $state(false);
+
+	// Topic proposals
+	let proposals = $state<TopicProposal[]>([]);
+	let showProposals = $state(false);
+	let isLoadingProposals = $state(false);
+	let generateInitialTopic = $state('');
+	let generateInitialKeywords = $state<string[]>([]);
 
 	// Filtered posts based on status tab
 	const filteredPosts = $derived(() => {
@@ -132,6 +139,38 @@
 		}
 	}
 
+	async function loadProposals() {
+		isLoadingProposals = true;
+		try {
+			const response = await adminApi.proposeTopics(5);
+			proposals = response.topics;
+			showProposals = true;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load proposals';
+		} finally {
+			isLoadingProposals = false;
+		}
+	}
+
+	function dismissProposal(index: number) {
+		proposals = proposals.filter((_, i) => i !== index);
+		if (proposals.length === 0) {
+			showProposals = false;
+		}
+	}
+
+	function generateFromProposal(proposal: TopicProposal) {
+		generateInitialTopic = proposal.title;
+		generateInitialKeywords = proposal.suggested_keywords || [];
+		showGenerateModal = true;
+	}
+
+	function openGenerateModal() {
+		generateInitialTopic = '';
+		generateInitialKeywords = [];
+		showGenerateModal = true;
+	}
+
 	onMount(() => {
 		loadPosts();
 	});
@@ -179,7 +218,11 @@
 						<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
 						Refresh
 					</Button>
-					<Button variant="outline" size="sm" onclick={() => (showGenerateModal = true)}>
+					<Button variant="outline" size="sm" onclick={() => loadProposals()} disabled={isLoadingProposals}>
+						<Lightbulb class="w-4 h-4 mr-1.5 {isLoadingProposals ? 'animate-pulse' : ''}" />
+						Propose Topics
+					</Button>
+					<Button variant="outline" size="sm" onclick={openGenerateModal}>
 						<Sparkles class="w-4 h-4 mr-1.5" />
 						Generate
 					</Button>
@@ -212,6 +255,61 @@
 			</nav>
 		</div>
 	</div>
+
+	<!-- Topic Proposals -->
+	{#if showProposals && proposals.length > 0}
+		<div class="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+				<div class="flex items-center justify-between mb-3">
+					<div class="flex items-center gap-2">
+						<Lightbulb class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+						<h2 class="font-medium text-amber-900 dark:text-amber-100">Suggested Topics</h2>
+					</div>
+					<div class="flex items-center gap-2">
+						<Button variant="ghost" size="sm" onclick={() => loadProposals()} disabled={isLoadingProposals}>
+							<RefreshCw class="w-4 h-4 {isLoadingProposals ? 'animate-spin' : ''}" />
+						</Button>
+						<Button variant="ghost" size="sm" onclick={() => (showProposals = false)}>
+							<X class="w-4 h-4" />
+						</Button>
+					</div>
+				</div>
+				<div class="space-y-3">
+					{#each proposals as proposal, i}
+						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-amber-200 dark:border-amber-700 p-4">
+							<div class="flex items-start justify-between gap-4">
+								<div class="flex-1 min-w-0">
+									<h3 class="font-medium text-neutral-900 dark:text-white">{proposal.title}</h3>
+									<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{proposal.rationale}</p>
+									{#if proposal.suggested_keywords && proposal.suggested_keywords.length > 0}
+										<div class="flex flex-wrap gap-1 mt-2">
+											{#each proposal.suggested_keywords as keyword}
+												<span class="px-2 py-0.5 rounded text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400">
+													{keyword}
+												</span>
+											{/each}
+										</div>
+									{/if}
+									<span class="inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+										{proposal.source}
+									</span>
+								</div>
+								<div class="flex items-center gap-2">
+									<Button variant="outline" size="sm" onclick={() => generateFromProposal(proposal)}>
+										<Sparkles class="w-4 h-4 mr-1" />
+										Generate
+									</Button>
+									<Button variant="ghost" size="sm" onclick={() => dismissProposal(i)}>
+										<X class="w-4 h-4" />
+									</Button>
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -349,5 +447,7 @@
 	<BlogGenerateModal
 		onclose={() => (showGenerateModal = false)}
 		ongenerated={handleGenerated}
+		initialTopic={generateInitialTopic}
+		initialKeywords={generateInitialKeywords}
 	/>
 {/if}

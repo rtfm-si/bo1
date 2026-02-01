@@ -342,3 +342,177 @@ def filter_topics(
     filtered = [t for t in topics if t.relevance_score >= min_relevance]
     sorted_topics = sorted(filtered, key=lambda t: t.relevance_score, reverse=True)
     return sorted_topics[:max_topics]
+
+
+# =============================================================================
+# Topic Proposer (SEO-driven suggestions based on positioning gaps)
+# =============================================================================
+
+
+@dataclass
+class TopicProposal:
+    """Proposed blog topic with rationale."""
+
+    title: str
+    rationale: str
+    suggested_keywords: list[str]
+    source: str  # "chatgpt-seo-seed", "positioning-gap", "llm-generated"
+
+
+# Seed topics from SEO analysis (chatgpt-seo.md)
+SEO_SEED_TOPICS = [
+    TopicProposal(
+        title="Most managers don't decide—they prepare decisions",
+        rationale="Core positioning theme about compressing management work",
+        suggested_keywords=["management decisions", "decision preparation", "founder management"],
+        source="chatgpt-seo-seed",
+    ),
+    TopicProposal(
+        title="Decision logs beat memory",
+        rationale="Aligns with 'management operating system' positioning",
+        suggested_keywords=[
+            "decision log template",
+            "startup decision tracking",
+            "decision documentation",
+        ],
+        source="chatgpt-seo-seed",
+    ),
+    TopicProposal(
+        title="The coordination tax and how to delete it",
+        rationale="Homepage mentions coordination, needs deep-dive content",
+        suggested_keywords=["startup coordination", "reduce meetings", "coordination overhead"],
+        source="chatgpt-seo-seed",
+    ),
+    TopicProposal(
+        title="How to run a 'board meeting' alone",
+        rationale="Direct product positioning - solo founder advisory board",
+        suggested_keywords=[
+            "solo founder board",
+            "advisory board alternative",
+            "founder decision making",
+        ],
+        source="chatgpt-seo-seed",
+    ),
+]
+
+# Positioning keywords to check against
+POSITIONING_KEYWORDS = [
+    "compress management work",
+    "management operating system",
+    "delay management hires",
+    "founder bottleneck",
+    "coordination tax",
+    "solo founder",
+    "expert perspectives",
+    "strategic decisions",
+]
+
+TOPIC_PROPOSAL_PROMPT = """You are an SEO content strategist for Board of One, a tool that helps solo founders make strategic decisions through AI-powered expert deliberation.
+
+Positioning keywords:
+{positioning_keywords}
+
+Existing blog posts:
+{existing_posts}
+
+Seed topics already suggested:
+{seed_topics}
+
+Generate {count} NEW blog topic proposals that:
+1. Align with our positioning (compress management work, delay management hires, etc.)
+2. Are NOT already covered by existing posts
+3. Are NOT duplicates of seed topics
+4. Target high-intent keywords founders would search
+5. Establish thought leadership in solo founder decision-making
+
+Output as JSON:
+{{
+    "topics": [
+        {{
+            "title": "Topic title (compelling, SEO-friendly)",
+            "rationale": "Why this topic aligns with positioning and fills a gap",
+            "suggested_keywords": ["keyword1", "keyword2", "keyword3"],
+            "source": "llm-generated"
+        }}
+    ]
+}}"""
+
+
+async def propose_topics(
+    existing_titles: list[str],
+    count: int = 5,
+) -> list[TopicProposal]:
+    """Propose new blog topics based on positioning gaps.
+
+    Combines:
+    1. Seed topics from SEO analysis
+    2. LLM-generated topics based on positioning
+
+    Args:
+        existing_titles: Titles of existing blog posts
+        count: Number of topics to propose
+
+    Returns:
+        List of TopicProposal objects
+    """
+    proposals: list[TopicProposal] = []
+
+    # Add seed topics not yet written
+    existing_lower = [t.lower() for t in existing_titles]
+    for seed in SEO_SEED_TOPICS:
+        # Check if seed topic or similar already exists
+        seed_words = set(seed.title.lower().split())
+        is_covered = False
+        for existing in existing_lower:
+            existing_words = set(existing.split())
+            # If more than half the words match, consider it covered
+            if len(seed_words & existing_words) > len(seed_words) / 2:
+                is_covered = True
+                break
+        if not is_covered:
+            proposals.append(seed)
+
+    # If we already have enough, return early
+    if len(proposals) >= count:
+        return proposals[:count]
+
+    # Generate additional topics via LLM
+    remaining = count - len(proposals)
+
+    client = ClaudeClient()
+
+    prompt = TOPIC_PROPOSAL_PROMPT.format(
+        positioning_keywords=", ".join(POSITIONING_KEYWORDS),
+        existing_posts="\n".join(f"- {t}" for t in existing_titles) if existing_titles else "None",
+        seed_topics="\n".join(f"- {p.title}" for p in SEO_SEED_TOPICS),
+        count=remaining,
+    )
+
+    try:
+        response, usage = await client.call(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=2048,
+            prefill="{",
+        )
+
+        data = extract_json_from_response(response)
+
+        for item in data.get("topics", []):
+            proposals.append(
+                TopicProposal(
+                    title=item["title"],
+                    rationale=item["rationale"],
+                    suggested_keywords=item.get("suggested_keywords", []),
+                    source=item.get("source", "llm-generated"),
+                )
+            )
+
+        logger.info(f"Proposed {len(proposals)} topics (tokens: {usage.total_tokens})")
+
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.warning(f"Failed to generate additional topic proposals: {e}")
+        # Return what we have from seeds
+
+    return proposals[:count]

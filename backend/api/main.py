@@ -61,6 +61,7 @@ from backend.api import (  # noqa: E402
     control,
     csp_reports,
     datasets,
+    decisions,
     e2e_auth,
     email,
     feedback,
@@ -619,6 +620,7 @@ app.include_router(calendar_router, prefix="/api", tags=["integrations"])
 app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
+app.include_router(decisions.router, prefix="/api", tags=["decisions"])
 app.include_router(seo.router, prefix="/api", tags=["seo"])
 app.include_router(peer_benchmarks.router, prefix="/api", tags=["peer-benchmarks"])
 app.include_router(research_sharing.router, prefix="/api", tags=["research-sharing"])

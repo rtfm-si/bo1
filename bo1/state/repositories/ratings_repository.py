@@ -220,9 +220,9 @@ class RatingsRepository(BaseRepository):
                 u.email as user_email,
                 CASE
                     WHEN r.entity_type = 'meeting' THEN
-                        (SELECT s.problem_statement FROM sessions s WHERE s.id = r.entity_id)
+                        (SELECT s.problem_statement FROM sessions s WHERE s.id = 'bo1_' || r.entity_id::text)
                     WHEN r.entity_type = 'action' THEN
-                        (SELECT a.title FROM actions a WHERE a.id = r.entity_id)
+                        (SELECT a.title FROM actions a WHERE a.id = r.entity_id::uuid)
                     ELSE NULL
                 END as entity_title
             FROM user_ratings r

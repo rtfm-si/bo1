@@ -207,7 +207,9 @@ def upload_asset(
             )
             row = cur.fetchone()
 
-            logger.info(f"Uploaded asset id={row['id']} for user {user_id[:8]}..., key={storage_key}")
+            logger.info(
+                f"Uploaded asset id={row['id']} for user {user_id[:8]}..., key={storage_key}"
+            )
 
             return AssetRecord(
                 id=row["id"],

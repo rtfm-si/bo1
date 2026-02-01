@@ -570,8 +570,10 @@ After implementation:
 4. Measure indexing and ranking changes
 5. Scale content production based on results
 
-add a 'features' page, with sub pages:
-data analysis (why its important to decisions)
+fix landing page with links and sub pages instead of
+
+add a 'features' page (think we have one from homepage already), with sub pages as follows. in each page articulate the feature from a sales perspective, and why they are important for solopreneurs making decisons - how they work together as a cohesive system. read our internal docs for reference info as to how it works. dont include admin features, just those available to users:
+data analysis
 mentor chat
 seo generation
 tailored to YOUR business
@@ -593,4 +595,6 @@ unlimited chat
 4 x seo
 unlimited chat
 
-lock accounts with usage limits
+lock account types and apply usage limits
+
+tidy up the accounts. allow admin access to chnage them

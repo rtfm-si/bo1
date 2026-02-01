@@ -105,14 +105,14 @@
 {#if open}
 	<!-- Backdrop -->
 	<div
-		class="fixed inset-0 z-modal-backdrop bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+		class="fixed inset-0 z-[1040] bg-black/50 backdrop-blur-sm transition-opacity duration-300"
 		onclick={closable ? close : undefined}
 		aria-hidden="true"
 	></div>
 
 	<!-- Modal -->
 	<div
-		class="fixed inset-0 z-modal flex items-center justify-center p-4"
+		class="fixed inset-0 z-[1050] flex items-center justify-center p-4"
 		onkeydown={handleKeydown}
 		role="presentation"
 	>

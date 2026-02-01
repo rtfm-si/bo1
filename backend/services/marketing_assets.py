@@ -15,8 +15,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import text
-
 from backend.services.spaces import SpacesClient, SpacesError, get_spaces_client
 from bo1.state.database import db_session
 
@@ -182,53 +180,52 @@ def upload_asset(
         raise AssetStorageError(f"Upload failed: {e}") from e
 
     # Create database record
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 INSERT INTO marketing_assets
                 (user_id, workspace_id, filename, storage_key, cdn_url, asset_type,
                  title, description, tags, metadata, file_size, mime_type)
-                VALUES (:user_id, :workspace_id, :filename, :storage_key, :cdn_url, :asset_type,
-                        :title, :description, :tags, :metadata, :file_size, :mime_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at, updated_at
-            """),
-            {
-                "user_id": user_id,
-                "workspace_id": workspace_id,
-                "filename": filename,
-                "storage_key": storage_key,
-                "cdn_url": cdn_url,
-                "asset_type": asset_type,
-                "title": title,
-                "description": description,
-                "tags": tags,
-                "metadata": metadata,
-                "file_size": file_size,
-                "mime_type": mime_type,
-            },
-        )
-        row = result.fetchone()
-        session.commit()
+                """,
+                (
+                    user_id,
+                    workspace_id,
+                    filename,
+                    storage_key,
+                    cdn_url,
+                    asset_type,
+                    title,
+                    description,
+                    tags,
+                    metadata,
+                    file_size,
+                    mime_type,
+                ),
+            )
+            row = cur.fetchone()
 
-        logger.info(f"Uploaded asset id={row[0]} for user {user_id[:8]}..., key={storage_key}")
+            logger.info(f"Uploaded asset id={row['id']} for user {user_id[:8]}..., key={storage_key}")
 
-        return AssetRecord(
-            id=row[0],
-            user_id=user_id,
-            workspace_id=workspace_id,
-            filename=filename,
-            storage_key=storage_key,
-            cdn_url=cdn_url,
-            asset_type=asset_type,
-            title=title,
-            description=description,
-            tags=tags,
-            metadata=metadata,
-            file_size=file_size,
-            mime_type=mime_type,
-            created_at=row[1],
-            updated_at=row[2],
-        )
+            return AssetRecord(
+                id=row["id"],
+                user_id=user_id,
+                workspace_id=workspace_id,
+                filename=filename,
+                storage_key=storage_key,
+                cdn_url=cdn_url,
+                asset_type=asset_type,
+                title=title,
+                description=description,
+                tags=tags,
+                metadata=metadata,
+                file_size=file_size,
+                mime_type=mime_type,
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
 
 
 def list_assets(
@@ -252,69 +249,71 @@ def list_assets(
     Returns:
         Tuple of (assets, total_count)
     """
-    with db_session() as session:
-        # Build WHERE clause
-        conditions = ["user_id = :user_id"]
-        params: dict = {"user_id": user_id, "limit": limit, "offset": offset}
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Build WHERE clause with positional params
+            conditions = ["user_id = %s"]
+            params: list = [user_id]
 
-        if asset_type:
-            conditions.append("asset_type = :asset_type")
-            params["asset_type"] = asset_type
+            if asset_type:
+                conditions.append("asset_type = %s")
+                params.append(asset_type)
 
-        if tags:
-            conditions.append("tags && :tags")  # Array overlap
-            params["tags"] = tags
+            if tags:
+                conditions.append("tags && %s")  # Array overlap
+                params.append(tags)
 
-        if search:
-            conditions.append("(title ILIKE :search OR description ILIKE :search)")
-            params["search"] = f"%{search}%"
+            if search:
+                conditions.append("(title ILIKE %s OR description ILIKE %s)")
+                search_pattern = f"%{search}%"
+                params.extend([search_pattern, search_pattern])
 
-        where_clause = " AND ".join(conditions)
+            where_clause = " AND ".join(conditions)
 
-        # Get total count
-        count_result = session.execute(
-            text(f"SELECT COUNT(*) FROM marketing_assets WHERE {where_clause}"),
-            params,
-        )
-        total = count_result.fetchone()[0]
+            # Get total count
+            cur.execute(
+                f"SELECT COUNT(*) FROM marketing_assets WHERE {where_clause}",
+                params,
+            )
+            total = cur.fetchone()["count"]
 
-        # Get paginated results
-        result = session.execute(
-            text(f"""
+            # Get paginated results
+            cur.execute(
+                f"""
                 SELECT id, user_id, workspace_id, filename, storage_key, cdn_url,
                        asset_type, title, description, tags, metadata, file_size,
                        mime_type, created_at, updated_at
                 FROM marketing_assets
                 WHERE {where_clause}
                 ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """),
-            params,
-        )
-
-        assets = []
-        for row in result.fetchall():
-            assets.append(
-                AssetRecord(
-                    id=row[0],
-                    user_id=row[1],
-                    workspace_id=row[2],
-                    filename=row[3],
-                    storage_key=row[4],
-                    cdn_url=row[5],
-                    asset_type=row[6],
-                    title=row[7],
-                    description=row[8],
-                    tags=row[9] or [],
-                    metadata=row[10],
-                    file_size=row[11],
-                    mime_type=row[12],
-                    created_at=row[13],
-                    updated_at=row[14],
-                )
+                LIMIT %s OFFSET %s
+                """,
+                [*params, limit, offset],
             )
 
-        return assets, total
+            assets = []
+            for row in cur.fetchall():
+                assets.append(
+                    AssetRecord(
+                        id=row["id"],
+                        user_id=row["user_id"],
+                        workspace_id=row["workspace_id"],
+                        filename=row["filename"],
+                        storage_key=row["storage_key"],
+                        cdn_url=row["cdn_url"],
+                        asset_type=row["asset_type"],
+                        title=row["title"],
+                        description=row["description"],
+                        tags=row["tags"] or [],
+                        metadata=row["metadata"],
+                        file_size=row["file_size"],
+                        mime_type=row["mime_type"],
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
+                    )
+                )
+
+            return assets, total
 
 
 def get_asset(user_id: str, asset_id: int) -> AssetRecord | None:
@@ -327,38 +326,39 @@ def get_asset(user_id: str, asset_id: int) -> AssetRecord | None:
     Returns:
         AssetRecord or None if not found
     """
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT id, user_id, workspace_id, filename, storage_key, cdn_url,
                        asset_type, title, description, tags, metadata, file_size,
                        mime_type, created_at, updated_at
                 FROM marketing_assets
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": asset_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if not row:
-            return None
+                WHERE id = %s AND user_id = %s
+                """,
+                (asset_id, user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
 
-        return AssetRecord(
-            id=row[0],
-            user_id=row[1],
-            workspace_id=row[2],
-            filename=row[3],
-            storage_key=row[4],
-            cdn_url=row[5],
-            asset_type=row[6],
-            title=row[7],
-            description=row[8],
-            tags=row[9] or [],
-            metadata=row[10],
-            file_size=row[11],
-            mime_type=row[12],
-            created_at=row[13],
-            updated_at=row[14],
-        )
+            return AssetRecord(
+                id=row["id"],
+                user_id=row["user_id"],
+                workspace_id=row["workspace_id"],
+                filename=row["filename"],
+                storage_key=row["storage_key"],
+                cdn_url=row["cdn_url"],
+                asset_type=row["asset_type"],
+                title=row["title"],
+                description=row["description"],
+                tags=row["tags"] or [],
+                metadata=row["metadata"],
+                file_size=row["file_size"],
+                mime_type=row["mime_type"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
 
 
 def update_asset(
@@ -383,62 +383,65 @@ def update_asset(
     if tags is not None and len(tags) > 20:
         raise AssetValidationError("Maximum 20 tags allowed")
 
-    with db_session() as session:
-        # Check exists
-        check = session.execute(
-            text("SELECT id FROM marketing_assets WHERE id = :id AND user_id = :user_id"),
-            {"id": asset_id, "user_id": user_id},
-        )
-        if not check.fetchone():
-            return None
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Check exists
+            cur.execute(
+                "SELECT id FROM marketing_assets WHERE id = %s AND user_id = %s",
+                (asset_id, user_id),
+            )
+            if not cur.fetchone():
+                return None
 
-        # Build update
-        updates = ["updated_at = now()"]
-        params: dict = {"id": asset_id, "user_id": user_id}
+            # Build update with positional params
+            updates = ["updated_at = now()"]
+            params: list = []
 
-        if title is not None:
-            updates.append("title = :title")
-            params["title"] = title
+            if title is not None:
+                updates.append("title = %s")
+                params.append(title)
 
-        if description is not None:
-            updates.append("description = :description")
-            params["description"] = description
+            if description is not None:
+                updates.append("description = %s")
+                params.append(description)
 
-        if tags is not None:
-            updates.append("tags = :tags")
-            params["tags"] = tags
+            if tags is not None:
+                updates.append("tags = %s")
+                params.append(tags)
 
-        result = session.execute(
-            text(f"""
+            # Add WHERE params at end
+            params.extend([asset_id, user_id])
+
+            cur.execute(
+                f"""
                 UPDATE marketing_assets
                 SET {", ".join(updates)}
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = %s AND user_id = %s
                 RETURNING id, user_id, workspace_id, filename, storage_key, cdn_url,
                           asset_type, title, description, tags, metadata, file_size,
                           mime_type, created_at, updated_at
-            """),
-            params,
-        )
-        row = result.fetchone()
-        session.commit()
+                """,
+                params,
+            )
+            row = cur.fetchone()
 
-        return AssetRecord(
-            id=row[0],
-            user_id=row[1],
-            workspace_id=row[2],
-            filename=row[3],
-            storage_key=row[4],
-            cdn_url=row[5],
-            asset_type=row[6],
-            title=row[7],
-            description=row[8],
-            tags=row[9] or [],
-            metadata=row[10],
-            file_size=row[11],
-            mime_type=row[12],
-            created_at=row[13],
-            updated_at=row[14],
-        )
+            return AssetRecord(
+                id=row["id"],
+                user_id=row["user_id"],
+                workspace_id=row["workspace_id"],
+                filename=row["filename"],
+                storage_key=row["storage_key"],
+                cdn_url=row["cdn_url"],
+                asset_type=row["asset_type"],
+                title=row["title"],
+                description=row["description"],
+                tags=row["tags"] or [],
+                metadata=row["metadata"],
+                file_size=row["file_size"],
+                mime_type=row["mime_type"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
 
 
 def delete_asset(
@@ -456,27 +459,27 @@ def delete_asset(
     Returns:
         True if deleted, False if not found
     """
-    with db_session() as session:
-        # Get storage key first
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Get storage key first
+            cur.execute(
+                """
                 SELECT storage_key FROM marketing_assets
-                WHERE id = :id AND user_id = :user_id
-            """),
-            {"id": asset_id, "user_id": user_id},
-        )
-        row = result.fetchone()
-        if not row:
-            return False
+                WHERE id = %s AND user_id = %s
+                """,
+                (asset_id, user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False
 
-        storage_key = row[0]
+            storage_key = row["storage_key"]
 
-        # Delete from database
-        session.execute(
-            text("DELETE FROM marketing_assets WHERE id = :id AND user_id = :user_id"),
-            {"id": asset_id, "user_id": user_id},
-        )
-        session.commit()
+            # Delete from database
+            cur.execute(
+                "DELETE FROM marketing_assets WHERE id = %s AND user_id = %s",
+                (asset_id, user_id),
+            )
 
     # Delete from Spaces (after DB commit)
     client = spaces_client or get_spaces_client()
@@ -515,45 +518,46 @@ def search_by_tags(
     if not normalized:
         return []
 
-    with db_session() as session:
-        result = session.execute(
-            text("""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
                 SELECT id, user_id, workspace_id, filename, storage_key, cdn_url,
                        asset_type, title, description, tags, metadata, file_size,
                        mime_type, created_at, updated_at,
-                       (SELECT COUNT(*) FROM unnest(tags) t WHERE lower(t) = ANY(:keywords)) as match_count
+                       (SELECT COUNT(*) FROM unnest(tags) t WHERE lower(t) = ANY(%s)) as match_count
                 FROM marketing_assets
-                WHERE user_id = :user_id
-                  AND tags && :keywords
+                WHERE user_id = %s
+                  AND tags && %s
                 ORDER BY match_count DESC, created_at DESC
-                LIMIT :limit
-            """),
-            {"user_id": user_id, "keywords": normalized, "limit": limit},
-        )
-
-        assets = []
-        for row in result.fetchall():
-            assets.append(
-                AssetRecord(
-                    id=row[0],
-                    user_id=row[1],
-                    workspace_id=row[2],
-                    filename=row[3],
-                    storage_key=row[4],
-                    cdn_url=row[5],
-                    asset_type=row[6],
-                    title=row[7],
-                    description=row[8],
-                    tags=row[9] or [],
-                    metadata=row[10],
-                    file_size=row[11],
-                    mime_type=row[12],
-                    created_at=row[13],
-                    updated_at=row[14],
-                )
+                LIMIT %s
+                """,
+                (normalized, user_id, normalized, limit),
             )
 
-        return assets
+            assets = []
+            for row in cur.fetchall():
+                assets.append(
+                    AssetRecord(
+                        id=row["id"],
+                        user_id=row["user_id"],
+                        workspace_id=row["workspace_id"],
+                        filename=row["filename"],
+                        storage_key=row["storage_key"],
+                        cdn_url=row["cdn_url"],
+                        asset_type=row["asset_type"],
+                        title=row["title"],
+                        description=row["description"],
+                        tags=row["tags"] or [],
+                        metadata=row["metadata"],
+                        file_size=row["file_size"],
+                        mime_type=row["mime_type"],
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
+                    )
+                )
+
+            return assets
 
 
 @dataclass
@@ -624,9 +628,10 @@ def get_asset_count(user_id: str) -> int:
     Returns:
         Number of assets
     """
-    with db_session() as session:
-        result = session.execute(
-            text("SELECT COUNT(*) FROM marketing_assets WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        )
-        return result.fetchone()[0] or 0
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM marketing_assets WHERE user_id = %s",
+                (user_id,),
+            )
+            return cur.fetchone()["count"] or 0

@@ -70,10 +70,10 @@ class SheetMetadata:
 
 
 class SheetsClient:
-    """Client for fetching data from Google Drive.
+    """DEPRECATED: Use OAuthSheetsClient instead.
 
-    Uses Google Drive API v3 with API key authentication.
-    Only supports public files (anyone with link can view).
+    Client for fetching data from Google Drive using API key.
+    Only supports public files. OAuth-based access is now required.
     """
 
     def __init__(self, api_key: str | None = None) -> None:
@@ -339,7 +339,17 @@ _sheets_client: SheetsClient | None = None
 
 
 def get_sheets_client() -> SheetsClient:
-    """Get or create the singleton SheetsClient instance."""
+    """DEPRECATED: Use get_oauth_sheets_client instead.
+
+    Get or create the singleton SheetsClient instance.
+    """
+    import warnings
+
+    warnings.warn(
+        "get_sheets_client is deprecated. Use get_oauth_sheets_client for OAuth-based access.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     global _sheets_client
     if _sheets_client is None:
         _sheets_client = SheetsClient()

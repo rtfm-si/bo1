@@ -131,6 +131,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       - ./migrations:/app/migrations
       - ./scripts:/app/scripts
+      - ./mypy.ini:/app/mypy.ini
 
       # Persist session exports
       - ./exports:/app/exports

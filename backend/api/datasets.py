@@ -519,23 +519,20 @@ async def import_sheets(
     - If user has Google Sheets connected: uses OAuth (can access private sheets)
     - Otherwise: uses API key (public sheets only)
     """
-    from backend.services.sheets import SheetsError, get_oauth_sheets_client, get_sheets_client
+    from backend.services.sheets import SheetsError, get_oauth_sheets_client
 
     user_id = user.get("user_id")
     if not user_id:
         raise http_error(ErrorCode.API_UNAUTHORIZED, "User ID not found", status=401)
 
-    # Try OAuth client first (for private sheets), fall back to API key (public only)
-    oauth_client = get_oauth_sheets_client(user_id)
-    if oauth_client:
-        sheets_client = oauth_client
-        logger.info(f"Using OAuth client for sheets import (user {user_id})")
-    else:
-        try:
-            sheets_client = get_sheets_client()
-            logger.info(f"Using API key client for sheets import (user {user_id})")
-        except SheetsError as e:
-            raise http_error(ErrorCode.SERVICE_UNAVAILABLE, str(e), status=503) from None
+    # Require OAuth - user must connect Google Drive first
+    sheets_client = get_oauth_sheets_client(user_id)
+    if not sheets_client:
+        raise http_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Please connect Google Drive first to import spreadsheets.",
+            status=400,
+        )
 
     # Parse URL to get spreadsheet ID
     try:
@@ -547,14 +544,7 @@ async def import_sheets(
     try:
         csv_content, metadata = sheets_client.fetch_as_csv(spreadsheet_id)
     except SheetsError as e:
-        # Provide better error for private sheets without OAuth
-        error_msg = str(e)
-        if "Access denied" in error_msg and not oauth_client:
-            error_msg = (
-                "Access denied. This sheet may be private. "
-                "Connect Google Sheets to import private spreadsheets."
-            )
-        raise http_error(ErrorCode.VALIDATION_ERROR, error_msg, status=422) from None
+        raise http_error(ErrorCode.VALIDATION_ERROR, str(e), status=422) from None
 
     file_size = len(csv_content)
 

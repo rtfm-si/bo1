@@ -1065,7 +1065,7 @@ class CostTracker:
                 pushed += 1
 
             # Check queue depth and alert if too deep
-            queue_depth = redis_client.llen(COST_RETRY_QUEUE_KEY)
+            queue_depth: int = redis_client.llen(COST_RETRY_QUEUE_KEY)  # type: ignore[assignment]
 
             # Update Prometheus gauge
             cls._update_retry_queue_metric(queue_depth)
@@ -1160,7 +1160,8 @@ class CostTracker:
 
             settings = get_settings()
             redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-            return redis_client.llen(COST_RETRY_QUEUE_KEY)
+            result: int = redis_client.llen(COST_RETRY_QUEUE_KEY)  # type: ignore[assignment]
+            return result
         except Exception:
             return 0
 
@@ -1186,7 +1187,7 @@ class CostTracker:
 
             records = []
             for _ in range(batch_size):
-                data = redis_client.lpop(COST_RETRY_QUEUE_KEY)
+                data: str | None = redis_client.lpop(COST_RETRY_QUEUE_KEY)  # type: ignore[assignment]
                 if data is None:
                     break
                 records.append(json.loads(data))

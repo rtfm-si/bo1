@@ -5823,24 +5823,6 @@
         "title": "CalibrationSubmitRequest",
         "type": "object"
       },
-      "CategoriesResponse": {
-        "description": "Response model for research cache categories.",
-        "properties": {
-          "categories": {
-            "description": "List of categories with counts",
-            "items": {
-              "$ref": "#/components/schemas/CategoryCount"
-            },
-            "title": "Categories",
-            "type": "array"
-          }
-        },
-        "required": [
-          "categories"
-        ],
-        "title": "CategoriesResponse",
-        "type": "object"
-      },
       "CategoryCostAggregation": {
         "description": "Cost aggregation for a single category.\n\nAttributes:\n    category: Category name (llm, research, embeddings, etc.)\n    total_cost: Total cost in USD\n    avg_per_session: Average cost per session (None if no sessions)\n    avg_per_user: Average cost per paying user (None if no paying users)\n    session_count: Number of sessions in the period\n    user_count: Number of paying users",
         "properties": {
@@ -5917,6 +5899,27 @@
           "count"
         ],
         "title": "CategoryCount",
+        "type": "object"
+      },
+      "CategoryWithCount": {
+        "description": "Category with decision count.",
+        "properties": {
+          "category": {
+            "description": "Category name",
+            "title": "Category",
+            "type": "string"
+          },
+          "count": {
+            "description": "Number of published decisions",
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "count"
+        ],
+        "title": "CategoryWithCount",
         "type": "object"
       },
       "ChartResultResponse": {
@@ -12629,6 +12632,575 @@
         "title": "DatasetUpdate",
         "type": "object"
       },
+      "DecisionCreate": {
+        "description": "Request model for creating a published decision.",
+        "properties": {
+          "category": {
+            "description": "Category: hiring, pricing, fundraising, etc.",
+            "title": "Category",
+            "type": "string"
+          },
+          "expert_perspectives": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ExpertPerspectiveModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expert viewpoints",
+            "title": "Expert Perspectives"
+          },
+          "faqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FAQModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FAQ pairs for schema",
+            "title": "Faqs"
+          },
+          "founder_context": {
+            "$ref": "#/components/schemas/FounderContextModel",
+            "description": "Founder context for display"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO description",
+            "title": "Meta Description"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source session UUID (optional)",
+            "title": "Session Id"
+          },
+          "synthesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Board synthesis/recommendation",
+            "title": "Synthesis"
+          },
+          "title": {
+            "description": "Decision question (H1)",
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "category",
+          "founder_context"
+        ],
+        "title": "DecisionCreate",
+        "type": "object"
+      },
+      "DecisionGenerateRequest": {
+        "description": "Request model for generating decision from question.",
+        "properties": {
+          "category": {
+            "description": "Category for the decision",
+            "title": "Category",
+            "type": "string"
+          },
+          "founder_context": {
+            "$ref": "#/components/schemas/FounderContextModel",
+            "description": "Founder context to inject"
+          },
+          "question": {
+            "description": "Decision question to deliberate",
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "category",
+          "founder_context"
+        ],
+        "title": "DecisionGenerateRequest",
+        "type": "object"
+      },
+      "DecisionListResponse": {
+        "description": "Response model for decision list.",
+        "properties": {
+          "decisions": {
+            "description": "List of decisions",
+            "items": {
+              "$ref": "#/components/schemas/DecisionResponse"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decisions",
+          "total"
+        ],
+        "title": "DecisionListResponse",
+        "type": "object"
+      },
+      "DecisionPublicResponse": {
+        "description": "Public response model for decision page (no admin fields).",
+        "properties": {
+          "category": {
+            "description": "Category",
+            "title": "Category",
+            "type": "string"
+          },
+          "expert_perspectives": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expert viewpoints",
+            "title": "Expert Perspectives"
+          },
+          "faqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FAQ pairs",
+            "title": "Faqs"
+          },
+          "founder_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Founder context",
+            "title": "Founder Context"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO description",
+            "title": "Meta Description"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Publication datetime",
+            "title": "Published At"
+          },
+          "slug": {
+            "description": "URL slug",
+            "title": "Slug",
+            "type": "string"
+          },
+          "synthesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Board synthesis",
+            "title": "Synthesis"
+          },
+          "title": {
+            "description": "Decision question (H1)",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "slug",
+          "title"
+        ],
+        "title": "DecisionPublicResponse",
+        "type": "object"
+      },
+      "DecisionResponse": {
+        "description": "Response model for a published decision.",
+        "properties": {
+          "category": {
+            "description": "Category",
+            "title": "Category",
+            "type": "string"
+          },
+          "click_through_count": {
+            "default": 0,
+            "description": "CTA click count",
+            "title": "Click Through Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expert_perspectives": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expert viewpoints",
+            "title": "Expert Perspectives"
+          },
+          "faqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FAQ pairs",
+            "title": "Faqs"
+          },
+          "founder_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Founder context",
+            "title": "Founder Context"
+          },
+          "id": {
+            "description": "Decision UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO description",
+            "title": "Meta Description"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Publication datetime",
+            "title": "Published At"
+          },
+          "related_decision_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Related decision UUIDs",
+            "title": "Related Decision Ids"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source session UUID",
+            "title": "Session Id"
+          },
+          "slug": {
+            "description": "URL slug",
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "description": "draft or published",
+            "title": "Status",
+            "type": "string"
+          },
+          "synthesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Board synthesis",
+            "title": "Synthesis"
+          },
+          "title": {
+            "description": "Decision question (H1)",
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "view_count": {
+            "default": 0,
+            "description": "View count",
+            "title": "View Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "slug",
+          "title",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DecisionUpdate": {
+        "description": "Request model for updating a published decision.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Category",
+            "title": "Category"
+          },
+          "expert_perspectives": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ExpertPerspectiveModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expert viewpoints",
+            "title": "Expert Perspectives"
+          },
+          "faqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FAQModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FAQ pairs",
+            "title": "Faqs"
+          },
+          "founder_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FounderContextModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Founder context"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO description",
+            "title": "Meta Description"
+          },
+          "related_decision_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Related decision UUIDs",
+            "title": "Related Decision Ids"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL slug (rename)",
+            "title": "Slug"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "draft or published",
+            "title": "Status"
+          },
+          "synthesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Synthesis/recommendation",
+            "title": "Synthesis"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decision question",
+            "title": "Title"
+          }
+        },
+        "title": "DecisionUpdate",
+        "type": "object"
+      },
       "DegradationInfo": {
         "description": "Degradation info for a metric.",
         "properties": {
@@ -14436,6 +15008,39 @@
         "title": "ExperimentVariantStats",
         "type": "object"
       },
+      "ExpertPerspectiveModel": {
+        "description": "Expert perspective from deliberation.",
+        "properties": {
+          "persona_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Persona code if from session",
+            "title": "Persona Code"
+          },
+          "persona_name": {
+            "description": "Expert name (e.g., 'Growth Operator')",
+            "title": "Persona Name",
+            "type": "string"
+          },
+          "quote": {
+            "description": "Expert's viewpoint/recommendation",
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona_name",
+          "quote"
+        ],
+        "title": "ExpertPerspectiveModel",
+        "type": "object"
+      },
       "ExtendedKPIsResponse": {
         "description": "Response model for extended KPIs.\n\nAttributes:\n    mentor_sessions: Mentor session statistics\n    data_analyses: Dataset analysis statistics\n    projects: Project statistics by status\n    actions: Action statistics by status\n    meetings: Meeting/session statistics by status",
         "properties": {
@@ -14468,6 +15073,27 @@
           "meetings"
         ],
         "title": "ExtendedKPIsResponse",
+        "type": "object"
+      },
+      "FAQModel": {
+        "description": "FAQ item for schema markup.",
+        "properties": {
+          "answer": {
+            "description": "FAQ answer",
+            "title": "Answer",
+            "type": "string"
+          },
+          "question": {
+            "description": "FAQ question",
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "FAQModel",
         "type": "object"
       },
       "FailurePatternsResponse": {
@@ -15424,6 +16050,52 @@
           }
         },
         "title": "ForbiddenErrorResponse",
+        "type": "object"
+      },
+      "FounderContextModel": {
+        "description": "Founder context for decision pages.",
+        "properties": {
+          "constraints": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Key constraints",
+            "title": "Constraints"
+          },
+          "situation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current situation description",
+            "title": "Situation"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Business stage (e.g., '\u00a350-200k ARR')",
+            "title": "Stage"
+          }
+        },
+        "title": "FounderContextModel",
         "type": "object"
       },
       "FrictionProfile": {
@@ -30945,6 +31617,60 @@
         "title": "TopUsersCostResponse",
         "type": "object"
       },
+      "TopicProposalResponse": {
+        "description": "Response model for a proposed blog topic.",
+        "properties": {
+          "rationale": {
+            "description": "Why this topic is suggested",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "source": {
+            "description": "Source: chatgpt-seo-seed, positioning-gap, llm-generated",
+            "title": "Source",
+            "type": "string"
+          },
+          "suggested_keywords": {
+            "description": "SEO keywords",
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested Keywords",
+            "type": "array"
+          },
+          "title": {
+            "description": "Proposed topic title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "rationale",
+          "suggested_keywords",
+          "source"
+        ],
+        "title": "TopicProposalResponse",
+        "type": "object"
+      },
+      "TopicProposalsResponse": {
+        "description": "Response model for topic proposals.",
+        "properties": {
+          "topics": {
+            "description": "Proposed topics",
+            "items": {
+              "$ref": "#/components/schemas/TopicProposalResponse"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "topics"
+        ],
+        "title": "TopicProposalsResponse",
+        "type": "object"
+      },
       "TopicResponse": {
         "description": "Response model for a discovered topic.",
         "properties": {
@@ -34862,6 +35588,24 @@
         "title": "UserCostsResponse",
         "type": "object"
       },
+      "backend__api__admin__embeddings__CategoriesResponse": {
+        "description": "Response model for research cache categories.",
+        "properties": {
+          "categories": {
+            "description": "List of categories with counts",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "CategoriesResponse",
+        "type": "object"
+      },
       "backend__api__admin__models__WaitlistResponse": {
         "description": "Response model for waitlist list.\n\nAttributes:\n    total_count: Total number of waitlist entries\n    pending_count: Number of pending entries\n    entries: List of waitlist entries",
         "properties": {
@@ -35040,6 +35784,24 @@
           "category"
         ],
         "title": "BenchmarkComparison",
+        "type": "object"
+      },
+      "backend__api__models__CategoriesResponse": {
+        "description": "Response model for category listing.",
+        "properties": {
+          "categories": {
+            "description": "Categories with counts",
+            "items": {
+              "$ref": "#/components/schemas/CategoryWithCount"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "CategoriesResponse",
         "type": "object"
       },
       "backend__api__models__DailyCostItem": {
@@ -38323,6 +39085,94 @@
         ]
       }
     },
+    "/api/admin/blog/propose-topics": {
+      "post": {
+        "description": "Get AI-suggested blog topics based on positioning gaps.",
+        "operationId": "propose_blog_topics_api_admin_blog_propose_topics_post",
+        "parameters": [
+          {
+            "description": "Number of topics to propose",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Number of topics to propose",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicProposalsResponse"
+                }
+              }
+            },
+            "description": "Topics proposed successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Propose blog topics",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Blog"
+        ]
+      }
+    },
     "/api/admin/blog/topics": {
       "get": {
         "description": "Discover relevant blog topics using AI.",
@@ -39421,6 +40271,888 @@
         ]
       }
     },
+    "/api/admin/decisions": {
+      "get": {
+        "description": "List all published decisions with optional filters.",
+        "operationId": "list_decisions_api_admin_decisions_get",
+        "parameters": [
+          {
+            "description": "Filter by status: draft, published",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status: draft, published",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Filter by category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by category",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max results",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination offset",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionListResponse"
+                }
+              }
+            },
+            "description": "Decisions retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List decisions",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      },
+      "post": {
+        "description": "Create a new published decision (defaults to draft status).",
+        "operationId": "create_decision_api_admin_decisions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision created successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/categories": {
+      "get": {
+        "description": "Get list of categories with published decision counts.",
+        "operationId": "get_categories_api_admin_decisions_categories_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__models__CategoriesResponse"
+                }
+              }
+            },
+            "description": "Categories retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get categories",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/generate": {
+      "post": {
+        "description": "Run a deliberation and create a decision page from it.",
+        "operationId": "generate_decision_api_admin_decisions_generate_post",
+        "parameters": [
+          {
+            "description": "Save as draft decision",
+            "in": "query",
+            "name": "save_draft",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Save as draft decision",
+              "title": "Save Draft",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision generated successfully"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Generation failed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Generate decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/{decision_id}": {
+      "delete": {
+        "description": "Delete a decision (hard delete).",
+        "operationId": "delete_decision_api_admin_decisions__decision_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Decision Api Admin Decisions  Decision Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Decision deleted successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      },
+      "get": {
+        "description": "Get a decision by ID.",
+        "operationId": "get_decision_api_admin_decisions__decision_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      },
+      "patch": {
+        "description": "Update decision fields.",
+        "operationId": "update_decision_api_admin_decisions__decision_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision updated successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/{decision_id}/publish": {
+      "post": {
+        "description": "Publish a decision immediately.",
+        "operationId": "publish_decision_api_admin_decisions__decision_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision published successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Publish decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/{decision_id}/unpublish": {
+      "post": {
+        "description": "Revert a decision to draft status.",
+        "operationId": "unpublish_decision_api_admin_decisions__decision_id__unpublish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision unpublished successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Unpublish decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
     "/api/admin/drilldown/cache-effectiveness": {
       "get": {
         "description": "Group sessions by cache hit rate buckets with cost analysis.",
@@ -40231,7 +41963,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoriesResponse"
+                  "$ref": "#/components/schemas/backend__api__admin__embeddings__CategoriesResponse"
                 }
               }
             },
@@ -60929,6 +62661,321 @@
         "tags": [
           "datasets",
           "datasets"
+        ]
+      }
+    },
+    "/api/v1/decisions": {
+      "get": {
+        "description": "List all published decisions. No authentication required.",
+        "operationId": "list_published_decisions_api_v1_decisions_get",
+        "parameters": [
+          {
+            "description": "Filter by category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by category",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Max results",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination offset",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List published decisions",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/categories": {
+      "get": {
+        "description": "Get list of categories with published decision counts.",
+        "operationId": "get_categories_api_v1_decisions_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/backend__api__models__CategoriesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get decision categories",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{category}/{slug}": {
+      "get": {
+        "description": "Get a published decision by its category and URL slug.",
+        "operationId": "get_decision_by_slug_api_v1_decisions__category___slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionPublicResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get decision by category and slug",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{category}/{slug}/click": {
+      "post": {
+        "description": "Increment click-through counter when user clicks CTA. Rate limited per IP.",
+        "operationId": "track_click_api_v1_decisions__category___slug__click_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Track decision CTA click",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{category}/{slug}/related": {
+      "get": {
+        "description": "Get related published decisions for a decision page.",
+        "operationId": "get_related_decisions_api_v1_decisions__category___slug__related_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Max results",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get related decisions",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{category}/{slug}/view": {
+      "post": {
+        "description": "Increment view counter for a published decision. Rate limited per IP.",
+        "operationId": "track_view_api_v1_decisions__category___slug__view_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Track decision page view",
+        "tags": [
+          "decisions",
+          "decisions"
         ]
       }
     },

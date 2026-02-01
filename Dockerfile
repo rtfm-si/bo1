@@ -11,7 +11,8 @@ FROM python:3.12-slim AS base
 WORKDIR /app
 
 # Install system dependencies (including build tools for native extensions like phik)
-RUN apt-get update && apt-get install -y \
+# apt-get upgrade ensures latest security patches for base OS packages
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     git \
     build-essential \

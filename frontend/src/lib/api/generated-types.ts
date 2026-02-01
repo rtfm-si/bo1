@@ -631,6 +631,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/blog/propose-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose blog topics
+         * @description Get AI-suggested blog topics based on positioning gaps.
+         */
+        post: operations["propose_blog_topics_api_admin_blog_propose_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/blog/topics": {
         parameters: {
             query?: never;
@@ -961,6 +981,138 @@ export interface paths {
         get: operations["get_costs_dashboard_api_admin_dashboard_costs_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List decisions
+         * @description List all published decisions with optional filters.
+         */
+        get: operations["list_decisions_api_admin_decisions_get"];
+        put?: never;
+        /**
+         * Create decision
+         * @description Create a new published decision (defaults to draft status).
+         */
+        post: operations["create_decision_api_admin_decisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get categories
+         * @description Get list of categories with published decision counts.
+         */
+        get: operations["get_categories_api_admin_decisions_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate decision
+         * @description Run a deliberation and create a decision page from it.
+         */
+        post: operations["generate_decision_api_admin_decisions_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/{decision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision
+         * @description Get a decision by ID.
+         */
+        get: operations["get_decision_api_admin_decisions__decision_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete decision
+         * @description Delete a decision (hard delete).
+         */
+        delete: operations["delete_decision_api_admin_decisions__decision_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update decision
+         * @description Update decision fields.
+         */
+        patch: operations["update_decision_api_admin_decisions__decision_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/decisions/{decision_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish decision
+         * @description Publish a decision immediately.
+         */
+        post: operations["publish_decision_api_admin_decisions__decision_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/{decision_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpublish decision
+         * @description Revert a decision to draft status.
+         */
+        post: operations["unpublish_decision_api_admin_decisions__decision_id__unpublish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7795,6 +7947,126 @@ export interface paths {
         get: operations["get_similar_datasets_api_v1_datasets__dataset_id__similar_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List published decisions
+         * @description List all published decisions. No authentication required.
+         */
+        get: operations["list_published_decisions_api_v1_decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision categories
+         * @description Get list of categories with published decision counts.
+         */
+        get: operations["get_categories_api_v1_decisions_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/{category}/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision by category and slug
+         * @description Get a published decision by its category and URL slug.
+         */
+        get: operations["get_decision_by_slug_api_v1_decisions__category___slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/{category}/{slug}/click": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track decision CTA click
+         * @description Increment click-through counter when user clicks CTA. Rate limited per IP.
+         */
+        post: operations["track_click_api_v1_decisions__category___slug__click_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/{category}/{slug}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get related decisions
+         * @description Get related published decisions for a decision page.
+         */
+        get: operations["get_related_decisions_api_v1_decisions__category___slug__related_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/{category}/{slug}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track decision page view
+         * @description Increment view counter for a published decision. Rate limited per IP.
+         */
+        post: operations["track_view_api_v1_decisions__category___slug__view_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15216,17 +15488,6 @@ export interface components {
             value: number;
         };
         /**
-         * CategoriesResponse
-         * @description Response model for research cache categories.
-         */
-        CategoriesResponse: {
-            /**
-             * Categories
-             * @description List of categories with counts
-             */
-            categories: components["schemas"]["CategoryCount"][];
-        };
-        /**
          * CategoryCostAggregation
          * @description Cost aggregation for a single category.
          *
@@ -15283,6 +15544,22 @@ export interface components {
             /**
              * Count
              * @description Number of embeddings
+             */
+            count: number;
+        };
+        /**
+         * CategoryWithCount
+         * @description Category with decision count.
+         */
+        CategoryWithCount: {
+            /**
+             * Category
+             * @description Category name
+             */
+            category: string;
+            /**
+             * Count
+             * @description Number of published decisions
              */
             count: number;
         };
@@ -19424,6 +19701,294 @@ export interface components {
             name?: string | null;
         };
         /**
+         * DecisionCreate
+         * @description Request model for creating a published decision.
+         */
+        DecisionCreate: {
+            /**
+             * Category
+             * @description Category: hiring, pricing, fundraising, etc.
+             */
+            category: string;
+            /**
+             * Expert Perspectives
+             * @description Expert viewpoints
+             */
+            expert_perspectives?: components["schemas"]["ExpertPerspectiveModel"][] | null;
+            /**
+             * Faqs
+             * @description FAQ pairs for schema
+             */
+            faqs?: components["schemas"]["FAQModel"][] | null;
+            /** @description Founder context for display */
+            founder_context: components["schemas"]["FounderContextModel"];
+            /**
+             * Meta Description
+             * @description SEO description
+             */
+            meta_description?: string | null;
+            /**
+             * Session Id
+             * @description Source session UUID (optional)
+             */
+            session_id?: string | null;
+            /**
+             * Synthesis
+             * @description Board synthesis/recommendation
+             */
+            synthesis?: string | null;
+            /**
+             * Title
+             * @description Decision question (H1)
+             */
+            title: string;
+        };
+        /**
+         * DecisionGenerateRequest
+         * @description Request model for generating decision from question.
+         */
+        DecisionGenerateRequest: {
+            /**
+             * Category
+             * @description Category for the decision
+             */
+            category: string;
+            /** @description Founder context to inject */
+            founder_context: components["schemas"]["FounderContextModel"];
+            /**
+             * Question
+             * @description Decision question to deliberate
+             */
+            question: string;
+        };
+        /**
+         * DecisionListResponse
+         * @description Response model for decision list.
+         */
+        DecisionListResponse: {
+            /**
+             * Decisions
+             * @description List of decisions
+             */
+            decisions: components["schemas"]["DecisionResponse"][];
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
+         * DecisionPublicResponse
+         * @description Public response model for decision page (no admin fields).
+         */
+        DecisionPublicResponse: {
+            /**
+             * Category
+             * @description Category
+             */
+            category: string;
+            /**
+             * Expert Perspectives
+             * @description Expert viewpoints
+             */
+            expert_perspectives?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Faqs
+             * @description FAQ pairs
+             */
+            faqs?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Founder Context
+             * @description Founder context
+             */
+            founder_context?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Meta Description
+             * @description SEO description
+             */
+            meta_description?: string | null;
+            /**
+             * Published At
+             * @description Publication datetime
+             */
+            published_at?: string | null;
+            /**
+             * Slug
+             * @description URL slug
+             */
+            slug: string;
+            /**
+             * Synthesis
+             * @description Board synthesis
+             */
+            synthesis?: string | null;
+            /**
+             * Title
+             * @description Decision question (H1)
+             */
+            title: string;
+        };
+        /**
+         * DecisionResponse
+         * @description Response model for a published decision.
+         */
+        DecisionResponse: {
+            /**
+             * Category
+             * @description Category
+             */
+            category: string;
+            /**
+             * Click Through Count
+             * @description CTA click count
+             * @default 0
+             */
+            click_through_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Expert Perspectives
+             * @description Expert viewpoints
+             */
+            expert_perspectives?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Faqs
+             * @description FAQ pairs
+             */
+            faqs?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Founder Context
+             * @description Founder context
+             */
+            founder_context?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Id
+             * @description Decision UUID
+             */
+            id: string;
+            /**
+             * Meta Description
+             * @description SEO description
+             */
+            meta_description?: string | null;
+            /**
+             * Published At
+             * @description Publication datetime
+             */
+            published_at?: string | null;
+            /**
+             * Related Decision Ids
+             * @description Related decision UUIDs
+             */
+            related_decision_ids?: string[] | null;
+            /**
+             * Session Id
+             * @description Source session UUID
+             */
+            session_id?: string | null;
+            /**
+             * Slug
+             * @description URL slug
+             */
+            slug: string;
+            /**
+             * Status
+             * @description draft or published
+             */
+            status: string;
+            /**
+             * Synthesis
+             * @description Board synthesis
+             */
+            synthesis?: string | null;
+            /**
+             * Title
+             * @description Decision question (H1)
+             */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+            /**
+             * View Count
+             * @description View count
+             * @default 0
+             */
+            view_count: number;
+        };
+        /**
+         * DecisionUpdate
+         * @description Request model for updating a published decision.
+         */
+        DecisionUpdate: {
+            /**
+             * Category
+             * @description Category
+             */
+            category?: string | null;
+            /**
+             * Expert Perspectives
+             * @description Expert viewpoints
+             */
+            expert_perspectives?: components["schemas"]["ExpertPerspectiveModel"][] | null;
+            /**
+             * Faqs
+             * @description FAQ pairs
+             */
+            faqs?: components["schemas"]["FAQModel"][] | null;
+            /** @description Founder context */
+            founder_context?: components["schemas"]["FounderContextModel"] | null;
+            /**
+             * Meta Description
+             * @description SEO description
+             */
+            meta_description?: string | null;
+            /**
+             * Related Decision Ids
+             * @description Related decision UUIDs
+             */
+            related_decision_ids?: string[] | null;
+            /**
+             * Slug
+             * @description URL slug (rename)
+             */
+            slug?: string | null;
+            /**
+             * Status
+             * @description draft or published
+             */
+            status?: string | null;
+            /**
+             * Synthesis
+             * @description Synthesis/recommendation
+             */
+            synthesis?: string | null;
+            /**
+             * Title
+             * @description Decision question
+             */
+            title?: string | null;
+        };
+        /**
          * DegradationInfo
          * @description Degradation info for a metric.
          */
@@ -20563,6 +21128,27 @@ export interface components {
             variant: number;
         };
         /**
+         * ExpertPerspectiveModel
+         * @description Expert perspective from deliberation.
+         */
+        ExpertPerspectiveModel: {
+            /**
+             * Persona Code
+             * @description Persona code if from session
+             */
+            persona_code?: string | null;
+            /**
+             * Persona Name
+             * @description Expert name (e.g., 'Growth Operator')
+             */
+            persona_name: string;
+            /**
+             * Quote
+             * @description Expert's viewpoint/recommendation
+             */
+            quote: string;
+        };
+        /**
          * ExtendedKPIsResponse
          * @description Response model for extended KPIs.
          *
@@ -20584,6 +21170,22 @@ export interface components {
             mentor_sessions: components["schemas"]["MentorSessionStats"];
             /** @description Project stats by status */
             projects: components["schemas"]["ProjectStats"];
+        };
+        /**
+         * FAQModel
+         * @description FAQ item for schema markup.
+         */
+        FAQModel: {
+            /**
+             * Answer
+             * @description FAQ answer
+             */
+            answer: string;
+            /**
+             * Question
+             * @description FAQ question
+             */
+            question: string;
         };
         /**
          * FailurePatternsResponse
@@ -21333,6 +21935,27 @@ export interface components {
              * @default Access denied
              */
             message: string;
+        };
+        /**
+         * FounderContextModel
+         * @description Founder context for decision pages.
+         */
+        FounderContextModel: {
+            /**
+             * Constraints
+             * @description Key constraints
+             */
+            constraints?: string[] | null;
+            /**
+             * Situation
+             * @description Current situation description
+             */
+            situation?: string | null;
+            /**
+             * Stage
+             * @description Business stage (e.g., '£50-200k ARR')
+             */
+            stage?: string | null;
         };
         /**
          * FrictionProfile
@@ -31605,6 +32228,43 @@ export interface components {
             users: components["schemas"]["UserCostPeriodItem"][];
         };
         /**
+         * TopicProposalResponse
+         * @description Response model for a proposed blog topic.
+         */
+        TopicProposalResponse: {
+            /**
+             * Rationale
+             * @description Why this topic is suggested
+             */
+            rationale: string;
+            /**
+             * Source
+             * @description Source: chatgpt-seo-seed, positioning-gap, llm-generated
+             */
+            source: string;
+            /**
+             * Suggested Keywords
+             * @description SEO keywords
+             */
+            suggested_keywords: string[];
+            /**
+             * Title
+             * @description Proposed topic title
+             */
+            title: string;
+        };
+        /**
+         * TopicProposalsResponse
+         * @description Response model for topic proposals.
+         */
+        TopicProposalsResponse: {
+            /**
+             * Topics
+             * @description Proposed topics
+             */
+            topics: components["schemas"]["TopicProposalResponse"][];
+        };
+        /**
          * TopicResponse
          * @description Response model for a discovered topic.
          */
@@ -34073,6 +34733,17 @@ export interface components {
             users: components["schemas"]["backend__api__admin__dashboard__UserCostItem"][];
         };
         /**
+         * CategoriesResponse
+         * @description Response model for research cache categories.
+         */
+        backend__api__admin__embeddings__CategoriesResponse: {
+            /**
+             * Categories
+             * @description List of categories with counts
+             */
+            categories: components["schemas"]["CategoryCount"][];
+        };
+        /**
          * WaitlistResponse
          * @description Response model for waitlist list.
          *
@@ -34178,6 +34849,17 @@ export interface components {
              * @description When user's value was last set (ISO timestamp)
              */
             user_value_updated_at?: string | null;
+        };
+        /**
+         * CategoriesResponse
+         * @description Response model for category listing.
+         */
+        backend__api__models__CategoriesResponse: {
+            /**
+             * Categories
+             * @description Categories with counts
+             */
+            categories: components["schemas"]["CategoryWithCount"][];
         };
         /**
          * DailyCostItem
@@ -36173,6 +36855,60 @@ export interface operations {
             };
         };
     };
+    propose_blog_topics_api_admin_blog_propose_topics_post: {
+        parameters: {
+            query?: {
+                /** @description Number of topics to propose */
+                count?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topics proposed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicProposalsResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     discover_blog_topics_api_admin_blog_topics_get: {
         parameters: {
             query?: {
@@ -36818,6 +37554,564 @@ export interface operations {
             };
         };
     };
+    list_decisions_api_admin_decisions_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status: draft, published */
+                status?: string | null;
+                /** @description Filter by category */
+                category?: string | null;
+                /** @description Max results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decisions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionListResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    create_decision_api_admin_decisions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Decision created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    get_categories_api_admin_decisions_categories_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Categories retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__models__CategoriesResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    generate_decision_api_admin_decisions_generate_post: {
+        parameters: {
+            query?: {
+                /** @description Save as draft decision */
+                save_draft?: boolean;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Decision generated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Generation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    get_decision_api_admin_decisions__decision_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Decision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    delete_decision_api_admin_decisions__decision_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision deleted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Decision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    update_decision_api_admin_decisions__decision_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Decision updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Decision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    publish_decision_api_admin_decisions__decision_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision published successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Decision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    unpublish_decision_api_admin_decisions__decision_id__unpublish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision unpublished successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Decision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     get_cache_effectiveness_api_admin_drilldown_cache_effectiveness_get: {
         parameters: {
             query?: {
@@ -37305,7 +38599,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CategoriesResponse"];
+                    "application/json": components["schemas"]["backend__api__admin__embeddings__CategoriesResponse"];
                 };
             };
             /** @description Admin API key required */
@@ -51617,6 +52911,189 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SimilarDatasetsResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_published_decisions_api_v1_decisions_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by category */
+                category?: string | null;
+                /** @description Max results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_categories_api_v1_decisions_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["backend__api__models__CategoriesResponse"];
+                };
+            };
+        };
+    };
+    get_decision_by_slug_api_v1_decisions__category___slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionPublicResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_click_api_v1_decisions__category___slug__click_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_related_decisions_api_v1_decisions__category___slug__related_get: {
+        parameters: {
+            query?: {
+                /** @description Max results */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                category: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_view_api_v1_decisions__category___slug__view_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

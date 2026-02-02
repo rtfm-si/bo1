@@ -10,6 +10,8 @@
 
 <svelte:head>
 	<title>Terms of Service - Board of One</title>
+	<link rel="canonical" href="https://boardof.one/legal/terms" />
+	<meta property="og:url" content="https://boardof.one/legal/terms" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">

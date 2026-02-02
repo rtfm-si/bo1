@@ -1068,6 +1068,26 @@ export interface DecisionCategoriesResponse {
 }
 
 /**
+ * Featured decision for homepage
+ */
+export interface FeaturedDecision {
+	id: string;
+	category: string;
+	slug: string;
+	title: string;
+	meta_description?: string;
+	synthesis?: string;
+	homepage_order?: number | null;
+}
+
+/**
+ * Featured decisions response
+ */
+export interface FeaturedDecisionsResponse {
+	decisions: FeaturedDecision[];
+}
+
+/**
  * Waitlist response (admin)
  */
 export interface WaitlistResponse {

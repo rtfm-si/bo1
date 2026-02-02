@@ -277,12 +277,15 @@ import type {
 	// Public Decision types
 	PublicDecision,
 	PublicDecisionListResponse,
-	DecisionCategoriesResponse
+	DecisionCategoriesResponse,
+	FeaturedDecision,
+	FeaturedDecisionsResponse
 } from './types';
 
 // Re-export types that are used by other modules
 export type { ClarificationInsight, IndustryInsight, IndustryInsightsResponse };
 export type { MetricQuestionDef, MetricFormulaResponse, BusinessMetricSuggestion };
+export type { FeaturedDecision, FeaturedDecisionsResponse };
 
 // ============================================================================
 // Onboarding Types
@@ -3896,6 +3899,13 @@ export class ApiClient {
 	// =========================================================================
 	// Public Decisions (SEO decision library, no auth required)
 	// =========================================================================
+
+	/**
+	 * Get featured decisions for homepage (public)
+	 */
+	async getFeaturedDecisions(limit: number = 6): Promise<FeaturedDecisionsResponse> {
+		return this.fetch<FeaturedDecisionsResponse>(`/api/v1/decisions/featured?limit=${limit}`);
+	}
 
 	/**
 	 * Get published decisions list (public)

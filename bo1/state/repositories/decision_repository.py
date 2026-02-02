@@ -144,7 +144,8 @@ class DecisionRepository(BaseRepository):
                     SELECT id, session_id, category, slug, title, meta_description,
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
-                           created_at, updated_at, view_count, click_through_count
+                           created_at, updated_at, view_count, click_through_count,
+                           homepage_featured, homepage_order
                     FROM published_decisions
                     WHERE id = %s
                     """,
@@ -216,7 +217,8 @@ class DecisionRepository(BaseRepository):
                     f"""
                     SELECT id, session_id, category, slug, title, meta_description,
                            status, published_at, created_at, updated_at,
-                           view_count, click_through_count
+                           view_count, click_through_count,
+                           homepage_featured, homepage_order
                     FROM published_decisions
                     {where_clause}
                     ORDER BY
@@ -461,6 +463,89 @@ class DecisionRepository(BaseRepository):
                 )
                 result = cur.fetchone()
                 return result is not None
+
+    def list_featured_for_homepage(self, limit: int = 6) -> list[dict[str, Any]]:
+        """List featured decisions for homepage display.
+
+        Returns published decisions marked as homepage_featured,
+        ordered by homepage_order.
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, category, slug, title, meta_description,
+                           founder_context, synthesis, homepage_order
+                    FROM published_decisions
+                    WHERE status = 'published' AND homepage_featured = true
+                    ORDER BY homepage_order NULLS LAST, published_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def set_homepage_featured(
+        self,
+        decision_id: str | UUID,
+        featured: bool,
+        order: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Set or unset a decision as homepage featured.
+
+        Args:
+            decision_id: Decision ID
+            featured: Whether to feature on homepage
+            order: Sort order (lower = first), None clears order
+
+        Returns:
+            Updated decision record
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE published_decisions
+                    SET homepage_featured = %s,
+                        homepage_order = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING id, session_id, category, slug, title, meta_description,
+                              founder_context, expert_perspectives, synthesis, faqs,
+                              related_decision_ids, status, published_at,
+                              created_at, updated_at, view_count, click_through_count,
+                              homepage_featured, homepage_order
+                    """,
+                    (featured, order if featured else None, str(decision_id)),
+                )
+                result = cur.fetchone()
+                if result:
+                    action = "Featured" if featured else "Unfeatured"
+                    logger.info(f"{action} decision {decision_id} on homepage")
+                return dict(result) if result else None
+
+    def update_homepage_order(self, ordered_ids: list[str]) -> bool:
+        """Bulk update homepage_order for featured decisions.
+
+        Args:
+            ordered_ids: List of decision IDs in desired order
+
+        Returns:
+            True if successful
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                for order, decision_id in enumerate(ordered_ids):
+                    cur.execute(
+                        """
+                        UPDATE published_decisions
+                        SET homepage_order = %s, updated_at = NOW()
+                        WHERE id = %s AND homepage_featured = true
+                        """,
+                        (order, decision_id),
+                    )
+                logger.info(f"Reordered {len(ordered_ids)} homepage featured decisions")
+                return True
 
     def get_related(self, decision_id: str | UUID, limit: int = 5) -> list[dict[str, Any]]:
         """Get related published decisions."""

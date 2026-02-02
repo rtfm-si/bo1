@@ -36,6 +36,7 @@ LEGACY_EXCEPTIONS = frozenset(
         "decisions",
         "expert_perspectives",
         "related_decision_ids",
+        "decision_ids",  # FeaturedOrderRequest - admin reorder endpoint
     }
 )
 

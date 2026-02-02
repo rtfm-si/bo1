@@ -26,6 +26,9 @@ from backend.api.models import (
     DecisionResponse,
     DecisionUpdate,
     ErrorResponse,
+    FeaturedDecisionResponse,
+    FeaturedDecisionsResponse,
+    FeaturedOrderRequest,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors, http_error
@@ -58,6 +61,8 @@ def _decision_to_response(d: dict) -> DecisionResponse:
         updated_at=d["updated_at"],
         view_count=d.get("view_count", 0),
         click_through_count=d.get("click_through_count", 0),
+        homepage_featured=d.get("homepage_featured", False),
+        homepage_order=d.get("homepage_order"),
     )
 
 
@@ -132,6 +137,83 @@ async def create_decision(
     logger.info(f"Admin: Created decision '{body.title}' (id={decision['id']})")
 
     return _decision_to_response(decision)
+
+
+@router.get(
+    "/featured",
+    response_model=FeaturedDecisionsResponse,
+    summary="Get featured decisions",
+    description="Get decisions marked as featured for homepage display.",
+    responses={
+        200: {"description": "Featured decisions retrieved successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("list featured decisions")
+async def list_featured_decisions(
+    request: Request,
+    _admin: str = Depends(require_admin_any),
+) -> FeaturedDecisionsResponse:
+    """Get featured homepage decisions."""
+    decisions = decision_repository.list_featured_for_homepage(limit=10)
+
+    return FeaturedDecisionsResponse(
+        decisions=[
+            FeaturedDecisionResponse(
+                id=str(d["id"]),
+                category=d["category"],
+                slug=d["slug"],
+                title=d["title"],
+                meta_description=d.get("meta_description"),
+                synthesis=d.get("synthesis"),
+                homepage_order=d.get("homepage_order"),
+            )
+            for d in decisions
+        ]
+    )
+
+
+@router.put(
+    "/featured/order",
+    response_model=FeaturedDecisionsResponse,
+    summary="Reorder featured decisions",
+    description="Reorder featured decisions by providing ordered list of IDs.",
+    responses={
+        200: {"description": "Order updated successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("reorder featured decisions")
+async def reorder_featured_decisions(
+    request: Request,
+    body: FeaturedOrderRequest,
+    _admin: str = Depends(require_admin_any),
+) -> FeaturedDecisionsResponse:
+    """Reorder featured decisions."""
+    decision_repository.update_homepage_order(body.decision_ids)
+    logger.info(f"Admin: Reordered {len(body.decision_ids)} featured decisions")
+
+    # Return updated list
+    decisions = decision_repository.list_featured_for_homepage(limit=10)
+
+    return FeaturedDecisionsResponse(
+        decisions=[
+            FeaturedDecisionResponse(
+                id=str(d["id"]),
+                category=d["category"],
+                slug=d["slug"],
+                title=d["title"],
+                meta_description=d.get("meta_description"),
+                synthesis=d.get("synthesis"),
+                homepage_order=d.get("homepage_order"),
+            )
+            for d in decisions
+        ]
+    )
 
 
 @router.get(
@@ -273,6 +355,67 @@ async def delete_decision(
     logger.info(f"Admin: Deleted decision {decision_id}")
 
     return {"success": True, "message": f"Decision {decision_id} deleted"}
+
+
+@router.post(
+    "/{decision_id}/feature",
+    response_model=DecisionResponse,
+    summary="Feature decision on homepage",
+    description="Add a decision to the homepage featured list.",
+    responses={
+        200: {"description": "Decision featured successfully"},
+        404: {"description": "Decision not found", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("feature decision")
+async def feature_decision(
+    request: Request,
+    decision_id: str,
+    order: int | None = Query(None, description="Display order (lower = first)"),
+    _admin: str = Depends(require_admin_any),
+) -> DecisionResponse:
+    """Feature a decision on homepage."""
+    decision = decision_repository.set_homepage_featured(decision_id, featured=True, order=order)
+
+    if not decision:
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Decision {decision_id} not found", status=404)
+
+    logger.info(f"Admin: Featured decision {decision_id} on homepage (order={order})")
+
+    return _decision_to_response(decision)
+
+
+@router.post(
+    "/{decision_id}/unfeature",
+    response_model=DecisionResponse,
+    summary="Remove decision from homepage",
+    description="Remove a decision from the homepage featured list.",
+    responses={
+        200: {"description": "Decision unfeatured successfully"},
+        404: {"description": "Decision not found", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("unfeature decision")
+async def unfeature_decision(
+    request: Request,
+    decision_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> DecisionResponse:
+    """Remove a decision from homepage."""
+    decision = decision_repository.set_homepage_featured(decision_id, featured=False)
+
+    if not decision:
+        raise http_error(ErrorCode.API_NOT_FOUND, f"Decision {decision_id} not found", status=404)
+
+    logger.info(f"Admin: Unfeatured decision {decision_id} from homepage")
+
+    return _decision_to_response(decision)
 
 
 @router.post(

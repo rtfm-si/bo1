@@ -27,6 +27,7 @@
 	} from '$lib/data/landing-page-data';
 	import { sampleDecisions } from '$lib/data/samples';
 	import type { SampleDecision } from '$lib/data/samples';
+	import { apiClient, type FeaturedDecision } from '$lib/api/client';
 	import {
 		initPageTracking,
 		cleanupPageTracking,
@@ -52,6 +53,10 @@
 	// Sample decision modal
 	let showSampleModal = $state(false);
 	let currentSampleIndex = $state(0);
+
+	// Featured decisions from API
+	let featuredDecisions = $state<FeaturedDecision[]>([]);
+	let featuredLoading = $state(true);
 
 	// Get current sample and navigation functions
 	const currentSample = $derived(sampleDecisions[currentSampleIndex]);
@@ -88,10 +93,20 @@
 		'beta-invite-section'
 	]);
 
-	onMount(() => {
+	onMount(async () => {
 		mounted = true;
 		// Initialize page analytics tracking
 		initPageTracking();
+
+		// Fetch featured decisions for homepage
+		try {
+			const response = await apiClient.getFeaturedDecisions(6);
+			featuredDecisions = response.decisions;
+		} catch {
+			// Silently fail - will show sample decisions as fallback
+		} finally {
+			featuredLoading = false;
+		}
 	});
 
 	onDestroy(() => {
@@ -427,6 +442,84 @@
 
 	<MetricsGrid {metrics} visible={visibility.get('metrics-section') ?? false} />
 
+	<!-- Core Features Grid -->
+	<section class="py-16 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+		<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="text-center mb-10">
+				<h2 class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
+					A complete management <span class="text-brand-600 dark:text-brand-400 italic">operating system</span>
+				</h2>
+				<p class="text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
+					Everything a solo founder needs to make decisions like a 10-person team.
+				</p>
+			</div>
+
+			<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+				<!-- Data Analysis -->
+				<a href="/features/data-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+					<div class="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 dark:text-blue-400">
+							<line x1="18" y1="20" x2="18" y2="10" />
+							<line x1="12" y1="20" x2="12" y2="4" />
+							<line x1="6" y1="20" x2="6" y2="14" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-lg text-neutral-900 dark:text-white mb-2">Data Analysis</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">Upload spreadsheets and data. Get insights that inform better decisions.</p>
+					<span class="inline-flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium mt-3 group-hover:underline">
+						Learn more →
+					</span>
+				</a>
+
+				<!-- Mentor Chat -->
+				<a href="/features/mentor-chat" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+					<div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600 dark:text-purple-400">
+							<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-lg text-neutral-900 dark:text-white mb-2">Mentor Chat</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">1:1 conversations with AI mentors who know your business context.</p>
+					<span class="inline-flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium mt-3 group-hover:underline">
+						Learn more →
+					</span>
+				</a>
+
+				<!-- SEO Content -->
+				<a href="/features/seo-generation" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+					<div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600 dark:text-green-400">
+							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+							<polyline points="14 2 14 8 20 8" />
+							<line x1="16" y1="13" x2="8" y2="13" />
+							<line x1="16" y1="17" x2="8" y2="17" />
+							<polyline points="10 9 9 9 8 9" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-lg text-neutral-900 dark:text-white mb-2">SEO Content</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">Turn decisions into SEO-optimized content. Build authority while you build.</p>
+					<span class="inline-flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium mt-3 group-hover:underline">
+						Learn more →
+					</span>
+				</a>
+
+				<!-- Industry Benchmarks -->
+				<a href="/features/competitor-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+					<div class="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-600 dark:text-orange-400">
+							<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-lg text-neutral-900 dark:text-white mb-2">Industry Benchmarks</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">Compare your metrics against industry standards. Know where you stand.</p>
+					<span class="inline-flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium mt-3 group-hover:underline">
+						Learn more →
+					</span>
+				</a>
+			</div>
+		</div>
+	</section>
+
 	<!-- Why This Matters - Management Work Reframe -->
 	<section
 		class="py-20 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
@@ -454,14 +547,14 @@
 						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">1</span>
 						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Context aggregation</p>
 						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What's going on?</p>
-						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Data Analysis + Competition Intel</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Data Analysis + Industry Benchmarks</p>
 					</div>
 					<!-- Function 2: Option generation -->
 					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
 						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">2</span>
 						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Option generation</p>
 						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">What could we do?</p>
-						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Mentor 1:1s + Deliberation</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Mentor Chat + Deliberation</p>
 					</div>
 					<!-- Function 3: Risk & downside -->
 					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
@@ -482,7 +575,7 @@
 						<span class="text-brand-600 dark:text-brand-400 text-lg font-bold">5</span>
 						<p class="text-sm text-neutral-700 dark:text-neutral-300 mt-1">Decision documentation</p>
 						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic group-hover:hidden">Why did we choose this?</p>
-						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">Decision Logs + Reasoning</p>
+						<p class="text-xs text-brand-600 dark:text-brand-400 mt-1 hidden group-hover:block font-medium">SEO Content Generation</p>
 					</div>
 					<!-- Function 6: Follow-through -->
 					<div class="group bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 text-center hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 cursor-default">
@@ -1045,7 +1138,11 @@
 	</section>
 
 	<!-- Sample Decision Selector -->
-	<SampleSelector samples={sampleDecisions} onSelectSample={showSample} />
+	{#if featuredDecisions.length > 0}
+		<SampleSelector decisions={featuredDecisions} />
+	{:else}
+		<SampleSelector samples={sampleDecisions} onSelectSample={showSample} />
+	{/if}
 
 	<!-- Killer One-Liner -->
 	<section

@@ -13,7 +13,9 @@
 		EyeOff,
 		Trash2,
 		Edit,
-		ExternalLink
+		ExternalLink,
+		Star,
+		LayoutGrid
 	} from 'lucide-svelte';
 	import {
 		adminApi,
@@ -23,6 +25,7 @@
 	} from '$lib/api/admin';
 	import DecisionEditorModal from '$lib/components/admin/DecisionEditorModal.svelte';
 	import DecisionGenerateModal from '$lib/components/admin/DecisionGenerateModal.svelte';
+	import FeaturedDecisionsModal from '$lib/components/admin/FeaturedDecisionsModal.svelte';
 
 	// State
 	let decisions = $state<Decision[]>([]);
@@ -35,9 +38,11 @@
 	// Modals
 	let showEditorModal = $state(false);
 	let showGenerateModal = $state(false);
+	let showFeaturedModal = $state(false);
 	let editingDecision = $state<Decision | null>(null);
 	let deleteConfirm = $state<Decision | null>(null);
 	let isDeleting = $state(false);
+	let togglingFeatured = $state<string | null>(null);
 
 	const filteredDecisions = $derived(() => {
 		let result = decisions;
@@ -137,6 +142,23 @@
 		}
 	}
 
+	async function toggleFeatured(decision: Decision) {
+		togglingFeatured = decision.id;
+		try {
+			let updated: Decision;
+			if (decision.homepage_featured) {
+				updated = await adminApi.unfeatureDecision(decision.id);
+			} else {
+				updated = await adminApi.featureDecision(decision.id);
+			}
+			decisions = decisions.map((d) => (d.id === updated.id ? updated : d));
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to update featured status';
+		} finally {
+			togglingFeatured = null;
+		}
+	}
+
 	function formatDate(date: string | undefined) {
 		if (!date) return '-';
 		return new Date(date).toLocaleDateString('en-US', {
@@ -219,6 +241,10 @@
 					<Button variant="outline" size="sm" onclick={() => loadDecisions()} disabled={isLoading}>
 						<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
 						Refresh
+					</Button>
+					<Button variant="outline" size="sm" onclick={() => (showFeaturedModal = true)}>
+						<LayoutGrid class="w-4 h-4 mr-1.5" />
+						Manage Featured
 					</Button>
 					<Button variant="outline" size="sm" onclick={() => (showGenerateModal = true)}>
 						<Sparkles class="w-4 h-4 mr-1.5" />
@@ -363,6 +389,18 @@
 										<ExternalLink class="w-4 h-4 text-neutral-500" />
 									</a>
 								{/if}
+								<button
+									class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-50"
+									onclick={() => toggleFeatured(decision)}
+									disabled={togglingFeatured === decision.id || decision.status !== 'published'}
+									title={decision.homepage_featured ? 'Remove from homepage' : 'Feature on homepage'}
+								>
+									<Star
+										class="w-4 h-4 {decision.homepage_featured
+											? 'text-amber-500 fill-amber-500'
+											: 'text-neutral-400'}"
+									/>
+								</button>
 								<Button
 									variant="outline"
 									size="sm"
@@ -423,4 +461,15 @@
 <!-- Generate Modal -->
 {#if showGenerateModal}
 	<DecisionGenerateModal onclose={() => (showGenerateModal = false)} ongenerated={handleGenerated} />
+{/if}
+
+<!-- Featured Management Modal -->
+{#if showFeaturedModal}
+	<FeaturedDecisionsModal
+		onclose={() => (showFeaturedModal = false)}
+		onsave={() => {
+			showFeaturedModal = false;
+			loadDecisions();
+		}}
+	/>
 {/if}

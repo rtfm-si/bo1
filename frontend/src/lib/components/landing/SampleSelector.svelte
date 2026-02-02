@@ -1,28 +1,78 @@
 <script lang="ts">
 	/**
 	 * Sample Selector - Grid of sample decision cards for landing page
+	 * Supports both legacy SampleDecision (for modal) and FeaturedDecision (for links)
 	 */
+	import { goto } from '$app/navigation';
 	import type { SampleDecision } from '$lib/data/samples';
+	import type { FeaturedDecision } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 
+	type DecisionItem = SampleDecision | FeaturedDecision;
+
 	interface Props {
-		samples: SampleDecision[];
-		onSelectSample: (sample: SampleDecision) => void;
-		featured?: number; // Number of samples to show, default shows all
+		samples?: SampleDecision[];
+		decisions?: FeaturedDecision[];
+		onSelectSample?: (sample: SampleDecision) => void;
+		featured?: number; // Number of items to show, default shows all
 	}
 
-	let { samples, onSelectSample, featured }: Props = $props();
+	let { samples, decisions, onSelectSample, featured }: Props = $props();
 
-	// Show featured samples or all samples
-	const displaySamples = $derived(featured ? samples.slice(0, featured) : samples);
+	// Determine if using new featured decisions or legacy samples
+	const useFeatured = $derived(decisions && decisions.length > 0);
 
-	// Category color mapping for visual variety
+	// Show featured items or all items
+	const displayItems = $derived.by(() => {
+		const items = useFeatured ? decisions! : (samples ?? []);
+		return featured ? items.slice(0, featured) : items;
+	});
+
+	function isFeaturedDecision(item: DecisionItem): item is FeaturedDecision {
+		return 'slug' in item && 'synthesis' in item;
+	}
+
+	function getTitle(item: DecisionItem): string {
+		if (isFeaturedDecision(item)) {
+			return item.title;
+		}
+		return item.question;
+	}
+
+	function getDescription(item: DecisionItem): string {
+		if (isFeaturedDecision(item)) {
+			return item.synthesis || item.meta_description || '';
+		}
+		return item.recommendation;
+	}
+
+	function getCategory(item: DecisionItem): string {
+		return item.category;
+	}
+
+	function handleClick(item: DecisionItem) {
+		if (isFeaturedDecision(item)) {
+			goto(`/decisions/${item.category}/${item.slug}`);
+		} else if (onSelectSample) {
+			onSelectSample(item as SampleDecision);
+		}
+	}
+
+	// Category color mapping for visual variety (both capitalized and lowercase)
 	const categoryColors: Record<string, string> = {
 		Marketing: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+		marketing: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
 		Hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+		hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
 		Product: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+		product: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
 		Finance: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
-		Growth: 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+		pricing: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+		Growth: 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300',
+		growth: 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300',
+		strategy: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+		fundraising: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+		operations: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
 	};
 
 	function getCategoryColor(category: string): string {
@@ -30,6 +80,10 @@
 			categoryColors[category] ||
 			'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
 		);
+	}
+
+	function formatCategory(category: string): string {
+		return category.charAt(0).toUpperCase() + category.slice(1);
 	}
 </script>
 
@@ -53,23 +107,23 @@
 
 		<!-- Sample cards grid -->
 		<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-			{#each displaySamples as sample}
+			{#each displayItems as item}
 				<div
 					class="group bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
-					onclick={() => onSelectSample(sample)}
+					onclick={() => handleClick(item)}
 					role="button"
 					tabindex="0"
 					onkeydown={(e) => {
 						if (e.key === 'Enter' || e.key === ' ') {
 							e.preventDefault();
-							onSelectSample(sample);
+							handleClick(item);
 						}
 					}}
 				>
 					<!-- Category badge -->
 					<div class="flex items-center justify-between mb-4">
-						<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {getCategoryColor(sample.category)}">
-							{sample.category}
+						<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {getCategoryColor(getCategory(item))}">
+							{formatCategory(getCategory(item))}
 						</span>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -83,20 +137,19 @@
 							stroke-linejoin="round"
 							class="text-neutral-400 dark:text-neutral-600 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors"
 						>
-							<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-							<polyline points="15 3 21 3 21 9" />
-							<line x1="10" y1="14" x2="21" y2="3" />
+							<path d="M5 12h14" />
+							<path d="M12 5l7 7-7 7" />
 						</svg>
 					</div>
 
-					<!-- Question -->
+					<!-- Question/Title -->
 					<h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100 mb-3 leading-tight">
-						{sample.question}
+						{getTitle(item)}
 					</h3>
 
-					<!-- Recommendation preview (truncated) -->
+					<!-- Description preview (truncated) -->
 					<p class="text-sm text-neutral-600 dark:text-neutral-400 line-clamp-2 mb-4">
-						{sample.recommendation}
+						{getDescription(item)}
 					</p>
 
 					<!-- View button -->

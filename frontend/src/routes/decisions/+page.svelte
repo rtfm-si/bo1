@@ -77,7 +77,7 @@
 		name="description"
 		content="Expert-backed decision frameworks for solo founders. Get structured guidance on hiring, pricing, fundraising, marketing, and more."
 	/>
-	<link rel="canonical" href="https://boardofone.com/decisions" />
+	<link rel="canonical" href="https://boardof.one/decisions" />
 </svelte:head>
 
 <Header />

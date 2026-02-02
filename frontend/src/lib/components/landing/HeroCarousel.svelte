@@ -5,7 +5,7 @@
 	 * Uses CSS transforms for smooth transitions (no juddery fly animations)
 	 */
 	import { onMount, onDestroy } from 'svelte';
-	import { MessageSquare, FileText, Users } from 'lucide-svelte';
+	import { MessageSquare, FileText, Users, Lightbulb, AlertTriangle, ArrowRight, Quote } from 'lucide-svelte';
 
 	// Carousel state
 	let currentSlide = $state(0);
@@ -47,16 +47,20 @@
 		{ value: "8m", label: "Analysis" }
 	];
 
-	const reportSections = [
-		{
-			title: "The Bottom Line",
-			content: "Pursue bridge financing ($500K-1M) to extend runway to 18 months while focusing on improving MRR growth rate before Series A."
-		},
-		{
-			title: "Key Actions",
-			content: "1. Schedule calls with 3-5 bridge investors\n2. Focus on improving MRR growth to 15%+ MoM\n3. Revisit Series A in Q2 with stronger metrics"
-		}
-	];
+	const reportOutput = {
+		bottomLine: "Pursue bridge financing ($500K-1M) to extend runway to 18 months while improving MRR growth to 15%+ MoM before revisiting Series A.",
+		takeaways: [
+			"Current runway creates negotiation pressure",
+			"Bridge extends optionality without major dilution",
+			"15%+ MoM growth unlocks better Series A terms"
+		],
+		blindSpots: "Team may be underestimating competitive timing risk",
+		nextSteps: [
+			"Schedule 3-5 bridge investor calls",
+			"Set 90-day MRR acceleration targets",
+			"Revisit Series A timeline in Q2"
+		]
+	};
 
 	// Typewriter effect
 	function startTyping() {
@@ -191,48 +195,83 @@
 
 			<!-- Slide 3: Report Output -->
 			<div
-				class="absolute inset-0 p-6 transition-all duration-500 ease-out {currentSlide === 2
+				class="absolute inset-0 p-5 transition-all duration-500 ease-out {currentSlide === 2
 					? 'opacity-100 translate-x-0'
 					: currentSlide < 2
 						? 'opacity-0 translate-x-8 pointer-events-none'
 						: 'opacity-0 -translate-x-8 pointer-events-none'}"
 			>
-				<div class="flex items-center gap-2 mb-4">
+				<div class="flex items-center gap-2 mb-3">
 					<div class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
 						<FileText size={16} class="text-purple-600 dark:text-purple-400" />
 					</div>
 					<span class="text-sm font-medium text-slate-600 dark:text-slate-400">Your Report</span>
 				</div>
 
-				<!-- Metrics grid matching PDF -->
-				<div class="grid grid-cols-4 gap-2 mb-4">
+				<!-- Metrics grid -->
+				<div class="grid grid-cols-4 gap-1.5 mb-3">
 					{#each reportMetrics as metric (metric.label)}
-						<div class="text-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
-							<div class="text-lg font-bold text-slate-900 dark:text-white">{metric.value}</div>
-							<div class="text-xs text-slate-500 dark:text-slate-400">{metric.label}</div>
+						<div class="text-center p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
+							<div class="text-base font-bold text-slate-900 dark:text-white">{metric.value}</div>
+							<div class="text-[10px] text-slate-500 dark:text-slate-400">{metric.label}</div>
 						</div>
 					{/each}
 				</div>
 
-				<!-- Report sections -->
-				<div class="space-y-3">
-					{#each reportSections as section (section.title)}
-						<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border-l-4 border-l-brand-500">
-							<h4 class="font-semibold text-sm text-slate-900 dark:text-white mb-1">
-								{section.title}
-							</h4>
-							<p class="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line line-clamp-2">
-								{section.content}
+				<!-- The Bottom Line - prominent quote style -->
+				<div class="bg-brand-50 dark:bg-brand-900/20 rounded-lg p-3 mb-2 border-l-4 border-l-brand-500">
+					<div class="flex items-start gap-2">
+						<Quote size={14} class="text-brand-500 flex-shrink-0 mt-0.5" />
+						<div>
+							<h4 class="font-semibold text-xs text-brand-700 dark:text-brand-400 mb-1">The Bottom Line</h4>
+							<p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+								{reportOutput.bottomLine}
 							</p>
 						</div>
-					{/each}
+					</div>
 				</div>
 
-				<div class="mt-4 flex justify-center">
-					<span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full text-xs font-medium">
-						<FileText size={12} />
-						Download PDF Report
-					</span>
+				<!-- Two column layout for remaining sections -->
+				<div class="grid grid-cols-2 gap-2">
+					<!-- Key Takeaways -->
+					<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-2">
+						<div class="flex items-center gap-1.5 mb-1.5">
+							<Lightbulb size={12} class="text-amber-500" />
+							<h4 class="font-semibold text-[11px] text-slate-900 dark:text-white">Key Takeaways</h4>
+						</div>
+						<ul class="space-y-0.5">
+							{#each reportOutput.takeaways as takeaway}
+								<li class="text-[10px] text-slate-600 dark:text-slate-400 flex items-start gap-1">
+									<span class="text-brand-500 mt-0.5">•</span>
+									<span>{takeaway}</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
+
+					<!-- Next Steps -->
+					<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-2">
+						<div class="flex items-center gap-1.5 mb-1.5">
+							<ArrowRight size={12} class="text-emerald-500" />
+							<h4 class="font-semibold text-[11px] text-slate-900 dark:text-white">Next Steps</h4>
+						</div>
+						<ul class="space-y-0.5">
+							{#each reportOutput.nextSteps as step, i}
+								<li class="text-[10px] text-slate-600 dark:text-slate-400 flex items-start gap-1">
+									<span class="text-emerald-500 font-medium">{i + 1}.</span>
+									<span>{step}</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				</div>
+
+				<!-- Blind Spots indicator -->
+				<div class="mt-2 flex items-center gap-2 px-2 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+					<AlertTriangle size={12} class="text-amber-500 flex-shrink-0" />
+					<p class="text-[10px] text-amber-700 dark:text-amber-400">
+						<span class="font-semibold">Blind Spot:</span> {reportOutput.blindSpots}
+					</p>
 				</div>
 			</div>
 		</div>

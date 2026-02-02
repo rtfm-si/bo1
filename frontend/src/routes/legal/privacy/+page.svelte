@@ -10,6 +10,8 @@
 
 <svelte:head>
 	<title>Privacy Policy - Board of One</title>
+	<link rel="canonical" href="https://boardof.one/legal/privacy" />
+	<meta property="og:url" content="https://boardof.one/legal/privacy" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">

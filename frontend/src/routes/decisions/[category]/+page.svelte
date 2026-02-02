@@ -78,7 +78,7 @@
 		name="description"
 		content="{(category && categoryDescriptions[category]) || `${categoryTitle} decisions for founders`}. Expert frameworks to help you make better strategic choices."
 	/>
-	<link rel="canonical" href="https://boardofone.com/decisions/{category}" />
+	<link rel="canonical" href="https://boardof.one/decisions/{category}" />
 
 	{#if breadcrumbJsonLd}
 		{@html `<script type="application/ld+json">${breadcrumbJsonLd}</script>`}

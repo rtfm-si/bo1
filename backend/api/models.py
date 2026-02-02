@@ -4326,6 +4326,8 @@ class DecisionResponse(BaseModel):
     updated_at: datetime = Field(..., description="Last update timestamp")
     view_count: int = Field(default=0, description="View count")
     click_through_count: int = Field(default=0, description="CTA click count")
+    homepage_featured: bool = Field(default=False, description="Featured on homepage")
+    homepage_order: int | None = Field(None, description="Homepage display order")
 
 
 class DecisionListResponse(BaseModel):
@@ -4360,6 +4362,32 @@ class CategoriesResponse(BaseModel):
     """Response model for category listing."""
 
     categories: list[CategoryWithCount] = Field(..., description="Categories with counts")
+
+
+class FeaturedDecisionResponse(BaseModel):
+    """Public response model for featured homepage decisions."""
+
+    id: str = Field(..., description="Decision UUID")
+    category: str = Field(..., description="Category")
+    slug: str = Field(..., description="URL slug")
+    title: str = Field(..., description="Decision question")
+    meta_description: str | None = Field(None, description="SEO description")
+    synthesis: str | None = Field(None, description="Board synthesis/recommendation")
+    homepage_order: int | None = Field(None, description="Display order")
+
+
+class FeaturedDecisionsResponse(BaseModel):
+    """Response model for featured decisions list."""
+
+    decisions: list[FeaturedDecisionResponse] = Field(..., description="Featured decisions")
+
+
+class FeaturedOrderRequest(BaseModel):
+    """Request model for reordering featured decisions."""
+
+    decision_ids: list[str] = Field(
+        ..., min_length=1, max_length=10, description="Ordered list of decision UUIDs"
+    )
 
 
 class DecisionGenerateRequest(BaseModel):

@@ -7,6 +7,13 @@ import type { PublicBlogPost, PublicDecision } from '$lib/api/types';
 
 const SITE_URL = 'https://boardof.one';
 const ORG_NAME = 'Board of One';
+
+/**
+ * Build canonical URL from path
+ */
+export function canonicalUrl(path: string): string {
+	return `${SITE_URL}${path.startsWith('/') ? path : '/' + path}`;
+}
 const ORG_DESCRIPTION =
 	'A management operating system for founders making real calls. Compress management work, delay management hires, get senior-team leverage without senior-team overhead.';
 

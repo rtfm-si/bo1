@@ -134,7 +134,7 @@
 <svelte:head>
 	<title>{pageTitle} | Decision Library - Board of One</title>
 	<meta name="description" content={pageDescription} />
-	<link rel="canonical" href="https://boardofone.com/decisions/{category}/{slug}" />
+	<link rel="canonical" href="https://boardof.one/decisions/{category}/{slug}" />
 
 	{#if articleJsonLd}
 		{@html `<script type="application/ld+json">${articleJsonLd}</script>`}

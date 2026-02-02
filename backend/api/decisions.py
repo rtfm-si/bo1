@@ -21,6 +21,8 @@ from backend.api.models import (
     DecisionListResponse,
     DecisionPublicResponse,
     DecisionResponse,
+    FeaturedDecisionResponse,
+    FeaturedDecisionsResponse,
 )
 from backend.api.utils.errors import handle_api_errors
 from bo1.state.repositories.decision_repository import decision_repository
@@ -65,6 +67,37 @@ def _decision_to_list_response(d: dict[str, Any]) -> DecisionResponse:
         updated_at=d["updated_at"] if "updated_at" in d else d.get("published_at"),
         view_count=d.get("view_count", 0),
         click_through_count=d.get("click_through_count", 0),
+    )
+
+
+@router.get(
+    "/featured",
+    response_model=FeaturedDecisionsResponse,
+    summary="Get featured homepage decisions",
+    description="Get decisions marked as featured for homepage display.",
+)
+@limiter.limit("60/minute")
+@handle_api_errors("get featured decisions")
+async def get_featured_decisions(
+    request: Request,
+    limit: int = Query(6, ge=1, le=10, description="Max results"),
+) -> FeaturedDecisionsResponse:
+    """Get featured decisions for homepage."""
+    decisions = decision_repository.list_featured_for_homepage(limit=limit)
+
+    return FeaturedDecisionsResponse(
+        decisions=[
+            FeaturedDecisionResponse(
+                id=str(d["id"]),
+                category=d["category"],
+                slug=d["slug"],
+                title=d["title"],
+                meta_description=d.get("meta_description"),
+                synthesis=d.get("synthesis"),
+                homepage_order=d.get("homepage_order"),
+            )
+            for d in decisions
+        ]
     )
 
 

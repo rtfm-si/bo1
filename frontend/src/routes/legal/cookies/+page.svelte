@@ -10,6 +10,8 @@
 
 <svelte:head>
 	<title>Cookie Policy - Board of One</title>
+	<link rel="canonical" href="https://boardof.one/legal/cookies" />
+	<meta property="og:url" content="https://boardof.one/legal/cookies" />
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">

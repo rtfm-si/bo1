@@ -1353,6 +1353,30 @@ class AdminApiClient {
 		return this.fetch<CategoriesResponse>('/api/admin/decisions/categories');
 	}
 
+	async listFeaturedDecisions(): Promise<FeaturedDecisionsResponse> {
+		return this.fetch<FeaturedDecisionsResponse>('/api/admin/decisions/featured');
+	}
+
+	async featureDecision(id: string, order?: number): Promise<Decision> {
+		const query = order !== undefined ? `?order=${order}` : '';
+		return this.fetch<Decision>(`/api/admin/decisions/${id}/feature${query}`, {
+			method: 'POST'
+		});
+	}
+
+	async unfeatureDecision(id: string): Promise<Decision> {
+		return this.fetch<Decision>(`/api/admin/decisions/${id}/unfeature`, {
+			method: 'POST'
+		});
+	}
+
+	async reorderFeaturedDecisions(decisionIds: string[]): Promise<FeaturedDecisionsResponse> {
+		return this.fetch<FeaturedDecisionsResponse>('/api/admin/decisions/featured/order', {
+			method: 'PUT',
+			body: JSON.stringify({ decision_ids: decisionIds })
+		});
+	}
+
 	// =========================================================================
 	// Blog Topic Proposer
 	// =========================================================================
@@ -2290,6 +2314,22 @@ export interface Decision {
 	updated_at: string;
 	view_count: number;
 	click_through_count: number;
+	homepage_featured: boolean;
+	homepage_order: number | null;
+}
+
+export interface FeaturedDecision {
+	id: string;
+	category: DecisionCategory;
+	slug: string;
+	title: string;
+	meta_description?: string;
+	synthesis?: string;
+	homepage_order: number | null;
+}
+
+export interface FeaturedDecisionsResponse {
+	decisions: FeaturedDecision[];
 }
 
 export interface DecisionListResponse {

@@ -90,13 +90,19 @@ class TestMarketingAssetsService:
         mock_client.upload_file.return_value = "https://cdn.example.com/test.png"
         mock_spaces.return_value = mock_client
 
-        # Mock database session
-        mock_session = MagicMock()
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = (1, "2025-01-01", "2025-01-01")
-        mock_session.execute.return_value = mock_result
-        mock_db.return_value.__enter__ = MagicMock(return_value=mock_session)
-        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+        # Mock database session with proper cursor pattern
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {
+            "id": 1,
+            "created_at": "2025-01-01",
+            "updated_at": "2025-01-01",
+        }
+        mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+        mock_conn.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value = mock_conn
 
         result = asset_service.upload_asset(
             user_id="test-user-123",
@@ -117,64 +123,65 @@ class TestMarketingAssetsService:
     @patch("backend.services.marketing_assets.db_session")
     def test_list_assets(self, mock_db):
         """List assets should return filtered results."""
-        mock_session = MagicMock()
+        # Mock database session with proper cursor pattern
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
-        # Mock count query
-        mock_count_result = MagicMock()
-        mock_count_result.fetchone.return_value = (2,)
-
-        # Mock list query - create proper row data
+        # Mock list query - create proper dict row data
         mock_rows = [
-            (
-                1,
-                "user1",
-                None,
-                "test1.png",
-                "key1",
-                "https://cdn/1",
-                "image",
-                "Test 1",
-                None,
-                ["tag1"],
-                None,
-                1024,
-                "image/png",
-                "2025-01-01",
-                "2025-01-01",
-            ),
-            (
-                2,
-                "user1",
-                None,
-                "test2.png",
-                "key2",
-                "https://cdn/2",
-                "image",
-                "Test 2",
-                None,
-                ["tag2"],
-                None,
-                2048,
-                "image/png",
-                "2025-01-01",
-                "2025-01-01",
-            ),
+            {
+                "id": 1,
+                "user_id": "user1",
+                "workspace_id": None,
+                "filename": "test1.png",
+                "storage_key": "key1",
+                "cdn_url": "https://cdn/1",
+                "asset_type": "image",
+                "title": "Test 1",
+                "description": None,
+                "tags": ["tag1"],
+                "metadata": None,
+                "file_size": 1024,
+                "mime_type": "image/png",
+                "created_at": "2025-01-01",
+                "updated_at": "2025-01-01",
+            },
+            {
+                "id": 2,
+                "user_id": "user1",
+                "workspace_id": None,
+                "filename": "test2.png",
+                "storage_key": "key2",
+                "cdn_url": "https://cdn/2",
+                "asset_type": "image",
+                "title": "Test 2",
+                "description": None,
+                "tags": ["tag2"],
+                "metadata": None,
+                "file_size": 2048,
+                "mime_type": "image/png",
+                "created_at": "2025-01-01",
+                "updated_at": "2025-01-01",
+            },
         ]
-        mock_list_result = MagicMock()
-        mock_list_result.fetchall.return_value = mock_rows
 
-        # Return different results based on query
+        # Return different results based on call order
         call_count = [0]
 
-        def side_effect(*args):
+        def execute_side_effect(*args):
             call_count[0] += 1
+            # First call is count query, second is list query
             if call_count[0] == 1:
-                return mock_count_result
-            return mock_list_result
+                mock_cursor.fetchone.return_value = {"count": 2}
+            else:
+                mock_cursor.fetchall.return_value = mock_rows
 
-        mock_session.execute.side_effect = side_effect
-        mock_db.return_value.__enter__ = MagicMock(return_value=mock_session)
-        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.execute.side_effect = execute_side_effect
+        mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+        mock_conn.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value = mock_conn
 
         assets, total = asset_service.list_assets(user_id="user1")
 
@@ -185,12 +192,15 @@ class TestMarketingAssetsService:
     @patch("backend.services.marketing_assets.db_session")
     def test_get_asset_not_found(self, mock_db):
         """Get non-existent asset should return None."""
-        mock_session = MagicMock()
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = None
-        mock_session.execute.return_value = mock_result
-        mock_db.return_value.__enter__ = MagicMock(return_value=mock_session)
-        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+        # Mock database session with proper cursor pattern
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+        mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+        mock_conn.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value = mock_conn
 
         result = asset_service.get_asset("user1", 999)
 

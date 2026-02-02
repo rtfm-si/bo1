@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import '../app.css';
+
+	// Scroll to top on navigation (standard UX behavior)
+	afterNavigate(() => {
+		window.scrollTo(0, 0);
+	});
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
 	import UmamiAnalytics from '$lib/components/UmamiAnalytics.svelte';
 	import { initAuth } from '$lib/stores/auth';

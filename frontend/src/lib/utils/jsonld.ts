@@ -422,3 +422,232 @@ export function createDecisionHowToSchema(decision: PublicDecision): HowToSchema
 		}))
 	};
 }
+
+// =============================================================================
+// Feature Page Schema Types and Functions
+// =============================================================================
+
+export interface FeaturePageConfig {
+	slug: string;
+	title: string;
+	description: string;
+	category: string;
+	datePublished?: string;
+	dateModified?: string;
+}
+
+interface FeatureArticleSchema {
+	'@context': 'https://schema.org';
+	'@type': 'Article';
+	headline: string;
+	description: string;
+	author: Organization;
+	publisher: Organization;
+	mainEntityOfPage: {
+		'@type': 'WebPage';
+		'@id': string;
+	};
+	datePublished?: string;
+	dateModified?: string;
+	articleSection?: string;
+}
+
+/**
+ * Create Article JSON-LD schema for a feature page
+ */
+export function createFeaturePageSchema(config: FeaturePageConfig): FeatureArticleSchema {
+	const canonicalUrl = `${SITE_URL}/features/${config.slug}`;
+
+	const schema: FeatureArticleSchema = {
+		'@context': 'https://schema.org',
+		'@type': 'Article',
+		headline: config.title,
+		description: config.description,
+		author: {
+			'@type': 'Organization',
+			name: ORG_NAME
+		},
+		publisher: {
+			'@type': 'Organization',
+			name: ORG_NAME,
+			url: SITE_URL
+		},
+		mainEntityOfPage: {
+			'@type': 'WebPage',
+			'@id': canonicalUrl
+		},
+		articleSection: config.category
+	};
+
+	if (config.datePublished) {
+		schema.datePublished = config.datePublished;
+	}
+	if (config.dateModified) {
+		schema.dateModified = config.dateModified;
+	}
+
+	return schema;
+}
+
+/**
+ * Create BreadcrumbList JSON-LD schema for a feature page
+ */
+export function createFeatureBreadcrumbSchema(config: FeaturePageConfig): BreadcrumbSchema {
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'BreadcrumbList',
+		itemListElement: [
+			{ '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+			{ '@type': 'ListItem', position: 2, name: 'Features', item: `${SITE_URL}/features` },
+			{ '@type': 'ListItem', position: 3, name: config.title, item: `${SITE_URL}/features/${config.slug}` }
+		]
+	};
+}
+
+/**
+ * Create FAQPage JSON-LD schema for feature FAQs
+ */
+export function createFeatureFAQSchema(
+	faqs: Array<{ question: string; answer: string }>
+): FAQPageSchema {
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: faqs.map((faq) => ({
+			'@type': 'Question',
+			name: faq.question,
+			acceptedAnswer: {
+				'@type': 'Answer',
+				text: faq.answer
+			}
+		}))
+	};
+}
+
+// =============================================================================
+// Use Case Page Schema Types and Functions
+// =============================================================================
+
+export interface UseCasePageConfig {
+	slug: string;
+	title: string;
+	description: string;
+	datePublished?: string;
+	dateModified?: string;
+}
+
+/**
+ * Create Article JSON-LD schema for a use case page
+ */
+export function createUseCasePageSchema(config: UseCasePageConfig): FeatureArticleSchema {
+	const canonicalUrl = `${SITE_URL}/use-cases/${config.slug}`;
+
+	const schema: FeatureArticleSchema = {
+		'@context': 'https://schema.org',
+		'@type': 'Article',
+		headline: config.title,
+		description: config.description,
+		author: {
+			'@type': 'Organization',
+			name: ORG_NAME
+		},
+		publisher: {
+			'@type': 'Organization',
+			name: ORG_NAME,
+			url: SITE_URL
+		},
+		mainEntityOfPage: {
+			'@type': 'WebPage',
+			'@id': canonicalUrl
+		},
+		articleSection: 'Use Case'
+	};
+
+	if (config.datePublished) {
+		schema.datePublished = config.datePublished;
+	}
+	if (config.dateModified) {
+		schema.dateModified = config.dateModified;
+	}
+
+	return schema;
+}
+
+/**
+ * Create BreadcrumbList JSON-LD schema for a use case page
+ */
+export function createUseCaseBreadcrumbSchema(config: UseCasePageConfig): BreadcrumbSchema {
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'BreadcrumbList',
+		itemListElement: [
+			{ '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+			{ '@type': 'ListItem', position: 2, name: 'Use Cases', item: `${SITE_URL}/use-cases` },
+			{ '@type': 'ListItem', position: 3, name: config.title, item: `${SITE_URL}/use-cases/${config.slug}` }
+		]
+	};
+}
+
+// =============================================================================
+// Comparison Page Schema Types and Functions
+// =============================================================================
+
+export interface ComparePageConfig {
+	slug: string;
+	title: string;
+	description: string;
+	datePublished?: string;
+	dateModified?: string;
+}
+
+/**
+ * Create Article JSON-LD schema for a comparison page
+ */
+export function createComparePageSchema(config: ComparePageConfig): FeatureArticleSchema {
+	const canonicalUrl = `${SITE_URL}/compare/${config.slug}`;
+
+	const schema: FeatureArticleSchema = {
+		'@context': 'https://schema.org',
+		'@type': 'Article',
+		headline: config.title,
+		description: config.description,
+		author: {
+			'@type': 'Organization',
+			name: ORG_NAME
+		},
+		publisher: {
+			'@type': 'Organization',
+			name: ORG_NAME,
+			url: SITE_URL
+		},
+		mainEntityOfPage: {
+			'@type': 'WebPage',
+			'@id': canonicalUrl
+		},
+		articleSection: 'Comparison'
+	};
+
+	if (config.datePublished) {
+		schema.datePublished = config.datePublished;
+	}
+	if (config.dateModified) {
+		schema.dateModified = config.dateModified;
+	}
+
+	return schema;
+}
+
+/**
+ * Create BreadcrumbList JSON-LD schema for a comparison page
+ */
+export function createCompareBreadcrumbSchema(config: ComparePageConfig): BreadcrumbSchema {
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'BreadcrumbList',
+		itemListElement: [
+			{ '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+			{ '@type': 'ListItem', position: 2, name: 'Compare', item: `${SITE_URL}/compare` },
+			{ '@type': 'ListItem', position: 3, name: config.title, item: `${SITE_URL}/compare/${config.slug}` }
+		]
+	};
+}

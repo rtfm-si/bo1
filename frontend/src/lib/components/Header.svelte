@@ -217,8 +217,10 @@
 						How It Works
 					</a>
 					<a
-						href="/#features"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+						href="/features"
+						class="text-sm {isActive('/features')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}"
 					>
 						Features
 					</a>
@@ -470,8 +472,10 @@
 						How It Works
 					</a>
 					<a
-						href="/#features"
-						class="block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						href="/features"
+						class={isActive('/features')
+							? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+							: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
 						onclick={closeMobileMenu}
 					>
 						Features

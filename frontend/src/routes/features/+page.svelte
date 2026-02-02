@@ -6,6 +6,21 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import { createOrganizationSchema, serializeJsonLd } from '$lib/utils/jsonld';
+
+	const organizationSchema = createOrganizationSchema();
+
+	// Feature sub-pages for cross-linking
+	const featurePages = {
+		'Data Analysis': '/features/data-analysis',
+		'Competition Intelligence': '/features/competitor-analysis',
+		'Business Context': '/features/tailored-to-you',
+		'Mentor 1:1s': '/features/mentor-chat',
+		'Decisions & Replanning': '/features/decisions-replanning',
+		'Actions & Kanban': '/features/project-management',
+		'Replanning': '/features/decisions-replanning',
+		'SEO & Marketing Analysis': '/features/seo-generation'
+	} as const;
 
 	interface Capability {
 		name: string;
@@ -217,17 +232,20 @@
 		{
 			name: 'SEO & Marketing Analysis',
 			description: 'Understand your search visibility and marketing positioning.',
-			category: 'Growth'
+			category: 'Growth',
+			url: '/features/seo-generation'
 		},
 		{
 			name: 'Benchmark Comparisons',
 			description: 'See how your metrics compare to industry standards.',
-			category: 'Context'
+			category: 'Context',
+			url: '/features/competitor-analysis'
 		},
 		{
 			name: 'Project Organization',
 			description: 'Group related decisions and actions by project or initiative.',
-			category: 'Organization'
+			category: 'Organization',
+			url: '/features/project-management'
 		}
 	];
 </script>
@@ -236,7 +254,7 @@
 	<title>Features - Board of One</title>
 	<meta
 		name="description"
-		content="Explore the full capabilities of Board of One. A management operating system organized around the 6 core functions of management."
+		content="Explore the full capabilities of Board of One. A management operating system organized around the 6 core functions of management: Context, Options, Risk, Alignment, Documentation, and Follow-through."
 	/>
 	<link rel="canonical" href="https://boardof.one/features" />
 	<meta property="og:type" content="website" />
@@ -248,6 +266,7 @@
 	<meta name="twitter:title" content="Features - Board of One" />
 	<meta name="twitter:description" content="A management operating system organized around the 6 core functions of management." />
 	<meta name="twitter:image" content="https://boardof.one/og-image.png" />
+	{@html `<script type="application/ld+json">${serializeJsonLd(organizationSchema)}</script>`}
 </svelte:head>
 
 <div class="min-h-screen flex flex-col bg-white dark:bg-neutral-900">
@@ -295,6 +314,7 @@
 							<!-- Capabilities Grid -->
 							<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pl-0 md:pl-[5.5rem]">
 								{#each func.capabilities as capability}
+									{@const pageUrl = featurePages[capability.name as keyof typeof featurePages]}
 									<div class="bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
 										<h3 class="font-bold text-lg text-neutral-900 dark:text-neutral-100 mb-2">
 											{capability.name}
@@ -302,7 +322,7 @@
 										<p class="text-neutral-600 dark:text-neutral-400 text-sm mb-4">
 											{capability.description}
 										</p>
-										<ul class="space-y-2">
+										<ul class="space-y-2 mb-4">
 											{#each capability.details as detail}
 												<li class="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
 													<span class="text-brand-600 dark:text-brand-400 mt-0.5">+</span>
@@ -310,6 +330,12 @@
 												</li>
 											{/each}
 										</ul>
+										{#if pageUrl}
+											<a href={pageUrl} class="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
+												Learn more
+												<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+											</a>
+										{/if}
 									</div>
 								{/each}
 							</div>
@@ -327,17 +353,21 @@
 				</h2>
 				<div class="grid md:grid-cols-3 gap-6">
 					{#each additionalCapabilities as cap}
-						<div class="text-center">
+						<a href={cap.url} class="text-center block hover:bg-neutral-100 dark:hover:bg-neutral-700/50 rounded-xl p-4 transition-colors">
 							<span class="inline-block px-3 py-1 text-xs font-medium text-brand-600 dark:text-brand-400 bg-brand-100 dark:bg-brand-900/30 rounded-full mb-3">
 								{cap.category}
 							</span>
 							<h3 class="font-bold text-neutral-900 dark:text-neutral-100 mb-1">
 								{cap.name}
 							</h3>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400">
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
 								{cap.description}
 							</p>
-						</div>
+							<span class="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400">
+								Learn more
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+							</span>
+						</a>
 					{/each}
 				</div>
 			</div>

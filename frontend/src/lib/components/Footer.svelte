@@ -9,8 +9,9 @@
 			title: 'Product',
 			links: [
 				{ label: 'How It Works', href: '/#how-it-works' },
-				{ label: 'Features', href: '/#features' },
-				{ label: 'Examples', href: '/examples' },
+				{ label: 'Features', href: '/features' },
+				{ label: 'Use Cases', href: '/use-cases' },
+				{ label: 'Compare', href: '/compare' },
 			],
 		},
 		{

@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from pydantic import Field, ValidationError
 
-from bo1.models.util import FromDbRowMixin, coerce_enum, normalize_uuid
+from bo1.models.util import AuditFieldsMixin, FromDbRowMixin, coerce_enum, normalize_uuid
 
 
 class SampleStatus(str, Enum):
@@ -198,3 +198,36 @@ class TestFromDbRowMixin:
         model = CustomUuidModel.from_db_row(row)
         assert model.id == "not-a-uuid"  # Passed through unchanged
         assert model.external_ref == "12345678-1234-5678-1234-567812345678"
+
+
+class TestAuditFieldsMixin:
+    """Tests for AuditFieldsMixin."""
+
+    def test_mixin_provides_audit_fields(self) -> None:
+        """AuditFieldsMixin provides created_at and updated_at fields."""
+        from datetime import datetime
+
+        class AuditModel(AuditFieldsMixin, FromDbRowMixin):
+            id: str
+            name: str
+
+        now = datetime.now()
+        row = {
+            "id": "abc123",
+            "name": "Test",
+            "created_at": now,
+            "updated_at": now,
+        }
+        model = AuditModel.from_db_row(row)
+        assert model.created_at == now
+        assert model.updated_at == now
+
+    def test_mixin_fields_are_required(self) -> None:
+        """Audit fields are required (no defaults)."""
+
+        class AuditModel(AuditFieldsMixin, FromDbRowMixin):
+            id: str
+
+        # Missing audit fields should raise
+        with pytest.raises(ValidationError):
+            AuditModel.from_db_row({"id": "abc123"})

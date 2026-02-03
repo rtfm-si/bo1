@@ -8,7 +8,7 @@ from enum import Enum
 
 from pydantic import ConfigDict, Field
 
-from bo1.models.util import FromDbRowMixin
+from bo1.models.util import AuditFieldsMixin, FromDbRowMixin
 
 
 class WorkspaceRole(str, Enum):
@@ -19,7 +19,7 @@ class WorkspaceRole(str, Enum):
     MEMBER = "member"
 
 
-class Workspace(FromDbRowMixin):
+class Workspace(AuditFieldsMixin, FromDbRowMixin):
     """Workspace model matching PostgreSQL workspaces table.
 
     Workspaces group users and resources for team collaboration.
@@ -29,8 +29,6 @@ class Workspace(FromDbRowMixin):
     name: str = Field(..., description="Workspace name", max_length=255)
     slug: str = Field(..., description="URL-friendly unique identifier", max_length=63)
     owner_id: str = Field(..., description="User who owns the workspace")
-    created_at: datetime = Field(..., description="Workspace creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
 
     model_config = ConfigDict(
         from_attributes=True,

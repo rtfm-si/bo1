@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from bo1.models.util import FromDbRowMixin
+from bo1.models.util import AuditFieldsMixin, FromDbRowMixin
 
 
 class DatasetFolderBase(BaseModel):
@@ -42,15 +42,13 @@ class DatasetFolderUpdate(BaseModel):
     tags: list[str] | None = Field(None, description="Replace tags if provided")
 
 
-class DatasetFolderResponse(DatasetFolderBase, FromDbRowMixin):
+class DatasetFolderResponse(DatasetFolderBase, AuditFieldsMixin, FromDbRowMixin):
     """Response model for a folder."""
 
     id: str = Field(..., description="Folder UUID")
     parent_folder_id: str | None = Field(None, description="Parent folder UUID")
     tags: list[str] = Field(default_factory=list, description="Folder tags")
     dataset_count: int = Field(0, description="Number of datasets in folder")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)
 

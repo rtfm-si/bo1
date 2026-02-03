@@ -12,13 +12,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from bo1.models import WorkspaceRole
 
-class MemberRole(str, Enum):
-    """Role within a workspace."""
-
-    OWNER = "owner"
-    ADMIN = "admin"
-    MEMBER = "member"
+# Alias for backwards compatibility in OpenAPI schema
+MemberRole = WorkspaceRole
 
 
 class WorkspaceCreate(BaseModel):

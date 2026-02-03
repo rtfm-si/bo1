@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field
 
-from bo1.models.util import FromDbRowMixin
+from bo1.models.util import AuditFieldsMixin, FromDbRowMixin
 
 
 class SessionStatus(str, Enum):
@@ -22,7 +22,7 @@ class SessionStatus(str, Enum):
     KILLED = "killed"
 
 
-class Session(FromDbRowMixin):
+class Session(AuditFieldsMixin, FromDbRowMixin):
     """Session model matching PostgreSQL sessions table.
 
     Provides type-safe access to session data with validation.
@@ -39,8 +39,6 @@ class Session(FromDbRowMixin):
     phase: str = Field("problem_decomposition", description="Current deliberation phase")
     total_cost: float = Field(0.0, description="Total cost in USD")
     round_number: int = Field(0, description="Current round number")
-    created_at: datetime = Field(..., description="Session creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
     synthesis_text: str | None = Field(None, description="Final synthesis text")
     final_recommendation: str | None = Field(None, description="Final recommendation")
     # Termination fields (from z3_add_session_termination migration)

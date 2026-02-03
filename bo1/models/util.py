@@ -4,10 +4,11 @@ Consolidates common patterns for UUID normalization and enum coercion
 used across from_db_row() methods.
 """
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, ClassVar, TypeVar, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -146,6 +147,21 @@ def _is_list_type(annotation: Any) -> bool:
             if get_origin(arg) is list:
                 return True
     return False
+
+
+class AuditFieldsMixin(BaseModel):
+    """Mixin providing standard audit timestamp fields.
+
+    Use with FromDbRowMixin for automatic from_db_row() support.
+
+    Example:
+        class MyModel(AuditFieldsMixin, FromDbRowMixin):
+            id: str
+            name: str
+    """
+
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
 
 
 class FromDbRowMixin(BaseModel):

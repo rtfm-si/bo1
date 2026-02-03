@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from bo1.models.util import (
+    AuditFieldsMixin,
     FromDbRowMixin,
     coerce_enum,
     normalize_uuid,
@@ -294,7 +295,7 @@ class DataRequirements(BaseModel):
 # --- Main Analysis Model ---
 
 
-class DatasetObjectiveAnalysis(BaseModel):
+class DatasetObjectiveAnalysis(AuditFieldsMixin, BaseModel):
     """Full objective-aligned analysis result for a dataset.
 
     Stores the complete analysis including relevance assessment,
@@ -317,8 +318,6 @@ class DatasetObjectiveAnalysis(BaseModel):
     selected_objective_id: str | None = Field(
         None, description="Pre-selected objective from 'What Data Do I Need?' flow"
     )
-    created_at: datetime = Field(..., description="Analysis creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
 
     model_config = ConfigDict(
         from_attributes=True,

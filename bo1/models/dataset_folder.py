@@ -7,9 +7,10 @@ Pydantic models for folder management supporting:
 """
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from bo1.models.util import FromDbRowMixin
 
 
 class DatasetFolderBase(BaseModel):
@@ -41,7 +42,7 @@ class DatasetFolderUpdate(BaseModel):
     tags: list[str] | None = Field(None, description="Replace tags if provided")
 
 
-class DatasetFolderResponse(DatasetFolderBase):
+class DatasetFolderResponse(DatasetFolderBase, FromDbRowMixin):
     """Response model for a folder."""
 
     id: str = Field(..., description="Folder UUID")
@@ -52,30 +53,6 @@ class DatasetFolderResponse(DatasetFolderBase):
     updated_at: datetime = Field(..., description="Last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)
-
-    @classmethod
-    def from_db_row(cls, row: dict[str, Any]) -> "DatasetFolderResponse":
-        """Create response from database row dict."""
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        parent_id = row.get("parent_folder_id")
-        if parent_id and hasattr(parent_id, "hex"):
-            parent_id = str(parent_id)
-
-        return cls(
-            id=id_val,
-            name=row["name"],
-            description=row.get("description"),
-            color=row.get("color"),
-            icon=row.get("icon"),
-            parent_folder_id=parent_id,
-            tags=row.get("tags", []),
-            dataset_count=row.get("dataset_count", 0),
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
 
 
 class DatasetFolderTree(DatasetFolderResponse):

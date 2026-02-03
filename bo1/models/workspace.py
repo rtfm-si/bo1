@@ -5,9 +5,10 @@ Provides type-safe workspace and workspace member handling with Pydantic validat
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from bo1.models.util import FromDbRowMixin
 
 
 class WorkspaceRole(str, Enum):
@@ -18,7 +19,7 @@ class WorkspaceRole(str, Enum):
     MEMBER = "member"
 
 
-class Workspace(BaseModel):
+class Workspace(FromDbRowMixin):
     """Workspace model matching PostgreSQL workspaces table.
 
     Workspaces group users and resources for team collaboration.
@@ -45,36 +46,8 @@ class Workspace(BaseModel):
         },
     )
 
-    @classmethod
-    def from_db_row(cls, row: dict[str, Any]) -> "Workspace":
-        """Create Workspace from database row dict.
 
-        Args:
-            row: Dict from psycopg2 cursor with workspace columns
-
-        Returns:
-            Workspace instance with validated data
-
-        Example:
-            >>> row = {"id": "uuid", "name": "Acme Corp", "slug": "acme-corp", ...}
-            >>> workspace = Workspace.from_db_row(row)
-        """
-        # Handle UUID field (psycopg2 may return UUID object or string)
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        return cls(
-            id=id_val,
-            name=row["name"],
-            slug=row["slug"],
-            owner_id=row["owner_id"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
-
-
-class WorkspaceMember(BaseModel):
+class WorkspaceMember(FromDbRowMixin):
     """Workspace member model matching PostgreSQL workspace_members table.
 
     Represents a user's membership in a workspace with their role.
@@ -101,40 +74,3 @@ class WorkspaceMember(BaseModel):
             ]
         },
     )
-
-    @classmethod
-    def from_db_row(cls, row: dict[str, Any]) -> "WorkspaceMember":
-        """Create WorkspaceMember from database row dict.
-
-        Args:
-            row: Dict from psycopg2 cursor with workspace_members columns
-
-        Returns:
-            WorkspaceMember instance with validated data
-
-        Example:
-            >>> row = {"id": "uuid", "workspace_id": "ws_uuid", "user_id": "u1", ...}
-            >>> member = WorkspaceMember.from_db_row(row)
-        """
-        # Handle role as string or enum
-        role = row["role"]
-        if isinstance(role, str):
-            role = WorkspaceRole(role)
-
-        # Handle UUID fields (psycopg2 may return UUID object or string)
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        workspace_id = row["workspace_id"]
-        if hasattr(workspace_id, "hex"):
-            workspace_id = str(workspace_id)
-
-        return cls(
-            id=id_val,
-            workspace_id=workspace_id,
-            user_id=row["user_id"],
-            role=role,
-            invited_by=row.get("invited_by"),
-            joined_at=row["joined_at"],
-        )

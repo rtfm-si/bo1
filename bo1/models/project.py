@@ -9,6 +9,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bo1.models.util import coerce_enum, normalize_uuid, normalize_uuid_required
+
 
 class ProjectStatus(str, Enum):
     """Project lifecycle status."""
@@ -102,33 +104,15 @@ class Project(BaseModel):
             >>> row = {"id": "uuid", "user_id": "u1", "name": "Test", ...}
             >>> project = Project.from_db_row(row)
         """
-        # Handle status as string or enum
-        status = row.get("status", "active")
-        if isinstance(status, str):
-            status = ProjectStatus(status)
-
-        # Handle UUID fields (psycopg2 returns strings, not UUID objects)
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        workspace_id = row.get("workspace_id")
-        if workspace_id is not None and hasattr(workspace_id, "hex"):
-            workspace_id = str(workspace_id)
-
-        source_project_id = row.get("source_project_id")
-        if source_project_id is not None and hasattr(source_project_id, "hex"):
-            source_project_id = str(source_project_id)
-
         return cls(
             # Identity
-            id=id_val,
+            id=normalize_uuid_required(row["id"]),
             user_id=row["user_id"],
             # Core fields
             name=row["name"],
             description=row.get("description"),
             # Status
-            status=status,
+            status=coerce_enum(row.get("status"), ProjectStatus, ProjectStatus.ACTIVE),
             # Dates
             target_start_date=row.get("target_start_date"),
             target_end_date=row.get("target_end_date"),
@@ -144,10 +128,10 @@ class Project(BaseModel):
             color=row.get("color"),
             icon=row.get("icon"),
             # Workspace
-            workspace_id=workspace_id,
+            workspace_id=normalize_uuid(row.get("workspace_id")),
             # Versioning
             version=row.get("version", 1),
-            source_project_id=source_project_id,
+            source_project_id=normalize_uuid(row.get("source_project_id")),
             # Timestamps
             created_at=row["created_at"],
             updated_at=row["updated_at"],

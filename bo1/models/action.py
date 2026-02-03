@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bo1.models.util import coerce_enum, normalize_uuid, normalize_uuid_required
+
 
 class ActionStatus(str, Enum):
     """Action lifecycle status."""
@@ -177,47 +179,18 @@ class Action(BaseModel):
             >>> row = {"id": "uuid", "user_id": "u1", "title": "Test", ...}
             >>> action = Action.from_db_row(row)
         """
-        # Handle status as string or enum
-        status = row.get("status", "todo")
-        if isinstance(status, str):
-            status = ActionStatus(status)
-
-        # Handle priority as string or enum
-        priority = row.get("priority", "medium")
-        if isinstance(priority, str):
-            priority = ActionPriority(priority)
-
-        # Handle category as string or enum
-        category = row.get("category", "implementation")
-        if isinstance(category, str):
-            category = ActionCategory(category)
-
-        # Handle failure_reason_category as string or enum
-        failure_reason_category = row.get("failure_reason_category")
-        if isinstance(failure_reason_category, str):
-            failure_reason_category = FailureReasonCategory(failure_reason_category)
-
-        # Handle UUID fields (psycopg2 returns strings, not UUID objects)
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        project_id = row.get("project_id")
-        if project_id is not None and hasattr(project_id, "hex"):
-            project_id = str(project_id)
-
-        replanned_from_id = row.get("replanned_from_id")
-        if replanned_from_id is not None and hasattr(replanned_from_id, "hex"):
-            replanned_from_id = str(replanned_from_id)
-
         # Handle array fields (None → empty list)
         what_and_how = row.get("what_and_how") or []
         success_criteria = row.get("success_criteria") or []
         kill_criteria = row.get("kill_criteria") or []
 
+        # Handle optional failure_reason_category
+        frc = row.get("failure_reason_category")
+        failure_reason_category = coerce_enum(frc, FailureReasonCategory) if frc else None
+
         return cls(
             # Identity
-            id=id_val,
+            id=normalize_uuid_required(row["id"]),
             user_id=row["user_id"],
             source_session_id=row["source_session_id"],
             # Core fields
@@ -227,9 +200,11 @@ class Action(BaseModel):
             success_criteria=success_criteria,
             kill_criteria=kill_criteria,
             # Status and tracking
-            status=status,
-            priority=priority,
-            category=category,
+            status=coerce_enum(row.get("status"), ActionStatus, ActionStatus.TODO),
+            priority=coerce_enum(row.get("priority"), ActionPriority, ActionPriority.MEDIUM),
+            category=coerce_enum(
+                row.get("category"), ActionCategory, ActionCategory.IMPLEMENTATION
+            ),
             sort_order=row.get("sort_order", 0),
             confidence=Decimal(str(row.get("confidence", 0.0))),
             source_section=row.get("source_section"),
@@ -249,7 +224,7 @@ class Action(BaseModel):
             blocked_at=row.get("blocked_at"),
             auto_unblock=row.get("auto_unblock", False),
             # Project link
-            project_id=project_id,
+            project_id=normalize_uuid(row.get("project_id")),
             # Replanning (a8)
             replan_session_id=row.get("replan_session_id"),
             replan_requested_at=row.get("replan_requested_at"),
@@ -260,7 +235,7 @@ class Action(BaseModel):
             replan_session_created_id=row.get("replan_session_created_id"),
             # Close/replan (z4)
             closure_reason=row.get("closure_reason"),
-            replanned_from_id=replanned_from_id,
+            replanned_from_id=normalize_uuid(row.get("replanned_from_id")),
             # Soft delete
             deleted_at=row.get("deleted_at"),
             # Post-mortem

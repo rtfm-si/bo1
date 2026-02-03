@@ -11,6 +11,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bo1.models.util import (
+    FromDbRowMixin,
+    coerce_enum,
+    normalize_uuid,
+    normalize_uuid_required,
+)
+
 # --- Enums ---
 
 
@@ -338,28 +345,6 @@ class DatasetObjectiveAnalysis(BaseModel):
         Returns:
             DatasetObjectiveAnalysis instance with validated data
         """
-        # Handle UUID fields
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        dataset_id = row["dataset_id"]
-        if hasattr(dataset_id, "hex"):
-            dataset_id = str(dataset_id)
-
-        user_id = row["user_id"]
-        if hasattr(user_id, "hex"):
-            user_id = str(user_id)
-
-        selected_obj_id = row.get("selected_objective_id")
-        if selected_obj_id and hasattr(selected_obj_id, "hex"):
-            selected_obj_id = str(selected_obj_id)
-
-        # Handle analysis_mode as string or enum
-        analysis_mode = row["analysis_mode"]
-        if isinstance(analysis_mode, str):
-            analysis_mode = AnalysisMode(analysis_mode)
-
         # Parse JSONB fields
         relevance_assessment = None
         if row.get("relevance_assessment"):
@@ -374,22 +359,22 @@ class DatasetObjectiveAnalysis(BaseModel):
             insights = [Insight.model_validate(i) for i in row["insights"]]
 
         return cls(
-            id=id_val,
-            dataset_id=dataset_id,
-            user_id=user_id,
-            analysis_mode=analysis_mode,
+            id=normalize_uuid_required(row["id"]),
+            dataset_id=normalize_uuid_required(row["dataset_id"]),
+            user_id=normalize_uuid_required(row["user_id"]),
+            analysis_mode=coerce_enum(row["analysis_mode"], AnalysisMode),
             relevance_score=row.get("relevance_score"),
             relevance_assessment=relevance_assessment,
             data_story=data_story,
             insights=insights,
             context_snapshot=row.get("context_snapshot"),
-            selected_objective_id=selected_obj_id,
+            selected_objective_id=normalize_uuid(row.get("selected_objective_id")),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
 
 
-class InsightObjectiveLink(BaseModel):
+class InsightObjectiveLink(FromDbRowMixin):
     """Link between an insight and an objective for tracking."""
 
     id: str = Field(..., description="Link UUID")
@@ -401,29 +386,3 @@ class InsightObjectiveLink(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
 
     model_config = ConfigDict(from_attributes=True)
-
-    @classmethod
-    def from_db_row(cls, row: dict[str, Any]) -> "InsightObjectiveLink":
-        """Create InsightObjectiveLink from database row dict."""
-        # Handle UUID fields
-        id_val = row["id"]
-        if hasattr(id_val, "hex"):
-            id_val = str(id_val)
-
-        analysis_id = row["analysis_id"]
-        if hasattr(analysis_id, "hex"):
-            analysis_id = str(analysis_id)
-
-        objective_id = row.get("objective_id")
-        if objective_id and hasattr(objective_id, "hex"):
-            objective_id = str(objective_id)
-
-        return cls(
-            id=id_val,
-            insight_id=row["insight_id"],
-            analysis_id=analysis_id,
-            objective_id=objective_id,
-            objective_name=row.get("objective_name"),
-            relevance_score=row.get("relevance_score"),
-            created_at=row["created_at"],
-        )

@@ -7,3 +7,8 @@
 # id = "GHSA-xxxx-xxxx-xxxx"
 # reason = "Brief justification why this is safe to ignore"
 # expiry = "2025-06-01" # Optional: re-evaluate after this date
+
+[[IgnoredVulns]]
+id = "GHSA-6vgw-5pg2-w6jp"
+reason = "Low severity (CVSS 2.0) pip path traversal. We use uv with locked deps, not arbitrary packages. Upgrade when pip 26.0 available in uv."
+expiry = "2026-04-01"

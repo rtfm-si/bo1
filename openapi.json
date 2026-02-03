@@ -12953,6 +12953,24 @@
             "description": "Founder context",
             "title": "Founder Context"
           },
+          "homepage_featured": {
+            "default": false,
+            "description": "Featured on homepage",
+            "title": "Homepage Featured",
+            "type": "boolean"
+          },
+          "homepage_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Homepage display order",
+            "title": "Homepage Order"
+          },
           "id": {
             "description": "Decision UUID",
             "title": "Id",
@@ -15539,6 +15557,113 @@
           "count"
         ],
         "title": "FeatureFlagListResponse",
+        "type": "object"
+      },
+      "FeaturedDecisionResponse": {
+        "description": "Public response model for featured homepage decisions.",
+        "properties": {
+          "category": {
+            "description": "Category",
+            "title": "Category",
+            "type": "string"
+          },
+          "homepage_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display order",
+            "title": "Homepage Order"
+          },
+          "id": {
+            "description": "Decision UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO description",
+            "title": "Meta Description"
+          },
+          "slug": {
+            "description": "URL slug",
+            "title": "Slug",
+            "type": "string"
+          },
+          "synthesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Board synthesis/recommendation",
+            "title": "Synthesis"
+          },
+          "title": {
+            "description": "Decision question",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "slug",
+          "title"
+        ],
+        "title": "FeaturedDecisionResponse",
+        "type": "object"
+      },
+      "FeaturedDecisionsResponse": {
+        "description": "Response model for featured decisions list.",
+        "properties": {
+          "decisions": {
+            "description": "Featured decisions",
+            "items": {
+              "$ref": "#/components/schemas/FeaturedDecisionResponse"
+            },
+            "title": "Decisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decisions"
+        ],
+        "title": "FeaturedDecisionsResponse",
+        "type": "object"
+      },
+      "FeaturedOrderRequest": {
+        "description": "Request model for reordering featured decisions.",
+        "properties": {
+          "decision_ids": {
+            "description": "Ordered list of decision UUIDs",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Decision Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decision_ids"
+        ],
+        "title": "FeaturedOrderRequest",
         "type": "object"
       },
       "FeedbackAnalysis": {
@@ -40574,6 +40699,164 @@
         ]
       }
     },
+    "/api/admin/decisions/featured": {
+      "get": {
+        "description": "Get decisions marked as featured for homepage display.",
+        "operationId": "list_featured_decisions_api_admin_decisions_featured_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturedDecisionsResponse"
+                }
+              }
+            },
+            "description": "Featured decisions retrieved successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get featured decisions",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/featured/order": {
+      "put": {
+        "description": "Reorder featured decisions by providing ordered list of IDs.",
+        "operationId": "reorder_featured_decisions_api_admin_decisions_featured_order_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeaturedOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturedDecisionsResponse"
+                }
+              }
+            },
+            "description": "Order updated successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reorder featured decisions",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
     "/api/admin/decisions/generate": {
       "post": {
         "description": "Run a deliberation and create a decision page from it.",
@@ -40967,6 +41250,117 @@
         ]
       }
     },
+    "/api/admin/decisions/{decision_id}/feature": {
+      "post": {
+        "description": "Add a decision to the homepage featured list.",
+        "operationId": "feature_decision_api_admin_decisions__decision_id__feature_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Display order (lower = first)",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Display order (lower = first)",
+              "title": "Order"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision featured successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Feature decision on homepage",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
     "/api/admin/decisions/{decision_id}/publish": {
       "post": {
         "description": "Publish a decision immediately.",
@@ -41053,6 +41447,99 @@
           }
         },
         "summary": "Publish decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/{decision_id}/unfeature": {
+      "post": {
+        "description": "Remove a decision from the homepage featured list.",
+        "operationId": "unfeature_decision_api_admin_decisions__decision_id__unfeature_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Decision unfeatured successfully"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Remove decision from homepage",
         "tags": [
           "admin",
           "admin",
@@ -62761,6 +63248,55 @@
           }
         },
         "summary": "Get decision categories",
+        "tags": [
+          "decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/featured": {
+      "get": {
+        "description": "Get decisions marked as featured for homepage display.",
+        "operationId": "get_featured_decisions_api_v1_decisions_featured_get",
+        "parameters": [
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "description": "Max results",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturedDecisionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get featured homepage decisions",
         "tags": [
           "decisions",
           "decisions"

@@ -124,6 +124,14 @@ ab_test_results/
 zzz_important/
 zzz_project/
 
+# Development-only folders
+audits/
+.claude/
+test_data/
+
+# Development markdown files (task tracking, scratch notes)
+_*.md
+
 # Playwright MCP screenshots (temporary inspection files)
 .playwright-mcp/
 backups/*.sql

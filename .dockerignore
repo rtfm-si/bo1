@@ -142,6 +142,12 @@ ab_test_results/
 zzz_important/
 zzz_project/
 
+# Development-only folders
+audits/
+.claude/
+test_data/
+docs/
+
 # Markdown files (exclude all except README.md in root - needed for Docker build)
 *.md
 !README.md

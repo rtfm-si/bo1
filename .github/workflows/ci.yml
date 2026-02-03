@@ -72,7 +72,8 @@ jobs:
         run: uv run python scripts/filter_openapi_spec.py openapi.json openapi-public.json
 
       - name: Scan Python dependencies for vulnerabilities
-        run: uv run pip-audit --progress-spinner off --skip-editable
+        # --ignore-vuln CVE-2026-1703: Low severity pip path traversal (CVSS 2.0), mitigated by uv locked deps
+        run: uv run pip-audit --progress-spinner off --skip-editable --ignore-vuln CVE-2026-1703
 
       # Frontend linting
       - name: Cache Node modules

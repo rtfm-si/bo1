@@ -52,6 +52,9 @@ class SubProblemProgress:
     final_synthesis: str | None = None
     final_recommendation: str | None = None
 
+    # Cached formatted context (optimization - avoid rebuilding string each call)
+    _cached_formatted: str | None = field(default=None, repr=False)
+
     def get_progress_percentage(self) -> float:
         """Return progress as percentage (0.0 - 1.0)."""
         if self.is_complete:
@@ -163,6 +166,8 @@ class PartialContextProvider:
             progress = self._progress[sp_index]
             progress.completed_rounds = round_num
             progress.round_summaries.append(round_summary)
+            # Invalidate cached formatted context on update
+            progress._cached_formatted = None
 
             if early_insights:
                 progress.early_insights.extend(early_insights)
@@ -202,6 +207,8 @@ class PartialContextProvider:
             progress.is_complete = True
             progress.final_synthesis = final_synthesis
             progress.final_recommendation = final_recommendation
+            # Invalidate cached formatted context on completion
+            progress._cached_formatted = None
 
             # Signal completion
             self._ready_events[sp_index].set()  # Also set ready if not already
@@ -323,6 +330,50 @@ class PartialContextProvider:
                 all_dependencies_complete=all_complete,
             )
 
+    def _format_single_progress(self, progress: SubProblemProgress) -> str:
+        """Format a single sub-problem progress into a context string.
+
+        Uses cached result if available.
+
+        Args:
+            progress: Sub-problem progress object
+
+        Returns:
+            Formatted context string for this sub-problem
+        """
+        # Return cached version if available
+        if progress._cached_formatted is not None:
+            logger.debug(f"_format_single_progress: Cache hit for SP {progress.sp_index}")
+            return progress._cached_formatted
+
+        # Build formatted string
+        parts = []
+        status = (
+            "Complete"
+            if progress.is_complete
+            else f"In Progress ({progress.completed_rounds}/{progress.max_rounds} rounds)"
+        )
+        parts.append(f"\n**{progress.goal}** [{status}]")
+
+        if progress.is_complete and progress.final_recommendation:
+            parts.append(f"Key Conclusion: {progress.final_recommendation}")
+        elif progress.early_insights:
+            parts.append("Emerging Insights:")
+            for insight in progress.early_insights[:3]:  # Limit to 3
+                parts.append(f"  - {insight}")
+        elif progress.round_summaries:
+            # Use latest round summary as fallback
+            parts.append(f"Latest Discussion: {progress.round_summaries[-1][:300]}...")
+
+        if progress.expert_panel:
+            parts.append(f"Expert Panel: {', '.join(progress.expert_panel)}")
+        parts.append("")
+
+        formatted = "\n".join(parts)
+        # Cache the result
+        progress._cached_formatted = formatted
+        return formatted
+
     def _format_partial_context(self, dep_progress: dict[int, SubProblemProgress]) -> str:
         """Format dependency progress into a context string for prompts.
 
@@ -339,26 +390,7 @@ class PartialContextProvider:
         parts.append("Context from related focus areas (may be in-progress):\n")
 
         for _sp_idx, progress in sorted(dep_progress.items()):
-            status = (
-                "Complete"
-                if progress.is_complete
-                else f"In Progress ({progress.completed_rounds}/{progress.max_rounds} rounds)"
-            )
-            parts.append(f"\n**{progress.goal}** [{status}]")
-
-            if progress.is_complete and progress.final_recommendation:
-                parts.append(f"Key Conclusion: {progress.final_recommendation}")
-            elif progress.early_insights:
-                parts.append("Emerging Insights:")
-                for insight in progress.early_insights[:3]:  # Limit to 3
-                    parts.append(f"  - {insight}")
-            elif progress.round_summaries:
-                # Use latest round summary as fallback
-                parts.append(f"Latest Discussion: {progress.round_summaries[-1][:300]}...")
-
-            if progress.expert_panel:
-                parts.append(f"Expert Panel: {', '.join(progress.expert_panel)}")
-            parts.append("")
+            parts.append(self._format_single_progress(progress))
 
         parts.append("</dependency_context>")
         return "\n".join(parts)

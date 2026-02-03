@@ -118,8 +118,15 @@ def build_dependency_context(
             logger.warning(f"No result found for dependency {dep_id}")
             continue
 
-        # Extract key recommendation from synthesis and sanitize for re-injection
-        recommendation = extract_recommendation_from_synthesis(dep_result.synthesis)
+        # Use cached recommendation if available, otherwise extract from synthesis
+        if dep_result.extracted_recommendation:
+            recommendation = dep_result.extracted_recommendation
+            logger.debug(f"build_dependency_context: Using cached recommendation for {dep_id}")
+        else:
+            recommendation = extract_recommendation_from_synthesis(dep_result.synthesis)
+            logger.debug(
+                f"build_dependency_context: Extracted recommendation for {dep_id} (cache miss)"
+            )
         recommendation = sanitize_user_input(recommendation, context="synthesis_recommendation")
 
         context_parts.append(f"""

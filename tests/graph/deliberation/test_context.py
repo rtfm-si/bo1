@@ -207,3 +207,76 @@ class TestBuildSubproblemContextForAll:
 
         assert "CFO, CMO" in result
         assert "CMO, VP_Sales" in result
+
+
+class TestCachedRecommendationExtraction:
+    """Test cached recommendation extraction optimization."""
+
+    @pytest.fixture
+    def problem_with_deps(self):
+        """Create problem with dependent sub-problems."""
+        return Problem(
+            title="Test Problem",
+            description="Test description",
+            context="Test context",
+            constraints=[],
+            sub_problems=[
+                SubProblem(
+                    id="sp1",
+                    goal="Determine pricing",
+                    context="",
+                    complexity_score=5,
+                    dependencies=[],
+                ),
+                SubProblem(
+                    id="sp2",
+                    goal="Select channels",
+                    context="",
+                    complexity_score=5,
+                    dependencies=["sp1"],
+                ),
+            ],
+        )
+
+    def test_uses_cached_recommendation_when_available(self, problem_with_deps):
+        """build_dependency_context uses cached recommendation when available."""
+        sp1_result = SubProblemResult(
+            sub_problem_id="sp1",
+            sub_problem_goal="Determine pricing",
+            synthesis="<recommendation>Use $49 pricing.</recommendation>",
+            votes=[],
+            contribution_count=5,
+            cost=0.10,
+            duration_seconds=30.0,
+            expert_panel=["CFO", "CMO"],
+            expert_summaries={},
+            extracted_recommendation="Cached recommendation text",
+        )
+        sp2 = problem_with_deps.sub_problems[1]
+        result = build_dependency_context(sp2, [sp1_result], problem_with_deps)
+
+        # Should use the cached value, not extract from synthesis
+        assert result is not None
+        assert "Cached recommendation text" in result
+        assert "Use $49 pricing" not in result
+
+    def test_extracts_when_cache_not_available(self, problem_with_deps):
+        """build_dependency_context extracts from synthesis when cache is None."""
+        sp1_result = SubProblemResult(
+            sub_problem_id="sp1",
+            sub_problem_goal="Determine pricing",
+            synthesis="<recommendation>Use $49 pricing.</recommendation>",
+            votes=[],
+            contribution_count=5,
+            cost=0.10,
+            duration_seconds=30.0,
+            expert_panel=["CFO", "CMO"],
+            expert_summaries={},
+            extracted_recommendation=None,  # No cache
+        )
+        sp2 = problem_with_deps.sub_problems[1]
+        result = build_dependency_context(sp2, [sp1_result], problem_with_deps)
+
+        # Should extract from synthesis
+        assert result is not None
+        assert "Use $49 pricing" in result

@@ -326,3 +326,125 @@ class TestSpeculativeExecution:
         context = await provider.get_partial_context(sp_index=1, dependency_indices=[])
         assert context.all_dependencies_ready is True
         assert context.all_dependencies_complete is True
+
+
+class TestPartialContextCaching:
+    """Test partial context caching optimization."""
+
+    def test_cached_formatted_initial_none(self):
+        """Test _cached_formatted is initially None."""
+        progress = SubProblemProgress(
+            sp_index=0,
+            sp_id="sp_001",
+            goal="Test goal",
+        )
+        assert progress._cached_formatted is None
+
+    @pytest.mark.asyncio
+    async def test_update_round_context_invalidates_cache(self):
+        """Test that update_round_context invalidates the cached formatted context."""
+        provider = PartialContextProvider(early_start_threshold=2)
+
+        await provider.register_subproblem(
+            sp_index=0,
+            sp_id="sp_001",
+            goal="Market analysis",
+        )
+
+        # Update after round 1
+        await provider.update_round_context(
+            sp_index=0,
+            round_num=1,
+            round_summary="Initial exploration",
+        )
+
+        # Manually set cache to verify invalidation
+        progress = (await provider.get_all_progress())[0]
+        progress._cached_formatted = "cached_value"
+
+        # Update should invalidate
+        await provider.update_round_context(
+            sp_index=0,
+            round_num=2,
+            round_summary="Round 2",
+        )
+
+        progress = (await provider.get_all_progress())[0]
+        assert progress._cached_formatted is None
+
+    @pytest.mark.asyncio
+    async def test_mark_complete_invalidates_cache(self):
+        """Test that mark_complete invalidates the cached formatted context."""
+        provider = PartialContextProvider(early_start_threshold=2)
+
+        await provider.register_subproblem(
+            sp_index=0,
+            sp_id="sp_001",
+            goal="Market analysis",
+        )
+
+        # Manually set cache
+        progress = (await provider.get_all_progress())[0]
+        progress._cached_formatted = "cached_value"
+
+        # mark_complete should invalidate
+        await provider.mark_complete(
+            sp_index=0,
+            final_synthesis="Done",
+            final_recommendation="Go with plan A",
+        )
+
+        progress = (await provider.get_all_progress())[0]
+        assert progress._cached_formatted is None
+
+    @pytest.mark.asyncio
+    async def test_format_caches_result(self):
+        """Test that _format_single_progress caches its result."""
+        provider = PartialContextProvider(early_start_threshold=2)
+
+        await provider.register_subproblem(
+            sp_index=0,
+            sp_id="sp_001",
+            goal="Market analysis",
+            expert_panel=["analyst", "strategist"],
+        )
+
+        await provider.update_round_context(
+            sp_index=0,
+            round_num=2,
+            round_summary="Analysis complete",
+        )
+
+        # Get context (triggers formatting)
+        await provider.get_partial_context(sp_index=1, dependency_indices=[0])
+
+        # Check that cache was populated
+        progress = (await provider.get_all_progress())[0]
+        assert progress._cached_formatted is not None
+        assert "Market analysis" in progress._cached_formatted
+
+    @pytest.mark.asyncio
+    async def test_cached_format_reused_on_subsequent_calls(self):
+        """Test that cached format is reused without recomputation."""
+        provider = PartialContextProvider(early_start_threshold=2)
+
+        await provider.register_subproblem(
+            sp_index=0,
+            sp_id="sp_001",
+            goal="Market analysis",
+        )
+
+        await provider.update_round_context(
+            sp_index=0,
+            round_num=2,
+            round_summary="Analysis complete",
+        )
+
+        # First call populates cache
+        context1 = await provider.get_partial_context(sp_index=1, dependency_indices=[0])
+
+        # Second call should use cache
+        context2 = await provider.get_partial_context(sp_index=1, dependency_indices=[0])
+
+        # Both should have same content
+        assert context1.available_context == context2.available_context

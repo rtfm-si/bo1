@@ -63,6 +63,11 @@ class SubProblemResult(BaseModel):
         default_factory=dict,
         description="Per-expert contribution summaries for memory (persona_code → 50-100 token summary)",
     )
+    # Cached extraction (optimization - avoid repeated XML parsing in build_dependency_context)
+    extracted_recommendation: str | None = Field(
+        default=None,
+        description="Cached extracted recommendation from synthesis (avoids re-parsing XML)",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={

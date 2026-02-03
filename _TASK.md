@@ -11,8 +11,8 @@ _Last updated: 2026-02-03 (Full Audit Suite - DRY focus)_
 **DATA MODEL DRY (80+ instances)**
 - [x] [DATA][P1] Create `bo1/models/util.py` with `normalize_uuid()` and `coerce_enum()` helpers - consolidates 15+ UUID and 8+ enum coercion patterns ✅ DONE
 - [x] [DATA][P1] Create `from_db_row` base mixin for model instantiation - standardizes 15 model methods ✅ DONE
-- [ ] [DATA][P2] Merge `WorkspaceRole` + `MemberRole` enums - single source in bo1/models/workspace.py
-- [ ] [DATA][P2] Create `BaseAuditModel` with `created_at`, `updated_at` - reduces duplication in 4 models
+- [x] [DATA][P2] Merge `WorkspaceRole` + `MemberRole` enums - single source in bo1/models/workspace.py ✅ DONE
+- [x] [DATA][P2] Create `BaseAuditModel` with `created_at`, `updated_at` - reduces duplication in 4 models ✅ DONE
 - [ ] [DATA][P3] Document domain→response model mapping rationale - clarify Session/SessionResponse duplication
 
 **LLM/PROMPT DRY (Already addressed)**
@@ -37,7 +37,7 @@ _Last updated: 2026-02-03 (Full Audit Suite - DRY focus)_
 - [ ] [REL][P4] Make pool polling interval configurable - currently 100ms fixed
 
 **Cost Optimization (Opportunities)**
-- [ ] [COST][P2] Cache sub-problem context across personas - estimated $0.10-0.30/session savings
+- [x] [COST][P2] Cache sub-problem context across personas - estimated $0.10-0.30/session savings ✅ DONE
 - [ ] [COST][P3] Batch research queries - combine multiple Brave/Tavily calls
 - [ ] [COST][P3] Profile cache hit rate per prompt type - enable data-driven optimization
 

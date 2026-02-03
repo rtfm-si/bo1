@@ -70,6 +70,9 @@ class SubProblemGraphState(TypedDict, total=False):
     # User context
     user_id: str | None
 
+    # Cached context (optimization - avoid rebuilding per persona)
+    cached_dependency_context: str | None
+
 
 def create_subproblem_initial_state(
     session_id: str,
@@ -124,6 +127,7 @@ def create_subproblem_initial_state(
         synthesis=None,
         expert_summaries={},
         user_id=user_id,
+        cached_dependency_context=None,
     )
 
 

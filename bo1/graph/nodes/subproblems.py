@@ -335,7 +335,8 @@ async def _run_single_subproblem(
     duration = time.time() - start_time
     emit_node_duration(f"subproblem_{sp_index}", duration * 1000)
 
-    # Update duration (not available in subgraph state)
+    # Update duration and cache extracted recommendation (not available in subgraph state)
+    extracted_rec = extract_recommendation_from_synthesis(result.synthesis)
     result = SubProblemResult(
         sub_problem_id=result.sub_problem_id,
         sub_problem_goal=result.sub_problem_goal,
@@ -346,6 +347,7 @@ async def _run_single_subproblem(
         duration_seconds=duration,
         expert_panel=result.expert_panel,
         expert_summaries=result.expert_summaries,
+        extracted_recommendation=extracted_rec,
     )
 
     # Emit subproblem_complete event
@@ -678,7 +680,10 @@ async def _run_subproblem_speculative(
     duration = time.time() - start_time
     emit_node_duration(f"speculative_subproblem_{sp_index}", duration * 1000)
 
-    # Update result with duration
+    # Extract recommendation once and cache it
+    recommendation = extract_recommendation_from_synthesis(result.synthesis)
+
+    # Update result with duration and cached recommendation
     result = SubProblemResult(
         sub_problem_id=result.sub_problem_id,
         sub_problem_goal=result.sub_problem_goal,
@@ -689,10 +694,10 @@ async def _run_subproblem_speculative(
         duration_seconds=duration,
         expert_panel=result.expert_panel,
         expert_summaries=result.expert_summaries,
+        extracted_recommendation=recommendation,
     )
 
-    # Mark complete in context provider
-    recommendation = extract_recommendation_from_synthesis(result.synthesis)
+    # Mark complete in context provider (reuse already-extracted recommendation)
     await context_provider.mark_complete(
         sp_index=sp_index,
         final_synthesis=result.synthesis,

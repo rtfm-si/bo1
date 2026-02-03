@@ -1,136 +1,55 @@
-# Codebase Cleanup Audit Report
+# Plan: Cache Sub-Problem Context Across Personas
 
 ## Summary
 
-**Overall Assessment:** Mature, well-maintained codebase with minimal dead code. Most deprecations are intentional with documented migration paths. No major cleanup required.
+- Cache dependency context string per sub-problem (avoid rebuilding for each persona)
+- Cache extracted recommendations from synthesis (avoid repeated XML parsing)
+- Store partial context formatting in PartialContextProvider (avoid string rebuilds)
+- Estimated savings: $0.10-0.30/session from reduced redundant computation + better Anthropic prompt cache hits
 
----
+## Implementation Steps
 
-## Step 1: Domain Classification
+- Step 1: Add `_cached_dependency_context: str | None` field to `SubProblemGraphState` in `bo1/graph/deliberation/subgraph/state.py`
+  - Initialize as `None` in `create_subproblem_graph_state()`
 
-| Domain | Files | Status |
-|--------|-------|--------|
-| `bo1/` | 228 | Core deliberation engine - active |
-| `backend/` | 304 | API + services - active |
-| `frontend/src/` | 470 | SvelteKit UI - active |
-| `migrations/` | 213 | Alembic migrations - active |
+- Step 2: Update `parallel_round_sp_node()` in `bo1/graph/deliberation/subgraph/nodes.py`:
+  - Before persona loop (line ~218), check if `state.cached_dependency_context` is None
+  - If None and has dependencies: call `build_dependency_context()` once, store in `state.cached_dependency_context`
+  - In persona loop, reuse cached value instead of rebuilding per-persona
 
-**Legacy Patterns Found:**
-- `TierLimits` / `TierFeatureFlags` classes in `bo1/constants.py` (DEPRECATED - migration to `PlanConfig` 90% complete)
-- `next_speaker` field in facilitator (deprecated for parallel mode, still referenced)
+- Step 3: Cache extracted recommendations in `SubProblemResult`:
+  - Add `extracted_recommendation: str | None` field to `SubProblemResult` in `bo1/graph/deliberation/subgraph/state.py`
+  - In `synthesize_sp_node()`, after calling `extract_recommendation_from_synthesis()`, store result in `SubProblemResult.extracted_recommendation`
+  - Update `build_dependency_context()` to check for pre-extracted recommendation before parsing
 
----
+- Step 4: Cache formatted partial context in `PartialContextProvider`:
+  - Add `_cached_formatted: str | None` field to `SubProblemProgress` dataclass in `bo1/graph/deliberation/partial_context.py`
+  - In `_format_partial_context()`, check cache before rebuilding
+  - Invalidate cache in `update_round_context()` when progress changes
 
-## Step 2: Consolidation Targets
+- Step 5: Add cache hit metrics to deliberation flow:
+  - Add counter in `parallel_round_sp_node()` for dependency context cache hits
+  - Log cache stats at sub-problem completion
 
-### HIGH PRIORITY
+## Tests
 
-1. **Conversation Repository Duplication** (4 files → 2)
-   - `backend/services/conversation_repo.py`
-   - `backend/services/dataset_conversation_pg_repo.py`
-   - `backend/services/mentor_conversation_repo.py`
-   - `backend/services/mentor_conversation_pg_repo.py`
-   - **Action:** Extract `CachedRepository` base class
+- Unit tests:
+  - `tests/graph/deliberation/test_context_caching.py`:
+    - Test dependency context cached and reused across personas
+    - Test extracted recommendation stored in SubProblemResult
+    - Test partial context cache invalidation on update
+- Integration/flow tests:
+  - Run existing deliberation tests: `pytest tests/graph/ -k deliberation -v`
+  - Verify no regression in synthesis output
+- Manual validation:
+  - `make test` passes
+  - Run local deliberation, check logs for cache hit metrics
 
-2. **Generator Service Duplication** (3 files)
-   - `backend/services/summary_generator.py`
-   - `backend/services/trend_summary_generator.py`
-   - `backend/services/improvement_plan_generator.py`
-   - **Action:** Create `LLMCachedGenerator` base
+## Dependencies & Risks
 
-### MEDIUM PRIORITY
-
-3. **Analyzer Service Duplication** (6 files)
-   - `backend/services/{trend,competitor,blocker,feedback,multi_dataset,deterministic}_analyzer.py`
-   - **Action:** Extract `AnalyzerBase` with common LLM + cost tracking
-
-4. **Response Parsing** (3 files → 1)
-   - `bo1/llm/response_parser.py` (987 lines)
-   - `bo1/utils/json_parsing.py` (256 lines)
-   - `bo1/utils/xml_parsing.py` (118 lines)
-   - **Action:** Consolidate into single module
-
----
-
-## Step 3: File Deletion Assessment
-
-### DELETE NOW
-- None identified (codebase is clean)
-
-### REVIEW BEFORE DELETE
-
-| File | Reason | Action |
-|------|--------|--------|
-| `bo1/constants.py:908-1083` | `TierLimits`/`TierFeatureFlags` deprecated | Complete migration in test files, then remove |
-
-### KEEP (Verified Active)
-- `backend/services/google_calendar.py` - Feature-flagged, actively used
-- `backend/services/action_calendar_sync.py` - Actively used for calendar sync
-- All soft-delete patterns (actions, datasets, etc.) - Working correctly
-
----
-
-## Step 4: Database Schema Cleanup
-
-### Already Cleaned (Historical)
-- `votes` table (dropped)
-- `schema_migrations` table (dropped)
-- `sessions.max_rounds` column (dropped)
-- `research_cache.source_count`, `freshness_days` (dropped)
-
-### No New Cleanup Required
-- All tables are actively referenced
-- CTEs (`dep_tree`, `matched_actions`, `similarity_buckets`) are query optimizations, not orphan tables
-- Soft-delete tables have proper indexes and RLS policies
-
-### Recommendation: Add TTL Policy
-- Soft-deleted records have no purge policy
-- **Action:** Add migration for 90-365 day retention before hard delete (GDPR compliance)
-
----
-
-## Step 5-6: Refactor Plan
-
-### Quick Wins (Can execute now)
-
-1. **Remove deprecated TierLimits from tests** (~30 min)
-   - Files: `tests/billing/test_plan_config.py`, `tests/services/test_usage_tracking.py`, etc.
-   - Replace with `from bo1.billing import PlanConfig`
-
-2. **Consolidate parsing utilities** (~20 min)
-   - Move `json_parsing.py` + `xml_parsing.py` into `response_parser.py`
-   - Update imports
-
-### Defer (Larger refactor)
-- Repository consolidation (needs careful testing)
-- Analyzer base class extraction (6+ files affected)
-- Generator consolidation (needs cost tracking verification)
-
----
-
-## Step 7: Final Summary
-
-### Cleanup Status
-- **Dead Code:** Minimal (TierLimits/TierFeatureFlags only significant item)
-- **Duplication:** Moderate (repository/analyzer patterns can be consolidated)
-- **Database:** Clean (historical deprecations already removed)
-- **Orphan Files:** None
-
-### Recommended Actions
-
-| Priority | Action | Effort |
-|----------|--------|--------|
-| HIGH | Remove TierLimits/TierFeatureFlags after test migration | 30 min |
-| MEDIUM | Consolidate parsing utilities | 20 min |
-| MEDIUM | Add soft-delete TTL policy migration | 1 hour |
-| LOW | Extract CachedRepository base | 2 hours |
-| LOW | Extract AnalyzerBase | 2 hours |
-
-### Build/Test Verification Required
-- Run `make test` after any changes
-- Run `uv run alembic upgrade head` after migrations
-- Verify `make pre-commit` passes
-
----
-
-*Generated by /clean audit - 2026-01-19*
+- Dependencies:
+  - None - pure optimization on existing data structures
+- Risks/edge cases:
+  - Cache invalidation: ensure `update_round_context()` clears partial context cache
+  - Thread safety: PartialContextProvider already uses asyncio.Lock, extend to cache
+  - State serialization: new fields must be checkpoint-compatible (use Optional with default None)

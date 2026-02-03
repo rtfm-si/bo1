@@ -20,6 +20,9 @@ cat > "$HOOKS_DIR/pre-push" << 'EOF'
 # 1. Type checking errors (mypy)
 # 2. Missing files required by Docker builds
 # 3. Tests that would fail in CI
+# 4. Stale OpenAPI spec
+# 5. Python dependency vulnerabilities (pip-audit)
+# 6. Security issues (OSV scanner)
 
 set -e  # Exit on first error
 
@@ -33,7 +36,7 @@ EXIT_CODE=0
 # =============================================================================
 # 1. Backend Linting (matches CI workflow)
 # =============================================================================
-echo "📝 Step 1/6: Backend linting with ruff..."
+echo "📝 Step 1/9: Backend linting with ruff..."
 if command -v uv &> /dev/null; then
     uv run ruff check . --quiet
     LINT_EXIT=$?
@@ -53,7 +56,7 @@ echo ""
 # =============================================================================
 # 2. Type Checking (matches CI workflow line 48)
 # =============================================================================
-echo "📝 Step 2/6: Type checking with mypy..."
+echo "📝 Step 2/9: Type checking with mypy..."
 if command -v uv &> /dev/null; then
     uv run mypy bo1/ --install-types --non-interactive
 else
@@ -70,7 +73,7 @@ echo ""
 # =============================================================================
 # 3. Frontend package-lock.json sync check (matches CI workflow)
 # =============================================================================
-echo "📦 Step 3/6: Checking frontend package-lock.json sync..."
+echo "📦 Step 3/9: Checking frontend package-lock.json sync..."
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     cd frontend
     if npm ci --dry-run >/dev/null 2>&1; then
@@ -91,7 +94,7 @@ echo ""
 # =============================================================================
 # 4. Docker Build File Validation (NEW - catches missing files)
 # =============================================================================
-echo "🐋 Step 4/6: Validating Docker build dependencies..."
+echo "🐋 Step 4/9: Validating Docker build dependencies..."
 
 # Check if critical files for Docker builds are tracked by git
 MISSING_FILES=()
@@ -125,7 +128,7 @@ echo ""
 # =============================================================================
 # 5. Quick Test Suite (non-LLM tests only)
 # =============================================================================
-echo "🧪 Step 5/6: Running quick test suite (non-LLM tests)..."
+echo "🧪 Step 5/9: Running quick test suite (non-LLM tests)..."
 if command -v uv &> /dev/null; then
     # Run only fast tests (skip LLM calls)
     uv run pytest -m "not requires_llm" -q --tb=line --maxfail=3 2>&1 | tail -20
@@ -144,9 +147,60 @@ fi
 echo ""
 
 # =============================================================================
-# 6. Frontend type checking
+# 6. OpenAPI Spec Freshness
 # =============================================================================
-echo "📝 Step 6/6: Frontend type checking..."
+echo "📝 Step 6/9: Check OpenAPI spec freshness..."
+if [ -f "scripts/check_openapi_fresh.py" ]; then
+    uv run python scripts/check_openapi_fresh.py
+    if [ $? -ne 0 ]; then
+        echo "❌ OpenAPI spec is stale. Run: make generate-types"
+        EXIT_CODE=1
+    else
+        echo "✅ OpenAPI spec is fresh"
+    fi
+else
+    echo "⚠️  check_openapi_fresh.py not found, skipping"
+fi
+echo ""
+
+# =============================================================================
+# 7. pip-audit Security Scan
+# =============================================================================
+echo "🔍 Step 7/9: Scanning Python dependencies..."
+if command -v uv &> /dev/null; then
+    uv run pip-audit --progress-spinner off --skip-editable --ignore-vuln CVE-2026-1703 2>&1
+    if [ $? -ne 0 ]; then
+        echo "❌ Python vulnerabilities detected"
+        EXIT_CODE=1
+    else
+        echo "✅ Python dependencies safe"
+    fi
+else
+    echo "⚠️  uv not found, skipping pip-audit"
+fi
+echo ""
+
+# =============================================================================
+# 8. OSV Security Scan (optional)
+# =============================================================================
+echo "🛡️  Step 8/9: OSV security scan..."
+if command -v osv-scanner &> /dev/null; then
+    osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml 2>&1
+    if [ $? -ne 0 ]; then
+        echo "❌ OSV scan failed"
+        EXIT_CODE=1
+    else
+        echo "✅ OSV scan passed"
+    fi
+else
+    echo "⚠️  osv-scanner not installed, skipping (brew install osv-scanner)"
+fi
+echo ""
+
+# =============================================================================
+# 9. Frontend type checking
+# =============================================================================
+echo "📝 Step 9/9: Frontend type checking..."
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     cd frontend
     if [ -d "node_modules" ]; then
@@ -217,7 +271,7 @@ echo "════════════════════════�
 echo ""
 echo "Hooks installed:"
 echo "  - Pre-commit: Runs ruff, mypy on changed files"
-echo "  - Pre-push:   Runs full CI/CD validation (mypy, tests, linting, Docker checks)"
+echo "  - Pre-push:   Runs full CI/CD validation (mypy, tests, linting, Docker, OpenAPI, pip-audit, OSV)"
 echo ""
 echo "To bypass hooks (not recommended):"
 echo "  git commit --no-verify"

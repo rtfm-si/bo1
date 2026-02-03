@@ -17,6 +17,8 @@
 		createDecisionHowToSchema,
 		serializeJsonLd
 	} from '$lib/utils/jsonld';
+	import { parseSynthesisXML } from '$lib/utils/xml-parser';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import {
 		BookOpen,
 		Users,
@@ -34,6 +36,16 @@
 	let error = $state<string | null>(null);
 	let viewTracked = $state(false);
 	let expandedFaq = $state<number | null>(null);
+
+	// Parsed synthesis sections
+	const sections = $derived(decision?.synthesis ? parseSynthesisXML(decision.synthesis) : null);
+	const hasParsedSections = $derived(
+		sections &&
+			(sections.executive_summary ||
+				sections.recommendation ||
+				sections.rationale ||
+				sections.implementation_considerations)
+	);
 
 	// Route params
 	const category = $derived($page.params.category);
@@ -304,13 +316,74 @@
 					<h2 class="text-2xl font-bold text-neutral-900 dark:text-white mb-6">
 						Synthesis & Recommendation
 					</h2>
-					<div class="prose dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
-						{#each decision.synthesis.split('\n\n') as paragraph}
-							{#if paragraph.trim()}
-								<p>{paragraph}</p>
+
+					{#if hasParsedSections && sections}
+						<!-- Executive Summary -->
+						{#if sections.executive_summary}
+							<div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 p-4 rounded-r-lg mb-4">
+								<h3 class="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+									Executive Summary
+								</h3>
+								<MarkdownContent
+									content={sections.executive_summary}
+									class="text-sm text-blue-800 dark:text-blue-200"
+								/>
+							</div>
+						{/if}
+
+						<!-- Recommendation -->
+						{#if sections.recommendation}
+							<div class="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-600 p-4 rounded-r-lg mb-4">
+								<h3 class="font-semibold text-green-900 dark:text-green-100 mb-2">
+									Recommendation
+								</h3>
+								<MarkdownContent
+									content={sections.recommendation}
+									class="text-sm text-green-800 dark:text-green-200"
+								/>
+							</div>
+						{/if}
+
+						<!-- Collapsible Sections -->
+						<div class="space-y-2">
+							{#if sections.rationale}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Rationale
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.rationale}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
 							{/if}
-						{/each}
-					</div>
+
+							{#if sections.implementation_considerations}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Implementation Considerations
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.implementation_considerations}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+						</div>
+					{:else}
+						<!-- Fallback: raw paragraphs -->
+						<div class="prose dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
+							{#each decision.synthesis.split('\n\n') as paragraph}
+								{#if paragraph.trim()}
+									<p>{paragraph}</p>
+								{/if}
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</section>
 		{/if}

@@ -377,6 +377,14 @@ class Settings(BaseSettings):
     )
     prometheus_url: str = Field(default="", description="Prometheus dashboard URL")
     sentry_url: str = Field(default="", description="Sentry error tracking dashboard URL")
+    sentry_dsn: str = Field(default="", description="Sentry DSN for error tracking SDK")
+    sentry_environment: str = Field(
+        default="development",
+        description="Sentry environment tag (development, staging, production)",
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.1, description="Sentry performance tracing sample rate (0.0-1.0)"
+    )
     status_url: str = Field(
         default="https://status.boardof.one", description="Uptime Kuma status page URL"
     )

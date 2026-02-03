@@ -608,6 +608,182 @@
       "title": "Research Cache Cleanup",
       "description": "Total research cache entries deleted by cleanup job.",
       "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 104,
+      "panels": [],
+      "title": "Prompt Type Cache Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1,
+            "scaleDistribution": { "type": "linear" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "id": 13,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.6,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": { "mode": "single", "sort": "none" },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "sum(bo1_prompt_type_cache_total{result=\"hit\"}) by (prompt_type) / (sum(bo1_prompt_type_cache_total{result=\"hit\"}) by (prompt_type) + sum(bo1_prompt_type_cache_total{result=\"miss\"}) by (prompt_type))",
+          "legendFormat": "{{prompt_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Cache Hit Rate by Prompt Type",
+      "description": "Anthropic prompt cache hit rate per prompt type. Identifies which prompt categories benefit most from caching.",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Hit Rate" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Hits" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Misses" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Total" }]
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "sum(bo1_prompt_type_cache_total{result=\"hit\"}) by (prompt_type)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Hits",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(bo1_prompt_type_cache_total{result=\"miss\"}) by (prompt_type)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Misses",
+          "refId": "B"
+        }
+      ],
+      "title": "Prompt Type Cache Stats",
+      "description": "Cache hits and misses per prompt type. Use to identify optimization opportunities.",
+      "transformations": [
+        {
+          "id": "seriesToColumns",
+          "options": { "byField": "prompt_type" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true },
+            "indexByName": {},
+            "renameByName": {
+              "Value #A": "Hits",
+              "Value #B": "Misses",
+              "prompt_type": "Prompt Type"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Total",
+            "binary": { "left": "Hits", "operator": "+", "right": "Misses" },
+            "mode": "binary",
+            "reduce": { "reducer": "sum" }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Hit Rate",
+            "binary": { "left": "Hits", "operator": "/", "right": "Total" },
+            "mode": "binary",
+            "reduce": { "reducer": "sum" }
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "refresh": "30s",

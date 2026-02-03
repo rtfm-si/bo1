@@ -30,6 +30,21 @@ session_cache_misses = Counter(
 T = TypeVar("T")
 
 
+def _emit_unified_cache_metric(hit: bool) -> None:
+    """Emit to unified cache counters for Grafana dashboards.
+
+    Args:
+        hit: True for cache hit, False for miss
+    """
+    try:
+        from backend.api.metrics import prom_metrics
+
+        prom_metrics.record_cache_operation("session_metadata", hit)
+    except ImportError:
+        # Metrics not available (e.g., in CLI mode)
+        pass
+
+
 class SessionMetadataCache:
     """Thread-safe LRU cache with TTL for session metadata.
 
@@ -150,10 +165,12 @@ class SessionMetadataCache:
         cached = self.get(session_id)
         if cached is not None:
             session_cache_hits.inc()
+            _emit_unified_cache_metric(hit=True)
             return cached
 
         # Cache miss - load and store
         session_cache_misses.inc()
+        _emit_unified_cache_metric(hit=False)
         metadata = loader_fn(session_id)
         if metadata is not None:
             self.set(session_id, metadata)
@@ -178,3 +195,20 @@ class SessionMetadataCache:
         """
         with self._lock:
             return len(self._cache)
+
+    def get_stats(self) -> dict[str, int | float]:
+        """Get cache statistics from Prometheus counters.
+
+        Returns:
+            Dictionary with hits, misses, total, hit_rate, size
+        """
+        hits = int(session_cache_hits._value.get())
+        misses = int(session_cache_misses._value.get())
+        total = hits + misses
+        return {
+            "hits": hits,
+            "misses": misses,
+            "total": total,
+            "hit_rate": hits / total if total > 0 else 0.0,
+            "size": self.size(),
+        }

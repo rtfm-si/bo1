@@ -11,6 +11,7 @@ Features:
 - Admin metrics tracking for query effectiveness
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -334,25 +335,27 @@ class IndustryBenchmarkResearcher:
             f"{industry} benchmark report statistics averages",
         ]
 
+        # Run all searches in parallel (2 Brave + 1 Tavily)
+        search_tasks = [
+            self._brave_search(queries[0], industry),
+            self._brave_search(queries[1], industry),
+            self._tavily_search(queries[2], industry),
+        ]
+        all_results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+        # Flatten and deduplicate results
         results: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
 
-        # Run Brave search (general web)
-        for query in queries[:2]:  # First 2 queries via Brave
-            brave_results = await self._brave_search(query, industry)
-            for r in brave_results:
+        for batch in all_results:
+            if isinstance(batch, Exception):
+                logger.warning(f"Search batch failed: {batch}")
+                continue
+            for r in batch:
                 url = r.get("url", "")
                 if url and url not in seen_urls:
                     seen_urls.add(url)
                     results.append(r)
-
-        # Run Tavily search (deeper analysis)
-        tavily_results = await self._tavily_search(queries[2], industry)
-        for r in tavily_results:
-            url = r.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                results.append(r)
 
         return results
 

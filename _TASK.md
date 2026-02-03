@@ -13,7 +13,7 @@ _Last updated: 2026-02-03 (Full Audit Suite - DRY focus)_
 - [x] [DATA][P1] Create `from_db_row` base mixin for model instantiation - standardizes 15 model methods ✅ DONE
 - [x] [DATA][P2] Merge `WorkspaceRole` + `MemberRole` enums - single source in bo1/models/workspace.py ✅ DONE
 - [x] [DATA][P2] Create `BaseAuditModel` with `created_at`, `updated_at` - reduces duplication in 4 models ✅ DONE
-- [ ] [DATA][P3] Document domain→response model mapping rationale - clarify Session/SessionResponse duplication
+- [x] [DATA][P3] Document domain→response model mapping rationale - clarify Session/SessionResponse duplication ✅ DONE
 
 **LLM/PROMPT DRY (Already addressed)**
 - [x] [LLM] protocols.py consolidation - CORE_PROTOCOL eliminates ~180 tokens/contribution duplication ✅ DONE
@@ -25,29 +25,29 @@ _Last updated: 2026-02-03 (Full Audit Suite - DRY focus)_
 ### Audit Findings (Non-DRY)
 
 **Architecture (Minor)**
-- [ ] [ARCH][P3] Use router registry in graph config - replace direct imports with `get_router("name")`
-- [ ] [ARCH][P4] Document parallel subproblems flag impact - add ADR for two topologies
+- [x] [ARCH][P3] Use router registry in graph config - replace direct imports with `get_router("name")` ✅ DONE
+- [x] [ARCH][P4] Document parallel subproblems flag impact - add ADR for two topologies ✅ DONE (docs/adr/005-parallel-subproblems-graph-topology.md)
 
 **Observability (Gaps)**
-- [ ] [OBS][P3] Evaluate OpenTelemetry adoption - add span tracing for LLM calls (currently correlation ID only)
-- [ ] [OBS][P3] Activate Sentry SDK - if error aggregation desired beyond logging
+- [x] [OBS][P3] Evaluate OpenTelemetry adoption - add span tracing for LLM calls ✅ DONE (bo1/observability/tracing.py, OTEL_ENABLED=true to enable)
+- [x] [OBS][P3] Activate Sentry SDK - if error aggregation desired beyond logging ✅ DONE (bo1/observability/sentry.py, SENTRY_DSN to enable)
 
 **Reliability (Minor)**
-- [ ] [REL][P3] Add thread-safe circuit breaker option - current uses asyncio.Lock (not thread-safe for sync)
-- [ ] [REL][P4] Make pool polling interval configurable - currently 100ms fixed
+- [x] [REL][P3] Add thread-safe circuit breaker option - current uses asyncio.Lock (not thread-safe for sync) ✅ DONE (threading.Lock for call_sync)
+- [x] [REL][P4] Make pool polling interval configurable - DatabaseConfig.POOL_POLLING_INTERVAL_MS ✅ DONE
 
 **Cost Optimization (Opportunities)**
 - [x] [COST][P2] Cache sub-problem context across personas - estimated $0.10-0.30/session savings ✅ DONE
-- [ ] [COST][P3] Batch research queries - combine multiple Brave/Tavily calls
-- [ ] [COST][P3] Profile cache hit rate per prompt type - enable data-driven optimization
+- [x] [COST][P3] Batch research queries - combine multiple Brave/Tavily calls ✅ DONE (parallel asyncio.gather in benchmark researcher + competitor bulk enrich)
+- [x] [COST][P3] Profile cache hit rate per prompt type - enable data-driven optimization ✅ DONE (bo1_prompt_type_cache_total Prometheus metric + /api/admin/costs/prompt-cache-by-type endpoint)
 
 **LLM Alignment (Minor)**
-- [ ] [LLM][P2] Add challenge phase contribution validation - reject rounds 3-4 without disagreement markers
-- [ ] [LLM][P3] Track prompt cache hit rate per prompt type - add metrics
+- [x] [LLM][P2] Add challenge phase contribution validation - reject rounds 3-4 without disagreement markers ✅ DONE (bo1/prompts/validation.py)
+- [x] [LLM][P3] Track prompt cache hit rate per prompt type - add metrics ✅ DONE
 
 **Performance (Minor)**
-- [ ] [PERF][P2] Add contribution pruning after round summary - reduce memory during long deliberations
-- [ ] [PERF][P3] Add session metadata cache hit metrics - track cache effectiveness
+- [x] [PERF][P2] Add contribution pruning after round summary - reduce memory during long deliberations ✅ DONE (bo1/graph/state.py)
+- [x] [PERF][P3] Add session metadata cache hit metrics - track cache effectiveness ✅ DONE
 
 
 ### Blocked on User Action (NOT AUTOMATABLE)

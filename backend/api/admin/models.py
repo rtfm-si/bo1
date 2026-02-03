@@ -390,12 +390,18 @@ class ActiveSessionsResponse(BaseModel):
 
 
 class FullSessionResponse(BaseModel):
-    """Response model for full session details.
+    """Admin-only response model for full session introspection.
+
+    Returns raw dictionaries for debugging/support purposes. Unlike the
+    user-facing `SessionResponse`, this includes full state JSON and all
+    metadata fields. Restricted to admin endpoints.
+
+    See `docs/adr/007-domain-response-model-separation.md` for rationale.
 
     Attributes:
         session_id: Session identifier
-        metadata: Full session metadata
-        state: Full deliberation state
+        metadata: Full session metadata (all fields from Session domain model)
+        state: Full deliberation state (LangGraph checkpoint JSON)
         is_active: Whether session is currently running
     """
 
@@ -1614,17 +1620,20 @@ class UnifiedCacheMetricsResponse(BaseModel):
     - Prompt cache: Anthropic native prompt caching
     - Research cache: PostgreSQL semantic similarity cache
     - LLM cache: Redis deterministic response cache
+    - Session metadata cache: In-memory LRU cache for session metadata
 
     Attributes:
         prompt: Anthropic prompt cache metrics (24h window)
         research: Research semantic cache metrics (24h window)
         llm: LLM response cache metrics (in-memory since startup)
+        session_metadata: Session metadata cache metrics (in-memory since startup)
         aggregate: Combined metrics across all caches
     """
 
     prompt: CacheTypeMetrics = Field(..., description="Anthropic prompt cache metrics")
     research: CacheTypeMetrics = Field(..., description="Research semantic cache metrics")
     llm: CacheTypeMetrics = Field(..., description="LLM response cache metrics")
+    session_metadata: CacheTypeMetrics = Field(..., description="Session metadata cache metrics")
     aggregate: AggregatedCacheMetrics = Field(..., description="Combined cache metrics")
 
 
@@ -2000,6 +2009,53 @@ class TuningRecommendationsResponse(BaseModel):
     recommendations: list[TuningRecommendation] = Field(..., description="Recommendations")
     analysis_period_days: int = Field(..., description="Days of data analyzed")
     data_quality: str = Field(..., description="Data quality: sufficient, limited, insufficient")
+
+
+# ==============================================================================
+# Prompt Type Cache Metrics Models
+# ==============================================================================
+
+
+class PromptTypeCacheItem(BaseModel):
+    """Cache metrics for a single prompt type.
+
+    Attributes:
+        prompt_type: Prompt type (e.g., "persona_contribution", "synthesis")
+        cache_hits: Number of cache hits
+        cache_misses: Number of cache misses
+        cache_hit_rate: Cache hit rate (0.0-1.0)
+        total_requests: Total number of requests
+        cache_read_tokens: Total tokens read from cache
+        total_input_tokens: Total input tokens
+        cache_token_rate: Ratio of cached to total input tokens (0.0-1.0)
+    """
+
+    prompt_type: str = Field(..., description="Prompt type")
+    cache_hits: int = Field(..., description="Number of cache hits")
+    cache_misses: int = Field(..., description="Number of cache misses")
+    cache_hit_rate: float = Field(..., description="Cache hit rate (0.0-1.0)")
+    total_requests: int = Field(..., description="Total requests")
+    cache_read_tokens: int = Field(..., description="Tokens read from cache")
+    total_input_tokens: int = Field(..., description="Total input tokens")
+    cache_token_rate: float = Field(..., description="Cached/total token ratio (0.0-1.0)")
+
+
+class PromptTypeCacheResponse(BaseModel):
+    """Response model for prompt type cache metrics.
+
+    Attributes:
+        items: List of per-prompt-type metrics
+        total_requests: Total requests across all types
+        overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)
+        overall_cache_token_rate: Overall cached token ratio (0.0-1.0)
+        days: Number of days analyzed
+    """
+
+    items: list[PromptTypeCacheItem] = Field(..., description="Per-type metrics")
+    total_requests: int = Field(..., description="Total requests")
+    overall_cache_hit_rate: float = Field(..., description="Overall hit rate (0.0-1.0)")
+    overall_cache_token_rate: float = Field(..., description="Overall token ratio (0.0-1.0)")
+    days: int = Field(..., description="Days analyzed")
 
 
 class QualityIndicatorsResponse(BaseModel):

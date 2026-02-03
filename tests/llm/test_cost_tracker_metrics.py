@@ -507,3 +507,191 @@ class TestAreAlertsEnabled:
             enabled = CostAnomalyConfig.are_alerts_enabled()
 
         assert enabled is True
+
+
+class TestPromptTypeCacheMetrics:
+    """Test get_prompt_type_cache_metrics method."""
+
+    def test_returns_empty_list_when_no_data(self):
+        """Verify empty list returned when no Anthropic costs exist."""
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value
+            mock_cursor.__enter__.return_value.fetchall.return_value = []
+
+            result = CostTracker.get_prompt_type_cache_metrics(days=7)
+
+        assert result == []
+
+    def test_returns_correct_structure(self):
+        """Verify returned structure has all expected fields."""
+        mock_rows = [
+            {
+                0: "persona_contribution",
+                1: 80,  # cache_hits
+                2: 20,  # cache_misses
+                3: 100,  # total_requests
+                4: 50000,  # cache_read_tokens
+                5: 100000,  # total_input_tokens
+            }
+        ]
+
+        # Convert to list with positional access
+        class MockRow:
+            def __init__(self, data):
+                self._data = data
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+        mock_rows = [MockRow(mock_rows[0])]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value
+            mock_cursor.__enter__.return_value.fetchall.return_value = mock_rows
+
+            result = CostTracker.get_prompt_type_cache_metrics(days=7)
+
+        assert len(result) == 1
+        item = result[0]
+        assert item["prompt_type"] == "persona_contribution"
+        assert item["cache_hits"] == 80
+        assert item["cache_misses"] == 20
+        assert item["cache_hit_rate"] == 0.8
+        assert item["total_requests"] == 100
+        assert item["cache_read_tokens"] == 50000
+        assert item["total_input_tokens"] == 100000
+        assert item["cache_token_rate"] == 0.5
+
+    def test_handles_zero_totals(self):
+        """Verify zero division is handled for empty prompt types."""
+
+        class MockRow:
+            def __init__(self, data):
+                self._data = data
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+        mock_rows = [
+            MockRow(
+                {
+                    0: "unknown",
+                    1: 0,  # cache_hits
+                    2: 0,  # cache_misses
+                    3: 0,  # total_requests
+                    4: 0,  # cache_read_tokens
+                    5: 0,  # total_input_tokens
+                }
+            )
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value
+            mock_cursor.__enter__.return_value.fetchall.return_value = mock_rows
+
+            result = CostTracker.get_prompt_type_cache_metrics(days=7)
+
+        assert len(result) == 1
+        item = result[0]
+        assert item["cache_hit_rate"] == 0.0
+        assert item["cache_token_rate"] == 0.0
+
+    def test_groups_null_prompt_type_as_unknown(self):
+        """Verify NULL prompt_type is grouped as 'unknown'."""
+
+        class MockRow:
+            def __init__(self, data):
+                self._data = data
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+        mock_rows = [
+            MockRow(
+                {
+                    0: "unknown",  # COALESCE result
+                    1: 10,
+                    2: 5,
+                    3: 15,
+                    4: 1000,
+                    5: 2000,
+                }
+            )
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value
+            mock_cursor.__enter__.return_value.fetchall.return_value = mock_rows
+
+            result = CostTracker.get_prompt_type_cache_metrics(days=7)
+
+        assert result[0]["prompt_type"] == "unknown"
+
+
+class TestPromptTypeCachePrometheus:
+    """Test Prometheus metrics for prompt type cache."""
+
+    def test_emit_cache_metrics_calls_prompt_type_metric(self):
+        """Verify _emit_cache_metrics calls record_prompt_type_cache for Anthropic."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            total_cost=0.05,
+            cache_read_tokens=1000,
+            prompt_type="persona_contribution",
+        )
+
+        with (
+            patch("backend.api.metrics.metrics"),
+            patch("backend.api.metrics.prom_metrics") as mock_prom,
+        ):
+            CostTracker._emit_cache_metrics(record)
+
+        # Verify prompt type cache metric was called
+        mock_prom.record_prompt_type_cache.assert_called_once_with(
+            "persona_contribution",
+            True,  # cache_hit=True since cache_read_tokens > 0
+        )
+
+    def test_emit_cache_metrics_skips_non_anthropic(self):
+        """Verify prompt type metric is not called for non-Anthropic providers."""
+        record = CostRecord(
+            provider="voyage",
+            model_name="voyage-3",
+            operation_type="embedding",
+            total_cost=0.001,
+            prompt_type="embedding",
+        )
+
+        with (
+            patch("backend.api.metrics.metrics"),
+            patch("backend.api.metrics.prom_metrics") as mock_prom,
+        ):
+            CostTracker._emit_cache_metrics(record)
+
+        # Verify prompt type cache metric was NOT called
+        mock_prom.record_prompt_type_cache.assert_not_called()
+
+    def test_emit_cache_metrics_handles_none_prompt_type(self):
+        """Verify None prompt_type is handled gracefully."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            total_cost=0.05,
+            cache_read_tokens=0,
+            prompt_type=None,
+        )
+
+        with (
+            patch("backend.api.metrics.metrics"),
+            patch("backend.api.metrics.prom_metrics") as mock_prom,
+        ):
+            CostTracker._emit_cache_metrics(record)
+
+        # Should still be called with None (metric method handles it)
+        mock_prom.record_prompt_type_cache.assert_called_once_with(
+            None,
+            False,  # cache_hit=False since cache_read_tokens == 0
+        )

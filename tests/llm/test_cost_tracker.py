@@ -1308,6 +1308,7 @@ class TestGetCacheMetrics:
             patch("bo1.llm.cost_tracker.db_session") as mock_db,
             patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
             patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+            patch("backend.api.dependencies.get_session_metadata_cache") as mock_sm_cache,
         ):
             mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
             mock_cursor.fetchone.return_value = (20, 80, 100)  # 20% hit rate
@@ -1323,14 +1324,21 @@ class TestGetCacheMetrics:
                 "hit_rate": 0.50,
             }
 
+            mock_sm_cache.return_value.get_stats.return_value = {
+                "hits": 40,
+                "misses": 60,
+                "total": 100,
+                "hit_rate": 0.40,
+            }
+
             result = CostTracker.get_cache_metrics()
 
-        # Total hits: 20 + 30 + 50 = 100
-        # Total requests: 100 + 100 + 100 = 300
-        # Aggregate hit rate: 100 / 300 = 0.333...
-        assert result["aggregate"]["total_hits"] == 100
-        assert result["aggregate"]["total_requests"] == 300
-        assert abs(result["aggregate"]["hit_rate"] - (100 / 300)) < 0.001
+        # Total hits: 20 + 30 + 50 + 40 = 140
+        # Total requests: 100 + 100 + 100 + 100 = 400
+        # Aggregate hit rate: 140 / 400 = 0.35
+        assert result["aggregate"]["total_hits"] == 140
+        assert result["aggregate"]["total_requests"] == 400
+        assert abs(result["aggregate"]["hit_rate"] - (140 / 400)) < 0.001
 
     def test_get_cache_metrics_zero_requests(self):
         """Verify hit rate is 0 when no requests exist."""
@@ -1338,6 +1346,7 @@ class TestGetCacheMetrics:
             patch("bo1.llm.cost_tracker.db_session") as mock_db,
             patch("bo1.state.repositories.cache_repository.cache_repository") as mock_repo,
             patch("bo1.llm.cache.get_llm_cache") as mock_llm_cache,
+            patch("backend.api.dependencies.get_session_metadata_cache") as mock_sm_cache,
         ):
             mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
             mock_cursor.fetchone.return_value = (0, 0, 0)  # No requests
@@ -1353,9 +1362,17 @@ class TestGetCacheMetrics:
                 "hit_rate": 0.0,
             }
 
+            mock_sm_cache.return_value.get_stats.return_value = {
+                "hits": 0,
+                "misses": 0,
+                "total": 0,
+                "hit_rate": 0.0,
+            }
+
             result = CostTracker.get_cache_metrics()
 
         assert result["prompt"]["hit_rate"] == 0.0
         assert result["research"]["hit_rate"] == 0.0
         assert result["llm"]["hit_rate"] == 0.0
+        assert result["session_metadata"]["hit_rate"] == 0.0
         assert result["aggregate"]["hit_rate"] == 0.0

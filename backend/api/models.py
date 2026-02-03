@@ -156,7 +156,17 @@ class CreateSessionRequest(HoneypotMixin):
 
 
 class SessionResponse(BaseModel):
-    """Response model for session information.
+    """API response model for session information (user-facing subset).
+
+    This is a **response model** exposing only fields relevant to end users.
+    Internal tracking fields (recovery_needed, has_untracked_costs, checkpoints,
+    A/B variants, billable_portion, termination details) are excluded for:
+    - Privacy: users don't need internal cost/recovery state
+    - Security: checkpoint indices are implementation details
+    - Simplicity: dashboard only needs summary counts
+
+    For the full domain model, see `bo1/models/session.py:Session`.
+    See `docs/adr/007-domain-response-model-separation.md` for rationale.
 
     Attributes:
         id: Unique session identifier (UUID)

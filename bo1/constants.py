@@ -451,6 +451,9 @@ class DatabaseConfig:
     POOL_MAX_CONNECTIONS = 75
     """Maximum connections in pool"""
 
+    POOL_POLLING_INTERVAL_MS = 100
+    """Milliseconds between connection pool retry attempts"""
+
     REDIS_DEFAULT_PORT = 6379
     """Default Redis port"""
 

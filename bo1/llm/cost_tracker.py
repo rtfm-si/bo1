@@ -508,6 +508,10 @@ class CostTracker:
 
             # Prometheus metrics for Grafana
             prom_metrics.record_cache_hit(record.cache_hit)
+
+            # Per-prompt-type cache metrics (P3: data-driven optimization)
+            if record.provider == "anthropic":
+                prom_metrics.record_prompt_type_cache(record.prompt_type, record.cache_hit)
         except ImportError:
             # Metrics not available (e.g., in CLI mode)
             pass
@@ -1300,74 +1304,106 @@ class CostTracker:
 
         start_time = time.perf_counter()
 
-        try:
-            yield record
-            record.status = "success"
-        except Exception as e:
-            record.status = "error"
-            record.error_message = str(e)
-            raise
-        finally:
-            # Calculate latency
-            record.latency_ms = int((time.perf_counter() - start_time) * 1000)
+        # OpenTelemetry span (noop if tracing disabled)
+        from bo1.observability.tracing import is_tracing_enabled, span_from_context
 
-            # Calculate costs based on provider
-            if provider == "anthropic" and record.model_name:
-                costs = CostTracker.calculate_anthropic_cost(
-                    record.model_name,
-                    record.input_tokens,
-                    record.output_tokens,
-                    record.cache_creation_tokens,
-                    record.cache_read_tokens,
-                )
-                record.input_cost = max(0.0, costs[0])
-                record.output_cost = max(0.0, costs[1])
-                record.cache_write_cost = max(0.0, costs[2])
-                record.cache_read_cost = max(0.0, costs[3])
-                record.total_cost = max(0.0, costs[4])
-                record.cost_without_optimization = max(0.0, costs[5]) if costs[5] else None
-                if record.cache_read_tokens > 0:
-                    record.optimization_type = "prompt_cache"
+        span_name = f"llm.{provider}.{operation_type}"
+        span_attrs = {
+            "llm.provider": provider,
+            "llm.operation": operation_type,
+        }
+        if model_name:
+            span_attrs["llm.model"] = model_name
+        if session_id:
+            span_attrs["llm.session_id"] = session_id
+        if node_name:
+            span_attrs["llm.node_name"] = node_name
+        if phase:
+            span_attrs["llm.phase"] = phase
+        if prompt_type:
+            span_attrs["llm.prompt_type"] = prompt_type
 
-            elif provider == "voyage":
-                record.total_cost = max(
-                    0.0,
-                    CostTracker.calculate_voyage_cost(
-                        record.model_name or "voyage-3", record.input_tokens
-                    ),
-                )
+        with span_from_context(span_name, span_attrs) as span:
+            try:
+                yield record
+                record.status = "success"
+            except Exception as e:
+                record.status = "error"
+                record.error_message = str(e)
+                # Record exception on span
+                if span is not None:
+                    span.record_exception(e)
+                raise
+            finally:
+                # Calculate latency
+                record.latency_ms = int((time.perf_counter() - start_time) * 1000)
 
-            elif provider == "brave":
-                record.total_cost = max(
-                    0.0, CostTracker.calculate_brave_cost(record.operation_type)
-                )
+                # Calculate costs based on provider
+                if provider == "anthropic" and record.model_name:
+                    costs = CostTracker.calculate_anthropic_cost(
+                        record.model_name,
+                        record.input_tokens,
+                        record.output_tokens,
+                        record.cache_creation_tokens,
+                        record.cache_read_tokens,
+                    )
+                    record.input_cost = max(0.0, costs[0])
+                    record.output_cost = max(0.0, costs[1])
+                    record.cache_write_cost = max(0.0, costs[2])
+                    record.cache_read_cost = max(0.0, costs[3])
+                    record.total_cost = max(0.0, costs[4])
+                    record.cost_without_optimization = max(0.0, costs[5]) if costs[5] else None
+                    if record.cache_read_tokens > 0:
+                        record.optimization_type = "prompt_cache"
 
-            elif provider == "tavily":
-                record.total_cost = max(
-                    0.0, CostTracker.calculate_tavily_cost(record.operation_type)
-                )
+                elif provider == "voyage":
+                    record.total_cost = max(
+                        0.0,
+                        CostTracker.calculate_voyage_cost(
+                            record.model_name or "voyage-3", record.input_tokens
+                        ),
+                    )
 
-            # Final safeguard: ensure all costs are non-negative (DB constraint requires total_cost >= 0)
-            record.total_cost = max(0.0, record.total_cost)
-            record.input_cost = max(0.0, record.input_cost)
-            record.output_cost = max(0.0, record.output_cost)
-            record.cache_write_cost = max(0.0, record.cache_write_cost)
-            record.cache_read_cost = max(0.0, record.cache_read_cost)
+                elif provider == "brave":
+                    record.total_cost = max(
+                        0.0, CostTracker.calculate_brave_cost(record.operation_type)
+                    )
 
-            # Emit cache metrics (P1: prompt cache monitoring)
-            CostTracker._emit_cache_metrics(record)
+                elif provider == "tavily":
+                    record.total_cost = max(
+                        0.0, CostTracker.calculate_tavily_cost(record.operation_type)
+                    )
 
-            # Check token budget and emit warning (P2: token budget tracking)
-            CostTracker._check_token_budget(record)
+                # Final safeguard: ensure all costs are non-negative
+                record.total_cost = max(0.0, record.total_cost)
+                record.input_cost = max(0.0, record.input_cost)
+                record.output_cost = max(0.0, record.output_cost)
+                record.cache_write_cost = max(0.0, record.cache_write_cost)
+                record.cache_read_cost = max(0.0, record.cache_read_cost)
 
-            # Emit Prometheus metrics for Grafana dashboards
-            CostTracker._emit_prometheus_metrics(record)
+                # Add token/cost attributes to span (after cost calculation)
+                if span is not None and is_tracing_enabled():
+                    span.set_attribute("llm.input_tokens", record.input_tokens)
+                    span.set_attribute("llm.output_tokens", record.output_tokens)
+                    span.set_attribute("llm.cache_read_tokens", record.cache_read_tokens)
+                    span.set_attribute("llm.total_cost", record.total_cost)
+                    span.set_attribute("llm.latency_ms", record.latency_ms)
+                    span.set_attribute("llm.status", record.status)
 
-            # Check for cost anomalies (high single call, negative cost)
-            CostTracker.check_anomaly(record)
+                # Emit cache metrics (P1: prompt cache monitoring)
+                CostTracker._emit_cache_metrics(record)
 
-            # Log to database
-            CostTracker.log_cost(record)
+                # Check token budget and emit warning (P2: token budget tracking)
+                CostTracker._check_token_budget(record)
+
+                # Emit Prometheus metrics for Grafana dashboards
+                CostTracker._emit_prometheus_metrics(record)
+
+                # Check for cost anomalies (high single call, negative cost)
+                CostTracker.check_anomaly(record)
+
+                # Log to database
+                CostTracker.log_cost(record)
 
     # Track sessions that have already received warnings (to avoid duplicates)
     _warned_sessions: set[str] = set()
@@ -1626,6 +1662,7 @@ class CostTracker:
             "prompt": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
             "research": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
             "llm": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
+            "session_metadata": {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0},
             "aggregate": {"hit_rate": 0.0, "total_hits": 0, "total_requests": 0},
         }
 
@@ -1693,10 +1730,33 @@ class CostTracker:
         except Exception as e:
             logger.debug(f"Failed to get LLM cache metrics: {e}")
 
+        # 4. Session metadata cache (in-memory LRU)
+        try:
+            from backend.api.dependencies import get_session_metadata_cache
+
+            sm_cache = get_session_metadata_cache()
+            sm_stats = sm_cache.get_stats()
+            result["session_metadata"] = {
+                "hit_rate": sm_stats.get("hit_rate", 0.0),
+                "hits": sm_stats.get("hits", 0),
+                "misses": sm_stats.get("misses", 0),
+                "total": sm_stats.get("total", 0),
+            }
+        except Exception as e:
+            logger.debug(f"Failed to get session metadata cache metrics: {e}")
+
         # Aggregate
-        total_hits = result["prompt"]["hits"] + result["research"]["hits"] + result["llm"]["hits"]
+        total_hits = (
+            result["prompt"]["hits"]
+            + result["research"]["hits"]
+            + result["llm"]["hits"]
+            + result.get("session_metadata", {}).get("hits", 0)
+        )
         total_requests = (
-            result["prompt"]["total"] + result["research"]["total"] + result["llm"]["total"]
+            result["prompt"]["total"]
+            + result["research"]["total"]
+            + result["llm"]["total"]
+            + result.get("session_metadata", {}).get("total", 0)
         )
         result["aggregate"] = {
             "hit_rate": total_hits / total_requests if total_requests > 0 else 0.0,
@@ -1719,13 +1779,89 @@ class CostTracker:
         try:
             from backend.api.metrics import prom_metrics
 
-            for cache_type in ("prompt", "research", "llm"):
+            for cache_type in ("prompt", "research", "llm", "session_metadata"):
                 if cache_type in metrics:
                     prom_metrics.update_cache_hit_rate(cache_type, metrics[cache_type]["hit_rate"])
         except ImportError:
             pass
         except Exception as e:
             logger.debug(f"Failed to emit cache rate gauges: {e}")
+
+    @staticmethod
+    def get_prompt_type_cache_metrics(days: int = 7) -> list[dict[str, Any]]:
+        """Get cache hit rate breakdown by prompt type.
+
+        Analyzes Anthropic prompt caching effectiveness per prompt category
+        to identify optimization opportunities.
+
+        Args:
+            days: Number of days to analyze (default: 7)
+
+        Returns:
+            List of per-prompt-type metrics:
+            [
+                {
+                    "prompt_type": str,  # e.g., "persona_contribution", "synthesis"
+                    "cache_hits": int,
+                    "cache_misses": int,
+                    "cache_hit_rate": float,  # 0.0-1.0
+                    "total_requests": int,
+                    "cache_read_tokens": int,
+                    "total_input_tokens": int,
+                    "cache_token_rate": float,  # ratio of cached to total input tokens
+                },
+                ...
+            ]
+
+        Examples:
+            >>> metrics = CostTracker.get_prompt_type_cache_metrics(days=7)
+            >>> for m in metrics:
+            ...     print(f"{m['prompt_type']}: {m['cache_hit_rate']:.1%}")
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(metadata->>'prompt_type', 'unknown') as prompt_type,
+                        COUNT(*) FILTER (WHERE cache_hit = true) as cache_hits,
+                        COUNT(*) FILTER (WHERE cache_hit = false) as cache_misses,
+                        COUNT(*) as total_requests,
+                        SUM(cache_read_tokens) as cache_read_tokens,
+                        SUM(input_tokens) as total_input_tokens
+                    FROM api_costs
+                    WHERE provider = 'anthropic'
+                      AND created_at >= NOW() - INTERVAL '%s days'
+                    GROUP BY COALESCE(metadata->>'prompt_type', 'unknown')
+                    ORDER BY total_requests DESC
+                    """,
+                    (days,),
+                )
+
+                results = []
+                for row in cur.fetchall():
+                    hits = row[1] or 0
+                    misses = row[2] or 0
+                    total = row[3] or 0
+                    cache_read = row[4] or 0
+                    total_input = row[5] or 0
+
+                    results.append(
+                        {
+                            "prompt_type": row[0],
+                            "cache_hits": hits,
+                            "cache_misses": misses,
+                            "cache_hit_rate": hits / total if total > 0 else 0.0,
+                            "total_requests": total,
+                            "cache_read_tokens": cache_read,
+                            "total_input_tokens": total_input,
+                            "cache_token_rate": (
+                                cache_read / total_input if total_input > 0 else 0.0
+                            ),
+                        }
+                    )
+
+                return results
 
     @staticmethod
     def get_subproblem_costs(session_id: str) -> list[dict[str, Any]]:

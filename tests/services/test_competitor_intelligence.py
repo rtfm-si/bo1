@@ -3,6 +3,7 @@
 Tests multi-query Tavily search and LLM parsing for competitor intelligence.
 """
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -467,6 +468,113 @@ class TestFundingRoundModel:
         assert round.amount is None
         assert round.date is None
         assert round.investors == []
+
+
+class TestGatherIntelligenceBatch:
+    """Tests for gather_intelligence_batch method."""
+
+    @pytest.fixture
+    def service(self):
+        """Create service with mocked settings."""
+        with patch("backend.services.competitor_intelligence.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.tavily_api_key = "test-api-key"
+            mock_settings.return_value = settings
+            yield CompetitorIntelligenceService()
+
+    @pytest.mark.asyncio
+    async def test_batch_returns_empty_dict_for_empty_list(self, service):
+        """Should return empty dict when no competitors provided."""
+        result = await service.gather_intelligence_batch([])
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_batch_processes_multiple_competitors(self, service):
+        """Should process multiple competitors and return dict keyed by name."""
+        mock_intel = CompetitorIntel(
+            name="Test",
+            funding_rounds=[],
+            product_updates=[],
+            recent_news=[],
+            key_signals=[],
+            gathered_at=datetime(2024, 10, 1, 12, 0, 0, tzinfo=UTC),
+        )
+
+        with patch.object(
+            service, "gather_competitor_intel", new_callable=AsyncMock
+        ) as mock_gather:
+            mock_gather.return_value = mock_intel
+
+            competitors = [
+                {"name": "Acme Corp", "website": "https://acme.com"},
+                {"name": "Beta Inc", "website": None},
+            ]
+            result = await service.gather_intelligence_batch(competitors)
+
+        assert len(result) == 2
+        assert "Acme Corp" in result
+        assert "Beta Inc" in result
+        assert mock_gather.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_batch_respects_concurrency_limit(self, service):
+        """Should respect the concurrency limit via semaphore."""
+        concurrent_count = 0
+        max_concurrent = 0
+
+        async def mock_gather(name, website=None):
+            nonlocal concurrent_count, max_concurrent
+            concurrent_count += 1
+            max_concurrent = max(max_concurrent, concurrent_count)
+            await asyncio.sleep(0.01)  # Small delay to allow overlap detection
+            concurrent_count -= 1
+            return CompetitorIntel(
+                name=name,
+                funding_rounds=[],
+                product_updates=[],
+                recent_news=[],
+                key_signals=[],
+                gathered_at=datetime.now(UTC),
+            )
+
+        with patch.object(service, "gather_competitor_intel", side_effect=mock_gather):
+            competitors = [{"name": f"Comp{i}"} for i in range(6)]
+            await service.gather_intelligence_batch(competitors, concurrency_limit=2)
+
+        # With 6 competitors and limit 2, max concurrent should be <= 2
+        assert max_concurrent <= 2
+
+    @pytest.mark.asyncio
+    async def test_batch_handles_individual_failures(self, service):
+        """Should handle failures for individual competitors without failing batch."""
+        call_count = 0
+
+        async def mock_gather(name, website=None):
+            nonlocal call_count
+            call_count += 1
+            if name == "Failing Corp":
+                raise httpx.HTTPError("Connection failed")
+            return CompetitorIntel(
+                name=name,
+                funding_rounds=[],
+                product_updates=[],
+                recent_news=[],
+                key_signals=[],
+                gathered_at=datetime.now(UTC),
+            )
+
+        with patch.object(service, "gather_competitor_intel", side_effect=mock_gather):
+            competitors = [
+                {"name": "Good Corp"},
+                {"name": "Failing Corp"},
+                {"name": "Another Good"},
+            ]
+            result = await service.gather_intelligence_batch(competitors)
+
+        assert len(result) == 3
+        assert result["Good Corp"] is not None
+        assert result["Failing Corp"] is None  # Failed one returns None
+        assert result["Another Good"] is not None
 
 
 class TestProductUpdateModel:

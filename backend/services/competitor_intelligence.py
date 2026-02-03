@@ -350,6 +350,53 @@ Return ONLY valid JSON, no other text.
                 gathered_at=datetime.now(UTC),
             )
 
+    async def gather_intelligence_batch(
+        self,
+        competitors: list[dict[str, str | None]],
+        concurrency_limit: int = 3,
+    ) -> dict[str, CompetitorIntel | None]:
+        """Gather intelligence for multiple competitors in parallel.
+
+        Uses semaphore to limit concurrent API calls and respect rate limits.
+
+        Args:
+            competitors: List of dicts with 'name' and optional 'website' keys
+            concurrency_limit: Max concurrent competitor intelligence gathers
+
+        Returns:
+            Dict mapping competitor name to CompetitorIntel (or None on failure)
+        """
+        if not competitors:
+            return {}
+
+        semaphore = asyncio.Semaphore(concurrency_limit)
+
+        async def gather_with_limit(
+            comp: dict[str, str | None],
+        ) -> tuple[str, CompetitorIntel | None]:
+            async with semaphore:
+                name = comp.get("name", "")
+                website = comp.get("website")
+                intel = await self.gather_competitor_intel(name, website)
+                return (name, intel)
+
+        results = await asyncio.gather(
+            *[gather_with_limit(c) for c in competitors],
+            return_exceptions=True,
+        )
+
+        output: dict[str, CompetitorIntel | None] = {}
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                name = competitors[i].get("name", f"competitor_{i}")
+                logger.warning(f"Batch intel failed for {name}: {result}")
+                output[name] = None
+            else:
+                name, intel = result
+                output[name] = intel
+
+        return output
+
 
 def intel_to_dict(intel: CompetitorIntel) -> dict:
     """Convert CompetitorIntel to dict for JSON storage."""

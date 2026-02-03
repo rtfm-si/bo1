@@ -79,20 +79,21 @@ def create_deliberation_graph(
         synthesize_node,
         vote_node,
     )
-    from bo1.graph.routers import (
-        route_after_identify_gaps,
-        route_after_next_subproblem,
-        route_after_synthesis,
-        route_clarification,
-        route_convergence_check,
-        route_facilitator_decision,
-        route_subproblem_execution,
-    )
+    from bo1.graph.routers import get_router
     from bo1.graph.safety.loop_prevention import (
         check_convergence_node,
         cost_guard_node,
-        route_cost_guard,
     )
+
+    # Get routers from registry (decouples config from implementations)
+    route_facilitator_decision = get_router("route_facilitator_decision")
+    route_convergence_check = get_router("route_convergence_check")
+    route_clarification = get_router("route_clarification")
+    route_after_identify_gaps = get_router("route_after_identify_gaps")
+    route_after_synthesis = get_router("route_after_synthesis")
+    route_after_next_subproblem = get_router("route_after_next_subproblem")
+    route_subproblem_execution = get_router("route_subproblem_execution")
+    route_cost_guard = get_router("route_cost_guard")
 
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)

@@ -37,6 +37,8 @@ from backend.api.admin.models import (
     MeetingCostResponse,
     PerUserCostItem,
     PerUserCostResponse,
+    PromptTypeCacheItem,
+    PromptTypeCacheResponse,
     ProviderCostItem,
     ResearchCostItem,
     ResearchCostsByPeriod,
@@ -511,7 +513,47 @@ async def get_cache_metrics(
         prompt=CacheTypeMetrics(**metrics["prompt"]),
         research=CacheTypeMetrics(**metrics["research"]),
         llm=CacheTypeMetrics(**metrics["llm"]),
+        session_metadata=CacheTypeMetrics(**metrics["session_metadata"]),
         aggregate=AggregatedCacheMetrics(**metrics["aggregate"]),
+    )
+
+
+@router.get(
+    "/prompt-cache-by-type",
+    response_model=PromptTypeCacheResponse,
+    summary="Prompt cache metrics by type",
+    description="Get Anthropic prompt cache hit rate breakdown by prompt type.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get prompt cache by type")
+async def get_prompt_cache_by_type(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+    days: int = Query(7, ge=1, le=90, description="Number of days to analyze"),
+) -> PromptTypeCacheResponse:
+    """Get prompt cache metrics broken down by prompt type.
+
+    Useful for identifying which prompt types benefit most from caching
+    and where optimization efforts should focus.
+    """
+    from bo1.llm.cost_tracker import CostTracker
+
+    metrics = CostTracker.get_prompt_type_cache_metrics(days=days)
+
+    # Calculate overall stats
+    total_requests = sum(m["total_requests"] for m in metrics)
+    total_hits = sum(m["cache_hits"] for m in metrics)
+    total_cache_read = sum(m["cache_read_tokens"] for m in metrics)
+    total_input = sum(m["total_input_tokens"] for m in metrics)
+
+    items = [PromptTypeCacheItem(**m) for m in metrics]
+
+    return PromptTypeCacheResponse(
+        items=items,
+        total_requests=total_requests,
+        overall_cache_hit_rate=total_hits / total_requests if total_requests > 0 else 0.0,
+        overall_cache_token_rate=total_cache_read / total_input if total_input > 0 else 0.0,
+        days=days,
     )
 
 

@@ -14,6 +14,49 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+class TestPoolPollingIntervalConfig:
+    """Tests for DatabaseConfig.POOL_POLLING_INTERVAL_MS."""
+
+    def test_constant_exists_with_default_value(self):
+        """POOL_POLLING_INTERVAL_MS should default to 100ms."""
+        from bo1.constants import DatabaseConfig
+
+        assert DatabaseConfig.POOL_POLLING_INTERVAL_MS == 100
+
+    @patch("bo1.state.database.time.sleep")
+    @patch("bo1.state.circuit_breaker_wrappers.is_db_circuit_open", return_value=False)
+    @patch("bo1.state.circuit_breaker_wrappers.record_db_success")
+    def test_getconn_with_timeout_uses_config_interval(
+        self, mock_record_success, mock_circuit_open, mock_sleep
+    ):
+        """_getconn_with_timeout uses DatabaseConfig.POOL_POLLING_INTERVAL_MS."""
+        from psycopg2 import pool as pg_pool
+
+        from bo1.constants import DatabaseConfig
+        from bo1.state.database import _getconn_with_timeout
+
+        # Setup mock pool that fails first then succeeds
+        mock_pool = MagicMock()
+        call_count = [0]
+
+        def getconn_side_effect():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise pg_pool.PoolError("Pool exhausted")
+            return MagicMock()
+
+        mock_pool.getconn.side_effect = getconn_side_effect
+
+        _getconn_with_timeout(mock_pool, timeout=1.0)
+
+        # Verify sleep was called with the configured interval
+        expected_interval = DatabaseConfig.POOL_POLLING_INTERVAL_MS / 1000.0
+        mock_sleep.assert_called()
+        # First call should use the poll interval (or remaining time if less)
+        actual_sleep = mock_sleep.call_args_list[0][0][0]
+        assert actual_sleep <= expected_interval
+
+
 class TestStatementTimeoutConfig:
     """Tests for StatementTimeoutConfig in constants.py."""
 

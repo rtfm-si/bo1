@@ -19,6 +19,7 @@ Example:
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -314,6 +315,7 @@ class CircuitBreaker:
         self.last_failure_time = 0.0
         self.last_state_change = time.time()
         self._lock = asyncio.Lock()
+        self._sync_lock = threading.Lock()  # Thread-safe lock for sync callers (REL-P3)
         # Fault classification tracking (REL-P2)
         self.transient_failure_count = 0
         self.permanent_failure_count = 0
@@ -525,6 +527,9 @@ class CircuitBreaker:
     ) -> Any:
         """Execute sync function with circuit breaker protection.
 
+        Thread-safe: uses threading.Lock to prevent race conditions
+        when called from multiple threads concurrently.
+
         Args:
             func: Sync function to call
             *args: Positional arguments to pass to func
@@ -536,26 +541,31 @@ class CircuitBreaker:
         Raises:
             CircuitBreakerOpenError: If circuit is open (fast-fail)
         """
-        # Check recovery (sync version)
-        self._check_recovery_sync()
+        # Acquire lock for state check (prevents TOCTOU race)
+        with self._sync_lock:
+            # Check recovery (sync version)
+            self._check_recovery_sync()
 
-        # If circuit is open, fail immediately
-        if self.state == CircuitState.OPEN:
-            logger.error(
-                f"Circuit breaker OPEN: Fast-fail without calling API. "
-                f"Failed {self.failure_count}x, will retry in "
-                f"{self.config.recovery_timeout}s"
-            )
-            raise CircuitBreakerOpenError(
-                f"Circuit breaker is OPEN. Service unavailable. (Failed {self.failure_count} times)"
-            )
+            # If circuit is open, fail immediately
+            if self.state == CircuitState.OPEN:
+                logger.error(
+                    f"Circuit breaker OPEN: Fast-fail without calling API. "
+                    f"Failed {self.failure_count}x, will retry in "
+                    f"{self.config.recovery_timeout}s"
+                )
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker is OPEN. Service unavailable. (Failed {self.failure_count} times)"
+                )
 
+        # Execute outside lock to avoid holding lock during I/O
         try:
             result = func(*args, **kwargs)
-            self._record_success_sync()
+            with self._sync_lock:
+                self._record_success_sync()
             return result
         except Exception as e:
-            self._record_failure_sync(e)
+            with self._sync_lock:
+                self._record_failure_sync(e)
             raise
 
     def _check_recovery_sync(self) -> None:

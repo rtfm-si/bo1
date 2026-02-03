@@ -234,6 +234,61 @@ class TestMetrics:
             cache.get_or_load("session-abc", lambda _: {"loaded": True})
             misses_mock.inc.assert_called_once()
 
+    def test_get_stats_returns_metrics(self) -> None:
+        """get_stats should return hit/miss/rate from Prometheus counters."""
+        cache = SessionMetadataCache(max_size=100, ttl_seconds=300)
+
+        # Mock the Prometheus counter _value objects
+        with (
+            patch("backend.api.session_cache.session_cache_hits") as hits_mock,
+            patch("backend.api.session_cache.session_cache_misses") as misses_mock,
+        ):
+            hits_mock._value.get.return_value = 75
+            misses_mock._value.get.return_value = 25
+
+            stats = cache.get_stats()
+
+            assert stats["hits"] == 75
+            assert stats["misses"] == 25
+            assert stats["total"] == 100
+            assert stats["hit_rate"] == 0.75
+            assert "size" in stats
+
+    def test_get_stats_zero_total(self) -> None:
+        """get_stats should handle zero total (no requests)."""
+        cache = SessionMetadataCache(max_size=100, ttl_seconds=300)
+
+        with (
+            patch("backend.api.session_cache.session_cache_hits") as hits_mock,
+            patch("backend.api.session_cache.session_cache_misses") as misses_mock,
+        ):
+            hits_mock._value.get.return_value = 0
+            misses_mock._value.get.return_value = 0
+
+            stats = cache.get_stats()
+
+            assert stats["hits"] == 0
+            assert stats["misses"] == 0
+            assert stats["total"] == 0
+            assert stats["hit_rate"] == 0.0
+
+    def test_unified_metrics_emitted_on_hit(self) -> None:
+        """Cache hit should emit to unified Prometheus counters."""
+        cache = SessionMetadataCache(max_size=100, ttl_seconds=300)
+        cache.set("session-abc", {"status": "running"})
+
+        with patch("backend.api.metrics.prom_metrics") as prom_mock:
+            cache.get_or_load("session-abc", lambda _: {})
+            prom_mock.record_cache_operation.assert_called_once_with("session_metadata", True)
+
+    def test_unified_metrics_emitted_on_miss(self) -> None:
+        """Cache miss should emit to unified Prometheus counters."""
+        cache = SessionMetadataCache(max_size=100, ttl_seconds=300)
+
+        with patch("backend.api.metrics.prom_metrics") as prom_mock:
+            cache.get_or_load("session-abc", lambda _: {"loaded": True})
+            prom_mock.record_cache_operation.assert_called_once_with("session_metadata", False)
+
 
 class TestIntegration:
     """Integration tests for cache with verified_session."""

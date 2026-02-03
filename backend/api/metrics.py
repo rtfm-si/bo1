@@ -435,6 +435,13 @@ class PrometheusMetrics:
             ["cache_type"],
         )
 
+        # Per-prompt-type cache metrics for optimization analysis
+        self.prompt_type_cache_total = Counter(
+            "bo1_prompt_type_cache_total",
+            "Prompt cache hits/misses by prompt type",
+            ["prompt_type", "result"],  # result: hit, miss
+        )
+
     def record_startup_time(self, phase: str, duration_ms: float) -> None:
         """Record startup time for a specific phase.
 
@@ -688,6 +695,21 @@ class PrometheusMetrics:
             self.cache_hits_total.labels(cache_type=cache_type).inc()
         else:
             self.cache_misses_total.labels(cache_type=cache_type).inc()
+
+    def record_prompt_type_cache(self, prompt_type: str | None, hit: bool) -> None:
+        """Record prompt cache hit or miss for a specific prompt type.
+
+        Used to track which prompt types benefit most from Anthropic's
+        prompt caching, enabling data-driven optimization.
+
+        Args:
+            prompt_type: Prompt type (persona_contribution, synthesis, etc.)
+                        None is recorded as "unknown"
+            hit: True for cache hit, False for miss
+        """
+        ptype = prompt_type or "unknown"
+        result = "hit" if hit else "miss"
+        self.prompt_type_cache_total.labels(prompt_type=ptype, result=result).inc()
 
 
 # Global Prometheus metrics instance

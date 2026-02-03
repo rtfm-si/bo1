@@ -599,17 +599,48 @@ async def enrich_all_competitors(
             competitors=[],
         )
 
+    # Run enrichments in parallel with concurrency limit
+    concurrency_limit = 3  # Respect Tavily rate limits
+    semaphore = asyncio.Semaphore(concurrency_limit)
+
+    async def enrich_one(row: dict[str, Any]) -> tuple[dict[str, Any], dict | None, str | None]:
+        """Enrich a single competitor, returns (row, enriched_data, error)."""
+        async with semaphore:
+            try:
+                enriched = await enrich_competitor_with_tavily(
+                    row["name"],
+                    row["website"],
+                    tier_config["data_depth"],
+                )
+                return (row, enriched, None)
+            except httpx.HTTPError as e:
+                return (row, None, f"{row['name']}: HTTP error - {e}")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                return (row, None, f"{row['name']}: {str(e)}")
+
+    results = await asyncio.gather(
+        *[enrich_one(row) for row in rows],
+        return_exceptions=True,
+    )
+
     enriched_competitors = []
     errors = []
 
-    for row in rows:
-        try:
-            enriched = await enrich_competitor_with_tavily(
-                row["name"],
-                row["website"],
-                tier_config["data_depth"],
-            )
+    for result in results:
+        if isinstance(result, Exception):
+            # Unexpected exception from gather
+            errors.append(f"Batch error: {result}")
+            continue
 
+        row, enriched, error = result
+        if error:
+            errors.append(error)
+            enriched_competitors.append(row_to_profile(row))
+            continue
+
+        try:
             updated_row = execute_query(
                 """
                 UPDATE competitor_profiles SET
@@ -628,26 +659,8 @@ async def enrich_all_competitors(
                 fetch="one",
             )
             enriched_competitors.append(row_to_profile(updated_row))
-
-        except httpx.HTTPError as e:
-            errors.append(f"{row['name']}: HTTP error - {e}")
-            enriched_competitors.append(row_to_profile(row))
         except (DatabaseError, OperationalError):
             errors.append(f"{row['name']}: Database error")
-            enriched_competitors.append(row_to_profile(row))
-        except asyncio.CancelledError:
-            # Always re-raise CancelledError
-            raise
-        except Exception as e:
-            log_error(
-                logger,
-                ErrorCode.SERVICE_EXECUTION_ERROR,
-                f"Unexpected error enriching {row['name']}: {e}",
-                exc_info=True,
-                competitor_id=str(row["id"]),
-                competitor_name=row["name"],
-            )
-            errors.append(f"{row['name']}: {str(e)}")
             enriched_competitors.append(row_to_profile(row))
 
     return BulkEnrichResponse(

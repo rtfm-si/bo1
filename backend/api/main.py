@@ -181,6 +181,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print(f"⚠️  Could not register signal handlers: {e}")
     _track_startup_time("signal_handlers", op_start)
 
+    # Initialize Sentry error tracking (disabled by default)
+    op_start = time.perf_counter()
+    from bo1.observability import init_sentry
+
+    if init_sentry():
+        print("✓ Sentry error tracking initialized")
+    else:
+        print("ℹ️  Sentry disabled (no SENTRY_DSN configured)")
+    _track_startup_time("sentry_init", op_start)
+
+    # Initialize OpenTelemetry tracing (disabled by default)
+    op_start = time.perf_counter()
+    from bo1.observability import init_tracing
+
+    if init_tracing():
+        # Add FastAPI auto-instrumentation if tracing enabled
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        FastAPIInstrumentor.instrument_app(app)
+        print("✓ OpenTelemetry tracing initialized with FastAPI instrumentation")
+    else:
+        print("ℹ️  OpenTelemetry tracing disabled (set OTEL_ENABLED=true to enable)")
+    _track_startup_time("otel_init", op_start)
+
     # SECURITY: Validate authentication is enabled in production
     op_start = time.perf_counter()
     from backend.api.middleware.auth import require_production_auth

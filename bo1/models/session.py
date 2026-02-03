@@ -1,6 +1,11 @@
 """Session model for Board of One.
 
-Provides type-safe session handling with Pydantic validation.
+This is the **domain model** representing the full database entity. It includes
+all internal tracking fields (recovery flags, checkpoints, A/B variants, costs)
+that are not exposed in API responses.
+
+For the user-facing API response model, see `backend/api/models.py:SessionResponse`.
+See `docs/adr/007-domain-response-model-separation.md` for rationale.
 """
 
 from datetime import datetime

@@ -29,6 +29,7 @@ from bo1.graph.routers.synthesis import (
     route_on_resume,
     route_subproblem_execution,
 )
+from bo1.graph.safety.loop_prevention import route_cost_guard
 
 # Private aliases for backward compatibility
 _validate_state_field = validate_state_field
@@ -50,6 +51,8 @@ ROUTER_REGISTRY: dict[str, Callable[..., Any]] = {
     "route_after_next_subproblem": route_after_next_subproblem,
     "route_subproblem_execution": route_subproblem_execution,
     "route_on_resume": route_on_resume,
+    # Safety routing
+    "route_cost_guard": route_cost_guard,
 }
 
 
@@ -106,4 +109,6 @@ __all__ = [
     "route_after_next_subproblem",
     "route_subproblem_execution",
     "route_on_resume",
+    # Safety routers
+    "route_cost_guard",
 ]

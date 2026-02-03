@@ -11672,10 +11672,10 @@
           }
         },
         "required": [
-          "name",
-          "id",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "name",
+          "id"
         ],
         "title": "DatasetFolderResponse",
         "type": "object"
@@ -11782,10 +11782,10 @@
           }
         },
         "required": [
-          "name",
-          "id",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "name",
+          "id"
         ],
         "title": "DatasetFolderTree",
         "type": "object"
@@ -16284,7 +16284,7 @@
         "type": "object"
       },
       "FullSessionResponse": {
-        "description": "Response model for full session details.\n\nAttributes:\n    session_id: Session identifier\n    metadata: Full session metadata\n    state: Full deliberation state\n    is_active: Whether session is currently running",
+        "description": "Admin-only response model for full session introspection.\n\nReturns raw dictionaries for debugging/support purposes. Unlike the\nuser-facing `SessionResponse`, this includes full state JSON and all\nmetadata fields. Restricted to admin endpoints.\n\nSee `docs/adr/007-domain-response-model-separation.md` for rationale.\n\nAttributes:\n    session_id: Session identifier\n    metadata: Full session metadata (all fields from Session domain model)\n    state: Full deliberation state (LangGraph checkpoint JSON)\n    is_active: Whether session is currently running",
         "properties": {
           "is_active": {
             "description": "Whether session is currently running",
@@ -18500,7 +18500,7 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/MemberRole",
+            "$ref": "#/components/schemas/WorkspaceRole",
             "default": "member",
             "description": "Role to assign when invitation is accepted"
           }
@@ -18605,7 +18605,7 @@
             "title": "Inviter Name"
           },
           "role": {
-            "$ref": "#/components/schemas/MemberRole"
+            "$ref": "#/components/schemas/WorkspaceRole"
           },
           "status": {
             "$ref": "#/components/schemas/InvitationStatus"
@@ -20761,16 +20761,6 @@
         },
         "title": "MeetingTemplateUpdate",
         "type": "object"
-      },
-      "MemberRole": {
-        "description": "Role within a workspace.",
-        "enum": [
-          "owner",
-          "admin",
-          "member"
-        ],
-        "title": "MemberRole",
-        "type": "string"
       },
       "MentionSearchResponse": {
         "description": "Response model for mention search.",
@@ -25318,6 +25308,105 @@
         "title": "Promotion",
         "type": "object"
       },
+      "PromptTypeCacheItem": {
+        "description": "Cache metrics for a single prompt type.\n\nAttributes:\n    prompt_type: Prompt type (e.g., \"persona_contribution\", \"synthesis\")\n    cache_hits: Number of cache hits\n    cache_misses: Number of cache misses\n    cache_hit_rate: Cache hit rate (0.0-1.0)\n    total_requests: Total number of requests\n    cache_read_tokens: Total tokens read from cache\n    total_input_tokens: Total input tokens\n    cache_token_rate: Ratio of cached to total input tokens (0.0-1.0)",
+        "properties": {
+          "cache_hit_rate": {
+            "description": "Cache hit rate (0.0-1.0)",
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "cache_hits": {
+            "description": "Number of cache hits",
+            "title": "Cache Hits",
+            "type": "integer"
+          },
+          "cache_misses": {
+            "description": "Number of cache misses",
+            "title": "Cache Misses",
+            "type": "integer"
+          },
+          "cache_read_tokens": {
+            "description": "Tokens read from cache",
+            "title": "Cache Read Tokens",
+            "type": "integer"
+          },
+          "cache_token_rate": {
+            "description": "Cached/total token ratio (0.0-1.0)",
+            "title": "Cache Token Rate",
+            "type": "number"
+          },
+          "prompt_type": {
+            "description": "Prompt type",
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "total_input_tokens": {
+            "description": "Total input tokens",
+            "title": "Total Input Tokens",
+            "type": "integer"
+          },
+          "total_requests": {
+            "description": "Total requests",
+            "title": "Total Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_type",
+          "cache_hits",
+          "cache_misses",
+          "cache_hit_rate",
+          "total_requests",
+          "cache_read_tokens",
+          "total_input_tokens",
+          "cache_token_rate"
+        ],
+        "title": "PromptTypeCacheItem",
+        "type": "object"
+      },
+      "PromptTypeCacheResponse": {
+        "description": "Response model for prompt type cache metrics.\n\nAttributes:\n    items: List of per-prompt-type metrics\n    total_requests: Total requests across all types\n    overall_cache_hit_rate: Overall cache hit rate (0.0-1.0)\n    overall_cache_token_rate: Overall cached token ratio (0.0-1.0)\n    days: Number of days analyzed",
+        "properties": {
+          "days": {
+            "description": "Days analyzed",
+            "title": "Days",
+            "type": "integer"
+          },
+          "items": {
+            "description": "Per-type metrics",
+            "items": {
+              "$ref": "#/components/schemas/PromptTypeCacheItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "overall_cache_hit_rate": {
+            "description": "Overall hit rate (0.0-1.0)",
+            "title": "Overall Cache Hit Rate",
+            "type": "number"
+          },
+          "overall_cache_token_rate": {
+            "description": "Overall token ratio (0.0-1.0)",
+            "title": "Overall Cache Token Rate",
+            "type": "number"
+          },
+          "total_requests": {
+            "description": "Total requests",
+            "title": "Total Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total_requests",
+          "overall_cache_hit_rate",
+          "overall_cache_token_rate",
+          "days"
+        ],
+        "title": "PromptTypeCacheResponse",
+        "type": "object"
+      },
       "ProviderCostItem": {
         "description": "Cost breakdown for a single provider.",
         "properties": {
@@ -29712,7 +29801,7 @@
         "type": "object"
       },
       "SessionResponse": {
-        "description": "Response model for session information.\n\nAttributes:\n    id: Unique session identifier (UUID)\n    status: Current session status\n    phase: Current deliberation phase\n    created_at: Session creation timestamp\n    updated_at: Last update timestamp\n    last_activity_at: Last activity timestamp (state change, API call, etc.)\n    problem_statement: Truncated problem statement\n    cost: Total cost so far (if available)\n    expert_count: Number of experts consulted (for dashboard cards)\n    contribution_count: Total contributions (for dashboard cards)\n    task_count: Number of extracted tasks (for dashboard cards)\n    focus_area_count: Number of focus areas/sub-problems (for dashboard cards)\n    promo_credits_remaining: Remaining promo credits after session creation (if used promo)",
+        "description": "API response model for session information (user-facing subset).\n\nThis is a **response model** exposing only fields relevant to end users.\nInternal tracking fields (recovery_needed, has_untracked_costs, checkpoints,\nA/B variants, billable_portion, termination details) are excluded for:\n- Privacy: users don't need internal cost/recovery state\n- Security: checkpoint indices are implementation details\n- Simplicity: dashboard only needs summary counts\n\nFor the full domain model, see `bo1/models/session.py:Session`.\nSee `docs/adr/007-domain-response-model-separation.md` for rationale.\n\nAttributes:\n    id: Unique session identifier (UUID)\n    status: Current session status\n    phase: Current deliberation phase\n    created_at: Session creation timestamp\n    updated_at: Last update timestamp\n    last_activity_at: Last activity timestamp (state change, API call, etc.)\n    problem_statement: Truncated problem statement\n    cost: Total cost so far (if available)\n    expert_count: Number of experts consulted (for dashboard cards)\n    contribution_count: Total contributions (for dashboard cards)\n    task_count: Number of extracted tasks (for dashboard cards)\n    focus_area_count: Number of focus areas/sub-problems (for dashboard cards)\n    promo_credits_remaining: Remaining promo credits after session creation (if used promo)",
         "properties": {
           "contribution_count": {
             "anyOf": [
@@ -32873,7 +32962,7 @@
         "type": "object"
       },
       "UnifiedCacheMetricsResponse": {
-        "description": "Response model for unified cache metrics across all cache systems.\n\nAggregates metrics from:\n- Prompt cache: Anthropic native prompt caching\n- Research cache: PostgreSQL semantic similarity cache\n- LLM cache: Redis deterministic response cache\n\nAttributes:\n    prompt: Anthropic prompt cache metrics (24h window)\n    research: Research semantic cache metrics (24h window)\n    llm: LLM response cache metrics (in-memory since startup)\n    aggregate: Combined metrics across all caches",
+        "description": "Response model for unified cache metrics across all cache systems.\n\nAggregates metrics from:\n- Prompt cache: Anthropic native prompt caching\n- Research cache: PostgreSQL semantic similarity cache\n- LLM cache: Redis deterministic response cache\n- Session metadata cache: In-memory LRU cache for session metadata\n\nAttributes:\n    prompt: Anthropic prompt cache metrics (24h window)\n    research: Research semantic cache metrics (24h window)\n    llm: LLM response cache metrics (in-memory since startup)\n    session_metadata: Session metadata cache metrics (in-memory since startup)\n    aggregate: Combined metrics across all caches",
         "properties": {
           "aggregate": {
             "$ref": "#/components/schemas/AggregatedCacheMetrics",
@@ -32890,12 +32979,17 @@
           "research": {
             "$ref": "#/components/schemas/CacheTypeMetrics",
             "description": "Research semantic cache metrics"
+          },
+          "session_metadata": {
+            "$ref": "#/components/schemas/CacheTypeMetrics",
+            "description": "Session metadata cache metrics"
           }
         },
         "required": [
           "prompt",
           "research",
           "llm",
+          "session_metadata",
           "aggregate"
         ],
         "title": "UnifiedCacheMetricsResponse",
@@ -35348,7 +35442,7 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/MemberRole",
+            "$ref": "#/components/schemas/WorkspaceRole",
             "default": "member",
             "description": "Role to assign to the invited user"
           }
@@ -35418,7 +35512,7 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/MemberRole"
+            "$ref": "#/components/schemas/WorkspaceRole"
           },
           "user_email": {
             "anyOf": [
@@ -35466,7 +35560,7 @@
         "description": "Request model for updating a member's role.",
         "properties": {
           "role": {
-            "$ref": "#/components/schemas/MemberRole"
+            "$ref": "#/components/schemas/WorkspaceRole"
           }
         },
         "required": [
@@ -35542,6 +35636,16 @@
         ],
         "title": "WorkspaceResponse",
         "type": "object"
+      },
+      "WorkspaceRole": {
+        "description": "Workspace member roles.",
+        "enum": [
+          "owner",
+          "admin",
+          "member"
+        ],
+        "title": "WorkspaceRole",
+        "type": "string"
       },
       "WorkspaceSettingsUpdate": {
         "description": "Request model for updating workspace settings.",
@@ -40263,6 +40367,65 @@
           }
         },
         "summary": "Average cost per user",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/costs/prompt-cache-by-type": {
+      "get": {
+        "description": "Get Anthropic prompt cache hit rate breakdown by prompt type.",
+        "operationId": "get_prompt_cache_by_type_api_admin_costs_prompt_cache_by_type_get",
+        "parameters": [
+          {
+            "description": "Number of days to analyze",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Number of days to analyze",
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTypeCacheResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prompt cache metrics by type",
         "tags": [
           "admin",
           "admin",

@@ -213,6 +213,7 @@ def _getconn_with_timeout(
         ConnectionTimeoutError: If timeout exceeded waiting for connection
         CircuitBreakerOpenError: If postgres circuit is open
     """
+    from bo1.constants import DatabaseConfig
     from bo1.state.circuit_breaker_wrappers import (
         is_db_circuit_open,
         record_db_failure,
@@ -226,7 +227,7 @@ def _getconn_with_timeout(
         raise CircuitBreakerOpenError("Database circuit breaker is OPEN. Service unavailable.")
 
     start = time.monotonic()
-    poll_interval = 0.1  # 100ms between attempts
+    poll_interval = DatabaseConfig.POOL_POLLING_INTERVAL_MS / 1000.0
 
     while True:
         try:

@@ -44,7 +44,16 @@
 			(sections.executive_summary ||
 				sections.recommendation ||
 				sections.rationale ||
-				sections.implementation_considerations)
+				sections.implementation_considerations ||
+				sections.confidence_assessment ||
+				sections.risks_and_mitigations ||
+				sections.success_metrics ||
+				sections.timeline ||
+				sections.resources_required ||
+				sections.open_questions ||
+				sections.vote_breakdown ||
+				sections.convergence_point ||
+				sections.dissenting_views)
 	);
 
 	// Route params
@@ -314,7 +323,7 @@
 			<section class="py-12 bg-white dark:bg-neutral-800">
 				<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 					<h2 class="text-2xl font-bold text-neutral-900 dark:text-white mb-6">
-						Synthesis & Recommendation
+						Recommendation
 					</h2>
 
 					{#if hasParsedSections && sections}
@@ -368,6 +377,132 @@
 									<div class="px-4 pb-4 pt-2">
 										<MarkdownContent
 											content={sections.implementation_considerations}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.confidence_assessment}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Confidence Assessment
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.confidence_assessment}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.risks_and_mitigations}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Risks & Mitigations
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.risks_and_mitigations}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.success_metrics}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Success Metrics
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.success_metrics}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.timeline}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Timeline
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.timeline}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.resources_required}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Resources Required
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.resources_required}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.open_questions}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Open Questions
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.open_questions}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.vote_breakdown}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Vote Breakdown
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.vote_breakdown}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.convergence_point}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Convergence Point
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.convergence_point}
+											class="text-sm text-neutral-600 dark:text-neutral-400"
+										/>
+									</div>
+								</details>
+							{/if}
+
+							{#if sections.dissenting_views}
+								<details class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-hidden">
+									<summary class="cursor-pointer font-medium text-neutral-700 dark:text-neutral-300 p-4 hover:bg-neutral-100 dark:hover:bg-neutral-600/50 transition-colors">
+										Dissenting Views
+									</summary>
+									<div class="px-4 pb-4 pt-2">
+										<MarkdownContent
+											content={sections.dissenting_views}
 											class="text-sm text-neutral-600 dark:text-neutral-400"
 										/>
 									</div>

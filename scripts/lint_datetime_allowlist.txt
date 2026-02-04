@@ -18,6 +18,7 @@ backend/api/admin/costs.py  # TODO: P4 - 6 violations
 backend/api/admin/drilldown.py  # TODO: P4 - 1 violation - drill-down response
 backend/api/admin/experiments.py  # TODO: P4 - 4 violations - experiment response
 backend/api/admin/cost_analytics.py  # TODO: P4 - 6 violations
+backend/api/admin/gsc_analytics.py  # TODO: P4 - 5 violations, GSC metrics responses
 backend/api/admin/helpers.py  # TODO: P4 - 2 violations, admin formatting helper
 backend/api/admin/feature_flags.py  # TODO: P4 - 2 violations
 backend/api/admin/impersonation.py  # TODO: P4 - 2 violations

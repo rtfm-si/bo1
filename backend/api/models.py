@@ -4268,6 +4268,8 @@ class DecisionCreate(BaseModel):
     )
     synthesis: str | None = Field(None, description="Board synthesis/recommendation")
     faqs: list[FAQModel] | None = Field(None, description="FAQ pairs for schema")
+    featured_image_url: str | None = Field(None, max_length=500, description="OG image URL")
+    seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
 
     @field_validator("category")
     @classmethod
@@ -4293,6 +4295,8 @@ class DecisionUpdate(BaseModel):
     faqs: list[FAQModel] | None = Field(None, description="FAQ pairs")
     related_decision_ids: list[str] | None = Field(None, description="Related decision UUIDs")
     status: str | None = Field(None, description="draft or published")
+    featured_image_url: str | None = Field(None, max_length=500, description="OG image URL")
+    seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
 
     @field_validator("category")
     @classmethod
@@ -4338,6 +4342,9 @@ class DecisionResponse(BaseModel):
     click_through_count: int = Field(default=0, description="CTA click count")
     homepage_featured: bool = Field(default=False, description="Featured on homepage")
     homepage_order: int | None = Field(None, description="Homepage display order")
+    featured_image_url: str | None = Field(None, description="OG image URL")
+    seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
+    reading_time_minutes: int | None = Field(None, description="Reading time in minutes")
 
 
 class DecisionListResponse(BaseModel):
@@ -4359,6 +4366,9 @@ class DecisionPublicResponse(BaseModel):
     synthesis: str | None = Field(None, description="Board synthesis")
     faqs: list[dict[str, Any]] | None = Field(None, description="FAQ pairs")
     published_at: datetime | None = Field(None, description="Publication datetime")
+    featured_image_url: str | None = Field(None, description="OG image URL")
+    seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
+    reading_time_minutes: int | None = Field(None, description="Reading time in minutes")
 
 
 class CategoryWithCount(BaseModel):

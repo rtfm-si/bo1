@@ -85,7 +85,7 @@ from backend.api import (  # noqa: E402
     waitlist,
     workspaces,
 )
-from backend.api.integrations import calendar_router  # noqa: E402
+from backend.api.integrations import calendar_router, search_console_router  # noqa: E402
 from backend.api.middleware.admin import require_admin_any  # noqa: E402
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware  # noqa: E402
 from backend.api.middleware.audit_logging import AuditLoggingMiddleware  # noqa: E402
@@ -641,6 +641,7 @@ app.include_router(workspaces.billing_router, prefix="/api", tags=["workspace-bi
 app.include_router(csp_reports.router, tags=["security"])
 app.include_router(client_metrics.router, tags=["metrics"])
 app.include_router(calendar_router, prefix="/api", tags=["integrations"])
+app.include_router(search_console_router, prefix="/api", tags=["integrations"])
 app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])

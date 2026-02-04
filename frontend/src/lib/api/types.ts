@@ -1021,6 +1021,9 @@ export interface PublicDecision {
 		answer: string;
 	}>;
 	published_at?: string;
+	featured_image_url?: string;
+	seo_keywords?: string[];
+	reading_time_minutes?: number;
 }
 
 /**

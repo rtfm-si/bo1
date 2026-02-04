@@ -36,6 +36,10 @@ from bo1.state.repositories.feedback_repository import (
     FeedbackRepository,
     feedback_repository,
 )
+from bo1.state.repositories.gsc_repository import (
+    GSCRepository,
+    gsc_repository,
+)
 from bo1.state.repositories.promotion_repository import (
     PromotionRepository,
     promotion_repository,
@@ -65,6 +69,8 @@ __all__ = [
     "decision_repository",
     "FeedbackRepository",
     "feedback_repository",
+    "GSCRepository",
+    "gsc_repository",
     "PromotionRepository",
     "promotion_repository",
     "TemplateRepository",

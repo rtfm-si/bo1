@@ -8,6 +8,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { PublicDecisionListItem, DecisionCategoryCount } from '$lib/api/types';
 	import { BookOpen, ArrowRight, Users } from 'lucide-svelte';
+	import { createDecisionIndexItemListSchema, serializeJsonLd } from '$lib/utils/jsonld';
 
 	// State
 	let categories = $state<DecisionCategoryCount[]>([]);
@@ -66,6 +67,13 @@
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
 
+	// JSON-LD structured data
+	const itemListJsonLd = $derived(
+		categories.length > 0
+			? serializeJsonLd(createDecisionIndexItemListSchema(categories))
+			: null
+	);
+
 	onMount(() => {
 		loadData();
 	});
@@ -78,6 +86,10 @@
 		content="Expert-backed decision frameworks for solo founders. Get structured guidance on hiring, pricing, fundraising, marketing, and more."
 	/>
 	<link rel="canonical" href="https://boardof.one/decisions" />
+
+	{#if itemListJsonLd}
+		{@html `<script type="application/ld+json">${itemListJsonLd}</script>`}
+	{/if}
 </svelte:head>
 
 <Header />

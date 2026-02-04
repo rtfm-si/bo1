@@ -24,6 +24,17 @@ from bo1.state.repositories.base import BaseRepository
 logger = logging.getLogger(__name__)
 
 
+def calculate_reading_time(text: str | None) -> int | None:
+    """Calculate reading time in minutes (200 wpm average).
+
+    Returns None if no text provided.
+    """
+    if not text:
+        return None
+    words = len(text.split())
+    return max(1, words // 200)
+
+
 def generate_slug(title: str, existing_slugs: list[str] | None = None) -> str:
     """Generate URL-friendly slug from title.
 
@@ -78,6 +89,8 @@ class DecisionRepository(BaseRepository):
         synthesis: str | None = None,
         faqs: list[dict[str, Any]] | None = None,
         status: str = "draft",
+        featured_image_url: str | None = None,
+        seo_keywords: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create a new published decision.
 
@@ -92,6 +105,8 @@ class DecisionRepository(BaseRepository):
             synthesis: Board synthesis/recommendation
             faqs: FAQ pairs for schema
             status: draft or published
+            featured_image_url: URL for og:image and schema image
+            seo_keywords: List of SEO keywords for meta tag
 
         Returns:
             Created decision record
@@ -105,17 +120,21 @@ class DecisionRepository(BaseRepository):
 
                 decision_id = str(uuid4())
 
+                reading_time = calculate_reading_time(synthesis)
+
                 cur.execute(
                     """
                     INSERT INTO published_decisions (
                         id, session_id, category, slug, title, meta_description,
-                        founder_context, expert_perspectives, synthesis, faqs, status
+                        founder_context, expert_perspectives, synthesis, faqs, status,
+                        featured_image_url, seo_keywords, reading_time_minutes
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, session_id, category, slug, title, meta_description,
                               founder_context, expert_perspectives, synthesis, faqs,
                               related_decision_ids, status, published_at,
-                              created_at, updated_at, view_count, click_through_count
+                              created_at, updated_at, view_count, click_through_count,
+                              featured_image_url, seo_keywords, reading_time_minutes
                     """,
                     (
                         decision_id,
@@ -129,6 +148,9 @@ class DecisionRepository(BaseRepository):
                         synthesis,
                         self._to_json(faqs),
                         status,
+                        featured_image_url,
+                        seo_keywords,
+                        reading_time,
                     ),
                 )
                 result = cur.fetchone()
@@ -145,7 +167,8 @@ class DecisionRepository(BaseRepository):
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
                            created_at, updated_at, view_count, click_through_count,
-                           homepage_featured, homepage_order
+                           homepage_featured, homepage_order,
+                           featured_image_url, seo_keywords, reading_time_minutes
                     FROM published_decisions
                     WHERE id = %s
                     """,
@@ -163,7 +186,8 @@ class DecisionRepository(BaseRepository):
                     SELECT id, session_id, category, slug, title, meta_description,
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
-                           created_at, updated_at, view_count, click_through_count
+                           created_at, updated_at, view_count, click_through_count,
+                           featured_image_url, seo_keywords, reading_time_minutes
                     FROM published_decisions
                     WHERE slug = %s
                     """,
@@ -181,7 +205,8 @@ class DecisionRepository(BaseRepository):
                     SELECT id, session_id, category, slug, title, meta_description,
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
-                           created_at, updated_at, view_count, click_through_count
+                           created_at, updated_at, view_count, click_through_count,
+                           featured_image_url, seo_keywords, reading_time_minutes
                     FROM published_decisions
                     WHERE category = %s AND slug = %s AND status = 'published'
                     """,
@@ -289,6 +314,8 @@ class DecisionRepository(BaseRepository):
         faqs: list[dict[str, Any]] | None = None,
         related_decision_ids: list[str] | None = None,
         status: str | None = None,
+        featured_image_url: str | None = None,
+        seo_keywords: list[str] | None = None,
     ) -> dict[str, Any] | None:
         """Update decision fields."""
         updates: list[str] = []
@@ -315,6 +342,10 @@ class DecisionRepository(BaseRepository):
         if synthesis is not None:
             updates.append("synthesis = %s")
             params.append(synthesis)
+            # Recalculate reading time when synthesis changes
+            reading_time = calculate_reading_time(synthesis)
+            updates.append("reading_time_minutes = %s")
+            params.append(reading_time)
         if faqs is not None:
             updates.append("faqs = %s")
             params.append(self._to_json(faqs))
@@ -324,6 +355,12 @@ class DecisionRepository(BaseRepository):
         if status is not None:
             updates.append("status = %s")
             params.append(status)
+        if featured_image_url is not None:
+            updates.append("featured_image_url = %s")
+            params.append(featured_image_url)
+        if seo_keywords is not None:
+            updates.append("seo_keywords = %s")
+            params.append(seo_keywords)
 
         if not updates:
             return self.get_by_id(decision_id)
@@ -341,7 +378,8 @@ class DecisionRepository(BaseRepository):
                     RETURNING id, session_id, category, slug, title, meta_description,
                               founder_context, expert_perspectives, synthesis, faqs,
                               related_decision_ids, status, published_at,
-                              created_at, updated_at, view_count, click_through_count
+                              created_at, updated_at, view_count, click_through_count,
+                              featured_image_url, seo_keywords, reading_time_minutes
                     """,
                     params,
                 )

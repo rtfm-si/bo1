@@ -8,7 +8,11 @@
 	import Footer from '$lib/components/Footer.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { PublicDecisionListItem } from '$lib/api/types';
-	import { createDecisionCategoryBreadcrumbSchema, serializeJsonLd } from '$lib/utils/jsonld';
+	import {
+		createDecisionCategoryBreadcrumbSchema,
+		createDecisionCategoryCollectionSchema,
+		serializeJsonLd
+	} from '$lib/utils/jsonld';
 	import { BookOpen, ArrowRight, Users, ChevronRight } from 'lucide-svelte';
 
 	// State
@@ -20,11 +24,6 @@
 	const category = $derived($page.params.category);
 	const categoryTitle = $derived(category ? category.charAt(0).toUpperCase() + category.slice(1) : '');
 
-	// JSON-LD structured data
-	const breadcrumbJsonLd = $derived(
-		category ? serializeJsonLd(createDecisionCategoryBreadcrumbSchema(category)) : null
-	);
-
 	const categoryDescriptions: Record<string, string> = {
 		hiring: 'Decisions about building your team - from first hire to scaling',
 		pricing: 'Pricing strategies, models, and when to change prices',
@@ -35,6 +34,22 @@
 		operations: 'Operational decisions, tools, and process improvements',
 		growth: 'Growth strategies, metrics, and expansion decisions'
 	};
+
+	// JSON-LD structured data
+	const breadcrumbJsonLd = $derived(
+		category ? serializeJsonLd(createDecisionCategoryBreadcrumbSchema(category)) : null
+	);
+	const collectionJsonLd = $derived(
+		category
+			? serializeJsonLd(
+					createDecisionCategoryCollectionSchema(
+						category,
+						categoryDescriptions[category] || '',
+						total
+					)
+				)
+			: null
+	);
 
 	async function loadDecisions() {
 		if (!category) return;
@@ -82,6 +97,9 @@
 
 	{#if breadcrumbJsonLd}
 		{@html `<script type="application/ld+json">${breadcrumbJsonLd}</script>`}
+	{/if}
+	{#if collectionJsonLd}
+		{@html `<script type="application/ld+json">${collectionJsonLd}</script>`}
 	{/if}
 </svelte:head>
 

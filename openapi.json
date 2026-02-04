@@ -12670,6 +12670,19 @@
             "description": "FAQ pairs for schema",
             "title": "Faqs"
           },
+          "featured_image_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OG image URL",
+            "title": "Featured Image Url"
+          },
           "founder_context": {
             "$ref": "#/components/schemas/FounderContextModel",
             "description": "Founder context for display"
@@ -12686,6 +12699,21 @@
             ],
             "description": "SEO description",
             "title": "Meta Description"
+          },
+          "seo_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO keywords array",
+            "title": "Seo Keywords"
           },
           "session_id": {
             "anyOf": [
@@ -12819,6 +12847,18 @@
             "description": "FAQ pairs",
             "title": "Faqs"
           },
+          "featured_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OG image URL",
+            "title": "Featured Image Url"
+          },
           "founder_context": {
             "anyOf": [
               {
@@ -12856,6 +12896,33 @@
             ],
             "description": "Publication datetime",
             "title": "Published At"
+          },
+          "reading_time_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reading time in minutes",
+            "title": "Reading Time Minutes"
+          },
+          "seo_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO keywords array",
+            "title": "Seo Keywords"
           },
           "slug": {
             "description": "URL slug",
@@ -12940,6 +13007,18 @@
             "description": "FAQ pairs",
             "title": "Faqs"
           },
+          "featured_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OG image URL",
+            "title": "Featured Image Url"
+          },
           "founder_context": {
             "anyOf": [
               {
@@ -13001,6 +13080,18 @@
             "description": "Publication datetime",
             "title": "Published At"
           },
+          "reading_time_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reading time in minutes",
+            "title": "Reading Time Minutes"
+          },
           "related_decision_ids": {
             "anyOf": [
               {
@@ -13015,6 +13106,21 @@
             ],
             "description": "Related decision UUIDs",
             "title": "Related Decision Ids"
+          },
+          "seo_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO keywords array",
+            "title": "Seo Keywords"
           },
           "session_id": {
             "anyOf": [
@@ -13125,6 +13231,19 @@
             "description": "FAQ pairs",
             "title": "Faqs"
           },
+          "featured_image_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OG image URL",
+            "title": "Featured Image Url"
+          },
           "founder_context": {
             "anyOf": [
               {
@@ -13163,6 +13282,21 @@
             ],
             "description": "Related decision UUIDs",
             "title": "Related Decision Ids"
+          },
+          "seo_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO keywords array",
+            "title": "Seo Keywords"
           },
           "slug": {
             "anyOf": [
@@ -16346,6 +16480,411 @@
           "conversion_rate"
         ],
         "title": "FunnelStageResponse",
+        "type": "object"
+      },
+      "GSCDecisionDetailResponse": {
+        "description": "Detailed GSC data for a single decision.",
+        "properties": {
+          "avg_ctr": {
+            "title": "Avg Ctr",
+            "type": "number"
+          },
+          "avg_position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Position"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "snapshots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "total_clicks": {
+            "title": "Total Clicks",
+            "type": "integer"
+          },
+          "total_impressions": {
+            "title": "Total Impressions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "category",
+          "total_impressions",
+          "total_clicks",
+          "avg_ctr",
+          "avg_position",
+          "snapshots"
+        ],
+        "title": "GSCDecisionDetailResponse",
+        "type": "object"
+      },
+      "GSCDecisionMetrics": {
+        "description": "GSC metrics for a single decision.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "last_data_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Data Date"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "category",
+          "impressions",
+          "clicks",
+          "ctr",
+          "position",
+          "last_data_date"
+        ],
+        "title": "GSCDecisionMetrics",
+        "type": "object"
+      },
+      "GSCDecisionsResponse": {
+        "description": "List of decisions with GSC metrics.",
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/GSCDecisionMetrics"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decisions",
+          "total_count"
+        ],
+        "title": "GSCDecisionsResponse",
+        "type": "object"
+      },
+      "GSCOverviewResponse": {
+        "description": "Aggregated GSC metrics overview.",
+        "properties": {
+          "avg_ctr": {
+            "default": 0.0,
+            "title": "Avg Ctr",
+            "type": "number"
+          },
+          "avg_position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Position"
+          },
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "decision_count": {
+            "default": 0,
+            "title": "Decision Count",
+            "type": "integer"
+          },
+          "earliest_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Date"
+          },
+          "last_sync": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync"
+          },
+          "latest_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Date"
+          },
+          "site_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Url"
+          },
+          "total_clicks": {
+            "default": 0,
+            "title": "Total Clicks",
+            "type": "integer"
+          },
+          "total_impressions": {
+            "default": 0,
+            "title": "Total Impressions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connected"
+        ],
+        "title": "GSCOverviewResponse",
+        "type": "object"
+      },
+      "GSCSiteResponse": {
+        "description": "A GSC site/property.",
+        "properties": {
+          "permission_level": {
+            "title": "Permission Level",
+            "type": "string"
+          },
+          "site_url": {
+            "title": "Site Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_url",
+          "permission_level"
+        ],
+        "title": "GSCSiteResponse",
+        "type": "object"
+      },
+      "GSCSiteSelectRequest": {
+        "description": "Request to select a GSC site.",
+        "properties": {
+          "site_url": {
+            "title": "Site Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_url"
+        ],
+        "title": "GSCSiteSelectRequest",
+        "type": "object"
+      },
+      "GSCSitesResponse": {
+        "description": "Response for list of GSC sites.",
+        "properties": {
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/GSCSiteResponse"
+            },
+            "title": "Sites",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sites"
+        ],
+        "title": "GSCSitesResponse",
+        "type": "object"
+      },
+      "GSCStatusResponse": {
+        "description": "Response for GSC connection status.",
+        "properties": {
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "connected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected At"
+          },
+          "connected_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected By"
+          },
+          "feature_enabled": {
+            "default": true,
+            "title": "Feature Enabled",
+            "type": "boolean"
+          },
+          "site_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Url"
+          }
+        },
+        "required": [
+          "connected"
+        ],
+        "title": "GSCStatusResponse",
+        "type": "object"
+      },
+      "GSCSyncResponse": {
+        "description": "Response from sync operation.",
+        "properties": {
+          "decisions_matched": {
+            "default": 0,
+            "title": "Decisions Matched",
+            "type": "integer"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "errors": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "pages_fetched": {
+            "default": 0,
+            "title": "Pages Fetched",
+            "type": "integer"
+          },
+          "snapshots_created": {
+            "default": 0,
+            "title": "Snapshots Created",
+            "type": "integer"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "GSCSyncResponse",
         "type": "object"
       },
       "GanttActionData": {
@@ -44544,6 +45083,336 @@
         ]
       }
     },
+    "/api/admin/gsc/decisions": {
+      "get": {
+        "description": "Get decisions ranked by GSC metrics (admin only).\n\nArgs:\n    request: FastAPI request object\n    days: Number of days to aggregate\n    order_by: Column to sort by\n    limit: Maximum results\n\nReturns:\n    List of decisions with their GSC metrics",
+        "operationId": "get_gsc_decisions_api_admin_gsc_decisions_get",
+        "parameters": [
+          {
+            "description": "Days of data to aggregate",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days of data to aggregate",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Sort by: impressions, clicks, ctr, position",
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "impressions",
+              "description": "Sort by: impressions, clicks, ctr, position",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Maximum results",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCDecisionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Gsc Decisions",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-gsc"
+        ]
+      }
+    },
+    "/api/admin/gsc/decisions/{decision_id}": {
+      "get": {
+        "description": "Get detailed GSC data for a specific decision (admin only).\n\nArgs:\n    request: FastAPI request object\n    decision_id: Decision ID\n    days: Days of history to return\n\nReturns:\n    Decision details with time-series snapshots",
+        "operationId": "get_gsc_decision_detail_api_admin_gsc_decisions__decision_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Days of history",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "description": "Days of history",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCDecisionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Gsc Decision Detail",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-gsc"
+        ]
+      }
+    },
+    "/api/admin/gsc/overview": {
+      "get": {
+        "description": "Get aggregated GSC metrics overview (admin only).\n\nArgs:\n    request: FastAPI request object\n    days: Number of days to aggregate (default 30)\n\nReturns:\n    Aggregated metrics across all decisions",
+        "operationId": "get_gsc_overview_api_admin_gsc_overview_get",
+        "parameters": [
+          {
+            "description": "Days of data to aggregate",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Days of data to aggregate",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Gsc Overview",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-gsc"
+        ]
+      }
+    },
+    "/api/admin/gsc/sync": {
+      "post": {
+        "description": "Trigger manual GSC data sync (admin only).\n\nFetches search analytics from GSC and stores snapshots.\n\nArgs:\n    request: FastAPI request object\n    days: Number of days to sync (default 7)\n\nReturns:\n    Sync result with counts",
+        "operationId": "trigger_gsc_sync_api_admin_gsc_sync_post",
+        "parameters": [
+          {
+            "description": "Days of data to sync",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Days of data to sync",
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Gsc Sync",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-gsc"
+        ]
+      }
+    },
+    "/api/admin/gsc/sync/historical": {
+      "post": {
+        "description": "Trigger historical GSC data sync (admin only).\n\nFetches day-by-day data for time series analysis.\nOnly fetches dates not already in the database.\n\nArgs:\n    request: FastAPI request object\n    days: Days of history to sync (default 90)\n\nReturns:\n    Sync result",
+        "operationId": "trigger_gsc_historical_sync_api_admin_gsc_sync_historical_post",
+        "parameters": [
+          {
+            "description": "Days of history to sync",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "description": "Days of history to sync",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Gsc Historical Sync",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-gsc"
+        ]
+      }
+    },
     "/api/admin/impersonate": {
       "delete": {
         "description": "End the current impersonation session and return to admin view.",
@@ -64207,6 +65076,317 @@
           }
         },
         "summary": "Toggle Calendar Sync",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/callback": {
+      "get": {
+        "description": "Handle Google OAuth callback for GSC.\n\nExchanges authorization code for tokens and stores them.",
+        "operationId": "gsc_oauth_callback_api_v1_integrations_search_console_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gsc Oauth Callback",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/connect": {
+      "get": {
+        "description": "Initiate Google OAuth flow for GSC access (admin only).\n\nRedirects to Google OAuth consent screen with webmasters.readonly scope.",
+        "operationId": "initiate_gsc_connect_api_v1_integrations_search_console_connect_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Initiate Gsc Connect",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/disconnect": {
+      "delete": {
+        "description": "Disconnect GSC integration (admin only).\n\nClears stored tokens.\n\nReturns:\n    success: True if disconnected successfully",
+        "operationId": "disconnect_gsc_api_v1_integrations_search_console_disconnect_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Disconnect Gsc Api V1 Integrations Search Console Disconnect Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect Gsc",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/site": {
+      "patch": {
+        "description": "Select which GSC site/property to track (admin only).\n\nArgs:\n    request: FastAPI request object\n    body: Contains site_url to select\n\nReturns:\n    Updated GSC status",
+        "operationId": "select_gsc_site_api_v1_integrations_search_console_site_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GSCSiteSelectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Gsc Site",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/sites": {
+      "get": {
+        "description": "List available GSC sites/properties (admin only).\n\nReturns sites that the connected account has access to.",
+        "operationId": "list_gsc_sites_api_v1_integrations_search_console_sites_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCSitesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Gsc Sites",
+        "tags": [
+          "integrations",
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/search-console/status": {
+      "get": {
+        "description": "Check if GSC is connected (admin only).\n\nReturns:\n    connected: True if GSC tokens exist\n    site_url: Selected property URL\n    connected_at: When the connection was established\n    connected_by: User ID who connected\n    feature_enabled: Whether GSC feature is enabled",
+        "operationId": "get_gsc_status_api_v1_integrations_search_console_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GSCStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Gsc Status",
         "tags": [
           "integrations",
           "integrations"

@@ -157,6 +157,34 @@
 	<meta name="description" content={pageDescription} />
 	<link rel="canonical" href="https://boardof.one/decisions/{category}/{slug}" />
 
+	<!-- Open Graph -->
+	<meta property="og:title" content={pageTitle} />
+	<meta property="og:description" content={pageDescription} />
+	<meta property="og:type" content="article" />
+	<meta property="og:url" content="https://boardof.one/decisions/{category}/{slug}" />
+	<meta property="og:site_name" content="Board of One" />
+	{#if decision?.featured_image_url}
+		<meta property="og:image" content={decision.featured_image_url} />
+	{/if}
+
+	<!-- Twitter Card -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={pageTitle} />
+	<meta name="twitter:description" content={pageDescription} />
+	{#if decision?.featured_image_url}
+		<meta name="twitter:image" content={decision.featured_image_url} />
+	{/if}
+
+	<!-- Article metadata -->
+	{#if decision?.published_at}
+		<meta property="article:published_time" content={decision.published_at} />
+	{/if}
+
+	<!-- Keywords -->
+	{#if decision?.seo_keywords?.length}
+		<meta name="keywords" content={decision.seo_keywords.join(', ')} />
+	{/if}
+
 	{#if articleJsonLd}
 		{@html `<script type="application/ld+json">${articleJsonLd}</script>`}
 	{/if}

@@ -1901,6 +1901,149 @@ export interface paths {
         patch: operations["update_feedback_status_api_admin_feedback__feedback_id__patch"];
         trace?: never;
     };
+    "/api/admin/gsc/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gsc Decisions
+         * @description Get decisions ranked by GSC metrics (admin only).
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         days: Number of days to aggregate
+         *         order_by: Column to sort by
+         *         limit: Maximum results
+         *
+         *     Returns:
+         *         List of decisions with their GSC metrics
+         */
+        get: operations["get_gsc_decisions_api_admin_gsc_decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/gsc/decisions/{decision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gsc Decision Detail
+         * @description Get detailed GSC data for a specific decision (admin only).
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         decision_id: Decision ID
+         *         days: Days of history to return
+         *
+         *     Returns:
+         *         Decision details with time-series snapshots
+         */
+        get: operations["get_gsc_decision_detail_api_admin_gsc_decisions__decision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/gsc/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gsc Overview
+         * @description Get aggregated GSC metrics overview (admin only).
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         days: Number of days to aggregate (default 30)
+         *
+         *     Returns:
+         *         Aggregated metrics across all decisions
+         */
+        get: operations["get_gsc_overview_api_admin_gsc_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/gsc/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Gsc Sync
+         * @description Trigger manual GSC data sync (admin only).
+         *
+         *     Fetches search analytics from GSC and stores snapshots.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         days: Number of days to sync (default 7)
+         *
+         *     Returns:
+         *         Sync result with counts
+         */
+        post: operations["trigger_gsc_sync_api_admin_gsc_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/gsc/sync/historical": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Gsc Historical Sync
+         * @description Trigger historical GSC data sync (admin only).
+         *
+         *     Fetches day-by-day data for time series analysis.
+         *     Only fetches dates not already in the database.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         days: Days of history to sync (default 90)
+         *
+         *     Returns:
+         *         Sync result
+         */
+        post: operations["trigger_gsc_historical_sync_api_admin_gsc_sync_historical_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/impersonate": {
         parameters: {
             query?: never;
@@ -8451,6 +8594,151 @@ export interface paths {
          *         Updated calendar status
          */
         patch: operations["toggle_calendar_sync_api_v1_integrations_calendar_status_patch"];
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gsc Oauth Callback
+         * @description Handle Google OAuth callback for GSC.
+         *
+         *     Exchanges authorization code for tokens and stores them.
+         */
+        get: operations["gsc_oauth_callback_api_v1_integrations_search_console_callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Initiate Gsc Connect
+         * @description Initiate Google OAuth flow for GSC access (admin only).
+         *
+         *     Redirects to Google OAuth consent screen with webmasters.readonly scope.
+         */
+        get: operations["initiate_gsc_connect_api_v1_integrations_search_console_connect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect Gsc
+         * @description Disconnect GSC integration (admin only).
+         *
+         *     Clears stored tokens.
+         *
+         *     Returns:
+         *         success: True if disconnected successfully
+         */
+        delete: operations["disconnect_gsc_api_v1_integrations_search_console_disconnect_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Select Gsc Site
+         * @description Select which GSC site/property to track (admin only).
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         body: Contains site_url to select
+         *
+         *     Returns:
+         *         Updated GSC status
+         */
+        patch: operations["select_gsc_site_api_v1_integrations_search_console_site_patch"];
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Gsc Sites
+         * @description List available GSC sites/properties (admin only).
+         *
+         *     Returns sites that the connected account has access to.
+         */
+        get: operations["list_gsc_sites_api_v1_integrations_search_console_sites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/search-console/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gsc Status
+         * @description Check if GSC is connected (admin only).
+         *
+         *     Returns:
+         *         connected: True if GSC tokens exist
+         *         site_url: Selected property URL
+         *         connected_at: When the connection was established
+         *         connected_by: User ID who connected
+         *         feature_enabled: Whether GSC feature is enabled
+         */
+        get: operations["get_gsc_status_api_v1_integrations_search_console_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/invitations/accept": {
@@ -19840,6 +20128,11 @@ export interface components {
              * @description FAQ pairs for schema
              */
             faqs?: components["schemas"]["FAQModel"][] | null;
+            /**
+             * Featured Image Url
+             * @description OG image URL
+             */
+            featured_image_url?: string | null;
             /** @description Founder context for display */
             founder_context: components["schemas"]["FounderContextModel"];
             /**
@@ -19847,6 +20140,11 @@ export interface components {
              * @description SEO description
              */
             meta_description?: string | null;
+            /**
+             * Seo Keywords
+             * @description SEO keywords array
+             */
+            seo_keywords?: string[] | null;
             /**
              * Session Id
              * @description Source session UUID (optional)
@@ -19922,6 +20220,11 @@ export interface components {
                 [key: string]: unknown;
             }[] | null;
             /**
+             * Featured Image Url
+             * @description OG image URL
+             */
+            featured_image_url?: string | null;
+            /**
              * Founder Context
              * @description Founder context
              */
@@ -19938,6 +20241,16 @@ export interface components {
              * @description Publication datetime
              */
             published_at?: string | null;
+            /**
+             * Reading Time Minutes
+             * @description Reading time in minutes
+             */
+            reading_time_minutes?: number | null;
+            /**
+             * Seo Keywords
+             * @description SEO keywords array
+             */
+            seo_keywords?: string[] | null;
             /**
              * Slug
              * @description URL slug
@@ -19991,6 +20304,11 @@ export interface components {
                 [key: string]: unknown;
             }[] | null;
             /**
+             * Featured Image Url
+             * @description OG image URL
+             */
+            featured_image_url?: string | null;
+            /**
              * Founder Context
              * @description Founder context
              */
@@ -20024,10 +20342,20 @@ export interface components {
              */
             published_at?: string | null;
             /**
+             * Reading Time Minutes
+             * @description Reading time in minutes
+             */
+            reading_time_minutes?: number | null;
+            /**
              * Related Decision Ids
              * @description Related decision UUIDs
              */
             related_decision_ids?: string[] | null;
+            /**
+             * Seo Keywords
+             * @description SEO keywords array
+             */
+            seo_keywords?: string[] | null;
             /**
              * Session Id
              * @description Source session UUID
@@ -20086,6 +20414,11 @@ export interface components {
              * @description FAQ pairs
              */
             faqs?: components["schemas"]["FAQModel"][] | null;
+            /**
+             * Featured Image Url
+             * @description OG image URL
+             */
+            featured_image_url?: string | null;
             /** @description Founder context */
             founder_context?: components["schemas"]["FounderContextModel"] | null;
             /**
@@ -20098,6 +20431,11 @@ export interface components {
              * @description Related decision UUIDs
              */
             related_decision_ids?: string[] | null;
+            /**
+             * Seo Keywords
+             * @description SEO keywords array
+             */
+            seo_keywords?: string[] | null;
             /**
              * Slug
              * @description URL slug (rename)
@@ -22227,6 +22565,181 @@ export interface components {
             count: number;
             /** Name */
             name: string;
+        };
+        /**
+         * GSCDecisionDetailResponse
+         * @description Detailed GSC data for a single decision.
+         */
+        GSCDecisionDetailResponse: {
+            /** Avg Ctr */
+            avg_ctr: number;
+            /** Avg Position */
+            avg_position: number | null;
+            /** Category */
+            category: string;
+            /** Id */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Snapshots */
+            snapshots: {
+                [key: string]: unknown;
+            }[];
+            /** Title */
+            title: string;
+            /** Total Clicks */
+            total_clicks: number;
+            /** Total Impressions */
+            total_impressions: number;
+        };
+        /**
+         * GSCDecisionMetrics
+         * @description GSC metrics for a single decision.
+         */
+        GSCDecisionMetrics: {
+            /** Category */
+            category: string;
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /** Id */
+            id: string;
+            /** Impressions */
+            impressions: number;
+            /** Last Data Date */
+            last_data_date: string | null;
+            /** Position */
+            position: number | null;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * GSCDecisionsResponse
+         * @description List of decisions with GSC metrics.
+         */
+        GSCDecisionsResponse: {
+            /** Decisions */
+            decisions: components["schemas"]["GSCDecisionMetrics"][];
+            /** Total Count */
+            total_count: number;
+        };
+        /**
+         * GSCOverviewResponse
+         * @description Aggregated GSC metrics overview.
+         */
+        GSCOverviewResponse: {
+            /**
+             * Avg Ctr
+             * @default 0
+             */
+            avg_ctr: number;
+            /** Avg Position */
+            avg_position?: number | null;
+            /** Connected */
+            connected: boolean;
+            /**
+             * Decision Count
+             * @default 0
+             */
+            decision_count: number;
+            /** Earliest Date */
+            earliest_date?: string | null;
+            /** Last Sync */
+            last_sync?: string | null;
+            /** Latest Date */
+            latest_date?: string | null;
+            /** Site Url */
+            site_url?: string | null;
+            /**
+             * Total Clicks
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Impressions
+             * @default 0
+             */
+            total_impressions: number;
+        };
+        /**
+         * GSCSiteResponse
+         * @description A GSC site/property.
+         */
+        GSCSiteResponse: {
+            /** Permission Level */
+            permission_level: string;
+            /** Site Url */
+            site_url: string;
+        };
+        /**
+         * GSCSiteSelectRequest
+         * @description Request to select a GSC site.
+         */
+        GSCSiteSelectRequest: {
+            /** Site Url */
+            site_url: string;
+        };
+        /**
+         * GSCSitesResponse
+         * @description Response for list of GSC sites.
+         */
+        GSCSitesResponse: {
+            /** Sites */
+            sites: components["schemas"]["GSCSiteResponse"][];
+        };
+        /**
+         * GSCStatusResponse
+         * @description Response for GSC connection status.
+         */
+        GSCStatusResponse: {
+            /** Connected */
+            connected: boolean;
+            /** Connected At */
+            connected_at?: string | null;
+            /** Connected By */
+            connected_by?: string | null;
+            /**
+             * Feature Enabled
+             * @default true
+             */
+            feature_enabled: boolean;
+            /** Site Url */
+            site_url?: string | null;
+        };
+        /**
+         * GSCSyncResponse
+         * @description Response from sync operation.
+         */
+        GSCSyncResponse: {
+            /**
+             * Decisions Matched
+             * @default 0
+             */
+            decisions_matched: number;
+            /** End Date */
+            end_date?: string | null;
+            /**
+             * Errors
+             * @default []
+             */
+            errors: string[];
+            /**
+             * Pages Fetched
+             * @default 0
+             */
+            pages_fetched: number;
+            /**
+             * Snapshots Created
+             * @default 0
+             */
+            snapshots_created: number;
+            /** Start Date */
+            start_date?: string | null;
+            /** Status */
+            status: string;
         };
         /**
          * GanttActionData
@@ -40421,6 +40934,182 @@ export interface operations {
             };
         };
     };
+    get_gsc_decisions_api_admin_gsc_decisions_get: {
+        parameters: {
+            query?: {
+                /** @description Days of data to aggregate */
+                days?: number;
+                /** @description Sort by: impressions, clicks, ctr, position */
+                order_by?: string;
+                /** @description Maximum results */
+                limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCDecisionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_gsc_decision_detail_api_admin_gsc_decisions__decision_id__get: {
+        parameters: {
+            query?: {
+                /** @description Days of history */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCDecisionDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_gsc_overview_api_admin_gsc_overview_get: {
+        parameters: {
+            query?: {
+                /** @description Days of data to aggregate */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCOverviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_gsc_sync_api_admin_gsc_sync_post: {
+        parameters: {
+            query?: {
+                /** @description Days of data to sync */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCSyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_gsc_historical_sync_api_admin_gsc_sync_historical_post: {
+        parameters: {
+            query?: {
+                /** @description Days of history to sync */
+                days?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCSyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     end_impersonation_endpoint_api_admin_impersonate_delete: {
         parameters: {
             query?: never;
@@ -54040,6 +54729,200 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gsc_oauth_callback_api_v1_integrations_search_console_callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    initiate_gsc_connect_api_v1_integrations_search_console_connect_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_gsc_api_v1_integrations_search_console_disconnect_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_gsc_site_api_v1_integrations_search_console_site_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GSCSiteSelectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_gsc_sites_api_v1_integrations_search_console_sites_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCSitesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_gsc_status_api_v1_integrations_search_console_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GSCStatusResponse"];
                 };
             };
             /** @description Validation Error */

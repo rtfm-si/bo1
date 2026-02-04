@@ -176,6 +176,8 @@ interface DecisionArticleSchema {
 		'@type': 'WebPage';
 		'@id': string;
 	};
+	image?: string;
+	keywords?: string;
 }
 
 /**
@@ -210,6 +212,14 @@ export function createDecisionArticleSchema(
 
 	if (decision.published_at) {
 		schema.datePublished = decision.published_at;
+	}
+
+	if (decision.featured_image_url) {
+		schema.image = decision.featured_image_url;
+	}
+
+	if (decision.seo_keywords?.length) {
+		schema.keywords = decision.seo_keywords.join(', ');
 	}
 
 	return schema;
@@ -592,6 +602,82 @@ export function createUseCaseBreadcrumbSchema(config: UseCasePageConfig): Breadc
 			{ '@type': 'ListItem', position: 2, name: 'Use Cases', item: `${SITE_URL}/use-cases` },
 			{ '@type': 'ListItem', position: 3, name: config.title, item: `${SITE_URL}/use-cases/${config.slug}` }
 		]
+	};
+}
+
+// =============================================================================
+// Decision Index/Category Schema Types and Functions
+// =============================================================================
+
+interface CollectionPageSchema {
+	'@context': 'https://schema.org';
+	'@type': 'CollectionPage';
+	name: string;
+	description: string;
+	url: string;
+	isPartOf: {
+		'@type': 'WebSite';
+		name: string;
+		url: string;
+	};
+}
+
+interface ItemListSchema {
+	'@context': 'https://schema.org';
+	'@type': 'ItemList';
+	name: string;
+	description: string;
+	numberOfItems: number;
+	itemListElement: Array<{
+		'@type': 'ListItem';
+		position: number;
+		name: string;
+		url: string;
+	}>;
+}
+
+/**
+ * Create CollectionPage JSON-LD schema for decision category pages
+ */
+export function createDecisionCategoryCollectionSchema(
+	category: string,
+	description: string,
+	decisionCount: number
+): CollectionPageSchema {
+	const categoryTitle = category.charAt(0).toUpperCase() + category.slice(1);
+
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'CollectionPage',
+		name: `${categoryTitle} Decisions`,
+		description: description || `Strategic decision frameworks for ${category}`,
+		url: `${SITE_URL}/decisions/${category}`,
+		isPartOf: {
+			'@type': 'WebSite',
+			name: ORG_NAME,
+			url: SITE_URL
+		}
+	};
+}
+
+/**
+ * Create ItemList JSON-LD schema for decision index page
+ */
+export function createDecisionIndexItemListSchema(
+	categories: Array<{ category: string; count: number }>
+): ItemListSchema {
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'ItemList',
+		name: 'Decision Library Categories',
+		description: 'Strategic decision frameworks organized by category for founders and leaders',
+		numberOfItems: categories.length,
+		itemListElement: categories.map((cat, index) => ({
+			'@type': 'ListItem',
+			position: index + 1,
+			name: `${cat.category.charAt(0).toUpperCase() + cat.category.slice(1)} Decisions (${cat.count})`,
+			url: `${SITE_URL}/decisions/${cat.category}`
+		}))
 	};
 }
 

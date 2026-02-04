@@ -388,9 +388,6 @@ export type FeedbackResponse = components['schemas']['FeedbackResponse'];
 export type FeedbackListResponse = components['schemas']['FeedbackListResponse'];
 export type FeedbackStats = components['schemas']['FeedbackStats'];
 
-// ---- Calendar Types ----
-export type CalendarStatusResponse = components['schemas']['CalendarStatusResponse'];
-
 // ---- Value Metrics Types ----
 export type ValueMetricResponse = components['schemas']['ValueMetricResponse'];
 export type ValueMetricsResponse = components['schemas']['ValueMetricsResponse'];

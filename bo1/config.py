@@ -333,11 +333,6 @@ class Settings(BaseSettings):
         default="", description="Google API key for Sheets access (public sheets only)"
     )
 
-    # Google Calendar Integration (reuses google_oauth_client_id/secret)
-    google_calendar_enabled: bool = Field(
-        default=False, description="Enable Google Calendar integration for actions"
-    )
-
     # Google Search Console Integration (reuses google_oauth_client_id/secret)
     google_search_console_enabled: bool = Field(
         default=False, description="Enable Google Search Console integration for SEO analytics"

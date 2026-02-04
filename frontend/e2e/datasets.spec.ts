@@ -111,14 +111,6 @@ test.describe('Datasets List Page', () => {
 			});
 		});
 
-		// Mock sheets connection status
-		await page.route('**/api/v1/auth/google/sheets/status', (route) =>
-			route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({ connected: false })
-			})
-		);
 	});
 
 	test.describe('List view', () => {
@@ -294,48 +286,6 @@ test.describe('Datasets List Page', () => {
 				// Check for error message
 				await expect(page.getByText(/error|failed|invalid/i)).toBeVisible({ timeout: 3000 });
 			}
-		});
-	});
-
-	test.describe('Google Sheets', () => {
-		test('Connect Google Sheets button visible', async ({ page }) => {
-			await page.goto('/datasets');
-
-			if (page.url().includes('/login')) {
-				test.skip();
-				return;
-			}
-
-			await page.waitForLoadState('networkidle');
-
-			// Check for Sheets connection option
-			const sheetsButton = page.getByRole('button', { name: /Google Sheets|Connect.*Sheets/i });
-			if (await sheetsButton.isVisible()) {
-				await expect(sheetsButton).toBeVisible();
-			}
-		});
-
-		// FIXME: UI refactored - Sheets import moved to AddData dropdown modal
-		test.fixme('shows connected state when Sheets linked', async ({ page }) => {
-			await page.route('**/api/v1/auth/google/sheets/status', (route) =>
-				route.fulfill({
-					status: 200,
-					contentType: 'application/json',
-					body: JSON.stringify({ connected: true })
-				})
-			);
-
-			await page.goto('/datasets');
-
-			if (page.url().includes('/login')) {
-				test.skip();
-				return;
-			}
-
-			await page.waitForLoadState('networkidle');
-
-			// Check for connected indicator
-			await expect(page.getByText(/connected|linked/i)).toBeVisible({ timeout: 3000 });
 		});
 	});
 

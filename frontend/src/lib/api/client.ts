@@ -143,8 +143,6 @@ import type {
 	// Feedback types
 	FeedbackCreateRequest,
 	FeedbackResponse,
-	// Calendar types
-	CalendarStatusResponse,
 	// Session-Project types
 	SessionProjectLinkRequest,
 	SessionProjectsResponse,
@@ -279,7 +277,10 @@ import type {
 	PublicDecisionListResponse,
 	DecisionCategoriesResponse,
 	FeaturedDecision,
-	FeaturedDecisionsResponse
+	FeaturedDecisionsResponse,
+	// GSC Integration types
+	GSCStatusResponse,
+	GSCSitesResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -3325,32 +3326,6 @@ export class ApiClient {
 		);
 	}
 
-	// ============================================================================
-	// Google Sheets Connection Methods
-	// ============================================================================
-
-	/**
-	 * Get Google Sheets connection status for current user
-	 */
-	async getSheetsConnectionStatus(): Promise<{ connected: boolean; scopes: string | null }> {
-		return this.fetch<{ connected: boolean; scopes: string | null }>('/api/v1/auth/google/sheets/status');
-	}
-
-	/**
-	 * Get the URL to initiate Google Sheets OAuth flow
-	 * User should be redirected to this URL to connect their Google account
-	 */
-	getSheetsConnectUrl(): string {
-		return `${this.baseUrl}/api/v1/auth/google/sheets/connect`;
-	}
-
-	/**
-	 * Disconnect Google Sheets (revoke access)
-	 */
-	async disconnectSheets(): Promise<{ success: boolean }> {
-		return this.delete<{ success: boolean }>('/api/v1/auth/google/sheets/disconnect');
-	}
-
 	// ==========================================================================
 	// Session Export & Sharing Endpoints
 	// ==========================================================================
@@ -3764,33 +3739,6 @@ export class ApiClient {
 	 */
 	async submitFeedback(data: FeedbackCreateRequest): Promise<FeedbackResponse> {
 		return this.post<FeedbackResponse>('/api/v1/feedback', data);
-	}
-
-	// ============================================================================
-	// Calendar Integration
-	// ============================================================================
-
-	/**
-	 * Get Google Calendar connection status
-	 */
-	async getCalendarStatus(): Promise<CalendarStatusResponse> {
-		return this.fetch<CalendarStatusResponse>('/api/v1/integrations/calendar/status');
-	}
-
-	/**
-	 * Disconnect Google Calendar integration
-	 */
-	async disconnectCalendar(): Promise<{ success: boolean }> {
-		return this.delete<{ success: boolean }>('/api/v1/integrations/calendar/disconnect');
-	}
-
-	/**
-	 * Toggle calendar sync on/off without disconnecting
-	 */
-	async toggleCalendarSync(enabled: boolean): Promise<CalendarStatusResponse> {
-		return this.patch<CalendarStatusResponse>('/api/v1/integrations/calendar/status', {
-			enabled
-		});
 	}
 
 	// ============================================================================
@@ -4628,6 +4576,40 @@ export class ApiClient {
 		return this.fetch<ObjectiveDataRequirementsResponse>(
 			`/api/v1/objectives/${objectiveIndex}/data-requirements`
 		);
+	}
+
+	// =========================================================================
+	// GSC Integration (Admin)
+	// =========================================================================
+
+	/**
+	 * Get GSC connection status (admin only)
+	 */
+	async getGSCStatus(): Promise<GSCStatusResponse> {
+		return this.fetch<GSCStatusResponse>('/api/v1/integrations/search-console/status');
+	}
+
+	/**
+	 * List available GSC sites/properties (admin only)
+	 */
+	async listGSCSites(): Promise<GSCSitesResponse> {
+		return this.fetch<GSCSitesResponse>('/api/v1/integrations/search-console/sites');
+	}
+
+	/**
+	 * Select which GSC site/property to track (admin only)
+	 */
+	async selectGSCSite(siteUrl: string): Promise<GSCStatusResponse> {
+		return this.patch<GSCStatusResponse>('/api/v1/integrations/search-console/site', {
+			site_url: siteUrl
+		});
+	}
+
+	/**
+	 * Disconnect GSC integration (admin only)
+	 */
+	async disconnectGSC(): Promise<{ success: boolean }> {
+		return this.delete<{ success: boolean }>('/api/v1/integrations/search-console/disconnect');
 	}
 }
 

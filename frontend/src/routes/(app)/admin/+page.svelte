@@ -442,6 +442,13 @@
 					Search Console
 					<ExternalLink class="w-3.5 h-3.5 text-neutral-400" />
 				</a>
+				<a
+					href="/admin/integrations"
+					class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
+				>
+					<Search class="w-4 h-4 text-brand-500" />
+					GSC Integration
+				</a>
 			</div>
 		</div>
 

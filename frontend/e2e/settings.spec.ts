@@ -136,23 +136,6 @@ test.describe('Settings Pages', () => {
 			});
 		});
 
-		// Mock Google Sheets status
-		await page.route('**/api/v1/auth/google/sheets/status', (route) =>
-			route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({ connected: false })
-			})
-		);
-
-		// Mock Google Calendar status
-		await page.route('**/api/v1/integrations/google-calendar/status', (route) =>
-			route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({ connected: false })
-			})
-		);
 	});
 
 	test.describe('Settings layout', () => {
@@ -348,35 +331,6 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByRole('heading', { name: /^Integrations$/i })).toBeVisible();
 		});
 
-		test('displays Google Calendar integration', async ({ page }) => {
-			await page.goto('/settings/integrations');
-
-			if (page.url().includes('/login')) {
-				test.skip();
-				return;
-			}
-
-			await page.waitForLoadState('networkidle');
-
-			// Check for Google Calendar section heading
-			await expect(page.getByRole('heading', { name: /Google Calendar/i })).toBeVisible();
-		});
-
-		test('shows connect button for Google Calendar when disconnected', async ({ page }) => {
-			await page.goto('/settings/integrations');
-
-			if (page.url().includes('/login')) {
-				test.skip();
-				return;
-			}
-
-			await page.waitForLoadState('networkidle');
-
-			// Check for connect button (when not connected) or disconnect button (when connected)
-			const connectBtn = page.getByRole('button', { name: /Connect Google Calendar/i });
-			const disconnectBtn = page.getByRole('button', { name: /Disconnect/i });
-			await expect(connectBtn.or(disconnectBtn)).toBeVisible();
-		});
 	});
 
 	test.describe('Navigation', () => {

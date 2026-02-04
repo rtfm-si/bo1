@@ -3176,3 +3176,8 @@ export interface DatasetFixResponse {
 	message: string;
 	stats: Record<string, unknown>;
 }
+
+// ---- GSC Integration Types ----
+export type GSCStatusResponse = components['schemas']['GSCStatusResponse'];
+export type GSCSitesResponse = components['schemas']['GSCSitesResponse'];
+export type GSCSiteResponse = components['schemas']['GSCSiteResponse'];

@@ -177,7 +177,7 @@ async def gsc_oauth_callback(
     if error:
         logger.warning(f"GSC OAuth error: {error}")
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error={error}",
+            url=f"{frontend_url}/admin/integrations?gsc_error={error}",
             status_code=302,
         )
 
@@ -190,7 +190,7 @@ async def gsc_oauth_callback(
             state_present=bool(state),
         )
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error=invalid_request",
+            url=f"{frontend_url}/admin/integrations?gsc_error=invalid_request",
             status_code=302,
         )
 
@@ -206,7 +206,7 @@ async def gsc_oauth_callback(
             state=state,
         )
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error=invalid_state",
+            url=f"{frontend_url}/admin/integrations?gsc_error=invalid_state",
             status_code=302,
         )
 
@@ -219,7 +219,7 @@ async def gsc_oauth_callback(
             state=state,
         )
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error=invalid_state",
+            url=f"{frontend_url}/admin/integrations?gsc_error=invalid_state",
             status_code=302,
         )
 
@@ -256,7 +256,7 @@ async def gsc_oauth_callback(
 
         logger.info(f"Admin {user_id} connected GSC successfully")
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_connected=true",
+            url=f"{frontend_url}/admin/integrations?gsc_connected=true",
             status_code=302,
         )
 
@@ -268,13 +268,13 @@ async def gsc_oauth_callback(
             user_id=user_id,
         )
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error=token_exchange_failed",
+            url=f"{frontend_url}/admin/integrations?gsc_error=token_exchange_failed",
             status_code=302,
         )
     except Exception as e:
         logger.exception(f"Unexpected error in GSC OAuth callback: {e}")
         return RedirectResponse(
-            url=f"{frontend_url}/settings/integrations?gsc_error=unexpected_error",
+            url=f"{frontend_url}/admin/integrations?gsc_error=unexpected_error",
             status_code=302,
         )
 

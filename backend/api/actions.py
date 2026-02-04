@@ -1258,14 +1258,6 @@ async def update_action_status(
                 f"Auto-unblocked {len(unblocked_ids)} actions after {status_update.status} on {action_id}"
             )
 
-        # Remove from Google Calendar when completed/cancelled
-        try:
-            from backend.services.action_calendar_sync import remove_action_from_calendar
-
-            remove_action_from_calendar(action_id, user_id)
-        except Exception as e:
-            logger.debug(f"Calendar removal failed (non-blocking): {e}")
-
     # Context Auto-Update: Extract business context from cancellation/blocking reasons
     # E.g., "Hired 2 more engineers" → team_size update
     notes_text = status_update.cancellation_reason or status_update.blocking_reason
@@ -2187,14 +2179,6 @@ async def update_action_dates(
 
     # Get updated action
     updated_action = action_repository.get(action_id)
-
-    # Sync to Google Calendar if connected (non-blocking)
-    try:
-        from backend.services.action_calendar_sync import sync_action_to_calendar
-
-        sync_action_to_calendar(action_id, user_id)
-    except Exception as e:
-        logger.debug(f"Calendar sync failed (non-blocking): {e}")
 
     # Format dates as ISO strings
     def to_iso(dt: datetime | None) -> str | None:

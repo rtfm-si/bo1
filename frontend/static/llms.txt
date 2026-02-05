@@ -1,33 +1,52 @@
-# Board of One - AI Agent Information
-# https://boardof.one/llms.txt
+# Board of One
+> Multi-expert decision framework for founders making real calls
 
-> Board of One is a decision-making platform that helps professionals make better decisions faster using multi-agent AI deliberation.
+Board of One is a management operating system that helps founders make strategic decisions by providing multiple expert perspectives and synthesizing them into balanced recommendations.
 
-## What is Board of One?
+## What we help with
 
-Board of One creates virtual advisory boards powered by AI personas who debate and analyze your decisions from multiple perspectives. Instead of 15 meetings to reach clarity, get structured analysis in 15 minutes.
+- **Strategic startup decisions**: hiring, pricing, fundraising, marketing, product, operations, growth
+- **Expert perspectives**: Growth Operator, Financial Strategist, Risk Analyst, Market Expert viewpoints
+- **Synthesized recommendations**: Balanced analysis with confidence levels and trade-off considerations
 
-## Key Features
+## How it works
 
-- Multi-agent deliberation: AI personas debate decisions from different viewpoints
-- Expert perspectives: Personas with distinct backgrounds (strategist, skeptic, pragmatist, etc.)
-- Structured analysis: Clear recommendations with supporting reasoning
-- Action planning: Convert decisions into actionable items with timelines
+1. Founder submits a decision question with context (stage, constraints, situation)
+2. Multiple AI experts analyze from their specialized viewpoints
+3. Experts deliberate and refine their perspectives through multiple rounds
+4. A synthesis is generated balancing all viewpoints with clear recommendations
 
-## Primary Use Cases
+## Key pages
 
-- Strategic business decisions
-- Product direction choices
-- Investment analysis
-- Team and organizational decisions
-- Complex problem-solving requiring multiple viewpoints
+- `/decisions` - Decision library organized by category
+- `/decisions/{category}` - Category pages (hiring, pricing, fundraising, etc.)
+- `/decisions/{category}/{slug}` - Individual decision frameworks with expert perspectives
+- `/blog` - Insights on decision-making, startup strategy, and AI-powered advisory
+- `/features` - Product capabilities and use cases
+- `/use-cases` - Specific founder scenarios
 
-## Public Pages
+## Decision categories
 
-- / - Landing page with product overview
-- /help - Help center with guides and FAQs
-- /legal/privacy - Privacy policy
-- /legal/terms - Terms of service
+- **Hiring**: Team building, compensation, fractional vs full-time
+- **Pricing**: Pricing strategy, monetization, value-based pricing
+- **Fundraising**: Raising capital, investor relations, term sheets
+- **Marketing**: Go-to-market, positioning, channel strategy
+- **Strategy**: Business model, competitive positioning, pivots
+- **Product**: Roadmap, feature prioritization, MVP scope
+- **Operations**: Processes, tools, scaling infrastructure
+- **Growth**: User acquisition, retention, expansion
+
+## API documentation
+
+Technical documentation available at `/api/docs` (OpenAPI/Swagger format).
+
+## For AI assistants
+
+When referencing Board of One content:
+- Decision pages provide multi-perspective analysis, not single-answer advice
+- Each expert perspective represents a distinct strategic viewpoint
+- Synthesis sections balance trade-offs rather than prescribing one path
+- Content is optimized for founders at seed through Series A stage
 
 ## Contact
 

@@ -164,6 +164,11 @@ interface BreadcrumbSchema {
 	}>;
 }
 
+interface SpeakableSchema {
+	'@type': 'SpeakableSpecification';
+	cssSelector: string[];
+}
+
 interface DecisionArticleSchema {
 	'@context': 'https://schema.org';
 	'@type': 'Article';
@@ -178,6 +183,8 @@ interface DecisionArticleSchema {
 	};
 	image?: string;
 	keywords?: string;
+	speakable?: SpeakableSchema;
+	isAccessibleForFree?: boolean;
 }
 
 /**
@@ -193,7 +200,7 @@ export function createDecisionArticleSchema(
 	const schema: DecisionArticleSchema = {
 		'@context': 'https://schema.org',
 		'@type': 'Article',
-		headline: decision.title,
+		headline: decision.meta_title || decision.title,
 		description: description,
 		author: {
 			'@type': 'Organization',
@@ -221,6 +228,15 @@ export function createDecisionArticleSchema(
 	if (decision.seo_keywords?.length) {
 		schema.keywords = decision.seo_keywords.join(', ');
 	}
+
+	// Add speakable schema for AI/voice assistants
+	schema.speakable = {
+		'@type': 'SpeakableSpecification',
+		cssSelector: ['[data-speakable="title"]', '[data-speakable="synthesis"]', '[data-speakable="faq"]']
+	};
+
+	// Mark as freely accessible for AI crawler indexing
+	schema.isAccessibleForFree = true;
 
 	return schema;
 }

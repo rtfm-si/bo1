@@ -1021,6 +1021,7 @@ export interface PublicDecision {
 	featured_image_url?: string;
 	seo_keywords?: string[];
 	reading_time_minutes?: number;
+	meta_title?: string;
 }
 
 /**

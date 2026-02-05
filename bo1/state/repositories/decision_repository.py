@@ -91,6 +91,7 @@ class DecisionRepository(BaseRepository):
         status: str = "draft",
         featured_image_url: str | None = None,
         seo_keywords: list[str] | None = None,
+        meta_title: str | None = None,
     ) -> dict[str, Any]:
         """Create a new published decision.
 
@@ -107,6 +108,7 @@ class DecisionRepository(BaseRepository):
             status: draft or published
             featured_image_url: URL for og:image and schema image
             seo_keywords: List of SEO keywords for meta tag
+            meta_title: SEO-optimized title (50-60 chars)
 
         Returns:
             Created decision record
@@ -127,14 +129,14 @@ class DecisionRepository(BaseRepository):
                     INSERT INTO published_decisions (
                         id, session_id, category, slug, title, meta_description,
                         founder_context, expert_perspectives, synthesis, faqs, status,
-                        featured_image_url, seo_keywords, reading_time_minutes
+                        featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, session_id, category, slug, title, meta_description,
                               founder_context, expert_perspectives, synthesis, faqs,
                               related_decision_ids, status, published_at,
                               created_at, updated_at, view_count, click_through_count,
-                              featured_image_url, seo_keywords, reading_time_minutes
+                              featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     """,
                     (
                         decision_id,
@@ -151,6 +153,7 @@ class DecisionRepository(BaseRepository):
                         featured_image_url,
                         seo_keywords,
                         reading_time,
+                        meta_title,
                     ),
                 )
                 result = cur.fetchone()
@@ -168,7 +171,7 @@ class DecisionRepository(BaseRepository):
                            related_decision_ids, status, published_at,
                            created_at, updated_at, view_count, click_through_count,
                            homepage_featured, homepage_order,
-                           featured_image_url, seo_keywords, reading_time_minutes
+                           featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     FROM published_decisions
                     WHERE id = %s
                     """,
@@ -187,7 +190,7 @@ class DecisionRepository(BaseRepository):
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
                            created_at, updated_at, view_count, click_through_count,
-                           featured_image_url, seo_keywords, reading_time_minutes
+                           featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     FROM published_decisions
                     WHERE slug = %s
                     """,
@@ -206,7 +209,7 @@ class DecisionRepository(BaseRepository):
                            founder_context, expert_perspectives, synthesis, faqs,
                            related_decision_ids, status, published_at,
                            created_at, updated_at, view_count, click_through_count,
-                           featured_image_url, seo_keywords, reading_time_minutes
+                           featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     FROM published_decisions
                     WHERE category = %s AND slug = %s AND status = 'published'
                     """,
@@ -316,6 +319,7 @@ class DecisionRepository(BaseRepository):
         status: str | None = None,
         featured_image_url: str | None = None,
         seo_keywords: list[str] | None = None,
+        meta_title: str | None = None,
     ) -> dict[str, Any] | None:
         """Update decision fields."""
         updates: list[str] = []
@@ -361,6 +365,9 @@ class DecisionRepository(BaseRepository):
         if seo_keywords is not None:
             updates.append("seo_keywords = %s")
             params.append(seo_keywords)
+        if meta_title is not None:
+            updates.append("meta_title = %s")
+            params.append(meta_title)
 
         if not updates:
             return self.get_by_id(decision_id)
@@ -379,7 +386,7 @@ class DecisionRepository(BaseRepository):
                               founder_context, expert_perspectives, synthesis, faqs,
                               related_decision_ids, status, published_at,
                               created_at, updated_at, view_count, click_through_count,
-                              featured_image_url, seo_keywords, reading_time_minutes
+                              featured_image_url, seo_keywords, reading_time_minutes, meta_title
                     """,
                     params,
                 )
@@ -584,6 +591,70 @@ class DecisionRepository(BaseRepository):
                     )
                 logger.info(f"Reordered {len(ordered_ids)} homepage featured decisions")
                 return True
+
+    def find_similar_by_keywords(
+        self,
+        category: str,
+        keywords: list[str],
+        exclude_id: str,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Find decisions with overlapping keywords in same category.
+
+        Args:
+            category: Decision category to search within
+            keywords: Keywords to match against
+            exclude_id: Decision ID to exclude from results
+            limit: Max results to return
+
+        Returns:
+            List of matching decisions with overlap count
+        """
+        if not keywords:
+            return []
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, category, slug, title, meta_description,
+                           seo_keywords,
+                           COALESCE(array_length(seo_keywords & %s::text[], 1), 0) as overlap_count
+                    FROM published_decisions
+                    WHERE category = %s
+                      AND status = 'published'
+                      AND id != %s
+                      AND seo_keywords && %s::text[]
+                    ORDER BY overlap_count DESC, published_at DESC
+                    LIMIT %s
+                    """,
+                    (keywords, category, exclude_id, keywords, limit),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def list_decisions_without_seo(self, limit: int = 50) -> list[dict[str, Any]]:
+        """List decisions missing SEO keywords for backfill.
+
+        Args:
+            limit: Max results to return
+
+        Returns:
+            List of decisions without seo_keywords
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, category, slug, title, synthesis, seo_keywords
+                    FROM published_decisions
+                    WHERE (seo_keywords IS NULL OR array_length(seo_keywords, 1) IS NULL)
+                      AND synthesis IS NOT NULL
+                    ORDER BY published_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return [dict(row) for row in cur.fetchall()]
 
     def get_related(self, decision_id: str | UUID, limit: int = 5) -> list[dict[str, Any]]:
         """Get related published decisions."""

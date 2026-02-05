@@ -4270,6 +4270,9 @@ class DecisionCreate(BaseModel):
     faqs: list[FAQModel] | None = Field(None, description="FAQ pairs for schema")
     featured_image_url: str | None = Field(None, max_length=500, description="OG image URL")
     seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
+    meta_title: str | None = Field(
+        None, max_length=100, description="SEO-optimized title (50-60 chars)"
+    )
 
     @field_validator("category")
     @classmethod
@@ -4297,6 +4300,9 @@ class DecisionUpdate(BaseModel):
     status: str | None = Field(None, description="draft or published")
     featured_image_url: str | None = Field(None, max_length=500, description="OG image URL")
     seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
+    meta_title: str | None = Field(
+        None, max_length=100, description="SEO-optimized title (50-60 chars)"
+    )
 
     @field_validator("category")
     @classmethod
@@ -4345,6 +4351,7 @@ class DecisionResponse(BaseModel):
     featured_image_url: str | None = Field(None, description="OG image URL")
     seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
     reading_time_minutes: int | None = Field(None, description="Reading time in minutes")
+    meta_title: str | None = Field(None, description="SEO-optimized title (50-60 chars)")
 
 
 class DecisionListResponse(BaseModel):
@@ -4369,6 +4376,7 @@ class DecisionPublicResponse(BaseModel):
     featured_image_url: str | None = Field(None, description="OG image URL")
     seo_keywords: list[str] | None = Field(None, description="SEO keywords array")
     reading_time_minutes: int | None = Field(None, description="Reading time in minutes")
+    meta_title: str | None = Field(None, description="SEO-optimized title (50-60 chars)")
 
 
 class CategoryWithCount(BaseModel):
@@ -4408,6 +4416,14 @@ class FeaturedOrderRequest(BaseModel):
     decision_ids: list[str] = Field(
         ..., min_length=1, max_length=10, description="Ordered list of decision UUIDs"
     )
+
+
+class SEOBackfillResponse(BaseModel):
+    """Response model for SEO backfill operation."""
+
+    enriched: int = Field(..., description="Number of decisions enriched")
+    skipped: int = Field(..., description="Number of decisions skipped (already had SEO)")
+    failed: int = Field(..., description="Number of decisions that failed enrichment")
 
 
 class DecisionGenerateRequest(BaseModel):

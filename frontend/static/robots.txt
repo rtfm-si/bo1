@@ -27,5 +27,14 @@ Allow: /
 User-agent: Anthropic-AI
 Allow: /
 
+User-agent: Cohere-ai
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
 # Sitemap
 Sitemap: https://boardof.one/sitemap.xml

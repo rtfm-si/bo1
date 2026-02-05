@@ -30,6 +30,8 @@ class DecisionContent:
     synthesis: str
     faqs: list[dict[str, Any]]
     meta_description: str
+    seo_keywords: list[str]
+    meta_title: str
     created_at: datetime = field(default_factory=datetime.now)
 
 
@@ -73,7 +75,9 @@ Output as JSON:
             "answer": "Focus on..."
         }}
     ],
-    "meta_description": "SEO meta description (150-160 chars) for this decision page"
+    "meta_description": "SEO meta description (150-160 chars) for this decision page",
+    "seo_keywords": ["5-8 specific founder search terms", "transactional intent keywords", "long-tail keywords"],
+    "meta_title": "50-60 char SEO title with primary keyword"
 }}"""
 
 
@@ -151,6 +155,8 @@ async def generate_decision_content(
         synthesis=data.get("synthesis", ""),
         faqs=data.get("faqs", []),
         meta_description=data.get("meta_description", ""),
+        seo_keywords=data.get("seo_keywords", [])[:8],
+        meta_title=data.get("meta_title", question)[:70],
     )
 
 

@@ -29,6 +29,7 @@ from backend.api.models import (
     FeaturedDecisionResponse,
     FeaturedDecisionsResponse,
     FeaturedOrderRequest,
+    SEOBackfillResponse,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors, http_error
@@ -63,6 +64,8 @@ def _decision_to_response(d: dict) -> DecisionResponse:
         click_through_count=d.get("click_through_count", 0),
         homepage_featured=d.get("homepage_featured", False),
         homepage_order=d.get("homepage_order"),
+        seo_keywords=d.get("seo_keywords"),
+        meta_title=d.get("meta_title"),
     )
 
 
@@ -317,6 +320,10 @@ async def update_decision(
         updates["related_decision_ids"] = body.related_decision_ids
     if body.status is not None:
         updates["status"] = body.status
+    if body.seo_keywords is not None:
+        updates["seo_keywords"] = body.seo_keywords
+    if body.meta_title is not None:
+        updates["meta_title"] = body.meta_title
 
     decision = decision_repository.update(decision_id, **updates)
 
@@ -422,7 +429,7 @@ async def unfeature_decision(
     "/{decision_id}/publish",
     response_model=DecisionResponse,
     summary="Publish decision",
-    description="Publish a decision immediately.",
+    description="Publish a decision immediately. Auto-enriches SEO fields if missing.",
     responses={
         200: {"description": "Decision published successfully"},
         404: {"description": "Decision not found", "model": ErrorResponse},
@@ -437,11 +444,36 @@ async def publish_decision(
     decision_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> DecisionResponse:
-    """Publish a decision immediately."""
+    """Publish a decision immediately.
+
+    If the decision lacks SEO keywords, auto-enriches them using LLM.
+    """
     decision = decision_repository.publish(decision_id)
 
     if not decision:
         raise http_error(ErrorCode.API_NOT_FOUND, f"Decision {decision_id} not found", status=404)
+
+    # Auto-enrich SEO fields if missing
+    if not decision.get("seo_keywords") and decision.get("synthesis"):
+        try:
+            from backend.services.seo_enrichment import enrich_decision_seo
+
+            enrichment = await enrich_decision_seo(
+                decision_id=decision_id,
+                title=decision.get("title"),
+                category=decision.get("category"),
+                synthesis=decision.get("synthesis"),
+            )
+            decision = decision_repository.update(
+                decision_id,
+                seo_keywords=enrichment.seo_keywords,
+                meta_title=enrichment.meta_title,
+                related_decision_ids=enrichment.related_decision_ids,
+            )
+            logger.info(f"Admin: Auto-enriched SEO for decision {decision_id}")
+        except Exception as e:
+            # Log but don't fail publish if SEO enrichment fails
+            logger.warning(f"SEO enrichment failed for {decision_id}: {e}")
 
     logger.info(f"Admin: Published decision {decision_id}")
 
@@ -535,6 +567,7 @@ async def generate_decision(
             updated_at=content.created_at,
             view_count=0,
             click_through_count=0,
+            seo_keywords=content.seo_keywords,
         )
 
     # Save as draft
@@ -547,8 +580,41 @@ async def generate_decision(
         expert_perspectives=content.expert_perspectives,
         synthesis=content.synthesis,
         faqs=content.faqs,
+        seo_keywords=content.seo_keywords,
     )
 
     logger.info(f"Admin: Generated decision '{body.question}' (id={decision['id']})")
 
     return _decision_to_response(decision)
+
+
+@router.post(
+    "/backfill-seo",
+    response_model=SEOBackfillResponse,
+    summary="Backfill SEO fields",
+    description="Backfill SEO keywords and related decisions for decisions missing them.",
+    responses={
+        200: {"description": "Backfill completed"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("backfill seo")
+async def backfill_seo(
+    request: Request,
+    limit: int = Query(50, ge=1, le=200, description="Max decisions to process"),
+    _admin: str = Depends(require_admin_any),
+) -> SEOBackfillResponse:
+    """Backfill SEO fields for decisions missing them.
+
+    Processes decisions without seo_keywords, generating keywords and
+    finding related decisions using LLM.
+    """
+    from backend.services.seo_enrichment import backfill_seo_fields
+
+    results = await backfill_seo_fields(limit=limit)
+
+    logger.info(f"Admin: SEO backfill complete - {results}")
+
+    return SEOBackfillResponse(**results)

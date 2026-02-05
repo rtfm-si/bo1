@@ -93,6 +93,24 @@ class BlogPerformanceResponse(BaseModel):
     overall_ctr: float = Field(0.0, description="Overall CTR percentage")
 
 
+class TopicSuggestionResponse(BaseModel):
+    """A suggested decision topic for content creation."""
+
+    topic: str = Field(..., description="Decision question/title")
+    category: str = Field(..., description="Decision category")
+    search_intent: str = Field(..., description="transactional or informational")
+    estimated_volume: str = Field(..., description="low/medium/high")
+    keyword_cluster: list[str] = Field(default_factory=list, description="Related search terms")
+    authority_angle: str = Field(..., description="Why Bo1 is authoritative for this topic")
+
+
+class TopicDiscoveryResponse(BaseModel):
+    """Response for topic discovery endpoint."""
+
+    topics: list[TopicSuggestionResponse] = Field(..., description="Suggested topics")
+    category_filter: str | None = Field(None, description="Category filter applied")
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -366,3 +384,48 @@ async def get_blog_performance(
                 total_cost=round(total_cost, 2),
                 overall_ctr=overall_ctr,
             )
+
+
+@router.get("/topics", response_model=TopicDiscoveryResponse)
+@handle_api_errors("discover seo topics")
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def discover_topics(
+    request: Request,
+    category: str | None = Query(None, description="Filter by category"),
+    count: int = Query(10, ge=1, le=20, description="Number of topics to generate"),
+    _admin: dict = Depends(require_admin_any),
+) -> TopicDiscoveryResponse:
+    """Discover high-intent decision topics for content pipeline.
+
+    Uses LLM to generate topic suggestions based on founder search behavior
+    and decision patterns. Results can be used to seed decision page generation.
+
+    Args:
+        request: FastAPI request object
+        category: Optional category filter (hiring, pricing, etc.)
+        count: Number of topics to generate (1-20)
+        _admin: Admin authentication dependency
+
+    Returns:
+        List of topic suggestions with keywords and authority angles
+    """
+    from backend.services.seo_topic_discovery import discover_topics as discover
+
+    topics = await discover(category=category, count=count)
+
+    logger.info(f"Admin: Discovered {len(topics)} SEO topics (category={category})")
+
+    return TopicDiscoveryResponse(
+        topics=[
+            TopicSuggestionResponse(
+                topic=t.topic,
+                category=t.category,
+                search_intent=t.search_intent,
+                estimated_volume=t.estimated_volume,
+                keyword_cluster=t.keyword_cluster,
+                authority_angle=t.authority_angle,
+            )
+            for t in topics
+        ],
+        category_filter=category,
+    )

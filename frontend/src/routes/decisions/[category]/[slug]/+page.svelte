@@ -63,8 +63,9 @@
 		category ? category.charAt(0).toUpperCase() + category.slice(1) : ''
 	);
 
-	// SEO fields
-	const pageTitle = $derived(decision?.title || 'Decision');
+	// SEO fields - use meta_title for SEO if available, title for display
+	const seoTitle = $derived(decision?.meta_title || decision?.title || 'Decision');
+	const displayTitle = $derived(decision?.title || 'Decision');
 	const pageDescription = $derived(
 		decision?.meta_description || 'Expert framework for making this strategic decision.'
 	);
@@ -153,12 +154,12 @@
 </script>
 
 <svelte:head>
-	<title>{pageTitle} | Decision Library - Board of One</title>
+	<title>{seoTitle} | Decision Library - Board of One</title>
 	<meta name="description" content={pageDescription} />
 	<link rel="canonical" href="https://boardof.one/decisions/{category}/{slug}" />
 
 	<!-- Open Graph -->
-	<meta property="og:title" content={pageTitle} />
+	<meta property="og:title" content={seoTitle} />
 	<meta property="og:description" content={pageDescription} />
 	<meta property="og:type" content="article" />
 	<meta property="og:url" content="https://boardof.one/decisions/{category}/{slug}" />
@@ -169,7 +170,7 @@
 
 	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content={pageTitle} />
+	<meta name="twitter:title" content={seoTitle} />
 	<meta name="twitter:description" content={pageDescription} />
 	{#if decision?.featured_image_url}
 		<meta name="twitter:image" content={decision.featured_image_url} />
@@ -261,7 +262,7 @@
 						Decision Framework
 					</span>
 				</div>
-				<h1 class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
+				<h1 data-speakable="title" class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
 					{decision.title}
 				</h1>
 				{#if decision.meta_description}
@@ -348,7 +349,7 @@
 
 		<!-- Synthesis -->
 		{#if decision.synthesis}
-			<section class="py-12 bg-white dark:bg-neutral-800">
+			<section data-speakable="synthesis" class="py-12 bg-white dark:bg-neutral-800">
 				<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 					<h2 class="text-2xl font-bold text-neutral-900 dark:text-white mb-6">
 						Recommendation
@@ -553,7 +554,7 @@
 
 		<!-- FAQs -->
 		{#if decision.faqs && decision.faqs.length > 0}
-			<section class="py-12">
+			<section data-speakable="faq" class="py-12">
 				<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 					<h2 class="text-2xl font-bold text-neutral-900 dark:text-white mb-6">
 						Frequently Asked Questions

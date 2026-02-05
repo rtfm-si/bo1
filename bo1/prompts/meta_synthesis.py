@@ -143,13 +143,12 @@ from multi-expert deliberations.
 You must generate a STRUCTURED JSON action plan that integrates insights from
 expert deliberations.
 
-CRITICAL: The "action" field is your opportunity to provide detailed, actionable guidance.
-This is NOT just a title - it should explain BOTH:
-- WHAT: The specific deliverable, outcome, or result to achieve
-- HOW: The concrete methods, steps, approach, or implementation details
+CRITICAL: Structure each action with TWO fields:
+- "title": Short, scannable heading (5-15 words) that captures the key action
+- "description": Brief explanation of WHAT and HOW (20-40 words max)
 
-The "action" field will be displayed prominently to users, so make it comprehensive and valuable.
-Aim for 40-70 words of detailed, PLAIN-LANGUAGE guidance. Avoid jargon.
+Keep actions concise and scannable. Users are often solo operators or small teams who need
+clear, focused guidance - not overwhelming detail. Fewer high-impact actions beat many small ones.
 
 The "synthesis_summary" should be written in everyday language that anyone can understand.
 </instructions>
@@ -182,28 +181,31 @@ Sub-Problems:
   "sub_problems_addressed": ["market_viability", "resource_requirements", "risk_mitigation"],
   "recommended_actions": [
     {{
-      "action": "Launch pilot program in UK market only with limited features, targeting 5-10 enterprise customers before full EU expansion",
-      "rationale": "Market viability analysis (sub-problem 1) confirmed strong demand in UK specifically. Resource assessment (sub-problem 2) shows UK requires minimal localization compared to continental EU. Risk mitigation (sub-problem 3) emphasizes validating PMF before full expansion.",
+      "title": "Launch UK pilot with 5-10 enterprise customers",
+      "description": "Start with UK only (minimal localization needed), limited features. Validate product-market fit before committing to full EU expansion.",
+      "rationale": "Market analysis confirmed UK demand. Risk mitigation emphasizes validation before full expansion.",
       "priority": "critical",
-      "timeline": "Q1 2025 (3 months)",
-      "success_metrics": ["5+ enterprise customers signed", "30%+ conversion rate", "90-day customer retention above 85%"],
-      "risks": ["UK market may not represent broader EU demand", "Brexit complications with data residency", "Limited runway to iterate before funding decision"]
+      "timeline": "Q1 2025",
+      "success_metrics": ["5+ customers signed", "30%+ conversion rate"],
+      "risks": ["UK may not represent broader EU", "Limited iteration runway"]
     }},
     {{
-      "action": "Hire EU-based customer success lead and contract GDPR compliance consultant before pilot launch",
-      "rationale": "Resource requirements (sub-problem 2) identified customer support and compliance as critical gaps. Risk mitigation (sub-problem 3) emphasized regulatory compliance as non-negotiable for EU expansion.",
+      "title": "Hire EU customer success lead + GDPR consultant",
+      "description": "Contract a GDPR compliance consultant immediately. Hire EU-based support lead before pilot launch.",
+      "rationale": "Compliance and support identified as critical gaps. GDPR non-negotiable for EU.",
       "priority": "critical",
-      "timeline": "Weeks 1-4 of Q1 2025",
-      "success_metrics": ["GDPR audit completed", "EU support response time under 4 hours", "Zero compliance incidents"],
-      "risks": ["Difficulty hiring qualified EU talent remotely", "Compliance costs exceeding $50K budget", "Extended hiring timeline delaying pilot"]
+      "timeline": "Weeks 1-4",
+      "success_metrics": ["GDPR audit passed", "EU support < 4hr response"],
+      "risks": ["Hiring delays", "Compliance costs exceed budget"]
     }},
     {{
-      "action": "Establish $150K reserved budget for market-specific iterations based on UK pilot feedback",
-      "rationale": "Market viability (sub-problem 1) highlighted unknown localization needs. Resource planning (sub-problem 2) recommended 30% contingency for product adaptations. Risk mitigation (sub-problem 3) stressed flexibility for iteration.",
+      "title": "Reserve $150K iteration budget",
+      "description": "Set aside 30% contingency for product adaptations based on UK pilot feedback.",
+      "rationale": "Unknown localization needs require flexibility for iteration.",
       "priority": "high",
-      "timeline": "Month 2-4 of pilot",
-      "success_metrics": ["Budget utilization rate 60-80%", "Feature parity with US version", "Customer satisfaction score above 4.2/5"],
-      "risks": ["Budget insufficient for major pivots", "Engineering bandwidth constraints", "Scope creep delaying launch"]
+      "timeline": "Month 2-4",
+      "success_metrics": ["60-80% utilization", "Feature parity achieved"],
+      "risks": ["Budget insufficient for pivots", "Engineering bandwidth"]
     }}
   ],
   "synthesis_summary": "The deliberation reached strong consensus on EU expansion viability but emphasized a staged approach to mitigate risk. Market analysis confirmed demand exists, particularly in UK, but experts universally recommended de-risking with a pilot before committing full $500K. Critical success factors identified: regulatory compliance (GDPR), localized customer support, and budget flexibility for iteration. The UK pilot strategy balances speed-to-market with learning, allowing validation of both product-market fit and operational readiness before broader EU rollout. Timeline is aggressive but achievable if hiring and compliance workstreams begin immediately."
@@ -226,28 +228,31 @@ Sub-Problems:
   "sub_problems_addressed": ["compensation_mix", "equity_allocation"],
   "recommended_actions": [
     {{
-      "action": "Offer $90K base salary + 20% variable (uncapped commission at 10% of new ARR), totaling $110K-130K OTE for first year",
-      "rationale": "Compensation analysis (sub-problem 1) recommended 70-80% base for early-stage first sales hire to reduce risk during ramp period. Market data showed $110K-130K OTE competitive for IC sales roles. Higher base attracts senior talent needed for founder-led sales transition.",
+      "title": "Offer $90K base + 20% variable ($110-130K OTE)",
+      "description": "70-80% base reduces risk during ramp. Uncapped commission at 10% of new ARR. Higher base attracts senior talent for founder-led transition.",
+      "rationale": "Market data shows $110-130K OTE competitive. Higher base needed to attract senior talent.",
       "priority": "critical",
-      "timeline": "Include in offer letter (immediate)",
-      "success_metrics": ["Offer accepted within 2 weeks", "$200K ARR generated in first 6 months", "2+ enterprise deals closed"],
-      "risks": ["High fixed cost if sales underperform", "Commission structure may not align with sales cycle", "Candidate expectations exceed budget"]
+      "timeline": "Immediate (offer letter)",
+      "success_metrics": ["Offer accepted in 2 weeks", "$200K ARR in 6 months"],
+      "risks": ["High fixed cost if underperforms", "Expectations exceed budget"]
     }},
     {{
-      "action": "Grant 0.5-0.75% equity with 4-year vest and 1-year cliff, positioned as foundational sales team member",
-      "rationale": "Equity deliberation (sub-problem 2) emphasized treating first sales hire as leadership-level given strategic importance. Benchmarks showed 0.5-1% typical for first 10 hires. Vesting cliff protects company if hire doesn't work out.",
+      "title": "Grant 0.5-0.75% equity with 4-year vest",
+      "description": "Position as foundational sales hire. Include 1-year cliff to protect company. Benchmarks show 0.5-1% typical for first 10 hires.",
+      "rationale": "First sales hire is leadership-level given strategic importance.",
       "priority": "critical",
-      "timeline": "Include in offer letter (immediate)",
-      "success_metrics": ["Candidate accepts equity as meaningful component", "Hire remains through 1-year cliff", "Equity becomes material retention tool"],
-      "risks": ["Equity dilution if hire underperforms", "Future sales hires expect similar packages", "Valuation uncertainty makes equity less attractive"]
+      "timeline": "Immediate (offer letter)",
+      "success_metrics": ["Candidate values equity", "Retention through cliff"],
+      "risks": ["Dilution if underperforms", "Sets precedent for future hires"]
     }},
     {{
-      "action": "Document quarterly OKR-based performance reviews with compensation adjustment triggers at 6 and 12 months",
-      "rationale": "Both sub-problems emphasized need for flexibility as company scales. Performance gates allow increasing commission percentage or adding accelerators if hire exceeds targets, or adjusting if market changes.",
+      "title": "Set up quarterly OKR reviews with comp triggers",
+      "description": "Document performance framework with adjustment points at 6 and 12 months. Allows flex as company scales.",
+      "rationale": "Both sub-problems emphasized need for flexibility during growth.",
       "priority": "high",
-      "timeline": "Establish framework before hire starts",
-      "success_metrics": ["Reviews completed on time", "Compensation adjustments data-driven", "Clear performance expectations set"],
-      "risks": ["Ambiguous OKRs create conflict", "Market shifts make initial structure uncompetitive", "Administrative overhead on small team"]
+      "timeline": "Before hire starts",
+      "success_metrics": ["Reviews on time", "Clear expectations set"],
+      "risks": ["Admin overhead on small team", "OKR ambiguity"]
     }}
   ],
   "synthesis_summary": "Expert consensus strongly favored a balanced approach: competitive base salary to attract senior talent, with commission upside to align incentives, and meaningful equity to signal strategic importance. The 70/30 base-to-variable split addresses the reality that early-stage sales require building infrastructure, not just closing deals. Equity at 0.5-0.75% reflects first-sales-hire premium while preserving option pool. Critical insight from deliberations: first sales hire is as much about establishing sales DNA and processes as hitting numbers, so compensation should attract someone who can build, not just execute. Performance review cadence ensures structure evolves with company growth."
@@ -271,8 +276,11 @@ You must generate a STRUCTURED JSON action plan that integrates insights from
 4. Be SPECIFIC with timelines (avoid vague terms like "soon")
 5. Success metrics should be MEASURABLE
 6. Identify REALISTIC risks based on expert concerns from deliberations
-7. Generate 3-7 recommended actions ordered by priority (critical first)
+7. Generate 2-5 recommended actions ordered by priority (fewer, higher-impact is better)
 8. synthesis_summary should be a cohesive narrative, not bullet points
+9. CONSIDER TEAM SIZE: If context indicates solo operator or small team, prioritize actions they can realistically execute without dedicated staff
+9. unified_recommendation MUST be a clear, actionable 1-2 sentence answer to the original problem (NOT a restatement of the question)
+10. implementation_considerations should list prerequisites, dependencies, or conditions for success (NOT the actions themselves)
 </requirements>
 
 <thinking>
@@ -294,21 +302,24 @@ Your response MUST start with the opening brace of the JSON object:
 
 {{
   "problem_statement": "{original_problem}",
+  "unified_recommendation": "1-2 sentence clear, actionable recommendation that directly answers the original problem. Use everyday language. This is NOT a restatement of the question - it's your answer.",
   "sub_problems_addressed": [list of sub-problem IDs from deliberations],
   "recommended_actions": [
     {{
-      "action": "DETAILED action description (40-70 words explaining WHAT and HOW). This is the primary user-facing field - make it comprehensive. Include specific deliverables, methods, technical approaches, and implementation steps. Example: 'Implement customer feedback portal: Build React dashboard with NPS surveys, feature voting module, and automated ticket routing to Salesforce. Use 2-week sprints, integrate via Salesforce REST API, implement Material-UI components for consistency, deploy to AWS with CloudFront CDN. Set up automated email triggers for survey distribution.'",
-      "rationale": "Why this action, drawing from sub-problem insights. Explain the business value and expected outcomes (50-80 words).",
+      "title": "Short, scannable action heading (5-15 words)",
+      "description": "Brief explanation of what to do and how (20-40 words). Keep it focused and actionable.",
+      "rationale": "Why this action matters, citing sub-problem insights (30-50 words).",
       "priority": "critical|high|medium|low",
-      "timeline": "When to implement (e.g., 'Week 1-2', 'Month 1-3', 'Q1 2025')",
-      "success_metrics": ["Specific, measurable metric 1", "Specific, measurable metric 2", "Specific, measurable metric 3"],
-      "risks": ["Concrete risk 1 with potential impact", "Concrete risk 2 with potential impact", "Concrete risk 3 with potential impact"]
+      "timeline": "When to implement (e.g., 'Week 1-2', 'Q1 2025')",
+      "success_metrics": ["Measurable metric 1", "Measurable metric 2"],
+      "risks": ["Key risk 1", "Key risk 2"]
     }}
   ],
+  "implementation_considerations": "2-3 bullet points listing key prerequisites, dependencies, or conditions for success. These are NOT the actions - they are foundational requirements or assumptions that must hold true.",
   "synthesis_summary": "100-150 word overall synthesis integrating all sub-problem insights"
 }}
 
-REMEMBER: The "action" field should be rich, detailed, and actionable - NOT just a short title.
+REMEMBER: Use separate "title" (5-15 words) and "description" (20-40 words) fields. Keep actions scannable for solo operators.
 </output>
 
 <assistant_prefill>

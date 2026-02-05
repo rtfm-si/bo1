@@ -905,20 +905,33 @@ async def update_insight(
 
     user_id = extract_user_id(user)
 
-    # Decode the question from the hash
-    try:
-        question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to decode question hash: {e}")
-        raise http_error(ErrorCode.API_BAD_REQUEST, "Invalid question hash", status=400) from None
-
-    # Load and update context
+    # Load context first
     context_data = user_repository.get_context(user_id)
     if not context_data:
         raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     clarifications = context_data.get("clarifications", {})
-    if question not in clarifications:
+
+    # Decode the question from the hash
+    question = None
+    try:
+        # Add padding if stripped (frontend removes trailing =)
+        padded_hash = (
+            question_hash + "=" * (4 - len(question_hash) % 4)
+            if len(question_hash) % 4
+            else question_hash
+        )
+        question = base64.urlsafe_b64decode(padded_hash.encode()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode question hash: {e}")
+        # Try to find by matching hash against all questions
+        for q in clarifications:
+            q_hash = base64.urlsafe_b64encode(q.encode()).decode().rstrip("=")
+            if q_hash == question_hash:
+                question = q
+                break
+
+    if not question or question not in clarifications:
         raise http_error(ErrorCode.API_NOT_FOUND, "Clarification not found", status=404)
 
     # Validate the new value before storing
@@ -1070,20 +1083,33 @@ async def delete_insight(
 
     user_id = extract_user_id(user)
 
-    # Decode the question from the hash
-    try:
-        question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to decode question hash: {e}")
-        raise http_error(ErrorCode.API_BAD_REQUEST, "Invalid question hash", status=400) from None
-
-    # Load and update context
+    # Load context first
     context_data = user_repository.get_context(user_id)
     if not context_data:
         raise http_error(ErrorCode.API_NOT_FOUND, "No context found", status=404)
 
     clarifications = context_data.get("clarifications", {})
-    if question not in clarifications:
+
+    # Decode the question from the hash
+    question = None
+    try:
+        # Add padding if stripped (frontend removes trailing =)
+        padded_hash = (
+            question_hash + "=" * (4 - len(question_hash) % 4)
+            if len(question_hash) % 4
+            else question_hash
+        )
+        question = base64.urlsafe_b64decode(padded_hash.encode()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode question hash: {e}")
+        # Try to find by matching hash against all questions
+        for q in clarifications:
+            q_hash = base64.urlsafe_b64encode(q.encode()).decode().rstrip("=")
+            if q_hash == question_hash:
+                question = q
+                break
+
+    if not question or question not in clarifications:
         raise http_error(ErrorCode.API_NOT_FOUND, "Clarification not found", status=404)
 
     # Remove the clarification

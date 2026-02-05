@@ -1227,8 +1227,8 @@ export class ApiClient {
 	}
 
 	async updateInsight(question: string, value: string, note?: string): Promise<ClarificationInsight> {
-		// Encode question as URL-safe base64
-		const questionHash = btoa(question)
+		// Encode question as URL-safe base64 (handle Unicode via encodeURIComponent)
+		const questionHash = btoa(unescape(encodeURIComponent(question)))
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_')
 			.replace(/=+$/, '');
@@ -1239,8 +1239,8 @@ export class ApiClient {
 	}
 
 	async deleteInsight(question: string): Promise<{ status: string }> {
-		// Encode question as URL-safe base64
-		const questionHash = btoa(question)
+		// Encode question as URL-safe base64 (handle Unicode via encodeURIComponent)
+		const questionHash = btoa(unescape(encodeURIComponent(question)))
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_')
 			.replace(/=+$/, '');

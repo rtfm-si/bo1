@@ -15,6 +15,7 @@ export interface EventGroup {
 	events?: SSEEvent[];
 	roundNumber?: number;
 	subProblemGoal?: string;
+	subProblemIndex?: number;
 }
 
 // Constants for internal event filtering
@@ -59,6 +60,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 	let currentRoundNumber = 1;
 	let currentExpertPanel: SSEEvent[] = [];
 	let currentSubProblemGoal: string | undefined = undefined;
+	let currentSubProblemIndex: number | undefined = undefined;
 
 	// Single iteration with inline filtering (combine filter + group logic)
 	for (const event of events) {
@@ -75,6 +77,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 					type: 'expert_panel',
 					events: currentExpertPanel,
 					subProblemGoal: currentSubProblemGoal,
+					subProblemIndex: currentSubProblemIndex,
 				});
 				currentExpertPanel = [];
 			}
@@ -99,10 +102,27 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 		// Track subproblem_started for context
 		if (isSubproblemStartedEvent(event)) {
 			currentSubProblemGoal = event.data.goal;
+			currentSubProblemIndex = event.data.sub_problem_index;
 		}
 
 		// Group persona_selected events
 		if (event.event_type === 'persona_selected') {
+			const eventSubIndex = getSubProblemIndex(event);
+
+			// Flush if sub-problem changed
+			if (currentExpertPanel.length > 0 &&
+				eventSubIndex !== undefined &&
+				eventSubIndex !== currentSubProblemIndex) {
+				groups.push({
+					type: 'expert_panel',
+					events: currentExpertPanel,
+					subProblemGoal: currentSubProblemGoal,
+					subProblemIndex: currentSubProblemIndex,
+				});
+				currentExpertPanel = [];
+			}
+
+			currentSubProblemIndex = eventSubIndex;
 			currentExpertPanel.push(event);
 		} else if (isContributionEvent(event)) {
 			// Flush expert panel if any
@@ -111,6 +131,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 					type: 'expert_panel',
 					events: currentExpertPanel,
 					subProblemGoal: currentSubProblemGoal,
+					subProblemIndex: currentSubProblemIndex,
 				});
 				currentExpertPanel = [];
 			}
@@ -142,6 +163,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 					type: 'expert_panel',
 					events: currentExpertPanel,
 					subProblemGoal: currentSubProblemGoal,
+					subProblemIndex: currentSubProblemIndex,
 				});
 				currentExpertPanel = [];
 			}
@@ -169,6 +191,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 			type: 'expert_panel',
 			events: currentExpertPanel,
 			subProblemGoal: currentSubProblemGoal,
+			subProblemIndex: currentSubProblemIndex,
 		});
 	}
 

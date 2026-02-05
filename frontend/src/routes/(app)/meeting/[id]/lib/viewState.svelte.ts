@@ -29,6 +29,7 @@ export function createViewState(config: ViewStateConfig) {
 	let contributionViewMode = $state<'simple' | 'full'>('simple');
 	let cardViewModes = $state<Map<string, 'simple' | 'full'>>(new Map());
 	let showFullTranscripts = $state(false);
+	let hasAutoSwitchedToConclusion = $state(false);
 
 	// ============================================================================
 	// DERIVED VALUES
@@ -68,8 +69,14 @@ export function createViewState(config: ViewStateConfig) {
 		sessionStatus: string | undefined,
 		showConclusionTab: boolean
 	) {
-		if (sessionStatus === 'completed' && showConclusionTab && activeSubProblemTab !== 'conclusion') {
+		// Only auto-switch ONCE when completion first detected
+		if (
+			!hasAutoSwitchedToConclusion &&
+			sessionStatus === 'completed' &&
+			showConclusionTab
+		) {
 			activeSubProblemTab = 'conclusion';
+			hasAutoSwitchedToConclusion = true;
 		}
 	}
 

@@ -58,9 +58,7 @@
 			}, 2000);
 		} catch (err) {
 			if (err instanceof ApiClientError) {
-				if (err.status === 429) {
-					errorMessage = 'An interjection is already pending. Please wait for experts to respond.';
-				} else if (err.status === 400) {
+				if (err.status === 400) {
 					errorMessage = 'Cannot raise hand: meeting is not currently running.';
 				} else if (err.status === 422) {
 					errorMessage = 'Your message was flagged as potentially unsafe. Please rephrase.';

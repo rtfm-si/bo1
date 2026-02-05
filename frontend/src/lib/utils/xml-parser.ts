@@ -99,7 +99,9 @@ export function robustJSONParse<T>(jsonStr: string): T | null {
 
 // JSON meta-synthesis format from backend
 export interface MetaSynthesisAction {
-	action: string;
+	title?: string; // New: short heading (5-15 words)
+	description?: string; // New: brief explanation (20-40 words)
+	action?: string; // Legacy: combined title+description (backwards compat)
 	rationale: string;
 	priority: string;
 	timeline: string;
@@ -109,8 +111,10 @@ export interface MetaSynthesisAction {
 
 export interface MetaSynthesisJSON {
 	problem_statement: string;
+	unified_recommendation?: string;
 	sub_problems_addressed: string[];
 	recommended_actions: MetaSynthesisAction[];
+	implementation_considerations?: string;
 	synthesis_summary: string;
 }
 
@@ -373,10 +377,14 @@ function parseMetaSynthesisJSON(content: string): SynthesisSection {
 		sections.executive_summary = json.synthesis_summary;
 	}
 
-	// Store problem_statement for recommendation context
+	// Store problem_statement (but NOT as recommendation - that was showing the question as the answer)
 	if (json.problem_statement) {
 		sections.problem_statement = json.problem_statement;
-		sections.recommendation = `**Decision:** ${json.problem_statement}`;
+	}
+
+	// Use unified_recommendation if available (the actual answer to the problem)
+	if (json.unified_recommendation) {
+		sections.recommendation = json.unified_recommendation;
 	}
 
 	// Store sub_problems_addressed
@@ -387,35 +395,11 @@ function parseMetaSynthesisJSON(content: string): SynthesisSection {
 	// Store recommended_actions directly for structured display
 	if (json.recommended_actions?.length > 0) {
 		sections.recommended_actions = json.recommended_actions;
+	}
 
-		// Also format as implementation_considerations for fallback display
-		const actionsList = json.recommended_actions.map((action, i) => {
-			const parts = [
-				`### ${i + 1}. ${action.action.split(':')[0] || 'Action ' + (i + 1)}`,
-				'',
-				action.action,
-				'',
-				`**Priority:** ${action.priority}`,
-				`**Timeline:** ${action.timeline}`,
-				'',
-				'**Rationale:**',
-				action.rationale,
-			];
-
-			if (action.success_metrics?.length > 0) {
-				parts.push('', '**Success Metrics:**');
-				action.success_metrics.forEach((m) => parts.push(`- ${m}`));
-			}
-
-			if (action.risks?.length > 0) {
-				parts.push('', '**Risks:**');
-				action.risks.forEach((r) => parts.push(`- ${r}`));
-			}
-
-			return parts.join('\n');
-		});
-
-		sections.implementation_considerations = actionsList.join('\n\n---\n\n');
+	// Use implementation_considerations from JSON if available (prerequisites/conditions, not actions)
+	if (json.implementation_considerations) {
+		sections.implementation_considerations = json.implementation_considerations;
 	}
 
 	return sections;

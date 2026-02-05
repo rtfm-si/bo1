@@ -4,13 +4,37 @@
 	import type { MetaSynthesisCompleteEvent } from '$lib/api/sse-events';
 
 	interface ActionItem {
-		action: string;
+		title?: string; // New: short heading (5-15 words)
+		description?: string; // New: brief explanation (20-40 words)
+		action?: string; // Legacy: combined field (backwards compat)
 		rationale: string;
 		priority: 'critical' | 'high' | 'medium' | 'low';
 		timeline: string;
 		success_metrics: string[];
 		risks: string[];
 	}
+
+	// Helper to get display title (new field or fallback to first part of legacy action)
+	function getActionTitle(item: ActionItem): string {
+		if (item.title) return item.title;
+		if (item.action) {
+			// Legacy: use first sentence or first 80 chars
+			const firstSentence = item.action.split(/[.!?]/)[0];
+			return firstSentence.length > 80 ? firstSentence.slice(0, 77) + '...' : firstSentence;
+		}
+		return 'Action';
+	}
+
+	// Helper to get description (new field or fallback to legacy action minus title)
+	function getActionDescription(item: ActionItem): string | null {
+		if (item.description) return item.description;
+		// Legacy: show full action only if different from title
+		if (item.action && item.title && item.action !== item.title) return item.action;
+		return null;
+	}
+
+	// Track expanded state per action
+	let expandedActions = $state<Set<number>>(new Set());
 
 	interface ActionPlanData {
 		problem_statement: string;
@@ -184,58 +208,87 @@
 						</div>
 
 						<!-- Action Title -->
-						<h4 class="text-base sm:text-lg font-semibold leading-snug {priorityConfig.text} mb-4">
-							{action.action}
+						<h4 class="text-base sm:text-lg font-semibold leading-snug {priorityConfig.text} mb-2">
+							{getActionTitle(action)}
 						</h4>
 
-						<!-- Rationale -->
-						<div class="bg-white/50 dark:bg-neutral-800/50 rounded-lg p-4 mb-4">
-							<h5 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
-								Rationale
-							</h5>
-							<p class="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-								{action.rationale}
+						<!-- Action Description (if different from title) -->
+						{#if getActionDescription(action)}
+							<p class="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 mb-4">
+								{getActionDescription(action)}
 							</p>
-						</div>
+						{/if}
 
-						<!-- Success Metrics & Risks Grid -->
-						<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-							<!-- Success Metrics -->
-							<div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-								<h5 class="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-									</svg>
-									Success Metrics
+						<!-- Expand/Collapse Details -->
+						<button
+							type="button"
+							class="text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 flex items-center gap-1 mb-4"
+							onclick={() => {
+								if (expandedActions.has(index)) {
+									expandedActions.delete(index);
+									expandedActions = new Set(expandedActions);
+								} else {
+									expandedActions.add(index);
+									expandedActions = new Set(expandedActions);
+								}
+							}}
+						>
+							<svg class="w-4 h-4 transition-transform {expandedActions.has(index) ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
+							{expandedActions.has(index) ? 'Hide details' : 'Show details'}
+						</button>
+
+						{#if expandedActions.has(index)}
+							<!-- Rationale -->
+							<div class="bg-white/50 dark:bg-neutral-800/50 rounded-lg p-4 mb-4">
+								<h5 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+									Rationale
 								</h5>
-								<ul class="space-y-2">
-									{#each action.success_metrics as metric (metric)}
-										<li class="flex items-start gap-2 text-sm text-green-800 dark:text-green-200 leading-relaxed">
-											<span class="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0">✓</span>
-											<span>{metric}</span>
-										</li>
-									{/each}
-								</ul>
+								<p class="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+									{action.rationale}
+								</p>
 							</div>
 
-							<!-- Risks -->
-							<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-								<h5 class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-3 flex items-center gap-2">
-									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-									</svg>
-									Risks to Consider
-								</h5>
-								<ul class="space-y-2">
-									{#each action.risks as risk (risk)}
-										<li class="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-											<span class="text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
-											<span>{risk}</span>
-										</li>
-									{/each}
-								</ul>
+							<!-- Success Metrics & Risks Grid -->
+							<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<!-- Success Metrics -->
+								<div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+									<h5 class="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+										</svg>
+										Success Metrics
+									</h5>
+									<ul class="space-y-2">
+										{#each action.success_metrics as metric (metric)}
+											<li class="flex items-start gap-2 text-sm text-green-800 dark:text-green-200 leading-relaxed">
+												<span class="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0">✓</span>
+												<span>{metric}</span>
+											</li>
+										{/each}
+									</ul>
+								</div>
+
+								<!-- Risks -->
+								<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+									<h5 class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-3 flex items-center gap-2">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+										</svg>
+										Risks
+									</h5>
+									<ul class="space-y-2">
+										{#each action.risks as risk (risk)}
+											<li class="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+												<span class="text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
+												<span>{risk}</span>
+											</li>
+										{/each}
+									</ul>
+								</div>
 							</div>
-						</div>
+						{/if}
 					</div>
 				</div>
 			{/each}

@@ -2125,13 +2125,9 @@ async def raise_hand(
             status=500,
         )
 
-    # Check for existing pending interjection (rate limit at state level)
+    # If already pending, replace message (user changed their mind)
     if state.get("needs_interjection_response"):
-        raise http_error(
-            ErrorCode.API_RATE_LIMIT,
-            "An interjection is already pending. Please wait for experts to respond.",
-            status=429,
-        )
+        logger.info(f"Replacing pending interjection in session {session_id}")
 
     # Update state with interjection (sanitize to prevent indirect prompt injection)
     state["user_interjection"] = sanitize_user_input(body.message, context="user_interjection")

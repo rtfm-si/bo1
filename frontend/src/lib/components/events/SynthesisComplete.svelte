@@ -317,7 +317,7 @@
 							<div class="flex-1 min-w-0">
 								<div class="flex flex-wrap items-center gap-2 mb-2">
 									<h5 class="font-medium text-slate-900 dark:text-white">
-										{action.action.split(':')[0] || `Action ${i + 1}`}
+										{action.title || action.action?.split(':')[0] || `Action ${i + 1}`}
 									</h5>
 									<span class="px-2 py-0.5 text-xs font-medium rounded border {getPriorityColor(action.priority)}">
 										{action.priority}
@@ -328,9 +328,11 @@
 										</span>
 									{/if}
 								</div>
-								<p class="text-sm text-slate-700 dark:text-slate-300 mb-3">
-									{action.action}
-								</p>
+								{#if action.description || action.action}
+									<p class="text-sm text-slate-700 dark:text-slate-300 mb-3">
+										{action.description || action.action}
+									</p>
+								{/if}
 								{#if action.rationale}
 									<div class="text-sm text-slate-600 dark:text-slate-400 mb-2">
 										<span class="font-medium">Rationale:</span> {action.rationale}

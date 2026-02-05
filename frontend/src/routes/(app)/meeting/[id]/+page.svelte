@@ -836,10 +836,9 @@
 											const eventSubIndex = getSubProblemIndex(group.event);
 											return eventSubIndex === tabIndex;
 										} else if (group.type === 'round' || group.type === 'expert_panel') {
-											if (group.events && group.events.length > 0) {
-												const eventSubIndex = getSubProblemIndex(group.events[0]);
-												return eventSubIndex === tabIndex;
-											}
+											// Prefer explicit subProblemIndex on group, fallback to first event
+											const groupSubIndex = group.subProblemIndex ?? (group.events && group.events.length > 0 ? getSubProblemIndex(group.events[0]) : undefined);
+											return groupSubIndex === tabIndex;
 										}
 										return false;
 									})}

@@ -60,6 +60,84 @@ class SessionManager:
                 "Redis not available - session management will fail!",
             )
 
+    # Generic key-value methods for OAuth state
+
+    def set(self, key: str, value: dict[str, Any], expiry: int = OAUTH_STATE_TTL) -> None:
+        """Store a value in Redis with TTL.
+
+        Args:
+            key: Redis key
+            value: Dict to store (will be JSON encoded)
+            expiry: TTL in seconds (default 600)
+        """
+        if not self.redis.redis:
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
+            return
+
+        try:
+            self.redis.redis.setex(key, expiry, json.dumps(value))
+            logger.debug(f"Set key: {key[:20]}... (TTL: {expiry}s)")
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to set key {key}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        """Retrieve a value from Redis.
+
+        Args:
+            key: Redis key
+
+        Returns:
+            Stored dict or None if not found
+        """
+        if not self.redis.redis:
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
+            return None
+
+        try:
+            data = self.redis.redis.get(key)
+            if not data:
+                return None
+            result: dict[str, Any] = json.loads(str(data))
+            return result
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.REDIS_READ_ERROR,
+                f"Failed to get key {key}: {e}",
+                exc_info=True,
+            )
+            return None
+
+    def delete(self, key: str) -> bool:
+        """Delete a key from Redis.
+
+        Args:
+            key: Redis key
+
+        Returns:
+            True if deleted
+        """
+        if not self.redis.redis:
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
+            return False
+
+        try:
+            return bool(self.redis.redis.delete(key))
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to delete key {key}: {e}",
+                exc_info=True,
+            )
+            return False
+
     # OAuth Flow State Management
 
     def create_oauth_state(

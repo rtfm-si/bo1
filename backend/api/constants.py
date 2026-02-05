@@ -127,3 +127,25 @@ SSE_RECONNECT_BACKOFF_BASE_SECONDS: int = int(
 SSE_RECONNECT_BACKOFF_MAX_SECONDS: int = int(
     os.environ.get("SSE_RECONNECT_BACKOFF_MAX_SECONDS", "60")
 )
+
+# Session Lock Configuration
+SESSION_LOCK_TIMEOUT_SECONDS: float = float(
+    os.environ.get("SESSION_LOCK_TIMEOUT_SECONDS", "5.0")
+)
+"""Timeout for Redis distributed session locks (default 5 seconds)"""
+
+
+class CompetitorAPIConfig:
+    """API timeout configuration for competitor detection services."""
+
+    TAVILY_TIMEOUT: float = 60.0
+    """Timeout for Tavily search API calls (seconds)"""
+
+    BRAVE_TIMEOUT: float = 30.0
+    """Timeout for Brave search API calls (seconds)"""
+
+    ARTICLE_FETCH_TIMEOUT: float = 12.0
+    """Timeout for batch article fetching (seconds)"""
+
+    MAX_CONCURRENT: int = 3
+    """Maximum concurrent article fetches"""

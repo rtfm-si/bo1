@@ -132,17 +132,26 @@ class EventCollector:
 
     # Mapping of node names to working_status messages emitted at START
     NODE_START_STATUS: dict[str, str] = {
+        "context_collection": "Loading business context...",
         "decompose": "Breaking down your decision into key areas...",
+        "identify_gaps": "Identifying information gaps...",
+        "analyze_dependencies": "Analyzing focus area dependencies...",
+        "parallel_subproblems": "Processing focus areas...",
         "select_personas": "Assembling the right experts for your question...",
         "initial_round": "Experts are sharing their initial perspectives...",
         "facilitator_decide": "Guiding the discussion deeper...",
         "parallel_round": "Experts are discussing...",
         "moderator_intervene": "Ensuring balanced perspectives...",
+        "research": "Researching additional context...",
+        "data_analysis": "Analyzing available data...",
         "check_convergence": "Checking for emerging agreement...",
+        "cost_guard": "Checking cost budget...",
         "vote": "Experts are finalizing their recommendations...",
         "synthesize": "Bringing together the key insights...",
+        "next_subproblem": "Moving to next focus area...",
         "meta_synthesis": "Crafting your final recommendation...",
         "meta_synthesize": "Crafting your final recommendation...",
+        "clarification": "Processing your clarification...",
     }
 
     def __init__(
@@ -671,6 +680,16 @@ class EventCollector:
         start_time = time.monotonic()
         last_meaningful_event_time = start_time
 
+        # LATENCY FIX: Emit initialization event immediately before graph starts
+        # This gives user feedback within ~100ms of POST /start instead of waiting
+        # 2-5 seconds for first graph node to complete
+        self.publisher.publish_event(
+            session_id=session_id,
+            event_type="graph_initialization_started",
+            data={"message": "Preparing your expert panel..."},
+        )
+        logger.info(f"[LATENCY] Emitted graph_initialization_started for session {session_id}")
+
         try:
             async with asyncio.timeout(GRAPH_HARD_TIMEOUT_SECONDS):
                 async for chunk in graph.astream(
@@ -806,6 +825,14 @@ class EventCollector:
         final_state = None
         start_time = time.monotonic()
         last_node_completion_time = start_time
+
+        # LATENCY FIX: Emit initialization event immediately before graph starts
+        self.publisher.publish_event(
+            session_id=session_id,
+            event_type="graph_initialization_started",
+            data={"message": "Preparing your expert panel..."},
+        )
+        logger.info(f"[LATENCY] Emitted graph_initialization_started for session {session_id}")
 
         try:
             async with asyncio.timeout(GRAPH_HARD_TIMEOUT_SECONDS):

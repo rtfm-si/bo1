@@ -76,6 +76,58 @@ class ComplexityScores:
     """Use Haiku for persona selection when complexity <= 6 (simple/moderate problems)"""
 
 
+class DecompositionConfig:
+    """Decomposition thresholds for complexity estimation.
+
+    Used by decompose_node to estimate problem complexity based on
+    word count and strategic keywords.
+    """
+
+    # Word count thresholds for initial complexity estimate
+    WORD_THRESHOLD_SIMPLE = 20
+    """Problems under 20 words → simple"""
+
+    WORD_THRESHOLD_MODERATE = 50
+    """Problems under 50 words → moderate"""
+
+    WORD_THRESHOLD_COMPLEX = 100
+    """Problems under 100 words → complex"""
+
+    # Complexity score assignments (1-10 scale)
+    COMPLEXITY_SIMPLE = 3
+    """Initial complexity for simple problems (< 20 words)"""
+
+    COMPLEXITY_MODERATE = 5
+    """Initial complexity for moderate problems (< 50 words)"""
+
+    COMPLEXITY_COMPLEX = 7
+    """Initial complexity for complex problems (< 100 words)"""
+
+    COMPLEXITY_VERY_COMPLEX = 8
+    """Initial complexity for very complex problems (>= 100 words)"""
+
+    # Keyword-based adjustments
+    STRATEGIC_KEYWORD_BOOST = 2
+    """Boost added when strategic keywords detected (pivot, acquisition, etc.)"""
+
+    # Sub-problem limits (audit finding: avg was 4.2, capped to 4 for quality)
+    MAX_SUBPROBLEMS_HARD_CAP = 4
+    """Hard cap on sub-problems (quality > quantity)"""
+
+
+class ModerationConfig:
+    """Moderation and facilitation thresholds.
+
+    Controls when moderator can intervene and recent contribution windows.
+    """
+
+    MIN_ROUNDS_BEFORE_VOTING = 2
+    """Minimum rounds before voting allowed (parallel arch: 2 rounds = 6-10 contributions)"""
+
+    RECENT_CONTRIBUTIONS_WINDOW = 3
+    """Number of recent contributions to consider for moderator context"""
+
+
 class Lengths:
     """Maximum counts for various deliberation components."""
 
@@ -502,6 +554,16 @@ class SimilarityCacheThresholds:
 
     CONSOLIDATION = 0.75
     """Question consolidation/batching (broader grouping)"""
+
+    # Additional thresholds from codebase audit
+    DUPLICATE_CONTRIBUTION = 0.80
+    """Duplicate contribution detection in rounds.py (theme-level)"""
+
+    RESEARCH_DEPTH_TRIGGER = 0.75
+    """Research depth semantic similarity trigger in research.py"""
+
+    PROACTIVE_CONFIDENCE = 0.75
+    """Proactive research detection confidence threshold in rounds.py"""
 
 
 class ResearchCacheConfig:

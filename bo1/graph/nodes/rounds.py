@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Any
 
+from bo1.constants import SimilarityCacheThresholds
 from bo1.graph.deliberation import (
     PhaseManager,
     build_dependency_context,
@@ -775,7 +776,7 @@ async def _apply_semantic_deduplication(
 
     filtered = await filter_duplicate_contributions(
         contributions=contributions,
-        threshold=0.80,  # 80% similarity = likely duplicate
+        threshold=SimilarityCacheThresholds.DUPLICATE_CONTRIBUTION,
     )
 
     filtered_count = len(contributions) - len(filtered)
@@ -967,7 +968,7 @@ async def _detect_research_needs(
         detected_queries = await detect_and_trigger_research(
             contributions=contributions,
             problem_context=problem_context,
-            min_confidence=0.75,  # Only trigger for high-confidence detections
+            min_confidence=SimilarityCacheThresholds.PROACTIVE_CONFIDENCE,
         )
 
         if detected_queries:

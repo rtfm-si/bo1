@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
+from bo1.constants import DecompositionConfig
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import (
     DeliberationGraphState,
@@ -81,14 +82,15 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     problem_length = len(problem_text.split())
 
     # Simple heuristic for initial complexity estimate
-    if problem_length < 20:
-        estimated_complexity = 3  # Simple, likely atomic
-    elif problem_length < 50:
-        estimated_complexity = 5  # Moderate
-    elif problem_length < 100:
-        estimated_complexity = 7  # Complex
+    # Uses centralized DecompositionConfig thresholds
+    if problem_length < DecompositionConfig.WORD_THRESHOLD_SIMPLE:
+        estimated_complexity = DecompositionConfig.COMPLEXITY_SIMPLE
+    elif problem_length < DecompositionConfig.WORD_THRESHOLD_MODERATE:
+        estimated_complexity = DecompositionConfig.COMPLEXITY_MODERATE
+    elif problem_length < DecompositionConfig.WORD_THRESHOLD_COMPLEX:
+        estimated_complexity = DecompositionConfig.COMPLEXITY_COMPLEX
     else:
-        estimated_complexity = 8  # Very complex
+        estimated_complexity = DecompositionConfig.COMPLEXITY_VERY_COMPLEX
 
     # Strategic decision keywords indicate higher complexity
     strategic_keywords = [
@@ -101,7 +103,9 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         "funding",
     ]
     if any(keyword in problem_text.lower() for keyword in strategic_keywords):
-        estimated_complexity = min(9, estimated_complexity + 2)
+        estimated_complexity = min(
+            9, estimated_complexity + DecompositionConfig.STRATEGIC_KEYWORD_BOOST
+        )
 
     log_with_session(
         logger,
@@ -157,7 +161,8 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # AUDIT FIX (Priority 5, Task 5.2): Enforce complexity-based limits
     # Truncate if LLM generated too many sub-problems (Quality > Quantity)
-    max_subproblems_allowed = 4  # Hard cap based on audit findings (avg was 4.2)
+    # Uses centralized DecompositionConfig.MAX_SUBPROBLEMS_HARD_CAP
+    max_subproblems_allowed = DecompositionConfig.MAX_SUBPROBLEMS_HARD_CAP
 
     if len(sub_problems) > max_subproblems_allowed:
         log_with_session(

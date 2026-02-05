@@ -17,7 +17,7 @@
 	// Helper to get display title (new field or fallback to first part of legacy action)
 	function getActionTitle(item: ActionItem): string {
 		if (item.title) return item.title;
-		if (item.action) {
+		if (item.action && typeof item.action === 'string') {
 			// Legacy: use first sentence or first 80 chars
 			const firstSentence = item.action.split(/[.!?]/)[0];
 			return firstSentence.length > 80 ? firstSentence.slice(0, 77) + '...' : firstSentence;

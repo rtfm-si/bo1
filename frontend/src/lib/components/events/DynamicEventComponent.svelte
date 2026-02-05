@@ -41,6 +41,7 @@
 	import PersonaRecommendation from './PersonaRecommendation.svelte';
 	import ActionPlan from './ActionPlan.svelte';
 	import SubProblemProgress from './SubProblemProgress.svelte';
+	import SubProblemWaiting from './SubProblemWaiting.svelte';
 	import DeliberationComplete from './DeliberationComplete.svelte';
 
 	// Map of static fallback components for critical event types
@@ -60,6 +61,7 @@
 		persona_vote: PersonaRecommendation,
 		meta_synthesis_complete: ActionPlan,
 		subproblem_complete: SubProblemProgress,
+		subproblem_waiting: SubProblemWaiting,
 		complete: DeliberationComplete
 	};
 

@@ -124,8 +124,22 @@ async def collect_recommendations(
             return recommendation, response
 
         except Exception as e:
-            logger.error(f"Failed to collect recommendation from {persona.name}: {e}")
-            return None, None
+            # ROBUSTNESS: Return fallback recommendation instead of failing entire voting
+            # This prevents a single persona's parse failure from blocking synthesis
+            logger.error(
+                f"Failed to collect recommendation from {persona.name}: {e}. "
+                f"Using fallback recommendation with neutral confidence."
+            )
+            fallback_recommendation = Recommendation(
+                persona_code=persona.code,
+                persona_name=persona.name,
+                recommendation="Unable to provide recommendation due to processing error",
+                reasoning=f"Error during recommendation collection: {str(e)[:100]}",
+                confidence=0.5,  # Neutral confidence
+                conditions=[],
+                weight=0.5,  # Neutral weight - won't dominate aggregation
+            )
+            return fallback_recommendation, None
 
     # Collect recommendations using sequential-then-parallel pattern for cache optimization
     # First recommendation creates cache, remaining recommendations hit cache (90% cost savings)

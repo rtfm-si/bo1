@@ -2,6 +2,7 @@
 	import { eventTokens } from '$lib/design/tokens';
 	import type { SSEEvent } from '$lib/api/sse-events';
 	import { Lightbulb, AlertTriangle, HelpCircle, Search } from 'lucide-svelte';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	interface ExpertPerspectiveSummary {
 		concise?: string;
@@ -188,10 +189,8 @@
 
 				<!-- Show full content if summary is incomplete -->
 				{#if !event.data.summary.looking_for && !event.data.summary.value_added}
-					<div class="mt-3">
-						<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-							{event.data.content}
-						</p>
+					<div class="mt-3 prose prose-sm dark:prose-invert max-w-none">
+						<MarkdownContent content={event.data.content} />
 					</div>
 				{/if}
 			</div>
@@ -203,9 +202,9 @@
 				<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-2">
 					Full Response
 				</p>
-				<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-					{event.data.content}
-				</p>
+				<div class="prose prose-sm dark:prose-invert max-w-none">
+					<MarkdownContent content={event.data.content} />
+				</div>
 			</div>
 		{/if}
 	{:else}
@@ -215,9 +214,9 @@
 				{simpleFallback || extractCleanSummary(event.data.content, 250)}
 			</p>
 		{:else}
-			<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap">
-				{extractCleanSummary(event.data.content, 1000)}
-			</p>
+			<div class="prose prose-sm dark:prose-invert max-w-none">
+				<MarkdownContent content={event.data.content} />
+			</div>
 		{/if}
 	{/if}
 	</div>

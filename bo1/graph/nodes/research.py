@@ -221,9 +221,11 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         ]
         max_similarity = max(similarities)
 
-        # Threshold: 0.75+ similarity = deep research (Tavily)
+        # Threshold: Uses centralized RESEARCH_DEPTH_TRIGGER for deep research (Tavily)
         facilitator_research_depth: Literal["basic", "deep"] = (
-            "deep" if max_similarity >= 0.75 else "basic"
+            "deep"
+            if max_similarity >= SimilarityCacheThresholds.RESEARCH_DEPTH_TRIGGER
+            else "basic"
         )
 
         logger.info(

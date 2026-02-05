@@ -11,7 +11,7 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
-from bo1.constants import SimilarityCacheThresholds
+from bo1.constants import ModerationConfig, SimilarityCacheThresholds
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import (
     DeliberationGraphState,
@@ -198,8 +198,8 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
     # Override facilitator if trying to vote before minimum rounds
     # NOTE: Research action is now fully implemented and no longer overridden
-    # NEW PARALLEL ARCHITECTURE: Reduced from 3 to 2 (with 3-5 experts per round, 2 rounds = 6-10 contributions)
-    min_rounds_before_voting = 2
+    # Uses centralized ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
+    min_rounds_before_voting = ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
     if decision.action == "vote" and round_number < min_rounds_before_voting:
         logger.warning(
             f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
@@ -416,8 +416,10 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     problem = problem_state.get("problem")
     contributions = list(discussion_state.get("contributions", []))
 
-    # Build discussion excerpt from recent contributions (last 3)
-    recent_contributions = contributions[-3:] if len(contributions) >= 3 else contributions
+    # Build discussion excerpt from recent contributions
+    # Uses centralized ModerationConfig.RECENT_CONTRIBUTIONS_WINDOW
+    window = ModerationConfig.RECENT_CONTRIBUTIONS_WINDOW
+    recent_contributions = contributions[-window:] if len(contributions) >= window else contributions
     discussion_excerpt = "\n\n".join(
         [f"{c.persona_name}: {c.content}" for c in recent_contributions]
     )

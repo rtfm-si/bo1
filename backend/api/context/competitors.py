@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from backend.api.constants import CompetitorAPIConfig
 from backend.api.context.models import (
     CompetitorDetectResponse,
     DetectedCompetitor,
@@ -552,7 +553,7 @@ async def _search_competitors_tavily(
     Returns:
         List of detected competitors with relevance scores
     """
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=CompetitorAPIConfig.TAVILY_TIMEOUT) as client:
         response = await client.post(
             "https://api.tavily.com/search",
             json={
@@ -623,7 +624,7 @@ async def _fallback_competitor_search(
         List of extracted competitor dicts
     """
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=CompetitorAPIConfig.TAVILY_TIMEOUT) as client:
             # More targeted query
             response = await client.post(
                 "https://api.tavily.com/search",
@@ -721,7 +722,7 @@ async def _search_trends_brave(
     Returns:
         List of market trends with AI-generated summaries
     """
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=CompetitorAPIConfig.BRAVE_TIMEOUT) as client:
         response = await client.get(
             "https://api.search.brave.com/res/v1/web/search",
             headers={"X-Subscription-Token": api_key},
@@ -744,7 +745,11 @@ async def _search_trends_brave(
 
     # Step 2: Fetch article content in parallel
     urls = [r.get("url", "") for r in top_results if r.get("url")]
-    fetch_results = await fetch_articles_batch(urls, max_concurrent=3, total_timeout=12.0)
+    fetch_results = await fetch_articles_batch(
+        urls,
+        max_concurrent=CompetitorAPIConfig.MAX_CONCURRENT,
+        total_timeout=CompetitorAPIConfig.ARTICLE_FETCH_TIMEOUT,
+    )
 
     # Build URL -> content map
     url_content_map = {fr.url: fr.content for fr in fetch_results if fr.success and fr.content}

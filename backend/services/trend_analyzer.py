@@ -23,6 +23,7 @@ from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.prompts.trend import TREND_SYSTEM_PROMPT, build_trend_prompt
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -276,17 +277,9 @@ class TrendAnalyzer:
             Parsed TrendInsightResult
         """
         try:
-            # Strip any markdown wrapping
-            text = response_text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            text = text.strip()
-
-            data = json.loads(text)
-            if not isinstance(data, dict):
-                raise ValueError("Expected JSON object")
+            data, errors = parse_json_with_fallback(response_text, context="trend_analyzer")
+            if data is None:
+                raise ValueError(f"Parse error: {errors}")
 
             # Parse timeframe
             timeframe = data.get("timeframe")

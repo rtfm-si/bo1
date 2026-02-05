@@ -292,6 +292,9 @@ class MultiDatasetAnalyzer:
         self, summaries: list[DatasetSummary], common_cols: list[str]
     ) -> list[MultiDatasetAnomaly]:
         """Detect statistical outliers (values > 2 std dev from mean across datasets)."""
+        if not summaries:
+            return []
+
         anomalies = []
 
         # Find common numeric columns

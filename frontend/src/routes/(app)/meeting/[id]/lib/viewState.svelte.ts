@@ -36,7 +36,7 @@ export function createViewState(config: ViewStateConfig) {
 	// ============================================================================
 
 	const activeTabEvents = $derived.by(() => {
-		if (!activeSubProblemTab) return [];
+		if (!activeSubProblemTab?.startsWith('subproblem-')) return [];
 		const tabIndex = parseInt(activeSubProblemTab.replace('subproblem-', ''));
 		const eventsBySubProblem = getEventsBySubProblem();
 		return eventsBySubProblem.get(tabIndex) || [];

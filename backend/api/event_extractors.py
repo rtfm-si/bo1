@@ -11,10 +11,37 @@ Benefits:
 - Simple to add new event types (just add config)
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any, TypedDict
 
+from bo1.constants import GraphConfig
 from bo1.utils.singleton import singleton
+
+logger = logging.getLogger(__name__)
+
+
+def _get_sub_problem_index_safe(output: dict[str, Any], context: str) -> int:
+    """Get sub_problem_index with warning if missing.
+
+    Logs a warning when sub_problem_index is missing from node output to help
+    identify upstream nodes that don't propagate the index correctly.
+
+    Args:
+        output: Node output dictionary
+        context: Description of where this is called from (for debugging)
+
+    Returns:
+        sub_problem_index value, defaulting to 0 if missing
+    """
+    if "sub_problem_index" not in output:
+        logger.warning(
+            "[EVENT WARN] sub_problem_index missing in %s. Defaulting to 0. Keys: %s",
+            context,
+            list(output.keys())[:10],
+        )
+        return 0
+    return output["sub_problem_index"]
 
 
 class FieldExtractor(TypedDict, total=False):
@@ -258,7 +285,7 @@ def extract_subproblem_info(output: dict[str, Any]) -> dict[str, Any]:
 
     Returns data for all sub-problem scenarios (single or multi).
     """
-    sub_problem_index = output.get("sub_problem_index", 0)
+    sub_problem_index = _get_sub_problem_index_safe(output, "extract_subproblem_info")
     current_sub_problem = output.get("current_sub_problem")
     problem = output.get("problem")
 
@@ -309,7 +336,7 @@ def extract_research_results(output: dict[str, Any]) -> dict[str, Any]:
     - proactive: whether it was proactively triggered (optional)
     """
     research_results = output.get("research_results", [])
-    sub_problem_index = output.get("sub_problem_index", 0)
+    sub_problem_index = _get_sub_problem_index_safe(output, "extract_research_results")
     round_number = output.get("round_number", 0)
 
     return {
@@ -375,7 +402,7 @@ def _create_facilitator_decision_extractors() -> list[FieldExtractor]:
         """Extract full facilitator decision with all fields."""
         decision = output.get("facilitator_decision")
         round_number = output.get("round_number", 1)
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "extract_facilitator_decision")
 
         if not decision:
             return {}
@@ -406,7 +433,7 @@ def _create_moderator_intervention_extractors() -> list[FieldExtractor]:
         """Extract moderator intervention data from contributions."""
         contributions = output.get("contributions", [])
         round_number = output.get("round_number", 1)
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "extract_moderator_intervention")
 
         if not contributions:
             return {}
@@ -502,7 +529,7 @@ CONVERGENCE_EXTRACTORS: list[FieldExtractor] = [
     {
         "source_field": "max_rounds",
         "target_field": "max_rounds",
-        "default": 10,
+        "default": GraphConfig.MAX_ROUNDS_DEFAULT,
     },
     {
         "source_field": "sub_problem_index",
@@ -543,7 +570,7 @@ def _create_voting_extractors() -> list[FieldExtractor]:
     def extract_voting_data(output: dict[str, Any]) -> dict[str, Any]:
         """Extract voting data with consensus metrics."""
         votes = output.get("votes", [])
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "extract_voting_data")
 
         formatted_votes = extract_formatted_votes(votes)
         consensus_level, avg_confidence = calculate_consensus_level(votes)

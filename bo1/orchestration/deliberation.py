@@ -13,6 +13,7 @@ from typing import Any
 from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.moderator import ModeratorAgent, ModeratorType
 from bo1.agents.summarizer import SummarizerAgent
+from bo1.constants import GraphConfig
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
@@ -197,7 +198,11 @@ class DeliberationEngine:
         logger.debug(f"Calling persona: {persona_profile.display_name}")
 
         # Get adaptive round configuration
-        max_rounds = self.state.get("max_rounds", 10) if self.state else 10
+        max_rounds = (
+            self.state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
+            if self.state
+            else GraphConfig.MAX_ROUNDS_DEFAULT
+        )
         round_config = get_round_phase_config(round_number + 1, max_rounds)
 
         # BUG FIX: Include clarification answers from problem.context

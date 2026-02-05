@@ -16,6 +16,7 @@ from enum import Enum
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.prompts.blocker import BLOCKER_SYSTEM_PROMPT, build_blocker_prompt
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -114,15 +115,10 @@ class BlockerAnalyzer:
             List of parsed suggestions, max 5
         """
         try:
-            # Strip any markdown wrapping
-            text = response_text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            text = text.strip()
-
-            data = json.loads(text)
+            data, errors = parse_json_with_fallback(response_text, context="blocker_analyzer")
+            if data is None:
+                logger.warning(f"Failed to parse blocker suggestions: {errors}")
+                return self._fallback_suggestions(None)
             if not isinstance(data, list):
                 raise ValueError("Expected JSON array")
 

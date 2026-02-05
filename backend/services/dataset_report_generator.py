@@ -9,6 +9,7 @@ from typing import Any
 
 from bo1.analysis.charts import generate_chart_from_insight
 from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -206,14 +207,12 @@ async def generate_dataset_report(
 
     # Parse response
     try:
-        # Extract JSON from response
-        content = response.content
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
-
-        report_data = json.loads(content.strip())
+        report_data, errors = parse_json_with_fallback(
+            response.content, context="dataset_report_generator"
+        )
+        if report_data is None:
+            logger.warning(f"Failed to parse report response: {errors}")
+            return fallback, {"model": "core", "tokens": 0, "error": str(errors)}
 
         # Apply custom title if provided
         if title:

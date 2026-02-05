@@ -41,6 +41,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.api.constants import SSE_SCHEMA_VERSION
+from bo1.constants import GraphConfig
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +284,7 @@ def convergence_event(
     threshold: float = 0.85,
     should_stop: bool = False,
     stop_reason: str | None = None,
-    max_rounds: int = 10,
+    max_rounds: int = GraphConfig.MAX_ROUNDS_DEFAULT,
     sub_problem_index: int = 0,
     novelty_score: float | None = None,
     conflict_score: float | None = None,

@@ -15,6 +15,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from bo1.constants import GraphConfig
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class StoppingRulesEvaluator:
             StoppingDecision with should_stop flag and reasoning
         """
         round_number = state.get("round_number", 1)
-        max_rounds = state.get("max_rounds", 10)
+        max_rounds = state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
 
         # Check 1: Hard cap (absolute maximum rounds)
         hard_cap_result = self.check_hard_cap(round_number)

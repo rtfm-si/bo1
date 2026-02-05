@@ -32,3 +32,5 @@ create more blog posts
 create more meeting examples
 
 google search content thing
+
+check codebase for hardcoded / magic numbers

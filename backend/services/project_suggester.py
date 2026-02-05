@@ -4,6 +4,7 @@ Analyzes meeting problem statements and resulting actions to suggest
 new projects that could be created from the meeting's outcomes.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 from bo1.llm.client import ClaudeClient
 from bo1.state.database import db_session
 from bo1.state.repositories.session_repository import session_repository
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -202,17 +204,11 @@ def _parse_suggestions(
     Returns:
         List of validated ProjectSuggestion objects
     """
-    import json
-
     try:
-        # Extract JSON from response
-        json_str = response
-        if "```json" in response:
-            json_str = response.split("```json")[1].split("```")[0]
-        elif "```" in response:
-            json_str = response.split("```")[1].split("```")[0]
-
-        data = json.loads(json_str.strip())
+        data, errors = parse_json_with_fallback(response, context="project_suggester")
+        if data is None:
+            logger.warning(f"Failed to parse project suggestions: {errors}")
+            return []
         raw_suggestions = data.get("suggestions", [])
 
         # Get valid action IDs for validation

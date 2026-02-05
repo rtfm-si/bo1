@@ -363,7 +363,7 @@ def _reconstruct_state_from_postgres(
         # Get sub_problem_index from problem_context if persisted by fallback
         sub_problem_index = 0
         if isinstance(problem_context, dict):
-            sub_problem_index = problem_context.get("sub_problem_index", 0) or 0
+            sub_problem_index = problem_context.get("sub_problem_index") or 0
 
         # Determine stop_reason based on status
         stop_reason = "clarification_needed" if status == "paused" else "failed"

@@ -18,6 +18,7 @@ from typing import Any, Literal
 
 import networkx as nx
 
+from bo1.constants import GraphConfig
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     from bo1.graph.quality.stopping_rules import StoppingRulesEvaluator
 
     round_number = state.get("round_number", 1)
-    max_rounds = state.get("max_rounds", 10)
+    max_rounds = state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
 
     # Get problem statement for context
     problem = state.get("problem")

@@ -14,6 +14,7 @@ from typing import Any
 
 from rich.panel import Panel
 
+from bo1.constants import GraphConfig
 from bo1.graph.config import create_deliberation_graph
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
@@ -82,7 +83,7 @@ def validate_user_input(user_input: str, valid_options: list[str]) -> bool:
 async def run_console_deliberation(
     problem: Problem,
     session_id: str | None = None,
-    max_rounds: int = 15,
+    max_rounds: int = GraphConfig.MAX_ROUNDS_DEFAULT,
     debug: bool = False,
     export: bool = False,
     include_logs: bool = False,
@@ -447,7 +448,7 @@ def _display_convergence_check(console: Console, state: Any) -> None:
     should_stop = state.get("should_stop", False)
     stop_reason = state.get("stop_reason")
     round_number = state.get("round_number", 0)
-    max_rounds = state.get("max_rounds", 15)
+    max_rounds = state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
 
     status = "[green]CONTINUING[/green]" if not should_stop else "[red]STOPPING[/red]"
     console.print(f"\n[dim]Convergence Check: {status} (Round {round_number}/{max_rounds})[/dim]")
@@ -700,7 +701,9 @@ async def _export_deliberation(console: Console, state: Any, include_logs: bool 
 
 
 async def stream_deliberation_events(
-    problem: Problem, session_id: str | None = None, max_rounds: int = 15
+    problem: Problem,
+    session_id: str | None = None,
+    max_rounds: int = GraphConfig.MAX_ROUNDS_DEFAULT,
 ) -> Any:  # Returns DeliberationGraphState
     """Stream deliberation events in real-time (for future SSE support).
 

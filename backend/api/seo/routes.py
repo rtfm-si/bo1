@@ -27,6 +27,7 @@ from bo1.agents.researcher import ResearcherAgent
 from bo1.billing import PlanConfig
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -946,14 +947,10 @@ Focus on actionable, specific topics that would make good blog content. If the u
 
         # Parse response
         content = response.content[0].text.strip()
-        # Handle potential markdown code blocks
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-        content = content.strip()
-
-        data = json.loads(content)
+        data, errors = parse_json_with_fallback(content, context="seo_topic_suggestions")
+        if data is None:
+            logger.warning(f"Failed to parse topic suggestions: {errors}")
+            return AnalyzeTopicsResponse(suggestions=[], analyzed_words=words)
         suggestions = []
 
         for item in data.get("suggestions", [])[:5]:

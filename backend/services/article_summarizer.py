@@ -7,12 +7,12 @@ Cost: ~$0.001/article (Haiku is very cheap)
 import asyncio
 import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import Any
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.logging.errors import ErrorCode, log_error
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -117,22 +117,9 @@ def _parse_summary_response(url: str, response_text: str) -> ArticleSummary:
         Parsed ArticleSummary
     """
     try:
-        # Strip any markdown wrapping
-        text = response_text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        text = text.strip()
-
-        # Try to extract JSON object if wrapped in other text
-        json_match = re.search(r"\{[\s\S]*\}", text)
-        if json_match:
-            text = json_match.group()
-
-        data = json.loads(text)
-        if not isinstance(data, dict):
-            raise ValueError("Expected JSON object")
+        data, errors = parse_json_with_fallback(response_text, context="article_summarizer")
+        if data is None:
+            return ArticleSummary(url=url, error=f"Parse error: {errors}")
 
         summary = data.get("summary")
         key_points = data.get("key_points", [])

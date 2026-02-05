@@ -114,8 +114,7 @@ USE_HAIKU_FOR_SIMPLE_PERSONAS = _parse_bool(
 # Use LangGraph subgraph for sub-problem deliberation
 # When True, uses get_stream_writer() for real-time event streaming
 # When False, uses legacy EventBridge approach
-# Default to False initially for safe rollout
-USE_SUBGRAPH_DELIBERATION = _parse_bool(os.getenv("USE_SUBGRAPH_DELIBERATION"), default=False)
+USE_SUBGRAPH_DELIBERATION = _parse_bool(os.getenv("USE_SUBGRAPH_DELIBERATION"), default=True)
 
 
 # ============================================================================

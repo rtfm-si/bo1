@@ -9,6 +9,7 @@ Provides functions to convert deliberation state into various formats:
 import json
 from typing import Any
 
+from bo1.constants import GraphConfig
 from bo1.graph.state import DeliberationGraphState
 
 
@@ -59,7 +60,7 @@ def _state_to_serializable(state: DeliberationGraphState) -> dict[str, Any]:
     result["session_id"] = state.get("session_id", "")
     result["phase"] = str(state.get("phase", "")) if state.get("phase") else None
     result["round_number"] = state.get("round_number", 0)
-    result["max_rounds"] = state.get("max_rounds", 10)
+    result["max_rounds"] = state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
     result["synthesis"] = state.get("synthesis")
     result["should_stop"] = state.get("should_stop", False)
     result["stop_reason"] = state.get("stop_reason")
@@ -122,7 +123,7 @@ def _dict_to_state(data: dict[str, Any]) -> DeliberationGraphState:
     state = create_initial_state(
         session_id=data.get("session_id", ""),
         problem=problem,
-        max_rounds=data.get("max_rounds", 10),
+        max_rounds=data.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT),
     )
 
     # Set phase

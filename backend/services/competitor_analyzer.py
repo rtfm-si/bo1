@@ -23,6 +23,7 @@ from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.competitor import COMPETITOR_SYSTEM_PROMPT, build_competitor_prompt
 from bo1.prompts.sanitizer import sanitize_user_input
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -193,17 +194,9 @@ class CompetitorInsightAnalyzer:
             Parsed CompetitorInsightResult
         """
         try:
-            # Strip any markdown wrapping
-            text = response_text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            text = text.strip()
-
-            data = json.loads(text)
-            if not isinstance(data, dict):
-                raise ValueError("Expected JSON object")
+            data, errors = parse_json_with_fallback(response_text, context="competitor_analyzer")
+            if data is None:
+                raise ValueError(f"Parse error: {errors}")
 
             return CompetitorInsightResult(
                 name=str(data.get("name", competitor_name))[:100],

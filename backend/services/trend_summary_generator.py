@@ -28,6 +28,7 @@ from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.sanitizer import sanitize_user_input
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -509,17 +510,11 @@ class TrendSummaryGenerator:
             Parsed TrendSummaryResult
         """
         try:
-            # Strip any markdown wrapping
-            text = response_text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            text = text.strip()
-
-            data = json.loads(text)
-            if not isinstance(data, dict):
-                raise ValueError("Expected JSON object")
+            data, errors = parse_json_with_fallback(
+                response_text, context="trend_summary_generator"
+            )
+            if data is None:
+                raise ValueError(f"Parse error: {errors}")
 
             return TrendSummaryResult(
                 summary=self._safe_str(data.get("summary"), 1000),

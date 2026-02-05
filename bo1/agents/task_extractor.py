@@ -3,8 +3,6 @@
 Parses synthesis XML to identify discrete, actionable tasks.
 """
 
-import json
-
 from anthropic import Anthropic
 from pydantic import BaseModel, Field
 
@@ -17,6 +15,7 @@ from bo1.prompts.task_extractor_prompts import (
     TASK_EXTRACTOR_SYSTEM_PROMPT,
     TASK_EXTRACTOR_USER_TEMPLATE,
 )
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 
 class ExtractedTask(BaseModel):
@@ -188,13 +187,9 @@ async def extract_tasks_from_synthesis(
     # Clean up any overflow markers
     content = strip_continuation_marker(accumulated_content)
 
-    # Extract JSON from markdown code blocks if present (fallback)
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content and not content.startswith("{"):
-        content = content.split("```")[1].split("```")[0].strip()
-
-    data = json.loads(content)
+    data, errors = parse_json_with_fallback(content, context="task_extractor")
+    if data is None:
+        raise ValueError(f"Failed to parse task extractor response: {errors}")
 
     # Parse timeline to estimated_duration_days for each task
     from bo1.utils.timeline_parser import parse_timeline
@@ -332,13 +327,9 @@ def sync_extract_tasks_from_synthesis(
     # Clean up any overflow markers
     content = strip_continuation_marker(accumulated_content)
 
-    # Extract JSON from markdown code blocks if present (fallback)
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content and not content.startswith("{"):
-        content = content.split("```")[1].split("```")[0].strip()
-
-    data = json.loads(content)
+    data, errors = parse_json_with_fallback(content, context="task_extractor")
+    if data is None:
+        raise ValueError(f"Failed to parse task extractor response: {errors}")
 
     # Parse timeline to estimated_duration_days for each task
     from bo1.utils.timeline_parser import parse_timeline

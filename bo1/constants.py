@@ -172,6 +172,9 @@ class PersonaContextConfig:
 class GraphConfig:
     """Graph execution and round configuration."""
 
+    MAX_ROUNDS_DEFAULT = 6
+    """Default max rounds for deliberation sessions (authoritative source)"""
+
     MAX_ROUNDS_HARD_CAP = 6
     """Maximum rounds in parallel architecture"""
 

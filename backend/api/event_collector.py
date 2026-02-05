@@ -32,6 +32,30 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _get_sub_problem_index_safe(output: dict[str, Any], context: str) -> int:
+    """Get sub_problem_index with warning if missing.
+
+    Logs a warning when sub_problem_index is missing from node output to help
+    identify upstream nodes that don't propagate the index correctly.
+
+    Args:
+        output: Node output dictionary
+        context: Description of where this is called from (for debugging)
+
+    Returns:
+        sub_problem_index value, defaulting to 0 if missing
+    """
+    if "sub_problem_index" not in output:
+        logger.warning(
+            "[EVENT WARN] sub_problem_index missing in %s. Defaulting to 0. Keys: %s",
+            context,
+            list(output.keys())[:10],
+        )
+        return 0
+    return output["sub_problem_index"]
+
+
 # Type-safe node name literal for graph nodes
 NodeName = Literal[
     "decompose",
@@ -104,6 +128,21 @@ class EventCollector:
         "cost_guard": "_handle_cost_guard",  # Cost limit enforcement
         "clarification": "_handle_clarification",  # User clarification requests
         "parallel_subproblems": "_handle_parallel_subproblems",  # Parallel sub-problem execution
+    }
+
+    # Mapping of node names to working_status messages emitted at START
+    NODE_START_STATUS: dict[str, str] = {
+        "decompose": "Breaking down your decision into key areas...",
+        "select_personas": "Assembling the right experts for your question...",
+        "initial_round": "Experts are sharing their initial perspectives...",
+        "facilitator_decide": "Guiding the discussion deeper...",
+        "parallel_round": "Experts are discussing...",
+        "moderator_intervene": "Ensuring balanced perspectives...",
+        "check_convergence": "Checking for emerging agreement...",
+        "vote": "Experts are finalizing their recommendations...",
+        "synthesize": "Bringing together the key insights...",
+        "meta_synthesis": "Crafting your final recommendation...",
+        "meta_synthesize": "Crafting your final recommendation...",
     }
 
     def __init__(
@@ -452,7 +491,9 @@ class EventCollector:
                 # Add sub_problem_index from state to event data
                 # This is CRITICAL for frontend tab filtering (meeting page line 872)
                 # Without this field, events don't appear in sub-problem tabs
-                sub_problem_index = output.get("sub_problem_index", 0)
+                sub_problem_index = _get_sub_problem_index_safe(
+                    output, f"_publish_via_registry:{event_type}"
+                )
                 data["sub_problem_index"] = sub_problem_index
 
                 logger.info(
@@ -478,7 +519,9 @@ class EventCollector:
                         "error": error_msg,
                         "error_type": "EventExtractionError",
                         "event_type_attempted": event_type,
-                        "sub_problem_index": output.get("sub_problem_index", 0),
+                        "sub_problem_index": _get_sub_problem_index_safe(
+                            output, f"_publish_via_registry:error:{event_type}"
+                        ),
                     },
                 )
         except Exception as e:
@@ -499,7 +542,9 @@ class EventCollector:
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "event_type_attempted": event_type,
-                    "sub_problem_index": output.get("sub_problem_index", 0),
+                    "sub_problem_index": _get_sub_problem_index_safe(
+                        output, f"_publish_via_registry:exception:{event_type}"
+                    ),
                 },
             )
 
@@ -668,7 +713,9 @@ class EventCollector:
                     # Handle state updates from nodes
                     elif mode == "updates" and node_name:
                         # Emit state transition event for progress visualization
-                        sub_problem_index = node_data.get("sub_problem_index", 0)
+                        sub_problem_index = _get_sub_problem_index_safe(
+                            node_data, f"state_updates:{node_name}"
+                        )
                         self._emit_state_transition(session_id, node_name, sub_problem_index)
 
                         # Dispatch to appropriate handler via registry
@@ -767,14 +814,24 @@ class EventCollector:
                     event_type = event.get("event")
                     event_name = event.get("name", "")
 
+                    # Emit working_status BEFORE node starts processing
+                    if event_type == "on_chain_start":
+                        status_message = self.NODE_START_STATUS.get(event_name)
+                        if status_message:
+                            self._emit_working_status(
+                                session_id, phase=status_message, sub_problem_index=0
+                            )
+
                     # Process node completions (on_chain_end has output data)
-                    if event_type == "on_chain_end" and "data" in event:
+                    elif event_type == "on_chain_end" and "data" in event:
                         output = event.get("data", {}).get("output", {})
 
                         # Dispatch to appropriate handler via registry
                         if isinstance(output, dict):
                             # Emit state transition event for progress visualization
-                            sub_problem_index = output.get("sub_problem_index", 0)
+                            sub_problem_index = _get_sub_problem_index_safe(
+                                output, f"on_chain_end:{event_name}"
+                            )
                             self._emit_state_transition(session_id, event_name, sub_problem_index)
 
                             await self._dispatch_node_handler(event_name, session_id, output)
@@ -840,20 +897,13 @@ class EventCollector:
         # Update phase in database for dashboard display
         self.session_repo.update_phase(session_id, "decomposition")
 
-        # P1-004 FIX: Emit working status at START of decomposition
-        self._emit_working_status(
-            session_id,
-            phase="Breaking down your decision into key areas...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
-
         # ISSUE FIX: Add status message for problem analysis phase
         self._emit_quality_status(
             session_id,
             status="analyzing",
             message="Analyzing problem structure...",
             round_number=0,
-            sub_problem_index=output.get("sub_problem_index", 0),
+            sub_problem_index=_get_sub_problem_index_safe(output, "_handle_decompose"),
         )
         await self._publish_node_event(session_id, output, "decomposition_complete")
 
@@ -941,14 +991,7 @@ class EventCollector:
 
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
-        sub_problem_index = output.get("sub_problem_index", 0)
-
-        # P1-004 FIX: Emit working status at START of persona selection
-        self._emit_working_status(
-            session_id,
-            phase="Assembling the right experts for your question...",
-            sub_problem_index=sub_problem_index,
-        )
+        sub_problem_index = _get_sub_problem_index_safe(output, "_handle_select_personas")
 
         # ISSUE FIX: Add status message for expert selection phase
         self._emit_quality_status(
@@ -1009,18 +1052,10 @@ class EventCollector:
         self.session_repo.update_phase(session_id, "exploration")
 
         # Extract sub_problem_index for tab filtering
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "_handle_initial_round")
 
         # Get personas for archetype/domain_expertise lookup
         personas = output.get("personas", [])
-
-        # P1-004 FIX (MAJOR GAP): Emit working status at START of initial round
-        # This is the longest phase and was previously missing status updates
-        self._emit_working_status(
-            session_id,
-            phase="Experts are sharing their initial perspectives...",
-            sub_problem_index=sub_problem_index,
-        )
 
         # ISSUE FIX: Emit initial discussion quality status at START of round 1
         # This provides early UX feedback that quality tracking has begun
@@ -1058,12 +1093,6 @@ class EventCollector:
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion."""
-        # P1-004 FIX: Emit working status for facilitator decision
-        self._emit_working_status(
-            session_id,
-            phase="Guiding the discussion deeper...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
         await self._publish_node_event(session_id, output, "facilitator_decision")
 
     async def _handle_parallel_round(self, session_id: str, output: dict) -> None:
@@ -1083,7 +1112,7 @@ class EventCollector:
         round_number = output.get("round_number", 1)
         current_phase = output.get("current_phase", "exploration")
         experts_per_round = output.get("experts_per_round", [])
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "_handle_parallel_round")
 
         # DEBUG: Log handler invocation
         logger.info(
@@ -1102,13 +1131,6 @@ class EventCollector:
         # round_number has already been incremented, so we look at -1
         completed_round = round_number - 1
         experts_this_round = experts_per_round[-1] if experts_per_round else []
-
-        # AUDIT FIX (Issue #4): Emit working status BEFORE round starts
-        self._emit_working_status(
-            session_id,
-            phase=f"Experts are discussing (round {completed_round})...",
-            sub_problem_index=sub_problem_index,
-        )
 
         # Emit parallel round start event
         self.publisher.publish_event(
@@ -1153,22 +1175,10 @@ class EventCollector:
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
         """Handle moderator_intervene node completion."""
-        # P1-004 FIX: Emit working status for moderator intervention
-        self._emit_working_status(
-            session_id,
-            phase="Ensuring balanced perspectives...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
         await self._publish_node_event(session_id, output, "moderator_intervention")
 
     async def _handle_convergence(self, session_id: str, output: dict) -> None:
         """Handle check_convergence node completion."""
-        # P1-004 FIX: Emit working status for convergence check
-        self._emit_working_status(
-            session_id,
-            phase="Checking for emerging agreement...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
         logger.info(
             f"[CONVERGENCE DEBUG] Handler called for session {session_id} | "
             f"round={output.get('round_number')} | "
@@ -1198,7 +1208,9 @@ class EventCollector:
                         f"indicate experts need more context to provide meaningful analysis."
                     ),
                     "round_number": output.get("round_number", 1),
-                    "sub_problem_index": output.get("sub_problem_index", 0),
+                    "sub_problem_index": _get_sub_problem_index_safe(
+                        output, "_handle_convergence:context_request"
+                    ),
                     "choices": [
                         {
                             "id": "provide_more",
@@ -1227,26 +1239,12 @@ class EventCollector:
         """Handle vote node completion."""
         # Update phase in database for dashboard display
         self.session_repo.update_phase(session_id, "voting")
-
-        # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
-        self._emit_working_status(
-            session_id,
-            phase="Experts are finalizing their recommendations...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
         await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
 
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
         # Update phase in database for dashboard display
         self.session_repo.update_phase(session_id, "synthesis")
-
-        # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
-        self._emit_working_status(
-            session_id,
-            phase="Bringing together the key insights...",
-            sub_problem_index=output.get("sub_problem_index", 0),
-        )
         # Publish event
         await self._publish_node_event(session_id, output, "synthesis_complete")
 
@@ -1256,7 +1254,9 @@ class EventCollector:
             current_sub_problem = output.get("current_sub_problem")
             expert_summaries_event = {
                 "expert_summaries": expert_summaries,
-                "sub_problem_index": output.get("sub_problem_index", 0),
+                "sub_problem_index": _get_sub_problem_index_safe(
+                    output, "_handle_convergence:expert_summaries"
+                ),
                 "sub_problem_goal": (
                     current_sub_problem.goal
                     if current_sub_problem and hasattr(current_sub_problem, "goal")
@@ -1304,11 +1304,6 @@ class EventCollector:
 
     async def _handle_meta_synthesis(self, session_id: str, output: dict) -> None:
         """Handle meta_synthesize node completion."""
-        # AUDIT FIX (Issue #4): Emit working status BEFORE meta-synthesis starts
-        self._emit_working_status(
-            session_id,
-            phase="Crafting your final recommendation...",
-        )
         # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")
 
@@ -1456,7 +1451,7 @@ class EventCollector:
         batch completion for debugging and monitoring.
         """
         execution_batches = output.get("execution_batches", [])
-        sub_problem_index = output.get("sub_problem_index", 0)
+        sub_problem_index = _get_sub_problem_index_safe(output, "_handle_parallel_subproblems")
         logger.info(
             f"[PARALLEL_SUBPROBLEMS] Node completed for session {session_id}: "
             f"batch_count={len(execution_batches)}, current_sub_problem_index={sub_problem_index}"

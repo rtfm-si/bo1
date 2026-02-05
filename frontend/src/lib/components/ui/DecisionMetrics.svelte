@@ -108,11 +108,10 @@
 	);
 
 	// Translate metrics to user-friendly labels
-	// Preserve actual quality metrics when meeting completes (Bug #2 fix)
+	// Phase-aware: pass currentPhase to show completion status
 	const overallQuality = $derived.by((): QualityLabel | null => {
-		// If we have metrics, always use the actual quality (even when complete)
 		if (metrics) {
-			return getOverallQuality(metrics);
+			return getOverallQuality(metrics, currentPhase);
 		}
 
 		// Fallback: meeting complete but no metrics yet

@@ -47,6 +47,7 @@ from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.openapi_security import SessionAuthDep
 from backend.api.utils.validation import validate_session_id
+from bo1.constants import GraphConfig
 from bo1.logging.errors import ErrorCode, log_error
 
 
@@ -333,7 +334,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
         "session_started": lambda: events.session_started_event(
             session_id,
             data.get("problem_statement", ""),
-            data.get("max_rounds", 10),
+            data.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT),
             data.get("user_id", ""),
         ),
         "decomposition_started": lambda: events.decomposition_started_event(session_id),
@@ -396,7 +397,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("threshold", 0.85),
             data.get("should_stop", False),
             data.get("stop_reason"),
-            data.get("max_rounds", 10),
+            data.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT),
             data.get("sub_problem_index", 0),
             data.get("novelty_score"),
             data.get("conflict_score"),

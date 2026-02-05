@@ -88,6 +88,7 @@
 			return task.title;
 		}
 		const description = task.description;
+		if (typeof description !== 'string') return `Task ${task.id}`;
 		const firstSentence = description.split(/[:.]\s/)[0];
 		if (firstSentence.length > 100) {
 			return firstSentence.substring(0, 100) + '...';

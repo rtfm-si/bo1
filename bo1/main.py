@@ -8,6 +8,7 @@ import sys
 from rich.console import Console
 
 from bo1.config import get_settings
+from bo1.constants import GraphConfig
 from bo1.interfaces.console import run_console_deliberation
 from bo1.models.problem import Problem
 
@@ -125,8 +126,8 @@ def main() -> None:
         "--max-rounds",
         "-m",
         type=int,
-        default=15,
-        help="Maximum deliberation rounds (default: 15)",
+        default=GraphConfig.MAX_ROUNDS_DEFAULT,
+        help=f"Maximum deliberation rounds (default: {GraphConfig.MAX_ROUNDS_DEFAULT})",
     )
     parser.add_argument(
         "--debug",

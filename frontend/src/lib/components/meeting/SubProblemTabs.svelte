@@ -19,6 +19,22 @@
 		<div class="flex overflow-x-auto px-4 pt-3" role="tablist" aria-label="Focus area tabs">
 			{#each subProblemTabs as tab}
 				{@const isActive = activeSubProblemTab === tab.id}
+				{@const statusColors = {
+					pending: 'bg-slate-400',
+					blocked: 'bg-slate-400',
+					active: 'bg-blue-500 animate-pulse',
+					voting: 'bg-purple-500 animate-pulse',
+					synthesis: 'bg-orange-500 animate-pulse',
+					complete: 'bg-green-500'
+				}}
+				{@const statusLabels = {
+					pending: 'Waiting',
+					blocked: 'Blocked',
+					active: 'Discussing',
+					voting: 'Voting',
+					synthesis: 'Synthesizing',
+					complete: 'Complete'
+				}}
 				<button
 					type="button"
 					role="tab"
@@ -38,7 +54,12 @@
 					<div class="flex items-center gap-2">
 						<span>{tab.label}</span>
 						{#if tab.status === 'complete'}
-							<CheckCircle size={14} class="text-current" />
+							<CheckCircle size={14} class="text-green-600 dark:text-green-400" />
+						{:else if tab.status !== 'pending'}
+							<span
+								class="w-2 h-2 rounded-full {statusColors[tab.status]}"
+								title={statusLabels[tab.status]}
+							></span>
 						{/if}
 					</div>
 				</button>

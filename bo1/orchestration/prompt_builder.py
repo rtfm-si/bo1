@@ -10,6 +10,7 @@ Handles all prompt building logic for persona contributions including:
 import logging
 from typing import Any
 
+from bo1.constants import GraphConfig
 from bo1.data import get_persona_by_code
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.state import ContributionMessage
@@ -98,7 +99,7 @@ class PromptBuilder:
             raise ValueError(f"Persona not found: {persona_profile.code}")
 
         # Get round configuration
-        max_rounds = state.get("max_rounds", 10)
+        max_rounds = state.get("max_rounds", GraphConfig.MAX_ROUNDS_DEFAULT)
         round_config = get_round_phase_config(round_number + 1, max_rounds)  # +1 for 1-indexed
 
         logger.debug(

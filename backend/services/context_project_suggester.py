@@ -4,12 +4,14 @@ Analyzes user's business context to suggest strategic projects
 aligned with their priorities and objectives.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 
 from bo1.llm.client import ClaudeClient
 from bo1.state.repositories.project_repository import ProjectRepository
 from bo1.state.repositories.user_repository import UserRepository
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -235,18 +237,13 @@ def _parse_suggestions(
     Returns:
         List of validated ContextProjectSuggestion objects
     """
-    import json
     import uuid
 
     try:
-        # Extract JSON from response
-        json_str = response
-        if "```json" in response:
-            json_str = response.split("```json")[1].split("```")[0]
-        elif "```" in response:
-            json_str = response.split("```")[1].split("```")[0]
-
-        data = json.loads(json_str.strip())
+        data, errors = parse_json_with_fallback(response, context="context_project_suggester")
+        if data is None:
+            logger.warning(f"Failed to parse project suggestions: {errors}")
+            return []
         raw_suggestions = data.get("suggestions", [])
 
         # Get existing project names (lowercased) for duplicate check

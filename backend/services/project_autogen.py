@@ -4,6 +4,7 @@ Analyzes unassigned actions using LLM to identify coherent groupings
 and suggest new projects for user review before creation.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +14,7 @@ from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.state.database import db_session
 from bo1.state.repositories.project_repository import ProjectRepository
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -234,18 +236,13 @@ def _parse_suggestions(
     Returns:
         List of validated AutogenProjectSuggestion objects
     """
-    import json
     import uuid
 
     try:
-        # Extract JSON from response
-        json_str = response
-        if "```json" in response:
-            json_str = response.split("```json")[1].split("```")[0]
-        elif "```" in response:
-            json_str = response.split("```")[1].split("```")[0]
-
-        data = json.loads(json_str.strip())
+        data, errors = parse_json_with_fallback(response, context="project_autogen")
+        if data is None:
+            logger.warning(f"Failed to parse autogen suggestions: {errors}")
+            return []
         raw_suggestions = data.get("suggestions", [])
 
         # Get valid action IDs for validation

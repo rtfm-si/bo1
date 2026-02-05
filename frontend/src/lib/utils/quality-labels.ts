@@ -345,14 +345,27 @@ export function getConflictLabel(
  *
  * Combines multiple metrics into single user-facing assessment.
  * Prioritizes simplicity over completeness.
+ * Phase-aware: returns completion label when meeting is done.
  */
-export function getOverallQuality(metrics: {
-	exploration_score?: number | null;
-	convergence_score?: number | null;
-	focus_score?: number | null;
-	novelty_score?: number | null;
-	meeting_completeness_index?: number | null;
-}): QualityLabel {
+export function getOverallQuality(
+	metrics: {
+		exploration_score?: number | null;
+		convergence_score?: number | null;
+		focus_score?: number | null;
+		novelty_score?: number | null;
+		meeting_completeness_index?: number | null;
+	},
+	phase?: string | null
+): QualityLabel {
+	// If meeting is complete, return completed label regardless of scores
+	if (phase === 'complete' || phase === 'synthesis') {
+		return {
+			label: 'Discussion Complete',
+			description: 'Experts have concluded their deliberation.',
+			color: 'green',
+			icon: 'check-circle'
+		};
+	}
 	const tier = getQualityTier(metrics.exploration_score, metrics.convergence_score);
 	return OVERALL_QUALITY_LABELS[tier];
 }

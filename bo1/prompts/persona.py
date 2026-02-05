@@ -6,6 +6,7 @@ expert personas contributing to board deliberations.
 
 from typing import Any
 
+from bo1.constants import GraphConfig
 from bo1.prompts.protocols import (
     DELIBERATION_CONTEXT_TEMPLATE,
     PERSONA_ROLE_PROTOCOL,
@@ -434,8 +435,8 @@ def compose_persona_prompt_hierarchical(
 
     # Get phase config
     # Note: We need to know max_rounds to use adaptive config properly
-    # For now, use a heuristic: max_rounds = 10 (typical for complex problems)
-    max_rounds = 10
+    # Use centralized default for consistency across codebase
+    max_rounds = GraphConfig.MAX_ROUNDS_DEFAULT
     phase_config = get_round_phase_config(round_number, max_rounds)
     phase_directive = phase_config["directive"]
 

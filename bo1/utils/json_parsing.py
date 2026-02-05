@@ -64,9 +64,9 @@ def parse_json_with_fallback(
     except json.JSONDecodeError as e:
         errors.append(f"Strategy 1 (direct parse): {e}")
 
-    # Strategy 2: Markdown code block extraction
+    # Strategy 2: Markdown code block extraction (objects or arrays)
     if "```" in content:
-        code_block_pattern = r"```(?:json)?\s*(\{.*?\})\s*```"
+        code_block_pattern = r"```(?:json)?\s*([\{\[].*?[\}\]])\s*```"
         match = re.search(code_block_pattern, content, re.DOTALL | re.IGNORECASE)
         if match:
             try:
@@ -77,17 +77,18 @@ def parse_json_with_fallback(
             except json.JSONDecodeError as e:
                 errors.append(f"Strategy 2 (markdown block): {e}")
 
-    # Strategy 3: Regex extraction of first JSON object
-    json_pattern = r"\{.*\}"
-    match = re.search(json_pattern, content, re.DOTALL)
-    if match:
-        try:
-            data = json.loads(match.group(0))
-            if logger:
-                logger.warning(f"JSON extracted via regex ({context})")
-            return data, errors
-        except json.JSONDecodeError as e:
-            errors.append(f"Strategy 3 (regex extraction): {e}")
+    # Strategy 3: Regex extraction of first JSON object or array
+    # Try object first, then array
+    for pattern in [r"\{.*\}", r"\[.*\]"]:
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+                if logger:
+                    logger.warning(f"JSON extracted via regex ({context})")
+                return data, errors
+            except json.JSONDecodeError as e:
+                errors.append(f"Strategy 3 (regex extraction {pattern}): {e}")
 
     # All strategies failed
     if logger:

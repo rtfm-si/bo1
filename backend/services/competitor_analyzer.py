@@ -210,7 +210,7 @@ class CompetitorInsightAnalyzer:
                 status="complete",
             )
 
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.warning(f"Failed to parse competitor insight: {e}")
             return self._fallback_insight(competitor_name, f"Parse error: {e}")
 

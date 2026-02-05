@@ -138,14 +138,8 @@ async def test_event_collector_decomposition_handler(mock_repo, redis_manager, e
     # Call the handler
     await event_collector._handle_decomposition(session_id, output)
 
-    # First, receive working_status event (published before decomposition_complete)
-    msg = pubsub.get_message(timeout=2.0)
-    assert msg is not None
-    assert msg["type"] == "message"
-    working_payload = json.loads(msg["data"])
-    assert working_payload["event_type"] == "working_status"
-
-    # Second, receive discussion_quality_status event
+    # First, receive discussion_quality_status event
+    # Note: working_status is now emitted at on_chain_start, not in handler
     msg = pubsub.get_message(timeout=2.0)
     assert msg is not None
     assert msg["type"] == "message"

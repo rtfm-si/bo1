@@ -303,7 +303,7 @@ class TrendAnalyzer:
                 status="complete",
             )
 
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.warning(f"Failed to parse trend insight: {e}")
             return self._fallback_insight(url, title, f"Parse error: {e}")
 

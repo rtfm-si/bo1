@@ -76,8 +76,22 @@ class ImpersonationMiddleware(BaseHTTPMiddleware):
             # No user logged in, continue without impersonation
             return await call_next(request)
 
-        # Check if this user has an active impersonation session
+        # Check if user is admin from session claim (added at login)
+        # This avoids DB/Redis lookup for non-admin users (99%+ of requests)
+        try:
+            access_token_payload = st_session.get_access_token_payload()
+            is_admin = access_token_payload.get("is_admin", False)
+        except Exception:
+            is_admin = False
+
+        if not is_admin:
+            # Non-admin users can't impersonate, skip lookup entirely
+            return await call_next(request)
+
+        # Check if this admin has an active impersonation session
+        # Cache result in request.state to avoid duplicate DB queries in /me endpoint
         impersonation_session = get_active_impersonation(admin_id)
+        request.state.impersonation_session_cached = impersonation_session
         if not impersonation_session:
             # No active impersonation, continue normally
             return await call_next(request)

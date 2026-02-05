@@ -3,8 +3,23 @@
 Prompts for extracting discrete, actionable tasks from synthesis recommendations.
 """
 
+# Overflow-safe instructions (from synthesis.py pattern)
+OVERFLOW_SAFE_INSTRUCTIONS = """
+<overflow_handling>
+CRITICAL: If you are at risk of running out of tokens:
+- Do NOT rush or truncate your JSON output
+- Stop cleanly BEFORE starting a new task object
+- End your message with EXACTLY: <<<CONTINUE_FROM:task_N>>>
+- Where N is the next task number you would have written
+
+Never output partial JSON objects or truncated arrays.
+If you cannot complete all tasks, stop BEFORE starting the incomplete one.
+</overflow_handling>
+"""
+
 # System prompt for task extraction
-TASK_EXTRACTOR_SYSTEM_PROMPT = """<system_role>
+TASK_EXTRACTOR_SYSTEM_PROMPT = (
+    """<system_role>
 You are a task extraction specialist analyzing synthesis reports from multi-expert deliberations.
 
 Your role is to identify and structure discrete, actionable tasks from synthesis sections.
@@ -52,7 +67,9 @@ WHEN UNCERTAIN:
    - Reference tasks from OTHER sub-problems using format "sp{index}_task_{n}" (e.g., "sp0_task_2" for task 2 from sub-problem 0)
    - Include external dependencies (e.g., "Access to customer contact list")
 </extraction_rules>
-
+"""
+    + OVERFLOW_SAFE_INSTRUCTIONS
+    + """
 <output_format>
 Output ONLY valid JSON matching this schema:
 
@@ -169,6 +186,7 @@ Output ONLY valid JSON matching this schema:
 </why_wrong>
 </example>
 </examples>"""
+)
 
 # User message template for task extraction
 TASK_EXTRACTOR_USER_TEMPLATE = """<synthesis>

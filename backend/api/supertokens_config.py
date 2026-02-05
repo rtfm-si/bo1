@@ -1389,6 +1389,52 @@ class MagicLinkEmailService(passwordless.EmailDeliveryInterface[passwordless.Ema
             raise  # Re-raise to let SuperTokens handle the error
 
 
+def override_session_functions(
+    original_implementation: session.interfaces.RecipeInterface,
+) -> session.interfaces.RecipeInterface:
+    """Override Session functions to add is_admin claim to access token."""
+    original_create_new_session = original_implementation.create_new_session
+
+    async def create_new_session(
+        user_id: str,
+        access_token_payload: dict[str, Any] | None,
+        session_data_in_database: dict[str, Any] | None,
+        disable_anti_csrf: bool | None,
+        tenant_id: str,
+        user_context: dict[str, Any],
+    ) -> SessionContainer:
+        """Override create_new_session to add is_admin claim."""
+        if access_token_payload is None:
+            access_token_payload = {}
+
+        # Look up is_admin from database
+        try:
+            row = execute_query(
+                "SELECT is_admin FROM users WHERE id = %s",
+                (user_id,),
+                fetch="one",
+            )
+            is_admin = row["is_admin"] if row else False
+        except Exception as e:
+            logger.warning(f"Failed to fetch is_admin for user {user_id[:8]}...: {e}")
+            is_admin = False
+
+        # Add is_admin to access token payload
+        access_token_payload["is_admin"] = is_admin
+
+        return await original_create_new_session(
+            user_id,
+            access_token_payload,
+            session_data_in_database,
+            disable_anti_csrf,
+            tenant_id,
+            user_context,
+        )
+
+    original_implementation.create_new_session = create_new_session  # type: ignore[method-assign]
+    return original_implementation
+
+
 def override_session_apis(
     original_implementation: session.interfaces.APIInterface,
 ) -> session.interfaces.APIInterface:
@@ -1533,6 +1579,7 @@ def init_supertokens() -> None:
             # Must keep for 1 year (access token frontend lifetime).
             older_cookie_domain=os.getenv("OLDER_COOKIE_DOMAIN", ""),
             override=session.InputOverrideConfig(
+                functions=override_session_functions,
                 apis=override_session_apis,
             ),
         ),

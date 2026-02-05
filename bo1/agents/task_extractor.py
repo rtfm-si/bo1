@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from bo1.config import get_model_for_role
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
+from bo1.prompts.synthesis import detect_overflow, strip_continuation_marker
 from bo1.prompts.task_extractor_prompts import (
     TASK_EXTRACTOR_PREFILL,
     TASK_EXTRACTOR_SYSTEM_PROMPT,
@@ -117,36 +118,75 @@ async def extract_tasks_from_synthesis(
 
     ctx = get_cost_context()
 
-    with CostTracker.track_call(
-        provider="anthropic",
-        operation_type="completion",
-        model_name=model,
-        session_id=ctx.get("session_id") or session_id,
-        user_id=ctx.get("user_id"),
-        node_name="task_extractor",
-        phase="synthesis",
-        prompt_type="task_extraction",
-    ) as cost_record:
-        response = await client.messages.create(
-            model=model,
-            max_tokens=4000,
-            system=TASK_EXTRACTOR_SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": TASK_EXTRACTOR_PREFILL},
-            ],
-            temperature=0.0,  # Deterministic extraction
-        )
+    # Increased max_tokens (was 4000) and added overflow handling
+    max_tokens = 6000
+    accumulated_content = ""
+    max_continuations = 2
 
-        # Track token usage
-        cost_record.input_tokens = response.usage.input_tokens
-        cost_record.output_tokens = response.usage.output_tokens
+    for _attempt in range(max_continuations + 1):
+        messages = [{"role": "user", "content": user_message}]
+        prefill = TASK_EXTRACTOR_PREFILL
 
-    # Parse JSON response (prepend the prefill we used)
-    first_block = response.content[0]
-    if not hasattr(first_block, "text"):
-        raise ValueError(f"Unexpected response type: {type(first_block)}")
-    content = TASK_EXTRACTOR_PREFILL + first_block.text
+        # If continuing, use accumulated content as context
+        if accumulated_content:
+            messages.append({"role": "assistant", "content": accumulated_content})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Continue outputting the remaining tasks. Resume JSON array from where you left off.",
+                }
+            )
+            prefill = ""
+
+        with CostTracker.track_call(
+            provider="anthropic",
+            operation_type="completion",
+            model_name=model,
+            session_id=ctx.get("session_id") or session_id,
+            user_id=ctx.get("user_id"),
+            node_name="task_extractor",
+            phase="synthesis",
+            prompt_type="task_extraction",
+        ) as cost_record:
+            response = await client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=TASK_EXTRACTOR_SYSTEM_PROMPT,
+                messages=messages  # type: ignore[arg-type]
+                if accumulated_content
+                else [
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": prefill},
+                ],
+                temperature=0.0,  # Deterministic extraction
+            )
+
+            # Track token usage
+            cost_record.input_tokens = response.usage.input_tokens
+            cost_record.output_tokens = response.usage.output_tokens
+
+        # Get response content
+        first_block = response.content[0]
+        if not hasattr(first_block, "text"):
+            raise ValueError(f"Unexpected response type: {type(first_block)}")
+
+        new_content = first_block.text
+        is_truncated = response.stop_reason == "max_tokens"
+
+        # Check for overflow markers or truncation
+        overflow_status = detect_overflow(new_content, is_truncated)
+
+        if accumulated_content:
+            accumulated_content += new_content
+        else:
+            accumulated_content = TASK_EXTRACTOR_PREFILL + new_content
+
+        # If no continuation needed, break
+        if not overflow_status.needs_continuation:
+            break
+
+    # Clean up any overflow markers
+    content = strip_continuation_marker(accumulated_content)
 
     # Extract JSON from markdown code blocks if present (fallback)
     if "```json" in content:
@@ -222,36 +262,75 @@ def sync_extract_tasks_from_synthesis(
 
     ctx = get_cost_context()
 
-    with CostTracker.track_call(
-        provider="anthropic",
-        operation_type="completion",
-        model_name=model,
-        session_id=ctx.get("session_id") or session_id,
-        user_id=ctx.get("user_id"),
-        node_name="task_extractor",
-        phase="synthesis",
-        prompt_type="task_extraction",
-    ) as cost_record:
-        response = client.messages.create(
-            model=model,
-            max_tokens=4000,
-            system=TASK_EXTRACTOR_SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": TASK_EXTRACTOR_PREFILL},
-            ],
-            temperature=0.0,
-        )
+    # Increased max_tokens (was 4000) and added overflow handling
+    max_tokens = 6000
+    accumulated_content = ""
+    max_continuations = 2
 
-        # Track token usage
-        cost_record.input_tokens = response.usage.input_tokens
-        cost_record.output_tokens = response.usage.output_tokens
+    for _attempt in range(max_continuations + 1):
+        messages = [{"role": "user", "content": user_message}]
+        prefill = TASK_EXTRACTOR_PREFILL
 
-    # Parse JSON response (prepend the prefill we used)
-    first_block = response.content[0]
-    if not hasattr(first_block, "text"):
-        raise ValueError(f"Unexpected response type: {type(first_block)}")
-    content = TASK_EXTRACTOR_PREFILL + first_block.text
+        # If continuing, use accumulated content as context
+        if accumulated_content:
+            messages.append({"role": "assistant", "content": accumulated_content})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Continue outputting the remaining tasks. Resume JSON array from where you left off.",
+                }
+            )
+            prefill = ""
+
+        with CostTracker.track_call(
+            provider="anthropic",
+            operation_type="completion",
+            model_name=model,
+            session_id=ctx.get("session_id") or session_id,
+            user_id=ctx.get("user_id"),
+            node_name="task_extractor",
+            phase="synthesis",
+            prompt_type="task_extraction",
+        ) as cost_record:
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=TASK_EXTRACTOR_SYSTEM_PROMPT,
+                messages=messages  # type: ignore[arg-type]
+                if accumulated_content
+                else [
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": prefill},
+                ],
+                temperature=0.0,
+            )
+
+            # Track token usage
+            cost_record.input_tokens = response.usage.input_tokens
+            cost_record.output_tokens = response.usage.output_tokens
+
+        # Get response content
+        first_block = response.content[0]
+        if not hasattr(first_block, "text"):
+            raise ValueError(f"Unexpected response type: {type(first_block)}")
+
+        new_content = first_block.text
+        is_truncated = response.stop_reason == "max_tokens"
+
+        # Check for overflow markers or truncation
+        overflow_status = detect_overflow(new_content, is_truncated)
+
+        if accumulated_content:
+            accumulated_content += new_content
+        else:
+            accumulated_content = TASK_EXTRACTOR_PREFILL + new_content
+
+        # If no continuation needed, break
+        if not overflow_status.needs_continuation:
+            break
+
+    # Clean up any overflow markers
+    content = strip_continuation_marker(accumulated_content)
 
     # Extract JSON from markdown code blocks if present (fallback)
     if "```json" in content:

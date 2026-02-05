@@ -350,10 +350,23 @@ class TestAuthMeImpersonation:
             yield mock
 
     @pytest.fixture
-    def mock_impersonation_service(self):
-        """Mock impersonation service."""
-        with patch("backend.api.auth.get_active_impersonation") as mock:
-            yield mock
+    def mock_impersonation_session(self):
+        """Create a mock impersonation session for request.state caching."""
+        from datetime import UTC, datetime, timedelta
+
+        from backend.services.admin_impersonation import ImpersonationSession
+
+        now = datetime.now(UTC)
+        return ImpersonationSession(
+            admin_user_id="admin_123",
+            target_user_id="user_456",
+            target_email="target@example.com",
+            reason="Testing",
+            is_write_mode=False,
+            started_at=now - timedelta(minutes=10),
+            expires_at=now + timedelta(minutes=20),
+            session_id=1,
+        )
 
     @pytest.fixture
     def mock_session(self):
@@ -374,13 +387,15 @@ class TestAuthMeImpersonation:
         return request
 
     @pytest.fixture
-    def mock_request_impersonating(self):
+    def mock_request_impersonating(self, mock_impersonation_session):
         """Mock request with active impersonation."""
         request = MagicMock()
         request.state.is_impersonation = True
         request.state.impersonation_target_id = "user_456"
         request.state.impersonation_write_mode = False
         request.state.impersonation_admin_id = "admin_123"
+        # Set cached session (used by auth.py instead of calling get_active_impersonation)
+        request.state.impersonation_session_cached = mock_impersonation_session
         return request
 
     def test_auth_me_returns_admin_data_when_not_impersonating(
@@ -428,13 +443,10 @@ class TestAuthMeImpersonation:
     def test_auth_me_returns_target_user_data_when_impersonating(
         self,
         mock_user_repository,
-        mock_impersonation_service,
         mock_request_impersonating,
     ):
         """Test /me returns target user data during impersonation."""
-        from datetime import UTC, datetime, timedelta
-
-        from backend.services.admin_impersonation import ImpersonationSession
+        from datetime import UTC, datetime
 
         # Mock target user data
         mock_user_repository.get.return_value = {
@@ -445,20 +457,6 @@ class TestAuthMeImpersonation:
             "is_admin": False,
             "password_upgrade_needed": False,
         }
-
-        # Mock impersonation session for expiry info
-        now = datetime.now(UTC)
-        expires_at = now + timedelta(minutes=20)
-        mock_impersonation_service.return_value = ImpersonationSession(
-            admin_user_id="admin_123",
-            target_user_id="user_456",
-            target_email="target@example.com",
-            reason="Testing",
-            is_write_mode=False,
-            started_at=now - timedelta(minutes=10),
-            expires_at=expires_at,
-            session_id=1,
-        )
 
         # Simulate what get_user_info does internally
         request = mock_request_impersonating
@@ -486,13 +484,14 @@ class TestAuthMeImpersonation:
         }
 
         if is_impersonation and impersonation_admin_id:
-            session = mock_impersonation_service(impersonation_admin_id)
+            # Use cached session from request.state (set by middleware)
+            imp_session = getattr(request.state, "impersonation_session_cached", None)
             response["is_impersonation"] = True
             response["real_admin_id"] = impersonation_admin_id
             response["impersonation_write_mode"] = impersonation_write_mode
-            if session:
-                remaining = int((session.expires_at - datetime.now(UTC)).total_seconds())
-                response["impersonation_expires_at"] = session.expires_at.isoformat()
+            if imp_session:
+                remaining = int((imp_session.expires_at - datetime.now(UTC)).total_seconds())
+                response["impersonation_expires_at"] = imp_session.expires_at.isoformat()
                 response["impersonation_remaining_seconds"] = max(0, remaining)
 
         # Should return target user's data
@@ -512,13 +511,8 @@ class TestAuthMeImpersonation:
     def test_auth_me_includes_write_mode_in_impersonation_metadata(
         self,
         mock_user_repository,
-        mock_impersonation_service,
     ):
         """Test /me includes write_mode flag in impersonation metadata."""
-        from datetime import UTC, datetime, timedelta
-
-        from backend.services.admin_impersonation import ImpersonationSession
-
         # Create request with write mode enabled
         request = MagicMock()
         request.state.is_impersonation = True
@@ -534,18 +528,6 @@ class TestAuthMeImpersonation:
             "is_admin": False,
             "password_upgrade_needed": False,
         }
-
-        now = datetime.now(UTC)
-        mock_impersonation_service.return_value = ImpersonationSession(
-            admin_user_id="admin_123",
-            target_user_id="user_456",
-            target_email="target@example.com",
-            reason="Write mode test",
-            is_write_mode=True,
-            started_at=now,
-            expires_at=now + timedelta(minutes=30),
-            session_id=2,
-        )
 
         # Simulate what get_user_info does
         is_impersonation = getattr(request.state, "is_impersonation", False)

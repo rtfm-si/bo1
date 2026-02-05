@@ -22,7 +22,6 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
-from backend.services.admin_impersonation import get_active_impersonation
 from backend.services.email import send_email_async
 from backend.services.email_templates import render_verification_email
 from bo1.state.repositories import user_repository
@@ -87,14 +86,14 @@ async def get_user_info(
 
         # Add impersonation metadata if active
         if is_impersonation and impersonation_admin_id:
-            # Get session details for expiry info
-            session = get_active_impersonation(impersonation_admin_id)
+            # Use cached session from middleware to avoid duplicate DB query
+            imp_session = getattr(request.state, "impersonation_session_cached", None)
             response["is_impersonation"] = True
             response["real_admin_id"] = impersonation_admin_id
             response["impersonation_write_mode"] = impersonation_write_mode
-            if session:
-                remaining = int((session.expires_at - datetime.now(UTC)).total_seconds())
-                response["impersonation_expires_at"] = session.expires_at.isoformat()
+            if imp_session:
+                remaining = int((imp_session.expires_at - datetime.now(UTC)).total_seconds())
+                response["impersonation_expires_at"] = imp_session.expires_at.isoformat()
                 response["impersonation_remaining_seconds"] = max(0, remaining)
 
         return response
@@ -115,13 +114,14 @@ async def get_user_info(
 
     # Add impersonation metadata if active
     if is_impersonation and impersonation_admin_id:
-        session = get_active_impersonation(impersonation_admin_id)
+        # Use cached session from middleware to avoid duplicate DB query
+        imp_session = getattr(request.state, "impersonation_session_cached", None)
         response["is_impersonation"] = True
         response["real_admin_id"] = impersonation_admin_id
         response["impersonation_write_mode"] = impersonation_write_mode
-        if session:
-            remaining = int((session.expires_at - datetime.now(UTC)).total_seconds())
-            response["impersonation_expires_at"] = session.expires_at.isoformat()
+        if imp_session:
+            remaining = int((imp_session.expires_at - datetime.now(UTC)).total_seconds())
+            response["impersonation_expires_at"] = imp_session.expires_at.isoformat()
             response["impersonation_remaining_seconds"] = max(0, remaining)
 
     return response

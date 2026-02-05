@@ -72,6 +72,7 @@ services:
       - SUPERTOKENS_API_KEY=${SUPERTOKENS_API_KEY}
       - SUPERTOKENS_API_DOMAIN=${SUPERTOKENS_API_DOMAIN:-https://boardof.one}
       - SUPERTOKENS_WEBSITE_DOMAIN=${SUPERTOKENS_WEBSITE_DOMAIN:-https://boardof.one}
+      - FRONTEND_URL=${FRONTEND_URL:-https://boardof.one}
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-boardof.one}
 

@@ -638,6 +638,50 @@ export interface VariantAssignmentResponse {
 }
 
 // =============================================================================
+// GSC Analytics Types
+// =============================================================================
+
+export interface GSCOverviewResponse {
+	connected: boolean;
+	site_url: string | null;
+	total_impressions: number;
+	total_clicks: number;
+	avg_ctr: number;
+	avg_position: number | null;
+	decision_count: number;
+	earliest_date: string | null;
+	latest_date: string | null;
+	last_sync: string | null;
+}
+
+export interface GSCDecisionMetrics {
+	id: string;
+	title: string;
+	slug: string;
+	category: string;
+	impressions: number;
+	clicks: number;
+	ctr: number;
+	position: number | null;
+	last_data_date: string | null;
+}
+
+export interface GSCDecisionsResponse {
+	decisions: GSCDecisionMetrics[];
+	total_count: number;
+}
+
+export interface GSCSyncResponse {
+	status: string;
+	start_date: string | null;
+	end_date: string | null;
+	pages_fetched: number;
+	decisions_matched: number;
+	snapshots_created: number;
+	errors: string[];
+}
+
+// =============================================================================
 // Admin API Client
 // =============================================================================
 
@@ -1632,6 +1676,31 @@ class AdminApiClient {
 	async revokeSeoAccess(userId: string): Promise<SeoAccessResponse> {
 		return this.fetch<SeoAccessResponse>(`/api/admin/users/${encodeURIComponent(userId)}/seo-access`, {
 			method: 'DELETE'
+		});
+	}
+
+	// GSC Analytics methods
+	async getGscOverview(days: number = 30): Promise<GSCOverviewResponse> {
+		return this.fetch<GSCOverviewResponse>(`/api/admin/gsc/overview?days=${days}`);
+	}
+
+	async getGscDecisions(
+		limit: number = 50,
+		offset: number = 0,
+		sortBy: 'impressions' | 'clicks' | 'ctr' | 'position' = 'impressions'
+	): Promise<GSCDecisionsResponse> {
+		return this.fetch<GSCDecisionsResponse>(
+			`/api/admin/gsc/decisions?limit=${limit}&offset=${offset}&sort_by=${sortBy}`
+		);
+	}
+
+	async syncGsc(): Promise<GSCSyncResponse> {
+		return this.fetch<GSCSyncResponse>('/api/admin/gsc/sync', { method: 'POST' });
+	}
+
+	async syncGscHistorical(days: number = 90): Promise<GSCSyncResponse> {
+		return this.fetch<GSCSyncResponse>(`/api/admin/gsc/sync/historical?days=${days}`, {
+			method: 'POST'
 		});
 	}
 }

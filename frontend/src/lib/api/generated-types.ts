@@ -1031,6 +1031,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/decisions/backfill-seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backfill SEO fields
+         * @description Backfill SEO keywords and related decisions for decisions missing them.
+         */
+        post: operations["backfill_seo_api_admin_decisions_backfill_seo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/decisions/categories": {
         parameters: {
             query?: never;
@@ -1170,7 +1190,7 @@ export interface paths {
         put?: never;
         /**
          * Publish decision
-         * @description Publish a decision immediately.
+         * @description Publish a decision immediately. Auto-enriches SEO fields if missing.
          */
         post: operations["publish_decision_api_admin_decisions__decision_id__publish_post"];
         delete?: never;
@@ -3034,6 +3054,38 @@ export interface paths {
          *     Sorted by the specified metric (default: views descending).
          */
         get: operations["get_blog_performance_api_admin_seo_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/seo/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover Topics
+         * @description Discover high-intent decision topics for content pipeline.
+         *
+         *     Uses LLM to generate topic suggestions based on founder search behavior
+         *     and decision patterns. Results can be used to seed decision page generation.
+         *
+         *     Args:
+         *         request: FastAPI request object
+         *         category: Optional category filter (hiring, pricing, etc.)
+         *         count: Number of topics to generate (1-20)
+         *         _admin: Admin authentication dependency
+         *
+         *     Returns:
+         *         List of topic suggestions with keywords and authority angles
+         */
+        get: operations["discover_topics_api_admin_seo_topics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -19914,6 +19966,11 @@ export interface components {
              */
             meta_description?: string | null;
             /**
+             * Meta Title
+             * @description SEO-optimized title (50-60 chars)
+             */
+            meta_title?: string | null;
+            /**
              * Seo Keywords
              * @description SEO keywords array
              */
@@ -20009,6 +20066,11 @@ export interface components {
              * @description SEO description
              */
             meta_description?: string | null;
+            /**
+             * Meta Title
+             * @description SEO-optimized title (50-60 chars)
+             */
+            meta_title?: string | null;
             /**
              * Published At
              * @description Publication datetime
@@ -20110,6 +20172,11 @@ export interface components {
              */
             meta_description?: string | null;
             /**
+             * Meta Title
+             * @description SEO-optimized title (50-60 chars)
+             */
+            meta_title?: string | null;
+            /**
              * Published At
              * @description Publication datetime
              */
@@ -20199,6 +20266,11 @@ export interface components {
              * @description SEO description
              */
             meta_description?: string | null;
+            /**
+             * Meta Title
+             * @description SEO-optimized title (50-60 chars)
+             */
+            meta_title?: string | null;
             /**
              * Related Decision Ids
              * @description Related decision UUIDs
@@ -29768,6 +29840,27 @@ export interface components {
             items: components["schemas"]["RuntimeConfigItem"][];
         };
         /**
+         * SEOBackfillResponse
+         * @description Response model for SEO backfill operation.
+         */
+        SEOBackfillResponse: {
+            /**
+             * Enriched
+             * @description Number of decisions enriched
+             */
+            enriched: number;
+            /**
+             * Failed
+             * @description Number of decisions that failed enrichment
+             */
+            failed: number;
+            /**
+             * Skipped
+             * @description Number of decisions skipped (already had SEO)
+             */
+            skipped: number;
+        };
+        /**
          * ContributionEvent
          * @description Emitted when an expert makes a contribution.
          */
@@ -32812,6 +32905,22 @@ export interface components {
             users: components["schemas"]["UserCostPeriodItem"][];
         };
         /**
+         * TopicDiscoveryResponse
+         * @description Response for topic discovery endpoint.
+         */
+        TopicDiscoveryResponse: {
+            /**
+             * Category Filter
+             * @description Category filter applied
+             */
+            category_filter?: string | null;
+            /**
+             * Topics
+             * @description Suggested topics
+             */
+            topics: components["schemas"]["TopicSuggestionResponse"][];
+        };
+        /**
          * TopicProposalResponse
          * @description Response model for a proposed blog topic.
          */
@@ -32932,6 +33041,42 @@ export interface components {
              * @default unvalidated
              */
             validation_status: string;
+        };
+        /**
+         * TopicSuggestionResponse
+         * @description A suggested decision topic for content creation.
+         */
+        TopicSuggestionResponse: {
+            /**
+             * Authority Angle
+             * @description Why Bo1 is authoritative for this topic
+             */
+            authority_angle: string;
+            /**
+             * Category
+             * @description Decision category
+             */
+            category: string;
+            /**
+             * Estimated Volume
+             * @description low/medium/high
+             */
+            estimated_volume: string;
+            /**
+             * Keyword Cluster
+             * @description Related search terms
+             */
+            keyword_cluster?: string[];
+            /**
+             * Search Intent
+             * @description transactional or informational
+             */
+            search_intent: string;
+            /**
+             * Topic
+             * @description Decision question/title
+             */
+            topic: string;
         };
         /**
          * TopicsResponse
@@ -38306,6 +38451,60 @@ export interface operations {
             };
         };
     };
+    backfill_seo_api_admin_decisions_backfill_seo_post: {
+        parameters: {
+            query?: {
+                /** @description Max decisions to process */
+                limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Backfill completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SEOBackfillResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
     get_categories_api_admin_decisions_categories_get: {
         parameters: {
             query?: never;
@@ -42924,6 +43123,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BlogPerformanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_topics_api_admin_seo_topics_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by category */
+                category?: string | null;
+                /** @description Number of topics to generate */
+                count?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicDiscoveryResponse"];
                 };
             };
             /** @description Validation Error */

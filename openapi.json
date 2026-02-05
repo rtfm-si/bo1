@@ -12651,6 +12651,19 @@
             "description": "SEO description",
             "title": "Meta Description"
           },
+          "meta_title": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO-optimized title (50-60 chars)",
+            "title": "Meta Title"
+          },
           "seo_keywords": {
             "anyOf": [
               {
@@ -12835,6 +12848,18 @@
             "description": "SEO description",
             "title": "Meta Description"
           },
+          "meta_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO-optimized title (50-60 chars)",
+            "title": "Meta Title"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -13017,6 +13042,18 @@
             ],
             "description": "SEO description",
             "title": "Meta Description"
+          },
+          "meta_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO-optimized title (50-60 chars)",
+            "title": "Meta Title"
           },
           "published_at": {
             "anyOf": [
@@ -13218,6 +13255,19 @@
             ],
             "description": "SEO description",
             "title": "Meta Description"
+          },
+          "meta_title": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO-optimized title (50-60 chars)",
+            "title": "Meta Title"
           },
           "related_decision_ids": {
             "anyOf": [
@@ -27992,6 +28042,33 @@
         "title": "RuntimeConfigResponse",
         "type": "object"
       },
+      "SEOBackfillResponse": {
+        "description": "Response model for SEO backfill operation.",
+        "properties": {
+          "enriched": {
+            "description": "Number of decisions enriched",
+            "title": "Enriched",
+            "type": "integer"
+          },
+          "failed": {
+            "description": "Number of decisions that failed enrichment",
+            "title": "Failed",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "Number of decisions skipped (already had SEO)",
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enriched",
+          "skipped",
+          "failed"
+        ],
+        "title": "SEOBackfillResponse",
+        "type": "object"
+      },
       "SSEEvent_contribution": {
         "additionalProperties": true,
         "description": "Emitted when an expert makes a contribution.",
@@ -32321,6 +32398,36 @@
         "title": "TopUsersCostResponse",
         "type": "object"
       },
+      "TopicDiscoveryResponse": {
+        "description": "Response for topic discovery endpoint.",
+        "properties": {
+          "category_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Category filter applied",
+            "title": "Category Filter"
+          },
+          "topics": {
+            "description": "Suggested topics",
+            "items": {
+              "$ref": "#/components/schemas/TopicSuggestionResponse"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "topics"
+        ],
+        "title": "TopicDiscoveryResponse",
+        "type": "object"
+      },
       "TopicProposalResponse": {
         "description": "Response model for a proposed blog topic.",
         "properties": {
@@ -32482,6 +32589,53 @@
           "description"
         ],
         "title": "TopicSuggestion",
+        "type": "object"
+      },
+      "TopicSuggestionResponse": {
+        "description": "A suggested decision topic for content creation.",
+        "properties": {
+          "authority_angle": {
+            "description": "Why Bo1 is authoritative for this topic",
+            "title": "Authority Angle",
+            "type": "string"
+          },
+          "category": {
+            "description": "Decision category",
+            "title": "Category",
+            "type": "string"
+          },
+          "estimated_volume": {
+            "description": "low/medium/high",
+            "title": "Estimated Volume",
+            "type": "string"
+          },
+          "keyword_cluster": {
+            "description": "Related search terms",
+            "items": {
+              "type": "string"
+            },
+            "title": "Keyword Cluster",
+            "type": "array"
+          },
+          "search_intent": {
+            "description": "transactional or informational",
+            "title": "Search Intent",
+            "type": "string"
+          },
+          "topic": {
+            "description": "Decision question/title",
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "category",
+          "search_intent",
+          "estimated_volume",
+          "authority_angle"
+        ],
+        "title": "TopicSuggestionResponse",
         "type": "object"
       },
       "TopicsResponse": {
@@ -41278,6 +41432,94 @@
         ]
       }
     },
+    "/api/admin/decisions/backfill-seo": {
+      "post": {
+        "description": "Backfill SEO keywords and related decisions for decisions missing them.",
+        "operationId": "backfill_seo_api_admin_decisions_backfill_seo_post",
+        "parameters": [
+          {
+            "description": "Max decisions to process",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max decisions to process",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SEOBackfillResponse"
+                }
+              }
+            },
+            "description": "Backfill completed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Backfill SEO fields",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
     "/api/admin/decisions/categories": {
       "get": {
         "description": "Get list of categories with published decision counts.",
@@ -42016,7 +42258,7 @@
     },
     "/api/admin/decisions/{decision_id}/publish": {
       "post": {
-        "description": "Publish a decision immediately.",
+        "description": "Publish a decision immediately. Auto-enriches SEO fields if missing.",
         "operationId": "publish_decision_api_admin_decisions__decision_id__publish_post",
         "parameters": [
           {
@@ -48479,6 +48721,83 @@
           }
         },
         "summary": "Get Blog Performance",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-seo"
+        ]
+      }
+    },
+    "/api/admin/seo/topics": {
+      "get": {
+        "description": "Discover high-intent decision topics for content pipeline.\n\nUses LLM to generate topic suggestions based on founder search behavior\nand decision patterns. Results can be used to seed decision page generation.\n\nArgs:\n    request: FastAPI request object\n    category: Optional category filter (hiring, pricing, etc.)\n    count: Number of topics to generate (1-20)\n    _admin: Admin authentication dependency\n\nReturns:\n    List of topic suggestions with keywords and authority angles",
+        "operationId": "discover_topics_api_admin_seo_topics_get",
+        "parameters": [
+          {
+            "description": "Filter by category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by category",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Number of topics to generate",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Number of topics to generate",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicDiscoveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Topics",
         "tags": [
           "admin",
           "admin",

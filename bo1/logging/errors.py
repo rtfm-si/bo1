@@ -69,10 +69,14 @@ class ErrorCode(str, Enum):
     AUTH_OAUTH_ERROR = "AUTH_OAUTH_ERROR"
     AUTH_LOCKOUT_ERROR = "AUTH_LOCKOUT_ERROR"
 
+    # External API errors (third-party services)
+    EXT_API_ERROR = "EXT_API_ERROR"
+
     # API errors
     API_REQUEST_ERROR = "API_REQUEST_ERROR"
     API_AUDIT_ERROR = "API_AUDIT_ERROR"
     API_NOT_FOUND = "API_NOT_FOUND"
+    NOT_FOUND = "NOT_FOUND"  # Generic resource not found
     API_CONTEXT_MISSING = "API_CONTEXT_MISSING"  # User has no user_context record
     API_INDUSTRY_NOT_SET = "API_INDUSTRY_NOT_SET"  # User has context but no industry
     API_FORBIDDEN = "API_FORBIDDEN"

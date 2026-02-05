@@ -16,7 +16,7 @@ depends_on = None
 def upgrade() -> None:
     """Add composite index for faster active impersonation lookups."""
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS
+        CREATE INDEX IF NOT EXISTS
         ix_admin_impersonation_sessions_active_lookup
         ON admin_impersonation_sessions (admin_user_id, ended_at, expires_at)
         WHERE ended_at IS NULL

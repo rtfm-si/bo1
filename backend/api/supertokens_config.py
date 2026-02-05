@@ -69,7 +69,7 @@ from supertokens_python.recipe.thirdparty.provider import (
     UserInfoMap,
 )
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
-from supertokens_python.types import GeneralErrorResponse
+from supertokens_python.types import GeneralErrorResponse, RecipeUserId
 
 from backend.api.middleware.csrf import (
     clear_csrf_cookie_on_response,
@@ -1397,6 +1397,7 @@ def override_session_functions(
 
     async def create_new_session(
         user_id: str,
+        recipe_user_id: RecipeUserId,
         access_token_payload: dict[str, Any] | None,
         session_data_in_database: dict[str, Any] | None,
         disable_anti_csrf: bool | None,
@@ -1424,6 +1425,7 @@ def override_session_functions(
 
         return await original_create_new_session(
             user_id,
+            recipe_user_id,
             access_token_payload,
             session_data_in_database,
             disable_anti_csrf,

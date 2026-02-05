@@ -142,6 +142,7 @@ async def select_personas_sp_node(state: SubProblemGraphState) -> dict[str, Any]
         "personas": personas,
         "round_number": 1,
         "metrics": metrics,
+        "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }
 
 
@@ -405,6 +406,7 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
         "metrics": metrics,
         "current_phase": current_phase,
         "experts_per_round": experts_per_round,
+        "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }
 
 
@@ -479,6 +481,7 @@ async def check_convergence_sp_node(state: SubProblemGraphState) -> dict[str, An
         "next_round_focus_prompts": focus_prompts,
         "missing_critical_aspects": missing_aspects,
         "metrics": updated_metrics,  # Pass updated metrics back to state
+        "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }
 
 
@@ -568,6 +571,7 @@ async def vote_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
     return {
         "votes": votes,
         "metrics": metrics,
+        "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }
 
 
@@ -739,4 +743,5 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         "synthesis": synthesis,
         "expert_summaries": expert_summaries,
         "metrics": metrics,
+        "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }

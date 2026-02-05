@@ -181,6 +181,11 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # For unsafe methods: validate CSRF token
         if method in CSRF_PROTECTED_METHODS:
+            # Skip CSRF for API key authenticated requests (scripts/automation)
+            if request.headers.get("X-Admin-Key"):
+                api_response: Response = await call_next(request)
+                return api_response
+
             cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
             header_token = request.headers.get(CSRF_HEADER_NAME)
 

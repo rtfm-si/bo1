@@ -124,6 +124,7 @@
 	let reportActions = $state<ReportAction[]>([]);
 	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
 	let shareModalOpen = $state(false);
+	let isEventsLoaded = $state(false);
 
 	// Track pending interjections ("raise hand")
 	const hasPendingInterjection = $derived(
@@ -227,8 +228,9 @@
 		view.initializeTab(memoized.subProblemTabs);
 	});
 
-	// Auto-switch to conclusion on completion
+	// Auto-switch to conclusion on completion (only after events loaded to avoid premature switch)
 	$effect(() => {
+		if (!isEventsLoaded) return;
 		view.switchToConclusionIfCompleted(session?.status, eventState.showConclusionTab);
 	});
 
@@ -586,6 +588,7 @@
 			try {
 				await loadSession();
 				await loadHistoricalEvents();
+				isEventsLoaded = true;
 				await tick();
 
 				console.log('[Events] Session and history loaded, checking session status...');
@@ -837,7 +840,6 @@
 								/>
 
 								{#each memoized.subProblemTabs as tab}
-									{@const isTabActive = tab.id === view.activeSubProblemTab}
 									{@const tabIndex = parseInt(tab.id.replace('subproblem-', ''))}
 									{@const subGroupedEvents = memoized.groupedEvents.filter((group) => {
 										if (group.type === 'single' && group.event) {
@@ -856,9 +858,9 @@
 										role="tabpanel"
 										id="tabpanel-{tab.id}"
 										aria-labelledby="tab-{tab.id}"
-										aria-hidden={!isTabActive}
-										inert={!isTabActive}
-										hidden={!isTabActive}
+										aria-hidden={tab.id !== view.activeSubProblemTab}
+										inert={tab.id !== view.activeSubProblemTab}
+										hidden={tab.id !== view.activeSubProblemTab}
 									>
 										<div
 											class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
@@ -954,7 +956,7 @@
 											</div>
 										{/if}
 
-										{#if waiting.isWaitingForFirstContributions && isTabActive}
+										{#if waiting.isWaitingForFirstContributions && tab.id === view.activeSubProblemTab}
 											<div
 												class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4"
 												transition:fade={{ duration: 300 }}
@@ -967,7 +969,7 @@
 											</div>
 										{/if}
 
-										{#if waiting.isWaitingForNextRound && isTabActive}
+										{#if waiting.isWaitingForNextRound && tab.id === view.activeSubProblemTab}
 											<div
 												class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4"
 												transition:fade={{ duration: 300 }}
@@ -984,15 +986,14 @@
 
 								<!-- Conclusion Tab Panel -->
 								{#if eventState.showConclusionTab}
-									{@const isTabActive = view.activeSubProblemTab === 'conclusion'}
 									<div
 										class="flex-1 overflow-y-auto p-4 space-y-6"
 										role="tabpanel"
 										id="tabpanel-conclusion"
 										aria-labelledby="tab-conclusion"
-										aria-hidden={!isTabActive}
-										inert={!isTabActive}
-										hidden={!isTabActive}
+										aria-hidden={view.activeSubProblemTab !== 'conclusion'}
+										inert={view.activeSubProblemTab !== 'conclusion'}
+										hidden={view.activeSubProblemTab !== 'conclusion'}
 									>
 										{#if eventState.decompositionEvent}
 											<DynamicEventComponent
@@ -1036,15 +1037,6 @@
 														/>
 													{/if}
 												{/if}
-											</div>
-										{:else if eventState.subProblemCompleteEvents.length > 0 && eventState.subProblemCompleteEvents.some((e) => e.data.synthesis)}
-											<div class="space-y-6">
-												<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-													Sub-Problem Syntheses
-												</h3>
-												{#each eventState.subProblemCompleteEvents.filter((e) => e.data.synthesis) as spEvent}
-													<DynamicEventComponent event={spEvent} eventType="subproblem_complete" />
-												{/each}
 											</div>
 										{:else}
 											<div class="text-center py-12">

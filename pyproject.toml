@@ -130,6 +130,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"bo1/graph/state.py" = ["E402", "I001"]  # Re-exports at bottom of file after class definitions
 "bo1/models/*.py" = ["ANN401", "D106"]
 "bo1/ui/console.py" = ["ANN401"]
 "test*.py" = ["ANN"]

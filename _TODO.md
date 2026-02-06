@@ -2,7 +2,7 @@ check codebase for direct llm model references. these should ONLY be in config.
 
 are there any other places where the user experience andquality of the app would be enhanced by using embeddings, or brave / tavily research?yes
 
-check brave, tavily, claude and chatgpt and voyage payment details are ok (switch to bank account)
+check claude and chatgpt and voyage payment details are ok (switch to bank account)
 
 check blog, decisions, features, usecases and compare all work and added to google search
 

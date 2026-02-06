@@ -7,6 +7,7 @@
 	interface Props {
 		sessionId: string;
 		sessionStatus: string | undefined;
+		isSynthesisComplete?: boolean;
 		onPause: () => Promise<void>;
 		onResume: () => Promise<void>;
 		onShareClick?: () => void;
@@ -18,12 +19,13 @@
 		}) => void;
 	}
 
-	let { sessionId, sessionStatus, onPause, onResume, onShareClick, onTerminated }: Props = $props();
+	let { sessionId, sessionStatus, isSynthesisComplete = false, onPause, onResume, onShareClick, onTerminated }: Props = $props();
 
-	const isComplete = $derived(sessionStatus === 'completed');
+	// Local completion: API says 'completed' OR synthesis events arrived before API catches up
+	const isComplete = $derived(sessionStatus === 'completed' || isSynthesisComplete);
 	const isTerminated = $derived(sessionStatus === 'terminated');
 	const isPaused = $derived(sessionStatus === 'paused');
-	const isActive = $derived(sessionStatus === 'active' || sessionStatus === 'paused');
+	const isActive = $derived(!isComplete && !isTerminated && (sessionStatus === 'active' || sessionStatus === 'paused'));
 
 	// Export dropdown state
 	let exportDropdownOpen = $state(false);

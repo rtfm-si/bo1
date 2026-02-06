@@ -157,7 +157,7 @@ class TestDeletedInsightsInMeetingContext:
             "problem": problem,
         }
 
-        with patch("bo1.graph.nodes.context.user_repository") as mock_repo:
+        with patch("bo1.graph.nodes.context.collection.user_repository") as mock_repo:
             mock_repo.get_context.return_value = sample_context_with_clarifications
 
             import asyncio
@@ -195,7 +195,7 @@ class TestDeletedInsightsInMeetingContext:
             "problem": problem,
         }
 
-        with patch("bo1.graph.nodes.context.user_repository") as mock_repo:
+        with patch("bo1.graph.nodes.context.collection.user_repository") as mock_repo:
             mock_repo.get_context.return_value = context_data
 
             import asyncio
@@ -239,7 +239,7 @@ class TestDeletedInsightsInMeetingContext:
             "problem": problem,
         }
 
-        with patch("bo1.graph.nodes.context.user_repository") as mock_repo:
+        with patch("bo1.graph.nodes.context.collection.user_repository") as mock_repo:
             mock_repo.get_context.return_value = context_data
 
             import asyncio

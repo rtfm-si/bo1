@@ -201,9 +201,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         "strategic partnerships and acquisition targets",
     ]
 
-    import numpy as np
-
-    from bo1.llm.embeddings import generate_embedding
+    from bo1.llm.embeddings import cosine_similarity, generate_embedding
 
     try:
         # Generate embeddings for query and examples
@@ -213,12 +211,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         ]
 
         # Calculate cosine similarity with each example
-        query_array = np.array(query_embedding)
-        similarities = [
-            np.dot(query_array, np.array(ex_emb))
-            / (np.linalg.norm(query_array) * np.linalg.norm(ex_emb))
-            for ex_emb in example_embeddings
-        ]
+        similarities = [cosine_similarity(query_embedding, ex_emb) for ex_emb in example_embeddings]
         max_similarity = max(similarities)
 
         # Threshold: Uses centralized RESEARCH_DEPTH_TRIGGER for deep research (Tavily)

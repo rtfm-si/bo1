@@ -64,6 +64,15 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 	let currentSubProblemGoal: string | undefined = undefined;
 	let currentSubProblemIndex: number | undefined = undefined;
 
+	// Pre-compute sub-problems that have received content (for stale waiting removal)
+	const subProblemsWithContent = new Set<number>();
+	for (const event of events) {
+		if (event.event_type === 'contribution' || event.event_type === 'subproblem_complete') {
+			const idx = getSubProblemIndex(event);
+			if (idx !== undefined) subProblemsWithContent.add(idx);
+		}
+	}
+
 	// Single iteration with inline filtering (combine filter + group logic)
 	for (const event of events) {
 		// Handle persona_selection_complete BEFORE filtering (used as flush trigger)
@@ -91,6 +100,12 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 		// Skip internal/noise events (inline filtering)
 		if (!shouldShowEvent(event.event_type, debugMode)) {
 			continue;
+		}
+
+		// Hide stale "waiting" events once content has arrived for that sub-problem
+		if ((event.event_type as string) === 'subproblem_waiting') {
+			const idx = getSubProblemIndex(event);
+			if (idx !== undefined && subProblemsWithContent.has(idx)) continue;
 		}
 
 		// Track round_started events to get round numbers
@@ -141,18 +156,17 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 			// Get round number from contribution event itself
 			const contributionRound = event.data.round;
 
-			// If round number changed, flush previous round
+			// If round number changed, flush previous round with OLD number
 			if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
+				const previousRound = currentRoundNumber;
+				currentRoundNumber = contributionRound;
 				groups.push({
 					type: 'round',
 					events: currentRound,
-					roundNumber: currentRoundNumber,
+					roundNumber: previousRound,
 				});
 				currentRound = [];
-			}
-
-			// Update current round number from contribution
-			if (contributionRound) {
+			} else if (contributionRound) {
 				currentRoundNumber = contributionRound;
 			}
 

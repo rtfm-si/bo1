@@ -1,7 +1,7 @@
 """Router registry for LangGraph conditional edges.
 
 This module provides:
-- Domain-specific router modules (phase, facilitator, synthesis)
+- Domain-specific router modules (facilitator, synthesis)
 - A registry for dynamic router lookup
 - Re-exports for backward compatibility
 """
@@ -22,7 +22,6 @@ from bo1.graph.routers.facilitator import (
     route_convergence_check,
     route_facilitator_decision,
 )
-from bo1.graph.routers.phase import route_phase
 from bo1.graph.routers.synthesis import (
     route_after_next_subproblem,
     route_after_synthesis,
@@ -31,16 +30,8 @@ from bo1.graph.routers.synthesis import (
 )
 from bo1.graph.safety.loop_prevention import route_cost_guard
 
-# Private aliases for backward compatibility
-_validate_state_field = validate_state_field
-_get_problem_attr = get_problem_attr
-_get_subproblem_attr = get_subproblem_attr
-
-
 # Router registry: name → function mapping
 ROUTER_REGISTRY: dict[str, Callable[..., Any]] = {
-    # Phase routing
-    "route_phase": route_phase,
     # Facilitator routing
     "route_facilitator_decision": route_facilitator_decision,
     "route_convergence_check": route_convergence_check,
@@ -93,12 +84,6 @@ __all__ = [
     "get_problem_attr",
     "get_subproblem_attr",
     "log_routing_decision",
-    # Private aliases for backward compat
-    "_validate_state_field",
-    "_get_problem_attr",
-    "_get_subproblem_attr",
-    # Phase routers
-    "route_phase",
     # Facilitator routers
     "route_facilitator_decision",
     "route_convergence_check",

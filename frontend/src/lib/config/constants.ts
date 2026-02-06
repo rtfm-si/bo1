@@ -55,7 +55,8 @@ export const HIDDEN_EVENT_TYPES = new Set([
 	'research_results', // Bug #4: Internal research data, not user-facing
 	'context_collection_complete', // P1: Internal progress event
 	'dependency_analysis_complete', // P1: Internal progress event
-	'persistence_verification_warning' // Internal warning, not user-facing
+	'persistence_verification_warning', // Internal warning, not user-facing
+	'graph_initialization_started' // Internal graph lifecycle, not user-facing
 ]);
 
 // ============================================================================

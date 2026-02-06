@@ -111,7 +111,17 @@
 	// Phase-aware: pass currentPhase to show completion status
 	const overallQuality = $derived.by((): QualityLabel | null => {
 		if (metrics) {
-			return getOverallQuality(metrics, currentPhase);
+			const quality = getOverallQuality(metrics, currentPhase);
+			// Override label when meeting is complete to avoid contradictory states
+			if (isMeetingComplete && quality) {
+				return {
+					...quality,
+					label: 'Discussion Complete',
+					description: 'Experts have concluded their deliberation and reached recommendations.',
+					color: 'green',
+				};
+			}
+			return quality;
 		}
 
 		// Fallback: meeting complete but no metrics yet
@@ -372,7 +382,7 @@
 			</div>
 
 			<p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
-				{overallQuality.description}{#if isMeetingComplete && metrics} Experts have reached recommendations.{/if}
+				{overallQuality.description}
 			</p>
 
 			<!-- Optional: Show phase-specific insight (hidden when meeting complete - redundant) -->

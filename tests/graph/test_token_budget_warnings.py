@@ -11,12 +11,10 @@ class TestFacilitatorTokenBudgetWarning:
 
     def test_facilitator_constants_exist(self) -> None:
         """Verify token budget constants are defined."""
-        from bo1.prompts.moderator import (
-            FACILITATOR_MAX_TOKENS,
-            FACILITATOR_TOKEN_WARNING_THRESHOLD,
-        )
+        from bo1.config import TokenBudgets
+        from bo1.prompts.moderator import FACILITATOR_TOKEN_WARNING_THRESHOLD
 
-        assert FACILITATOR_MAX_TOKENS == 1000
+        assert TokenBudgets.FACILITATOR == 1000
         assert FACILITATOR_TOKEN_WARNING_THRESHOLD == 0.9
 
     @pytest.mark.asyncio
@@ -120,14 +118,11 @@ class TestSynthesisTokenBudgetWarning:
 
     def test_synthesis_constants_exist(self) -> None:
         """Verify token budget constants are defined."""
-        from bo1.prompts.synthesis import (
-            META_SYNTHESIS_MAX_TOKENS,
-            SYNTHESIS_MAX_TOKENS,
-            SYNTHESIS_TOKEN_WARNING_THRESHOLD,
-        )
+        from bo1.config import TokenBudgets
+        from bo1.prompts.synthesis import SYNTHESIS_TOKEN_WARNING_THRESHOLD
 
-        assert SYNTHESIS_MAX_TOKENS == 4000
-        assert META_SYNTHESIS_MAX_TOKENS == 2000
+        assert TokenBudgets.SYNTHESIS == 4000
+        assert TokenBudgets.META_SYNTHESIS == 2000
         assert SYNTHESIS_TOKEN_WARNING_THRESHOLD == 0.9
 
     @pytest.mark.asyncio

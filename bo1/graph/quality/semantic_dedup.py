@@ -27,6 +27,56 @@ logger = logging.getLogger(__name__)
 DEFAULT_SIMILARITY_THRESHOLD = 0.80
 
 
+def check_research_query_novelty(
+    query: str,
+    completed_queries: list[dict[str, Any]],
+    threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+) -> tuple[bool, float]:
+    """Check if a research query is too similar to already-completed queries.
+
+    Uses pre-computed embeddings stored in completed_queries to avoid
+    redundant research requests.
+
+    Args:
+        query: The new research query text
+        completed_queries: List of {"query": str, "embedding": list[float]} dicts
+        threshold: Similarity threshold. Above this = duplicate.
+
+    Returns:
+        Tuple of (is_duplicate: bool, max_similarity: float)
+    """
+    if not query or not completed_queries:
+        return False, 0.0
+
+    try:
+        from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+        query_embedding = generate_embedding(query, input_type="query")
+        max_similarity = 0.0
+
+        for completed in completed_queries:
+            completed_embedding = completed.get("embedding")
+            if not completed_embedding:
+                continue
+
+            similarity = cosine_similarity(query_embedding, completed_embedding)
+            max_similarity = max(max_similarity, similarity)
+
+            if similarity > threshold:
+                logger.warning(
+                    f"Research deduplication: Query too similar to completed research "
+                    f"(similarity={similarity:.3f}). "
+                    f"Query: '{query[:50]}...' ~ '{completed.get('query', '')[:50]}...'"
+                )
+                return True, similarity
+
+        return False, max_similarity
+
+    except Exception as e:
+        logger.warning(f"Research deduplication check failed: {e}. Allowing research to proceed.")
+        return False, 0.0
+
+
 async def check_semantic_novelty(
     new_contribution: str,
     previous_contributions: list[str],

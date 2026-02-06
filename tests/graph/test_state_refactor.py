@@ -35,7 +35,6 @@ from bo1.graph.state import (
     get_problem_state,
     get_research_state,
     serialize_state_for_checkpoint,
-    state_to_dict,
 )
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
@@ -373,18 +372,6 @@ class TestSerializationRoundTrip:
 
         # Data fields
         assert deserialized["attached_datasets"] == ["ds-1", "ds-2"]
-
-    def test_state_to_dict_matches_serialize(self, full_state):
-        """state_to_dict produces same structure as serialize_state_for_checkpoint."""
-        dict_result = state_to_dict(full_state)
-        serialized = serialize_state_for_checkpoint(full_state)
-
-        # Both should have problem as dict
-        assert isinstance(dict_result["problem"], dict)
-        assert isinstance(serialized["problem"], dict)
-
-        # Both should have same keys
-        assert set(dict_result.keys()) == set(serialized.keys())
 
     def test_serialize_empty_lists_preserved(self, sample_problem):
         """Empty lists are preserved, not converted to None."""

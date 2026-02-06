@@ -291,6 +291,14 @@
 		if (HIDDEN_EVENT_TYPES.has(newEvent.event_type)) return;
 		if (newEvent.event_type === 'phase_cost_breakdown' && !$user?.is_admin) return;
 
+		// Deduplicate completion events by sub_problem_id + event_type
+		if (newEvent.event_type === 'subproblem_complete') {
+			const spId = (newEvent.data as { sub_problem_id?: string }).sub_problem_id;
+			if (spId && events.some(e => e.event_type === 'subproblem_complete' && (e.data as { sub_problem_id?: string }).sub_problem_id === spId)) {
+				return;
+			}
+		}
+
 		timing.resetStaleness();
 		store.addEvent(newEvent);
 
@@ -617,6 +625,7 @@
 	<MeetingHeader
 		{sessionId}
 		sessionStatus={session?.status}
+		isSynthesisComplete={!!eventState.metaSynthesisEvent || !!eventState.synthesisCompleteEvent}
 		onPause={handlePause}
 		onResume={handleResume}
 		onShareClick={() => (shareModalOpen = true)}

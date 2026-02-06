@@ -118,7 +118,8 @@ class TestStrategicObjectivesContextNode:
         }
 
         with patch(
-            "bo1.graph.nodes.context.user_repository.get_context", return_value=mock_context
+            "bo1.graph.nodes.context.collection.user_repository.get_context",
+            return_value=mock_context,
         ):
             state = {
                 "session_id": "test-session",

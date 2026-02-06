@@ -127,6 +127,9 @@ services:
       - ./zzz_important:/app/zzz_important
       - ./zzz_project:/app/zzz_project
 
+      # Mount project config for linting/tooling
+      - ./pyproject.toml:/app/pyproject.toml
+
       # Mount alembic configuration and migrations
       - ./alembic.ini:/app/alembic.ini
       - ./migrations:/app/migrations

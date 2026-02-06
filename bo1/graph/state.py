@@ -17,7 +17,6 @@ State is organized into logical groups:
 """
 
 import logging
-import warnings
 from typing import Any, TypedDict
 
 from bo1.models.persona import PersonaProfile
@@ -46,13 +45,20 @@ class ProblemState(TypedDict, total=False):
 
 
 class PhaseState(TypedDict, total=False):
-    """Deliberation phase and round tracking."""
+    """Deliberation phase and round tracking.
 
-    phase: DeliberationPhase
-    current_phase: str  # "exploration", "challenge", "convergence"
-    round_number: int
-    max_rounds: int
-    current_node: str
+    Note on phase vs current_phase:
+    - phase (DeliberationPhase): Graph lifecycle enum (INTAKE→DECOMPOSITION→DISCUSSION→
+      SYNTHESIS→COMPLETE). Set by nodes/routers, consumed by routers for edge decisions.
+    - current_phase (str): Within-round prompt phase ("exploration"/"challenge"/"convergence").
+      Set by PhaseManager in quality/metrics.py, consumed by prompt builders for tone guidance.
+    """
+
+    phase: DeliberationPhase  # Producer: nodes/routers | Consumer: routers, event_collector
+    current_phase: str  # Producer: PhaseManager | Consumer: prompt builders
+    round_number: int  # Producer: facilitator_decide, check_convergence | Consumer: most nodes
+    max_rounds: int  # Producer: create_initial_state | Consumer: facilitator, convergence
+    current_node: str  # Producer: each node | Consumer: event_collector, resume logic
 
 
 class ParticipantState(TypedDict, total=False):
@@ -280,8 +286,8 @@ class DeliberationGraphState(TypedDict, total=False):
     contributions: list[ContributionMessage]
     round_summaries: list[str]
 
-    # Phase tracking
-    phase: DeliberationPhase
+    # Phase tracking (see PhaseState docstring for phase vs current_phase distinction)
+    phase: DeliberationPhase  # Graph lifecycle: INTAKE→DISCUSSION→SYNTHESIS→COMPLETE
     round_number: int
     max_rounds: int
 
@@ -336,8 +342,8 @@ class DeliberationGraphState(TypedDict, total=False):
     comparison_options: list[str]  # The options being compared (e.g., ["React", "Svelte"])
     comparison_type: str  # Type of comparison (timing, build_vs_buy, technology, market, etc.)
 
-    # NEW FIELDS FOR PARALLEL ARCHITECTURE (Day 38)
-    current_phase: str  # "exploration", "challenge", "convergence"
+    # Within-round prompt phase (distinct from `phase` — see PhaseState docstring)
+    current_phase: str  # "exploration"/"challenge"/"convergence" — set by PhaseManager
     experts_per_round: list[list[str]]  # Track which experts contributed each round
     semantic_novelty_scores: dict[str, float]  # Per-contribution novelty scores
     exploration_score: float  # From quality metrics (0.0-1.0)
@@ -553,228 +559,11 @@ def validate_state(state: DeliberationGraphState) -> None:
         )
 
 
-def state_to_dict(state: DeliberationGraphState) -> dict[str, Any]:
-    """Convert graph state to dictionary for checkpointing.
-
-    .. deprecated::
-        Use :func:`serialize_state_for_checkpoint` instead. This function
-        will be removed in a future release.
-
-    Args:
-        state: The graph state to serialize
-
-    Returns:
-        Dictionary representation suitable for JSON serialization
-    """
-    warnings.warn(
-        "state_to_dict is deprecated; use serialize_state_for_checkpoint instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return serialize_state_for_checkpoint(state)
-
-
-def serialize_state_for_checkpoint(state: DeliberationGraphState) -> dict[str, Any]:
-    """Serialize state for checkpoint storage.
-
-    Converts Pydantic models to dicts to ensure proper serialization
-    by LangGraph's AsyncRedisSaver. This fixes the bug where nested models
-    (like Problem.sub_problems) are lost on checkpoint resume.
-
-    Serialized fields (Pydantic → dict):
-        - problem: Problem model with nested SubProblem list
-        - current_sub_problem: SubProblem model
-        - personas: list[PersonaProfile]
-        - contributions: list[ContributionMessage]
-        - metrics: DeliberationMetrics
-        - sub_problem_results: list[SubProblemResult]
-
-    Pass-through fields (already JSON-serializable):
-        - All primitive types (str, int, float, bool)
-        - All dict[str, Any] fields (facilitator_decision, business_context, etc.)
-        - All list[str] or list[dict] fields (round_summaries, votes, etc.)
-
-    Edge cases:
-        - Empty lists: Preserved as [] (not converted to None)
-        - None values: Preserved as None (not omitted)
-        - Mixed Pydantic/dict in lists: Handles both via hasattr check
-        - Missing keys: Absent keys remain absent (TypedDict partial)
-
-    Version compatibility:
-        - Forward-compat: New fields added to state are ignored in older code
-        - Backward-compat: Old checkpoints missing new fields load without error
-          (TypedDict total=False allows missing keys)
-
-    Args:
-        state: The graph state to serialize
-
-    Returns:
-        Dictionary with all Pydantic models converted to dicts
-    """
-    result = dict(state)
-
-    # Serialize Problem (contains nested SubProblem list)
-    if "problem" in result and result["problem"] is not None:
-        if hasattr(result["problem"], "model_dump"):
-            result["problem"] = result["problem"].model_dump()
-
-    # Serialize current_sub_problem
-    if "current_sub_problem" in result and result["current_sub_problem"] is not None:
-        if hasattr(result["current_sub_problem"], "model_dump"):
-            result["current_sub_problem"] = result["current_sub_problem"].model_dump()
-
-    # Serialize personas list
-    if "personas" in result and result["personas"]:
-        personas_list: list[Any] = []
-        for p in result["personas"]:  # type: ignore[attr-defined]
-            if hasattr(p, "model_dump"):
-                personas_list.append(p.model_dump())
-            else:
-                personas_list.append(p)
-        result["personas"] = personas_list
-
-    # Serialize contributions list
-    if "contributions" in result and result["contributions"]:
-        contributions_list: list[Any] = []
-        for c in result["contributions"]:  # type: ignore[attr-defined]
-            if hasattr(c, "model_dump"):
-                contributions_list.append(c.model_dump())
-            else:
-                contributions_list.append(c)
-        result["contributions"] = contributions_list
-
-    # Serialize metrics
-    if "metrics" in result and result["metrics"] is not None:
-        if hasattr(result["metrics"], "model_dump"):
-            result["metrics"] = result["metrics"].model_dump()
-
-    # Serialize sub_problem_results list
-    sub_problem_results = result.get("sub_problem_results")
-    if sub_problem_results and isinstance(sub_problem_results, list):
-        sub_problem_results_list: list[Any] = []
-        for spr in sub_problem_results:
-            if hasattr(spr, "model_dump"):
-                sub_problem_results_list.append(spr.model_dump())
-            else:
-                sub_problem_results_list.append(spr)
-        result["sub_problem_results"] = sub_problem_results_list
-
-    return result
-
-
-def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
-    """Deserialize state from checkpoint storage.
-
-    Converts dicts back to Pydantic models where appropriate.
-    This is the inverse of serialize_state_for_checkpoint.
-
-    Deserialized fields (dict → Pydantic):
-        - problem: dict → Problem (with nested SubProblem list)
-        - current_sub_problem: dict → SubProblem
-        - personas: list[dict] → list[PersonaProfile]
-        - contributions: list[dict] → list[ContributionMessage]
-        - metrics: dict → DeliberationMetrics
-        - sub_problem_results: list[dict] → list[SubProblemResult]
-
-    Edge cases:
-        - Missing keys: Silently skipped (no KeyError)
-        - Extra keys: Preserved as-is (forward-compat for new fields)
-        - None values: Preserved as None (not converted)
-        - Mixed dict/Pydantic in lists: Only dicts are converted
-        - Empty lists: Preserved as [] (not converted)
-
-    Validation:
-        - Uses model_validate() which raises ValidationError on schema mismatch
-        - Caller should handle ValidationError for corrupted checkpoints
-
-    Args:
-        data: Dictionary loaded from checkpoint
-
-    Returns:
-        Dictionary with Pydantic models reconstructed
-    """
-    result = dict(data)
-
-    # Deserialize Problem
-    if "problem" in result and isinstance(result["problem"], dict):
-        result["problem"] = Problem.model_validate(result["problem"])
-
-    # Deserialize current_sub_problem with corruption detection
-    # Check for corrupted id BEFORE model_validate (which would reject it)
-    if "current_sub_problem" in result and isinstance(result["current_sub_problem"], dict):
-        current_sp_dict = result["current_sub_problem"]
-        sp_id = current_sp_dict.get("id")
-
-        if isinstance(sp_id, list):
-            # Corrupted checkpoint - id is a type annotation path like
-            # ['bo1', 'models', 'problem', 'SubProblem']
-            logger.warning(
-                f"Corrupted current_sub_problem.id detected: {sp_id} - "
-                "attempting repair from problem.sub_problems"
-            )
-
-            # Attempt repair: get from problem.sub_problems by index
-            problem = result.get("problem")
-            sub_problem_index = result.get("sub_problem_index", 0)
-            repaired = False
-
-            if problem is not None:
-                sub_problems = (
-                    getattr(problem, "sub_problems", [])
-                    if hasattr(problem, "sub_problems")
-                    else problem.get("sub_problems", [])
-                    if isinstance(problem, dict)
-                    else []
-                )
-                if 0 <= sub_problem_index < len(sub_problems):
-                    repaired_sp = sub_problems[sub_problem_index]
-                    if isinstance(repaired_sp, dict):
-                        result["current_sub_problem"] = SubProblem.model_validate(repaired_sp)
-                    else:
-                        result["current_sub_problem"] = repaired_sp
-                    logger.info(f"Repaired current_sub_problem from index {sub_problem_index}")
-                    repaired = True
-                else:
-                    logger.error(
-                        f"Cannot repair current_sub_problem: index {sub_problem_index} "
-                        f"out of bounds for {len(sub_problems)} sub_problems"
-                    )
-
-            if not repaired:
-                # Cannot repair - remove corrupted data to avoid validation error
-                logger.error("Removing corrupted current_sub_problem (repair failed)")
-                result["current_sub_problem"] = None
-        else:
-            # Normal case - validate as usual
-            result["current_sub_problem"] = SubProblem.model_validate(current_sp_dict)
-
-    # Deserialize personas list
-    if "personas" in result and result["personas"]:
-        result["personas"] = [
-            PersonaProfile.model_validate(p) if isinstance(p, dict) else p
-            for p in result["personas"]
-        ]
-
-    # Deserialize contributions list
-    if "contributions" in result and result["contributions"]:
-        result["contributions"] = [
-            ContributionMessage.model_validate(c) if isinstance(c, dict) else c
-            for c in result["contributions"]
-        ]
-
-    # Deserialize metrics
-    if "metrics" in result and isinstance(result["metrics"], dict):
-        result["metrics"] = DeliberationMetrics.model_validate(result["metrics"])
-
-    # Deserialize sub_problem_results list
-    if "sub_problem_results" in result and result["sub_problem_results"]:
-        result["sub_problem_results"] = [
-            SubProblemResult.model_validate(spr) if isinstance(spr, dict) else spr
-            for spr in result["sub_problem_results"]
-        ]
-
-    return result
-
+# Re-export serialization functions (extracted to state_serialization.py)
+from bo1.graph.state_serialization import (
+    deserialize_state_from_checkpoint as deserialize_state_from_checkpoint,
+    serialize_state_for_checkpoint as serialize_state_for_checkpoint,
+)
 
 # =============================================================================
 # STATE ACCESSOR HELPERS (for gradual migration to nested structure)
@@ -922,187 +711,8 @@ def get_core_state(state: DeliberationGraphState) -> CoreState:
     )
 
 
-# =============================================================================
-# CONTRIBUTION PRUNING (TOKEN OPTIMIZATION)
-# =============================================================================
-
-
-def prune_contributions_for_phase(
-    state: DeliberationGraphState,
-    retain_count: int | None = None,
-) -> list[ContributionMessage]:
-    """Prune old contributions to reduce token usage.
-
-    Called at synthesis node entry after convergence phase. Pruning is safe
-    because synthesis uses round_summaries for context (not raw contributions).
-
-    Pruning strategy:
-    - Keep last `retain_count` contributions (default: 6 = ~2 rounds)
-    - Preserve all contributions from the current round (by round_number)
-    - Log pruned count for observability
-
-    Safety:
-    - Never prune if len(contributions) <= retain_count
-    - Only prune if phase >= SYNTHESIS (post-convergence)
-
-    Args:
-        state: Current graph state
-        retain_count: Number of contributions to retain (default: from config)
-
-    Returns:
-        Pruned contributions list (or original if no pruning needed)
-    """
-    from bo1.constants import ContributionPruning
-    from bo1.models.state import DeliberationPhase
-
-    if retain_count is None:
-        retain_count = ContributionPruning.RETENTION_COUNT
-
-    contributions = state.get("contributions", [])
-    current_phase = state.get("phase")
-    current_round = state.get("round_number", 0)
-    session_id = state.get("session_id")
-
-    # Safety: Don't prune if already small
-    if len(contributions) <= retain_count:
-        logger.debug(
-            f"prune_contributions_for_phase: No pruning needed "
-            f"(contributions={len(contributions)} <= retain_count={retain_count})"
-        )
-        return contributions
-
-    # Safety: Only prune at synthesis phase or later
-    if current_phase not in (DeliberationPhase.SYNTHESIS, DeliberationPhase.COMPLETE):
-        logger.debug(
-            f"prune_contributions_for_phase: Skipping pruning "
-            f"(phase={current_phase}, expected SYNTHESIS or COMPLETE)"
-        )
-        return contributions
-
-    # Preserve contributions from current round
-    current_round_contributions = [c for c in contributions if c.round_number == current_round]
-    other_contributions = [c for c in contributions if c.round_number != current_round]
-
-    # Calculate how many non-current-round contributions to keep
-    slots_for_others = max(0, retain_count - len(current_round_contributions))
-
-    # Keep the most recent non-current-round contributions
-    retained_others = other_contributions[-slots_for_others:] if slots_for_others > 0 else []
-
-    # Combine: current round + retained others (in chronological order)
-    pruned = retained_others + current_round_contributions
-
-    pruned_count = len(contributions) - len(pruned)
-    if pruned_count > 0:
-        logger.info(
-            f"prune_contributions_for_phase: session={session_id}, "
-            f"pruned={pruned_count}, retained={len(pruned)} "
-            f"(current_round={len(current_round_contributions)}, "
-            f"previous={len(retained_others)})"
-        )
-
-    return pruned
-
-
-def prune_contributions_after_round(
-    contributions: list[ContributionMessage],
-    round_summaries: list[str],
-    current_round: int,
-    session_id: str | None = None,
-    retain_count: int | None = None,
-    rounds_to_retain: int | None = None,
-) -> tuple[list[ContributionMessage], int]:
-    """Prune old contributions after a round summary is generated.
-
-    Called at end of each round after summary is created. Safe because
-    round summaries capture the content of pruned contributions.
-
-    Pruning strategy:
-    - Only prune contributions from rounds older than `rounds_to_retain`
-    - Keep at least `retain_count` contributions for synthesis fallback
-    - Only prune if round summary exists for the round being pruned
-    - Log pruning metrics for observability
-
-    Safety:
-    - Never prune if round_summaries is empty for older rounds
-    - Always retain RETENTION_COUNT contributions minimum
-    - Only prune rounds older than ROUNDS_TO_RETAIN
-
-    Args:
-        contributions: Full list of contributions
-        round_summaries: List of round summaries (index = round-1)
-        current_round: Current round number (1-indexed)
-        session_id: Session ID for logging
-        retain_count: Minimum contributions to retain (default: from config)
-        rounds_to_retain: Rounds to keep raw contributions for (default: from config)
-
-    Returns:
-        Tuple of (pruned_contributions, pruned_count)
-    """
-    from bo1.constants import ContributionPruning
-
-    if retain_count is None:
-        retain_count = ContributionPruning.RETENTION_COUNT
-    if rounds_to_retain is None:
-        rounds_to_retain = ContributionPruning.ROUNDS_TO_RETAIN
-
-    # Check if pruning is enabled
-    if not ContributionPruning.PRUNE_AFTER_ROUND_SUMMARY:
-        return contributions, 0
-
-    # Safety: Don't prune if already small enough
-    if len(contributions) <= retain_count:
-        logger.debug(
-            f"prune_contributions_after_round: No pruning needed "
-            f"(contributions={len(contributions)} <= retain_count={retain_count})"
-        )
-        return contributions, 0
-
-    # Calculate cutoff round: prune contributions from rounds older than this
-    cutoff_round = current_round - rounds_to_retain
-    if cutoff_round < 1:
-        logger.debug(
-            f"prune_contributions_after_round: No pruning needed "
-            f"(current_round={current_round}, cutoff_round={cutoff_round})"
-        )
-        return contributions, 0
-
-    # Check if we have summaries for rounds we want to prune
-    # round_summaries is 0-indexed (index 0 = round 1 summary)
-    if len(round_summaries) < cutoff_round:
-        logger.debug(
-            f"prune_contributions_after_round: Skipping - missing summaries for pruned rounds "
-            f"(summaries={len(round_summaries)}, need={cutoff_round})"
-        )
-        return contributions, 0
-
-    # Separate contributions by whether they should be pruned
-    # Handle both ContributionMessage objects and dicts
-    to_retain = []
-    to_prune = []
-    for c in contributions:
-        # Defensive: handle both ContributionMessage objects and dicts (e.g., from deserialization)
-        c_round = c.round_number if hasattr(c, "round_number") else c.get("round_number", 0)  # type: ignore[attr-defined]
-        if c_round > cutoff_round:
-            to_retain.append(c)
-        else:
-            to_prune.append(c)
-
-    # Ensure we keep at least retain_count contributions
-    if len(to_retain) < retain_count:
-        # Keep some from to_prune (most recent first)
-        need = retain_count - len(to_retain)
-        to_retain = to_prune[-need:] + to_retain
-        to_prune = to_prune[:-need] if need < len(to_prune) else []
-
-    pruned_count = len(to_prune)
-    if pruned_count > 0:
-        # Estimate bytes saved (~200 tokens/contribution, ~4 chars/token)
-        bytes_saved_estimate = pruned_count * 200 * 4
-        logger.info(
-            f"prune_contributions_after_round: session={session_id}, "
-            f"round={current_round}, pruned={pruned_count}, retained={len(to_retain)}, "
-            f"cutoff_round={cutoff_round}, bytes_saved_est={bytes_saved_estimate}"
-        )
-
-    return to_retain, pruned_count
+# Re-export pruning functions (extracted to contribution_pruning.py)
+from bo1.graph.contribution_pruning import (
+    prune_contributions_after_round as prune_contributions_after_round,
+    prune_contributions_for_phase as prune_contributions_for_phase,
+)

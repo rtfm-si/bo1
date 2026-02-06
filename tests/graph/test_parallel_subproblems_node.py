@@ -389,7 +389,7 @@ class TestExecuteBatch:
             )
 
         with patch(
-            "bo1.graph.nodes.subproblems._run_single_subproblem", side_effect=mock_run_single
+            "bo1.graph.nodes.subproblems.batch._run_single_subproblem", side_effect=mock_run_single
         ):
             with patch("bo1.graph.deliberation.subgraph.build_expert_memory", return_value={}):
                 results = await _execute_batch(
@@ -427,7 +427,7 @@ class TestExecuteBatch:
             return (sp_idx, MagicMock(), 1.0)
 
         with patch(
-            "bo1.graph.nodes.subproblems._run_single_subproblem",
+            "bo1.graph.nodes.subproblems.batch._run_single_subproblem",
             side_effect=mock_run_single_with_failure,
         ):
             with patch("bo1.graph.deliberation.subgraph.build_expert_memory", return_value={}):

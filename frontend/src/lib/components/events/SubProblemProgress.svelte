@@ -128,13 +128,13 @@
 							<!-- Display parsed XML sections -->
 							{#if sections.executive_summary}
 								<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none mb-3">
-									{sections.executive_summary}
+									<MarkdownContent content={sections.executive_summary} />
 								</div>
 							{/if}
 							{#if sections.recommendation}
 								<div class="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm border-l-2 border-green-500">
 									<span class="font-medium text-green-800 dark:text-green-300">Recommendation:</span>
-									<div class="text-green-700 dark:text-green-200 mt-1">{sections.recommendation}</div>
+									<div class="text-green-700 dark:text-green-200 mt-1"><MarkdownContent content={sections.recommendation} /></div>
 								</div>
 							{/if}
 						{:else}
@@ -167,24 +167,22 @@
 							{formatDuration(event.data.duration_seconds)}
 						</span>
 					</div>
-					<div>
-						<span class="text-neutral-600 dark:text-neutral-400">Cost:</span>
-						<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
-							{formatCostValue(event.data.cost)}
-						</span>
-					</div>
-					<div>
-						<span class="text-neutral-600 dark:text-neutral-400">Contributions:</span>
-						<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
-							{event.data.contribution_count}
-						</span>
-					</div>
-					<div>
-						<span class="text-neutral-600 dark:text-neutral-400">Experts:</span>
-						<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
-							{event.data.expert_panel.length}
-						</span>
-					</div>
+					{#if event.data.contribution_count > 0}
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Contributions:</span>
+							<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
+								{event.data.contribution_count}
+							</span>
+						</div>
+					{/if}
+					{#if event.data.expert_panel.length > 0}
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Experts:</span>
+							<span class="font-semibold text-neutral-900 dark:text-neutral-100 ml-1">
+								{event.data.expert_panel.length}
+							</span>
+						</div>
+					{/if}
 				</div>
 
 				<!-- Expert Panel -->

@@ -5,7 +5,6 @@
 	 * Uses humanized event names and descriptions
 	 */
 	import type { SSEEvent } from '$lib/api/sse-events';
-	import Badge from '$lib/components/ui/Badge.svelte';
 	import { getEventTitle, getEventDescription } from '$lib/utils/event-humanization';
 
 	interface Props {
@@ -16,7 +15,6 @@
 
 	const title = $derived(getEventTitle(event.event_type));
 	const description = $derived(getEventDescription(event.event_type, event.data));
-	const hasData = $derived(event.data && Object.keys(event.data).length > 0);
 </script>
 
 <div class="space-y-3">
@@ -46,26 +44,12 @@
 					<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
 						{title}
 					</h3>
-					<Badge variant="neutral" size="sm">{event.event_type}</Badge>
 				</div>
 
 				{#if description}
-					<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						{description}
 					</p>
-				{/if}
-
-				{#if hasData}
-					<details class="text-sm">
-						<summary
-							class="cursor-pointer text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 mb-2"
-						>
-							View technical details
-						</summary>
-						<pre
-							class="bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700 p-3 text-xs overflow-x-auto"
-						>{JSON.stringify(event.data, null, 2)}</pre>
-					</details>
 				{/if}
 			</div>
 		</div>

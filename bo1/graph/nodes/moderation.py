@@ -11,10 +11,13 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
+from bo1.config import TokenBudgets
 from bo1.constants import ModerationConfig, SimilarityCacheThresholds
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
+from bo1.graph.quality.semantic_dedup import check_research_query_novelty
 from bo1.graph.state import (
     DeliberationGraphState,
+    ResearchState,
     get_core_state,
     get_discussion_state,
     get_participant_state,
@@ -24,12 +27,139 @@ from bo1.graph.state import (
 )
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.state import DeliberationPhase
-from bo1.prompts.moderator import (
-    FACILITATOR_MAX_TOKENS,
-    FACILITATOR_TOKEN_WARNING_THRESHOLD,
-)
 
 logger = logging.getLogger(__name__)
+
+
+def _select_least_speaking_persona(
+    personas: list[Any],
+    contributions: list[Any],
+) -> str:
+    """Select the persona with the fewest contributions.
+
+    Args:
+        personas: List of PersonaProfile objects
+        contributions: List of ContributionMessage objects
+
+    Returns:
+        Persona code of the least-speaking persona
+    """
+    counts: dict[str, int] = {}
+    for c in contributions:
+        counts[c.persona_code] = counts.get(c.persona_code, 0) + 1
+    min_count = min(counts.values()) if counts else 0
+    candidates = [p.code for p in personas if counts.get(p.code, 0) == min_count]
+    return candidates[0] if candidates else personas[0].code if personas else "unknown"
+
+
+def _validate_and_override_decision(
+    decision: FacilitatorDecision,
+    state: DeliberationGraphState,
+    personas: list[Any],
+    round_number: int,
+    session_id: str | None,
+    request_id: str | None,
+    research_state: dict[str, Any] | ResearchState,
+) -> FacilitatorDecision:
+    """Validate facilitator decision and apply safety overrides.
+
+    Handles:
+    - Speaker validation (missing/invalid next_speaker)
+    - Moderator type fallback
+    - Research query validation
+    - Premature voting prevention
+    - Duplicate research prevention
+    """
+    persona_codes = [p.code for p in personas]
+
+    # --- Field validation ---
+    if decision.action == "continue":
+        if not decision.next_speaker:
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                "facilitator_decide_node: 'continue' without next_speaker! Falling back.",
+                request_id=request_id,
+            )
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = (
+                f"ERROR RECOVERY: Selected {decision.next_speaker} due to missing next_speaker"
+            )
+        elif decision.next_speaker not in persona_codes:
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                f"facilitator_decide_node: Invalid next_speaker '{decision.next_speaker}' "
+                f"not in {persona_codes}. Falling back.",
+                request_id=request_id,
+            )
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} because original speaker was invalid"
+
+    elif decision.action == "moderator":
+        if not decision.moderator_type:
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                "facilitator_decide_node: 'moderator' without moderator_type! Defaulting to contrarian.",
+                request_id=request_id,
+            )
+            decision.moderator_type = "contrarian"
+            decision.reasoning = "ERROR RECOVERY: Using contrarian moderator due to missing type"
+
+    elif decision.action == "research":
+        if not decision.research_query and not decision.reasoning:
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                "facilitator_decide_node: 'research' without query or reasoning! Overriding to continue.",
+                request_id=request_id,
+            )
+            decision.action = "continue"
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = "ERROR RECOVERY: Skipping research due to missing query"
+
+    # --- Premature voting prevention ---
+    min_rounds = ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
+    if decision.action == "vote" and round_number < min_rounds:
+        logger.warning(
+            f"Facilitator attempted vote at round {round_number} (min: {min_rounds}). Overriding."
+        )
+        contributions = get_discussion_state(state).get("contributions", [])
+        next_speaker = _select_least_speaking_persona(personas, contributions)
+        decision = FacilitatorDecision(
+            action="continue",
+            reasoning=f"Overridden: Minimum {min_rounds} rounds required before voting.",
+            next_speaker=next_speaker,
+            speaker_prompt="Build on the discussion so far and add depth to the analysis.",
+        )
+
+    # --- Duplicate research prevention ---
+    if decision.action == "research":
+        completed_queries = research_state.get("completed_research_queries", [])
+        research_query = decision.reasoning[:200] if decision.reasoning else ""
+        is_duplicate = False
+        if completed_queries and research_query:
+            is_duplicate, _similarity = check_research_query_novelty(
+                research_query,
+                completed_queries,
+                threshold=SimilarityCacheThresholds.RESEARCH_DEDUP,
+            )
+        if is_duplicate:
+            contributions = get_discussion_state(state).get("contributions", [])
+            next_speaker = _select_least_speaking_persona(personas, contributions)
+            decision = FacilitatorDecision(
+                action="continue",
+                reasoning="Research already completed for this topic. Continuing deliberation.",
+                next_speaker=next_speaker,
+                speaker_prompt="Build on the research findings and add your unique perspective.",
+            )
+
+    return decision
 
 
 async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, Any]:
@@ -117,199 +247,29 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     # TOKEN BUDGET WARNING: Check if output tokens approach/exceed budget
     if llm_response and llm_response.token_usage:
         output_tokens = llm_response.token_usage.output_tokens
-        warning_threshold = int(FACILITATOR_MAX_TOKENS * FACILITATOR_TOKEN_WARNING_THRESHOLD)
+        warning_threshold = int(TokenBudgets.FACILITATOR * 0.9)
         if output_tokens >= warning_threshold:
             log_with_session(
                 logger,
                 logging.WARNING,
                 session_id,
                 f"[TOKEN_BUDGET] Facilitator output tokens ({output_tokens}) "
-                f">= {int(FACILITATOR_TOKEN_WARNING_THRESHOLD * 100)}% of budget ({FACILITATOR_MAX_TOKENS}). "
+                f">= 90% of budget ({TokenBudgets.FACILITATOR}). "
                 f"Action: {decision.action}, Round: {round_number}/{max_rounds}",
             )
 
-    # VALIDATION: Ensure decision is complete and valid (Issue #3 fix)
-    # This prevents silent failures when facilitator returns invalid decisions
+    # Validate and apply safety overrides
     participant_state = get_participant_state(state)
     personas = participant_state.get("personas", [])
-    persona_codes = [p.code for p in personas]
-
-    if decision.action == "continue":
-        # Validate next_speaker exists in personas
-        if not decision.next_speaker:
-            log_with_session(
-                logger,
-                logging.ERROR,
-                session_id,
-                "facilitator_decide_node: 'continue' action without next_speaker! "
-                "Falling back to first available persona.",
-                request_id=request_id,
-            )
-            # Fallback: select first persona
-            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
-            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} due to missing next_speaker in facilitator decision"
-
-        elif decision.next_speaker not in persona_codes:
-            log_with_session(
-                logger,
-                logging.ERROR,
-                session_id,
-                f"facilitator_decide_node: Invalid next_speaker '{decision.next_speaker}' "
-                f"not in selected personas: {persona_codes}. Falling back to first available persona.",
-                request_id=request_id,
-            )
-            # Fallback: select first persona
-            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
-            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} because original speaker was invalid"
-
-    elif decision.action == "moderator":
-        # Validate moderator_type exists
-        if not decision.moderator_type:
-            log_with_session(
-                logger,
-                logging.ERROR,
-                session_id,
-                "facilitator_decide_node: 'moderator' action without moderator_type! "
-                "Defaulting to contrarian moderator.",
-                request_id=request_id,
-            )
-            # Fallback: default to contrarian
-            decision.moderator_type = "contrarian"
-            decision.reasoning = "ERROR RECOVERY: Using contrarian moderator due to missing type"
-
-    elif decision.action == "research":
-        # Validate research_query exists
-        if not decision.research_query and not decision.reasoning:
-            log_with_session(
-                logger,
-                logging.ERROR,
-                session_id,
-                "facilitator_decide_node: 'research' action without research_query or reasoning! "
-                "Overriding to 'continue' to prevent failure.",
-                request_id=request_id,
-            )
-            # Fallback: skip research, continue with discussion
-            decision.action = "continue"
-            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
-            decision.reasoning = (
-                "ERROR RECOVERY: Skipping research due to missing query, continuing discussion"
-            )
-
-    # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
-    # Override facilitator if trying to vote before minimum rounds
-    # NOTE: Research action is now fully implemented and no longer overridden
-    # Uses centralized ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
-    min_rounds_before_voting = ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
-    if decision.action == "vote" and round_number < min_rounds_before_voting:
-        logger.warning(
-            f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
-            f"Overriding to 'continue' for deeper exploration."
-        )
-        override_reason = f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration."
-
-        # Override decision to continue
-        # Select a persona who hasn't spoken much
-        discussion_state = get_discussion_state(state)
-        contributions = discussion_state.get("contributions", [])
-
-        # Count contributions per persona
-        contribution_counts: dict[str, int] = {}
-        for contrib in contributions:
-            persona_code = contrib.persona_code
-            contribution_counts[persona_code] = contribution_counts.get(persona_code, 0) + 1
-
-        # Find persona with fewest contributions
-        min_contributions = min(contribution_counts.values()) if contribution_counts else 0
-        candidates = [
-            p.code for p in personas if contribution_counts.get(p.code, 0) == min_contributions
-        ]
-
-        next_speaker = candidates[0] if candidates else personas[0].code if personas else "unknown"
-
-        # Override decision
-        decision = FacilitatorDecision(
-            action="continue",
-            reasoning=override_reason,
-            next_speaker=next_speaker,
-            speaker_prompt="Build on the discussion so far and add depth to the analysis.",
-        )
-
-    # SAFETY CHECK: Prevent infinite research loops (Bug fix)
-    # Check if facilitator is requesting research that's already been completed
-    if decision.action == "research":
-        completed_queries = research_state.get("completed_research_queries", [])
-
-        # Extract research query from facilitator reasoning
-        research_query = decision.reasoning[:200] if decision.reasoning else ""
-
-        # Check semantic similarity to completed queries
-        is_duplicate = False
-        if completed_queries and research_query:
-            from bo1.llm.embeddings import cosine_similarity, generate_embedding
-
-            try:
-                query_embedding = generate_embedding(research_query, input_type="query")
-
-                for completed in completed_queries:
-                    completed_embedding = completed.get("embedding")
-                    if not completed_embedding:
-                        continue
-
-                    similarity = cosine_similarity(query_embedding, completed_embedding)
-
-                    # High similarity threshold = very similar query
-                    # Uses centralized RESEARCH_DEDUP threshold (P1-RESEARCH-1)
-                    if similarity > SimilarityCacheThresholds.RESEARCH_DEDUP:
-                        is_duplicate = True
-                        logger.warning(
-                            f"Research deduplication: Query too similar to completed research "
-                            f"(similarity={similarity:.3f}). Overriding to 'continue'. "
-                            f"Query: '{research_query[:50]}...' ~ '{completed.get('query', '')[:50]}...'"
-                        )
-                        break
-
-            except Exception as e:
-                logger.warning(
-                    f"Research deduplication check failed: {e}. Allowing research to proceed."
-                )
-
-        # Override to 'continue' if duplicate research detected
-        if is_duplicate:
-            # Select next speaker (same logic as premature voting override)
-            # personas already obtained from participant_state above
-            research_discussion_state = get_discussion_state(state)
-            contributions = research_discussion_state.get("contributions", [])
-
-            research_contrib_counts: dict[str, int] = {}
-            for contrib in contributions:
-                persona_code = contrib.persona_code
-                research_contrib_counts[persona_code] = (
-                    research_contrib_counts.get(persona_code, 0) + 1
-                )
-
-            min_contributions_research = (
-                min(research_contrib_counts.values()) if research_contrib_counts else 0
-            )
-            candidates_research = [
-                p.code
-                for p in personas
-                if research_contrib_counts.get(p.code, 0) == min_contributions_research
-            ]
-
-            next_speaker = (
-                candidates_research[0]
-                if candidates_research
-                else personas[0].code
-                if personas
-                else "unknown"
-            )
-
-            decision = FacilitatorDecision(
-                action="continue",
-                reasoning="Research already completed for this topic. Continuing deliberation with fresh perspectives.",
-                next_speaker=next_speaker,
-                speaker_prompt="Build on the research findings and add your unique perspective to the analysis.",
-            )
+    decision = _validate_and_override_decision(
+        decision,
+        state,
+        personas,
+        round_number,
+        session_id,
+        request_id,
+        research_state,
+    )
 
     # Track cost in metrics (if LLM was called)
     metrics = ensure_metrics(state)

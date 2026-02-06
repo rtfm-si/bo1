@@ -9,11 +9,22 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from bo1.logging import ErrorCode, log_error
+from bo1.utils.checkpoint_helpers import (
+    get_problem_attr,
+    get_subproblem_attr,
+)
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
+
+__all__ = [
+    "validate_state_field",
+    "get_problem_attr",
+    "get_subproblem_attr",
+    "log_routing_decision",
+]
 
 
 def validate_state_field(state: Any, field_name: str, router_name: str) -> Any | None:
@@ -21,14 +32,6 @@ def validate_state_field(state: Any, field_name: str, router_name: str) -> Any |
 
     Returns the field value if present, None if missing.
     Logs ErrorCode.GRAPH_STATE_ERROR with router context when field is missing.
-
-    Args:
-        state: Current graph state
-        field_name: Name of the field to validate
-        router_name: Name of the calling router (for logging context)
-
-    Returns:
-        Field value if present, None if missing
     """
     value = state.get(field_name)
     if not value:
@@ -39,32 +42,6 @@ def validate_state_field(state: Any, field_name: str, router_name: str) -> Any |
         )
         return None
     return value
-
-
-def get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
-    """Safely get attribute from problem (handles both dict and object).
-
-    After checkpoint restoration, Problem objects may be deserialized as dicts.
-    This helper handles both cases.
-    """
-    if problem is None:
-        return default
-    if isinstance(problem, dict):
-        return problem.get(attr, default)
-    return getattr(problem, attr, default)
-
-
-def get_subproblem_attr(sp: Any, attr: str, default: Any = None) -> Any:
-    """Safely get attribute from sub-problem (handles both dict and object).
-
-    After checkpoint restoration, SubProblem objects may be deserialized as dicts.
-    This helper handles both cases.
-    """
-    if sp is None:
-        return default
-    if isinstance(sp, dict):
-        return sp.get(attr, default)
-    return getattr(sp, attr, default)
 
 
 def log_routing_decision(router_name: str) -> Callable[[F], F]:

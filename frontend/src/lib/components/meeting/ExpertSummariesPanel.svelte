@@ -6,6 +6,7 @@
 	 */
 	import type { Persona } from '$lib/api/sse-events';
 	import { ChevronDown, ChevronUp } from 'lucide-svelte';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	interface Props {
 		expertSummaries: Record<string, string>; // persona_code → summary text
@@ -115,7 +116,7 @@
 					{#if isExpanded}
 						<div class="px-4 pb-4 bg-slate-50 dark:bg-slate-800/50">
 							<div class="prose prose-sm dark:prose-invert max-w-none">
-								<p class="text-slate-700 dark:text-slate-300 leading-relaxed">{summary}</p>
+								<MarkdownContent content={summary} />
 							</div>
 						</div>
 					{/if}

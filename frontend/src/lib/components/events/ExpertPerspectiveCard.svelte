@@ -119,9 +119,9 @@
 		{#if hasSummary && event.data.summary}
 			<!-- Simple View: 1-2 sentence summary (with fallback generation) -->
 			{#if viewMode === 'simple' && canShowSimple}
-				<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300">
-					{simpleFallback}
-				</p>
+				<div class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none line-clamp-4">
+					<MarkdownContent content={simpleFallback ?? ''} />
+				</div>
 			{:else}
 			<!-- Full View: Structured breakdown -->
 			<div class="space-y-3">
@@ -210,9 +210,9 @@
 	{:else}
 		<!-- Fallback: Show cleaned and truncated content when no summary available -->
 		{#if viewMode === 'simple'}
-			<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300">
-				{simpleFallback || extractCleanSummary(event.data.content, 250)}
-			</p>
+			<div class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none line-clamp-4">
+				<MarkdownContent content={simpleFallback || extractCleanSummary(event.data.content, 250)} />
+			</div>
 		{:else}
 			<div class="prose prose-sm dark:prose-invert max-w-none">
 				<MarkdownContent content={event.data.content} />

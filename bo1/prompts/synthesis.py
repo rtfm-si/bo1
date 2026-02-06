@@ -7,14 +7,10 @@ actionable recommendations and comprehensive reports.
 import re
 from typing import Any, NamedTuple
 
-from bo1.config import TokenBudgets
 from bo1.prompts.protocols import PLAIN_LANGUAGE_STYLE
 from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.prompts.style_adapter import get_style_instruction
 
-# Token budget constants for synthesis LLM calls (centralized in TokenBudgets)
-SYNTHESIS_MAX_TOKENS = TokenBudgets.SYNTHESIS
-META_SYNTHESIS_MAX_TOKENS = TokenBudgets.META_SYNTHESIS
 SYNTHESIS_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
 
 # =============================================================================

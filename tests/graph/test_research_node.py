@@ -182,24 +182,15 @@ async def test_research_node_basic_depth_selection(
     with patch("bo1.llm.embeddings.generate_embedding") as mock_embed:
         mock_embed.return_value = [0.1] * 1024  # Low similarity vector
 
-        # Mock numpy to return low similarity
-        with patch.object(
-            __import__("numpy", fromlist=["dot", "linalg"]),
-            "dot",
-            return_value=0.3,
-        ):
-            with patch.object(
-                __import__("numpy", fromlist=["linalg"]).linalg,
-                "norm",
-                return_value=1.0,
-            ):
-                base_state["facilitator_decision"] = {
-                    "action": "RESEARCH",
-                    "reasoning": "What is the weather forecast?",  # Simple query
-                }
+        # Mock cosine_similarity to return low similarity (below RESEARCH_DEPTH_TRIGGER)
+        with patch("bo1.llm.embeddings.cosine_similarity", return_value=0.3):
+            base_state["facilitator_decision"] = {
+                "action": "RESEARCH",
+                "reasoning": "What is the weather forecast?",  # Simple query
+            }
 
-                await research_node(base_state)
+            await research_node(base_state)
 
-                # Should use basic depth for non-strategic query
-                call_args = mock_researcher_agent.research_questions.call_args
-                assert call_args.kwargs["research_depth"] == "basic"
+            # Should use basic depth for non-strategic query
+            call_args = mock_researcher_agent.research_questions.call_args
+            assert call_args.kwargs["research_depth"] == "basic"

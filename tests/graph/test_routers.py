@@ -2,52 +2,21 @@
 
 from unittest.mock import patch
 
+from bo1.graph.router_utils import (
+    get_problem_attr as _get_problem_attr,
+)
+from bo1.graph.router_utils import (
+    get_subproblem_attr as _get_subproblem_attr,
+)
+from bo1.graph.router_utils import (
+    validate_state_field as _validate_state_field,
+)
 from bo1.graph.routers import (
-    _get_problem_attr,
-    _get_subproblem_attr,
-    _validate_state_field,
     route_clarification,
     route_convergence_check,
     route_facilitator_decision,
-    route_phase,
     route_subproblem_execution,
 )
-
-
-class TestRoutePhase:
-    """Tests for route_phase router."""
-
-    def test_decomposition_routes_to_select_personas(self):
-        """Should route to select_personas when phase is decomposition."""
-        state = {"phase": "decomposition"}
-
-        result = route_phase(state)
-
-        assert result == "select_personas"
-
-    def test_selection_routes_to_initial_round(self):
-        """Should route to initial_round when phase is selection."""
-        state = {"phase": "selection"}
-
-        result = route_phase(state)
-
-        assert result == "initial_round"
-
-    def test_discussion_routes_to_facilitator_decide(self):
-        """Should route to facilitator_decide when phase is discussion."""
-        state = {"phase": "discussion"}
-
-        result = route_phase(state)
-
-        assert result == "facilitator_decide"
-
-    def test_unknown_phase_routes_to_end(self):
-        """Should route to END for unknown phases."""
-        state = {"phase": "unknown"}
-
-        result = route_phase(state)
-
-        assert result == "END"
 
 
 class TestRouteConvergenceCheck:

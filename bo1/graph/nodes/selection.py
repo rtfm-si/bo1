@@ -25,6 +25,7 @@ from bo1.graph.utils import (
     track_phase_cost,
 )
 from bo1.models.state import DeliberationPhase
+from bo1.utils.checkpoint_helpers import get_attr_safe
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +106,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         problem = problem_state.get("problem")
         if problem:
             # Handle both dict (from checkpoint) and Problem object
-            if isinstance(problem, dict):
-                sub_problems = problem.get("sub_problems", [])
-            else:
-                sub_problems = problem.sub_problems or []
+            sub_problems = get_attr_safe(problem, "sub_problems", []) or []
 
             if sub_problems and sub_problem_index < len(sub_problems):
                 sp = sub_problems[sub_problem_index]
@@ -133,7 +131,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Handle both dict (from checkpoint) and Problem object
     problem = state["problem"]
-    problem_context = problem.get("context", "") if isinstance(problem, dict) else problem.context
+    problem_context = get_attr_safe(problem, "context", "")
 
     # Call selector with target count for adaptive expert selection
     response = await selector.recommend_personas(

@@ -7,6 +7,22 @@ These helpers provide safe access to attributes on objects that may be dicts.
 from typing import Any
 
 
+def is_corrupted_type_annotation(value: Any) -> bool:
+    """Check if a value is a corrupted type annotation path from checkpoint.
+
+    After LangGraph checkpoint restore, fields like sub_problem.id may become
+    corrupted to type annotation path lists like:
+    ['bo1', 'models', 'problem', 'SubProblem']
+
+    Args:
+        value: Value to check
+
+    Returns:
+        True if value looks like a corrupted type annotation (list of strings)
+    """
+    return isinstance(value, list)
+
+
 def get_attr_safe(obj: Any, attr: str, default: Any = None) -> Any:
     """Safely get attribute from an object that may be a dict.
 
@@ -30,6 +46,35 @@ def get_attr_safe(obj: Any, attr: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr, default)
     return getattr(obj, attr, default)
+
+
+def get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from problem (handles both dict and object).
+
+    After checkpoint restoration, Problem objects may be deserialized as dicts.
+    Delegates to get_attr_safe.
+    """
+    return get_attr_safe(problem, attr, default)
+
+
+def get_subproblem_attr(sp: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from sub-problem (handles both dict and object).
+
+    After checkpoint restoration, SubProblem objects may be deserialized as dicts.
+    For 'id' and 'goal' attributes, uses safe helpers that detect corruption.
+    """
+    if sp is None:
+        return default
+
+    # Use safe accessors for id and goal to handle corruption
+    if attr == "id":
+        result = get_sub_problem_id_safe(sp)
+        return result if result else default
+    if attr == "goal":
+        result = get_sub_problem_goal_safe(sp)
+        return result if result else default
+
+    return get_attr_safe(sp, attr, default)
 
 
 def get_sub_problem_goal(sp: Any) -> str:
@@ -72,7 +117,7 @@ def get_sub_problem_id_safe(sp: Any, logger: Any = None) -> str:
     raw_id = get_attr_safe(sp, "id", "")
 
     # Handle corrupted list case (type annotation path)
-    if isinstance(raw_id, list):
+    if is_corrupted_type_annotation(raw_id):
         if logger:
             logger.warning(
                 f"Corrupted sub_problem.id detected: {raw_id} - "
@@ -105,7 +150,7 @@ def get_sub_problem_goal_safe(sp: Any, logger: Any = None) -> str:
     raw_goal = get_attr_safe(sp, "goal", "")
 
     # Handle corrupted list case
-    if isinstance(raw_goal, list):
+    if is_corrupted_type_annotation(raw_goal):
         if logger:
             logger.warning(f"Corrupted sub_problem.goal detected: {raw_goal}")
         return ""

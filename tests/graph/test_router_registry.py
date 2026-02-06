@@ -10,7 +10,7 @@ class TestRouterRegistry:
         """get_router() returns a callable for valid router names."""
         from bo1.graph.routers import get_router
 
-        router = get_router("route_phase")
+        router = get_router("route_facilitator_decision")
         assert callable(router)
 
     def test_get_router_raises_keyerror(self):
@@ -31,7 +31,6 @@ class TestRouterRegistry:
 
         # Verify all expected routers are present
         expected = [
-            "route_phase",
             "route_facilitator_decision",
             "route_convergence_check",
             "route_clarification",
@@ -54,11 +53,7 @@ class TestRouterRegistry:
 
     def test_backward_compat_imports(self):
         """Backward compatibility: imports from bo1.graph.routers (file) still work."""
-        # Import from the file (which re-exports from package)
         from bo1.graph.routers import (
-            _get_problem_attr,
-            _get_subproblem_attr,
-            _validate_state_field,
             get_problem_attr,
             get_router,
             get_subproblem_attr,
@@ -71,13 +66,11 @@ class TestRouterRegistry:
             route_convergence_check,
             route_facilitator_decision,
             route_on_resume,
-            route_phase,
             route_subproblem_execution,
             validate_state_field,
         )
 
         # All imports should be callable
-        assert callable(route_phase)
         assert callable(route_facilitator_decision)
         assert callable(route_convergence_check)
         assert callable(route_clarification)
@@ -97,19 +90,12 @@ class TestRouterRegistry:
         assert callable(get_subproblem_attr)
         assert callable(log_routing_decision)
 
-        # Private aliases for backward compat
-        assert callable(_validate_state_field)
-        assert callable(_get_problem_attr)
-        assert callable(_get_subproblem_attr)
-
     def test_registry_functions_match_direct_imports(self):
         """Router functions from registry are the same as direct imports."""
         from bo1.graph.routers import get_router
         from bo1.graph.routers.facilitator import route_facilitator_decision
-        from bo1.graph.routers.phase import route_phase
         from bo1.graph.routers.synthesis import route_after_synthesis
 
-        assert get_router("route_phase") is route_phase
         assert get_router("route_facilitator_decision") is route_facilitator_decision
         assert get_router("route_after_synthesis") is route_after_synthesis
 
@@ -121,7 +107,6 @@ class TestRouterRegistry:
             route_convergence_check,
             route_facilitator_decision,
         )
-        from bo1.graph.routers.phase import route_phase
         from bo1.graph.routers.synthesis import (
             route_after_next_subproblem,
             route_after_synthesis,
@@ -130,7 +115,6 @@ class TestRouterRegistry:
         )
 
         # All should be callable
-        assert callable(route_phase)
         assert callable(route_facilitator_decision)
         assert callable(route_convergence_check)
         assert callable(route_clarification)

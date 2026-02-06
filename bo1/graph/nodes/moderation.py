@@ -419,7 +419,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     # Build discussion excerpt from recent contributions
     # Uses centralized ModerationConfig.RECENT_CONTRIBUTIONS_WINDOW
     window = ModerationConfig.RECENT_CONTRIBUTIONS_WINDOW
-    recent_contributions = contributions[-window:] if len(contributions) >= window else contributions
+    recent_contributions = (
+        contributions[-window:] if len(contributions) >= window else contributions
+    )
     discussion_excerpt = "\n\n".join(
         [f"{c.persona_name}: {c.content}" for c in recent_contributions]
     )

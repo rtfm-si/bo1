@@ -133,7 +133,7 @@
 							{eventTokens.insights.analyzing.label}
 						</p>
 						<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
-							{event.data.summary.looking_for}
+							<MarkdownContent content={event.data.summary.looking_for} />
 						</p>
 					</div>
 				{/if}
@@ -146,7 +146,7 @@
 							{eventTokens.insights.insight.label}
 						</p>
 						<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
-							{event.data.summary.value_added}
+							<MarkdownContent content={event.data.summary.value_added} />
 						</p>
 					</div>
 				{/if}
@@ -162,7 +162,7 @@
 							{#each event.data.summary.concerns as concern, i (i)}
 								<li class="flex items-start gap-2">
 									<span class="text-neutral-500 dark:text-neutral-400 flex-shrink-0 mt-1">•</span>
-									<span class="leading-relaxed">{concern}</span>
+									<span class="leading-relaxed"><MarkdownContent content={concern} /></span>
 								</li>
 							{/each}
 						</ul>
@@ -180,7 +180,7 @@
 							{#each event.data.summary.questions as question, i (i)}
 								<li class="flex items-start gap-2">
 									<span class="text-neutral-500 dark:text-neutral-400 flex-shrink-0 mt-1">•</span>
-									<span class="leading-relaxed">{question}</span>
+									<span class="leading-relaxed"><MarkdownContent content={question} /></span>
 								</li>
 							{/each}
 						</ul>

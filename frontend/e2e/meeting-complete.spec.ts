@@ -10,6 +10,96 @@
  *
  * Note: These tests use mocked API responses to simulate completed meetings.
  * Full SSE streaming is not tested here.
+ *
+ * ============================================================================
+ * MEETING PAGE INTERACTION GUIDE
+ * ============================================================================
+ *
+ * PAGE STRUCTURE:
+ * - MeetingHeader: Contains status badge, pause/resume, share button
+ * - WorkingStatusBanner: Shows current phase during active meetings
+ * - Main grid: 2/3 events panel + 1/3 sidebar
+ * - Events container: id="events-container" (scrollable, holds all event cards)
+ * - Sidebar: Problem statement (details), DecisionMetrics, Export button
+ *
+ * KEY SELECTORS:
+ *
+ * Connection Status (only visible during active meetings):
+ *   - page.getByText('Connecting...')
+ *   - page.getByText('Connected')
+ *   - page.getByText(/Retrying/)
+ *
+ * View Controls:
+ *   - page.locator('#auto-scroll-checkbox')  // Auto-scroll toggle
+ *   - page.getByRole('button', { name: 'Simple' })  // Simple view mode
+ *   - page.getByRole('button', { name: 'Detailed' })  // Detailed view mode
+ *
+ * Tab Navigation (multi-sub-problem meetings):
+ *   - page.getByRole('tab', { name: /Summary/i })  // Conclusion/Summary tab
+ *   - page.getByRole('tab', { name: /Focus Area|Market|Resource/i })  // Sub-problem tabs
+ *   - page.getByRole('tabpanel', { name: /Summary/i })  // Active tab panel
+ *
+ * Events & Content:
+ *   - page.locator('#events-container')  // Main scrollable container
+ *   - page.getByText(/Meeting Complete|Completed/i)  // Status in header
+ *   - page.getByText('AI-generated content')  // AiDisclaimer footer
+ *
+ * Sidebar Elements:
+ *   - page.locator('summary:has-text("Problem Statement")')  // Collapsible details
+ *   - page.getByRole('button', { name: /Export|Download|PDF/i })  // PDF export
+ *   - page.locator('[data-testid="metrics"]')  // Metrics panel (if present)
+ *
+ * Event Cards:
+ *   - Contribution cards: Look for persona_name text
+ *   - Synthesis cards: Look for "Executive Summary", "Recommendation"
+ *   - Expert panel: Look for expert names grouped together
+ *
+ * MOCKING STRATEGY:
+ *
+ * 1. Session endpoint: /api/v1/sessions/{id}
+ *    Returns: { id, status, phase, problem: { statement, sub_problems }, ... }
+ *
+ * 2. Events endpoint: /api/v1/sessions/{id}/events
+ *    Returns: { session_id, events: [...], count }
+ *
+ * 3. SSE stream: /api/v1/sessions/{id}/stream
+ *    For completed: Return session_complete immediately
+ *    For active: Return incremental events
+ *
+ * EVENT TYPES TO MOCK:
+ *   - session_started: Marks meeting start
+ *   - decomposition_complete: Shows focus areas (sub_problems array)
+ *   - persona_selected/experts_selected: Shows expert panel
+ *   - contribution: Expert input (has persona_name, content, round, summary)
+ *   - convergence: Round completion metrics
+ *   - synthesis_complete/subproblem_complete: Focus area conclusion
+ *   - meta_synthesis_complete: Final synthesis (multi-sub-problem)
+ *   - session_complete: Marks meeting end
+ *
+ * COMMON PATTERNS:
+ *
+ * Wait for page load:
+ *   await page.waitForLoadState('networkidle');
+ *
+ * Handle auth redirect:
+ *   if (page.url().includes('/login')) { test.skip(); return; }
+ *
+ * Check for text in specific area:
+ *   const tabPanel = page.getByRole('tabpanel', { name: /Summary/i });
+ *   await expect(tabPanel.getByText('some text')).toBeVisible();
+ *
+ * Check events container content:
+ *   const container = page.locator('#events-container');
+ *   await expect(container.getByText('Expert Name')).toBeVisible();
+ *
+ * Wait for dynamic content:
+ *   await expect(page.getByText(/expected/i)).toBeVisible({ timeout: 5000 });
+ *
+ * DEBUGGING TIPS:
+ *   - Add ?debug query param to show internal events
+ *   - Check browser console for [Events] log messages
+ *   - Use page.screenshot() to capture state
+ *   - Use mcp__playwright__browser_snapshot() for accessibility tree
  */
 import { test, expect } from './fixtures';
 

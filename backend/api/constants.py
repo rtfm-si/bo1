@@ -129,9 +129,7 @@ SSE_RECONNECT_BACKOFF_MAX_SECONDS: int = int(
 )
 
 # Session Lock Configuration
-SESSION_LOCK_TIMEOUT_SECONDS: float = float(
-    os.environ.get("SESSION_LOCK_TIMEOUT_SECONDS", "5.0")
-)
+SESSION_LOCK_TIMEOUT_SECONDS: float = float(os.environ.get("SESSION_LOCK_TIMEOUT_SECONDS", "5.0"))
 """Timeout for Redis distributed session locks (default 5 seconds)"""
 
 

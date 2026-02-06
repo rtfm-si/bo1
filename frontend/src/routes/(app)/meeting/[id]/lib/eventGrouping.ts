@@ -40,6 +40,8 @@ export const STATUS_NOISE_EVENTS = [
 	'meta_synthesis_started', // Hidden - meta_synthesis_complete provides the actual content
 	'comparison_detected', // Hidden - internal info, not user-facing
 	'clarification_required', // Hidden - triggers ClarificationForm UI, not shown as event card
+	'contribution_started', // Hidden - lifecycle event, contributions shown via ExpertPerspectiveCard
+	'speculative_execution_started', // Hidden - internal orchestration detail
 ];
 
 /**

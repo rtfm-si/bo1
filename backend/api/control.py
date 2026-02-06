@@ -735,7 +735,9 @@ async def start_deliberation(
         # Update session status to 'running' in PostgreSQL (with distributed lock)
         # Also invalidate cache to ensure SSE endpoint sees new status
         try:
-            with session_lock(redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS):
+            with session_lock(
+                redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS
+            ):
                 session_repository.update_status(session_id=session_id, status="running")
                 # Invalidate cached metadata so SSE sees "running" not stale "created"
                 get_session_metadata_cache().invalidate(session_id)
@@ -1233,7 +1235,9 @@ async def kill_deliberation(
 
         # Update session status to 'killed' in PostgreSQL (with distributed lock)
         try:
-            with session_lock(redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS):
+            with session_lock(
+                redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS
+            ):
                 session_repository.update_status(session_id=session_id, status="killed")
                 # Invalidate cached metadata on status change
                 get_session_metadata_cache().invalidate(session_id)
@@ -1439,7 +1443,9 @@ async def retry_deliberation(
 
     # Update session status to 'running' in PostgreSQL
     try:
-        with session_lock(redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS):
+        with session_lock(
+            redis_manager.redis, session_id, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS
+        ):
             session_repository.update_status(session_id=session_id, status="running")
             logger.info(
                 f"Retried deliberation for session {session_id} (status updated in PostgreSQL)"

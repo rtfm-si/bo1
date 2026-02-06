@@ -34,3 +34,11 @@ create more meeting examples
 google search content thing
 
 check codebase for hardcoded / magic numbers
+
+fix warnings
+
+why do some meeting actions look different to others?
+we seem to display
+
+use playwright to screen grab the meeting output at various stages
+or slash command?

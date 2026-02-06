@@ -58,11 +58,6 @@
 						</p>
 					{/if}
 
-					{#if expert.persona.domain_expertise && expert.persona.domain_expertise.length > 0}
-						<p class="text-xs text-slate-500 dark:text-slate-400 truncate" title={expert.persona.domain_expertise.join(', ')}>
-							{expert.persona.domain_expertise.slice(0, 2).join(', ')}
-						</p>
-					{/if}
 				</div>
 
 				<!-- Rationale (expandable on hover/focus) -->

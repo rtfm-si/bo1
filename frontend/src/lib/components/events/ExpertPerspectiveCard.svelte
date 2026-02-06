@@ -87,7 +87,7 @@
 			return extractCleanSummary(event.data.summary.value_added, 250);
 		}
 		if (event.data.content) {
-			return extractCleanSummary(event.data.content, 250);
+			return event.data.content;
 		}
 		return null;
 	});
@@ -210,8 +210,8 @@
 	{:else}
 		<!-- Fallback: Show cleaned and truncated content when no summary available -->
 		{#if viewMode === 'simple'}
-			<div class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none line-clamp-4">
-				<MarkdownContent content={simpleFallback || extractCleanSummary(event.data.content, 250)} />
+			<div class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none max-h-28 overflow-hidden">
+				<MarkdownContent content={simpleFallback || event.data.content} />
 			</div>
 		{:else}
 			<div class="prose prose-sm dark:prose-invert max-w-none">

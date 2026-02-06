@@ -642,7 +642,7 @@
 	/>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Working Status Banner -->
 		<WorkingStatusBanner
 			currentWorkingPhase={timing.currentWorkingPhase}
@@ -844,6 +844,8 @@
 									{@const subGroupedEvents = memoized.groupedEvents.filter((group) => {
 										if (group.type === 'single' && group.event) {
 											if (group.event.event_type === 'decomposition_complete') return false;
+											if (group.event.event_type === 'subproblem_complete') return false;
+											if (group.event.event_type === 'synthesis_complete') return false;
 											const eventSubIndex = getSubProblemIndex(group.event);
 											return eventSubIndex === tabIndex;
 										} else if (group.type === 'round' || group.type === 'expert_panel') {

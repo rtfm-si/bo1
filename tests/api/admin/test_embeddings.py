@@ -75,12 +75,12 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False  # No cache
-            mock_stats.return_value = {"total_embeddings": 1000}
+            mock_total.return_value = 1000
             mock_samples.return_value = [
                 {
                     "embedding": [0.1] * 1024,
@@ -117,12 +117,12 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False
-            mock_stats.return_value = {"total_embeddings": 500}
+            mock_total.return_value = 500
             mock_samples.return_value = []
             mock_compute.return_value = []
 
@@ -142,12 +142,12 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False
-            mock_stats.return_value = {"total_embeddings": 500}
+            mock_total.return_value = 500
             mock_samples.return_value = []
             mock_compute.return_value = []
 
@@ -167,12 +167,12 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False
-            mock_stats.return_value = {"total_embeddings": 100}
+            mock_total.return_value = 100
             mock_samples.return_value = []
             mock_compute.return_value = []
 
@@ -227,12 +227,12 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False
-            mock_stats.return_value = {"total_embeddings": 100}
+            mock_total.return_value = 100
             mock_samples.return_value = []
             mock_compute.return_value = []
 
@@ -254,14 +254,14 @@ class TestEmbeddingsSample:
             patch("backend.api.admin.embeddings.get_redis_manager") as mock_redis_mgr,
             patch("backend.api.admin.embeddings.compute_2d_coordinates") as mock_compute,
             patch("backend.api.admin.embeddings.get_sample_embeddings") as mock_samples,
-            patch("backend.api.admin.embeddings.get_embedding_stats") as mock_stats,
+            patch("backend.api.admin.embeddings.get_total_embedding_count") as mock_total,
             patch("backend.api.admin.embeddings.compute_clusters") as mock_clusters,
             patch("backend.api.admin.embeddings.generate_cluster_labels") as mock_labels,
             patch("backend.api.middleware.admin.verify_admin_key_secure", return_value=True),
             patch("backend.api.middleware.admin.ADMIN_API_KEY", "test-admin-key"),
         ):
             mock_redis_mgr.return_value.is_available = False
-            mock_stats.return_value = {"total_embeddings": 100}
+            mock_total.return_value = 100
             # Return 25 points to trigger clustering
             mock_samples.return_value = [{"embedding": [0.1] * 1024}] * 25
             mock_compute.return_value = [

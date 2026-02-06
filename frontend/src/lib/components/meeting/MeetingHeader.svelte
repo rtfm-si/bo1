@@ -76,7 +76,7 @@
 <svelte:window onclick={handleClickOutside} />
 
 <header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-4">
 				<a

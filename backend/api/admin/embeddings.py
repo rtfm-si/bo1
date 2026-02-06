@@ -22,6 +22,7 @@ from backend.services.embedding_visualizer import (
     get_distinct_categories,
     get_embedding_stats,
     get_sample_embeddings,
+    get_total_embedding_count,
 )
 from bo1.utils.logging import get_logger
 
@@ -117,7 +118,10 @@ async def get_stats(
     _admin: str = Depends(require_admin_any),
 ) -> EmbeddingStatsResponse:
     """Get embedding storage statistics."""
-    stats = get_embedding_stats()
+    import asyncio
+
+    loop = asyncio.get_event_loop()
+    stats = await loop.run_in_executor(None, get_embedding_stats)
     logger.info("Admin: Retrieved embedding statistics")
     return EmbeddingStatsResponse(**stats)
 
@@ -171,6 +175,7 @@ async def get_sample(
     _admin: str = Depends(require_admin_any),
 ) -> EmbeddingSampleResponse:
     """Get sample embeddings with 2D coordinates for visualization."""
+    import asyncio
     import json
     from collections import Counter
 
@@ -186,50 +191,54 @@ async def get_sample(
             logger.info(f"Admin: Returning cached embedding sample ({len(data['points'])} points)")
             return EmbeddingSampleResponse(**data)
 
-    # Get stats for total count
-    stats = get_embedding_stats()
+    # Run CPU-heavy work off the event loop
+    def _compute() -> EmbeddingSampleResponse:
+        total = get_total_embedding_count()
+        samples = get_sample_embeddings(
+            embedding_type=embedding_type, limit=limit, category=category
+        )
+        points = compute_2d_coordinates(samples, method=method)
 
-    # Get samples and compute 2D coordinates
-    samples = get_sample_embeddings(embedding_type=embedding_type, limit=limit, category=category)
-    points = compute_2d_coordinates(samples, method=method)
-
-    # Compute clusters if we have enough points
-    clusters: list[ClusterInfo] = []
-    if len(points) >= 20:
-        coords = [(p["x"], p["y"]) for p in points]
-        previews = [p["preview"] for p in points]
-        cluster_assignments, centroids = compute_clusters(coords)
-        cluster_labels = generate_cluster_labels(cluster_assignments, previews, centroids, coords)
-
-        # Add cluster_id to each point
-        for i, p in enumerate(points):
-            p["cluster_id"] = cluster_assignments[i]
-
-        # Build cluster info
-        cluster_counts = Counter(cluster_assignments)
-        for cluster_id in range(len(centroids)):
-            cx, cy = centroids[cluster_id]
-            clusters.append(
-                ClusterInfo(
-                    id=cluster_id,
-                    label=cluster_labels[cluster_id],
-                    count=cluster_counts.get(cluster_id, 0),
-                    centroid={"x": cx, "y": cy},
-                )
+        # Compute clusters if we have enough points
+        clusters: list[ClusterInfo] = []
+        if len(points) >= 20:
+            coords = [(p["x"], p["y"]) for p in points]
+            previews = [p["preview"] for p in points]
+            cluster_assignments, centroids = compute_clusters(coords)
+            cluster_labels = generate_cluster_labels(
+                cluster_assignments, previews, centroids, coords
             )
 
-    response = EmbeddingSampleResponse(
-        points=[EmbeddingPoint(**p) for p in points],
-        method=method,
-        total_available=stats["total_embeddings"],
-        clusters=clusters,
-    )
+            for i, p in enumerate(points):
+                p["cluster_id"] = cluster_assignments[i]
+
+            cluster_counts = Counter(cluster_assignments)
+            for cluster_id in range(len(centroids)):
+                cx, cy = centroids[cluster_id]
+                clusters.append(
+                    ClusterInfo(
+                        id=cluster_id,
+                        label=cluster_labels[cluster_id],
+                        count=cluster_counts.get(cluster_id, 0),
+                        centroid={"x": cx, "y": cy},
+                    )
+                )
+
+        return EmbeddingSampleResponse(
+            points=[EmbeddingPoint(**p) for p in points],
+            method=method,
+            total_available=total,
+            clusters=clusters,
+        )
+
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(None, _compute)
 
     # Cache result
     if redis:
         redis.setex(cache_key, EMBEDDING_CACHE_TTL, json.dumps(response.model_dump()))
 
     logger.info(
-        f"Admin: Retrieved embedding sample ({len(points)} points, method={method}, clusters={len(clusters)})"
+        f"Admin: Retrieved embedding sample ({len(response.points)} points, method={method}, clusters={len(response.clusters)})"
     )
     return response

@@ -48,6 +48,8 @@ ignore = [
 "migrations/versions/*.py" = [
     "D415",    # first line punctuation not needed in migration docstrings
 ]
+# Re-exports at bottom of file after class definitions
+"bo1/graph/state.py" = ["E402", "I001"]
 # Batch-generated service files - relax docstring/annotation requirements for internal dataclasses
 "backend/services/dataset_comparator.py" = ["D102", "D107", "ANN204"]
 "backend/services/deterministic_analyzer.py" = ["D102", "D107", "ANN204"]

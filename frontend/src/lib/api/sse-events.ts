@@ -259,8 +259,10 @@ export type Persona = PersonaInfo;
  */
 export interface ContributionSummary {
 	concise: string;
-	detailed: string;
-	key_points: string[];
+	looking_for: string;
+	value_added: string;
+	concerns: string[];
+	questions: string[];
 }
 
 /**

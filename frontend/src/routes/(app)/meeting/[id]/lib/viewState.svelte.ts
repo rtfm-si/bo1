@@ -3,6 +3,7 @@
  * Handles UI state for sub-problem tabs and contribution display modes
  */
 
+import { untrack } from 'svelte';
 import type { SSEEvent } from '$lib/api/sse-events';
 import type { SubProblemTab } from './subProblemTabs';
 
@@ -51,14 +52,15 @@ export function createViewState(config: ViewStateConfig) {
 	}
 
 	function initializeTab(tabs: SubProblemTab[]) {
-		if (tabs.length > 0 && !activeSubProblemTab) {
+		const current = untrack(() => activeSubProblemTab);
+		if (tabs.length > 0 && !current) {
 			activeSubProblemTab = tabs[0].id;
 		}
 		// Also ensure active tab exists in tabs array (handles stale tab selection)
-		if (activeSubProblemTab && tabs.length > 0) {
-			const isValidTab = tabs.some(t => t.id === activeSubProblemTab) ||
-				activeSubProblemTab === 'conclusion' ||
-				activeSubProblemTab === 'actions';
+		if (current && tabs.length > 0) {
+			const isValidTab = tabs.some(t => t.id === current) ||
+				current === 'conclusion' ||
+				current === 'actions';
 			if (!isValidTab) {
 				activeSubProblemTab = tabs[0].id;
 			}

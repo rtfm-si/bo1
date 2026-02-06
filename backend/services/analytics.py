@@ -83,9 +83,8 @@ def get_cost_summary() -> CostSummary:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(total_cost), 0) as total,
-                       COUNT(*) as count
-                FROM sessions
-                WHERE status IN ('completed', 'running', 'killed')
+                       COUNT(DISTINCT session_id) as count
+                FROM api_costs
                 """
             )
             row = cur.fetchone()
@@ -96,10 +95,9 @@ def get_cost_summary() -> CostSummary:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(total_cost), 0) as total,
-                       COUNT(*) as count
-                FROM sessions
+                       COUNT(DISTINCT session_id) as count
+                FROM api_costs
                 WHERE created_at >= %s
-                  AND status IN ('completed', 'running', 'killed')
                 """,
                 (today_start,),
             )
@@ -111,10 +109,9 @@ def get_cost_summary() -> CostSummary:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(total_cost), 0) as total,
-                       COUNT(*) as count
-                FROM sessions
+                       COUNT(DISTINCT session_id) as count
+                FROM api_costs
                 WHERE created_at >= %s
-                  AND status IN ('completed', 'running', 'killed')
                 """,
                 (week_start,),
             )
@@ -126,10 +123,9 @@ def get_cost_summary() -> CostSummary:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(total_cost), 0) as total,
-                       COUNT(*) as count
-                FROM sessions
+                       COUNT(DISTINCT session_id) as count
+                FROM api_costs
                 WHERE created_at >= %s
-                  AND status IN ('completed', 'running', 'killed')
                 """,
                 (month_start,),
             )
@@ -173,18 +169,18 @@ def get_user_costs(
             params: list[Any] = []
 
             if start_date:
-                date_filter += " AND s.created_at >= %s"
+                date_filter += " AND ac.created_at >= %s"
                 params.append(datetime.combine(start_date, datetime.min.time()))
             if end_date:
-                date_filter += " AND s.created_at < %s"
+                date_filter += " AND ac.created_at < %s"
                 params.append(datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
 
             # Get total count
             cur.execute(
                 f"""
-                SELECT COUNT(DISTINCT s.user_id) as total
-                FROM sessions s
-                WHERE s.status IN ('completed', 'running', 'killed')
+                SELECT COUNT(DISTINCT ac.user_id) as total
+                FROM api_costs ac
+                WHERE ac.user_id IS NOT NULL
                 {date_filter}
                 """,
                 params,
@@ -194,15 +190,15 @@ def get_user_costs(
             # Get user costs
             cur.execute(
                 f"""
-                SELECT s.user_id,
+                SELECT ac.user_id,
                        u.email,
-                       COALESCE(SUM(s.total_cost), 0) as total_cost,
-                       COUNT(*) as session_count
-                FROM sessions s
-                LEFT JOIN users u ON u.id = s.user_id
-                WHERE s.status IN ('completed', 'running', 'killed')
+                       COALESCE(SUM(ac.total_cost), 0) as total_cost,
+                       COUNT(DISTINCT ac.session_id) as session_count
+                FROM api_costs ac
+                LEFT JOIN users u ON u.id = ac.user_id
+                WHERE ac.user_id IS NOT NULL
                 {date_filter}
-                GROUP BY s.user_id, u.email
+                GROUP BY ac.user_id, u.email
                 ORDER BY total_cost DESC
                 LIMIT %s OFFSET %s
                 """,
@@ -246,11 +242,10 @@ def get_daily_costs(
                 """
                 SELECT DATE(created_at) as day,
                        COALESCE(SUM(total_cost), 0) as total_cost,
-                       COUNT(*) as session_count
-                FROM sessions
+                       COUNT(DISTINCT session_id) as session_count
+                FROM api_costs
                 WHERE created_at >= %s
                   AND created_at < %s
-                  AND status IN ('completed', 'running', 'killed')
                 GROUP BY DATE(created_at)
                 ORDER BY day ASC
                 """,
@@ -281,9 +276,10 @@ def get_session_cost(session_id: str) -> dict[str, Any] | None:
     """
     with db_session() as conn:
         with conn.cursor() as cur:
+            # Get session metadata
             cur.execute(
                 """
-                SELECT id, total_cost, status, created_at
+                SELECT id, status, created_at
                 FROM sessions
                 WHERE id = %s
                 """,
@@ -293,11 +289,25 @@ def get_session_cost(session_id: str) -> dict[str, Any] | None:
             if not row:
                 return None
 
+            status = row["status"]
+            created_at = row["created_at"]
+
+            # Get actual cost from api_costs
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(total_cost), 0) as total_cost
+                FROM api_costs
+                WHERE session_id = %s
+                """,
+                (session_id,),
+            )
+            cost_row = cur.fetchone()
+
             return {
-                "session_id": row["id"],
-                "total_cost": float(row["total_cost"] or 0),
-                "status": row["status"],
-                "created_at": row["created_at"].isoformat(),
+                "session_id": session_id,
+                "total_cost": float(cost_row["total_cost"]) if cost_row else 0.0,
+                "status": status,
+                "created_at": created_at.isoformat(),
             }
 
 

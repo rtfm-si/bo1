@@ -63,8 +63,7 @@ class TestGetEmbeddingStats:
         """Returns zeros when no embeddings exist."""
         mock_cursor = MagicMock()
         mock_cursor.fetchone.side_effect = [
-            {"count": 0},  # contributions
-            {"count": 0},  # research_cache
+            {"contributions": 0, "research": 0},  # single combined query
             {"exists": False},  # context_chunks table check
         ]
         mock_conn = MagicMock()
@@ -84,10 +83,9 @@ class TestGetEmbeddingStats:
         """Returns correct counts and storage estimates."""
         mock_cursor = MagicMock()
         mock_cursor.fetchone.side_effect = [
-            {"count": 100},  # contributions
-            {"count": 50},  # research_cache
+            {"contributions": 100, "research": 50},  # single combined query
             {"exists": True},  # context_chunks table exists
-            {"count": 25},  # context_chunks
+            {"c": 25},  # context_chunks count
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor

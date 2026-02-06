@@ -84,7 +84,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Header -->
 		<div class="flex items-center justify-between mb-6">
 			<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Meetings</h1>

@@ -18,7 +18,7 @@
 	let error = $state<string | null>(null);
 	let selectedType = $state<'all' | 'contributions' | 'research' | 'context'>('all');
 	let selectedMethod = $state<'pca' | 'umap'>('pca');
-	let sampleLimit = $state(500);
+	let sampleLimit = $state(200);
 	let hoveredPoint = $state<EmbeddingPoint | null>(null);
 	let tooltipPosition = $state({ x: 0, y: 0 });
 
@@ -111,14 +111,25 @@
 		return { viewBox: '0 0 100 100', scaled, scaledClusters };
 	}
 
+	// Track previous filter values to avoid double-fire on mount
+	let prevType = $state(selectedType);
+	let prevMethod = $state(selectedMethod);
+	let prevLimit = $state(sampleLimit);
+
 	onMount(() => {
 		loadStats();
 		loadSample();
 	});
 
-	// Reload when filters change
+	// Reload only when filters actually change (not on initial mount)
 	$effect(() => {
-		if (selectedType || selectedMethod || sampleLimit) {
+		const typeChanged = selectedType !== prevType;
+		const methodChanged = selectedMethod !== prevMethod;
+		const limitChanged = sampleLimit !== prevLimit;
+		if (typeChanged || methodChanged || limitChanged) {
+			prevType = selectedType;
+			prevMethod = selectedMethod;
+			prevLimit = sampleLimit;
 			loadSample();
 		}
 	});

@@ -731,7 +731,9 @@ async def test_verify_event_persistence_logs_mismatch():
 # ============================================================================
 
 
-@pytest.mark.skip(reason="Flaky: IndexError on mock call arg access - call structure varies between positional/kwargs")
+@pytest.mark.skip(
+    reason="Flaky: IndexError on mock call arg access - call structure varies between positional/kwargs"
+)
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_collect_with_custom_events_timeout():

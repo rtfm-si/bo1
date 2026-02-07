@@ -846,6 +846,8 @@
 											if (group.event.event_type === 'decomposition_complete') return false;
 											if (group.event.event_type === 'subproblem_complete') return false;
 											if (group.event.event_type === 'synthesis_complete') return false;
+											if (group.event.event_type === 'meta_synthesis_complete') return false;
+											if (group.event.event_type === 'complete') return false;
 											const eventSubIndex = getSubProblemIndex(group.event);
 											return eventSubIndex === tabIndex;
 										} else if (group.type === 'round' || group.type === 'expert_panel') {
@@ -1063,9 +1065,15 @@
 							</div>
 						{:else}
 							<!-- Single sub-problem or linear view -->
+							{@const linearGroupedEvents = memoized.groupedEvents.filter((group) => {
+								if (group.type === 'single' && group.event) {
+									return !['synthesis_complete','meta_synthesis_complete','subproblem_complete','complete'].includes(group.event.event_type);
+								}
+								return true;
+							})}
 							<EventStream
 								{events}
-								groupedEvents={memoized.groupedEvents}
+								groupedEvents={linearGroupedEvents}
 								{session}
 								{isLoading}
 								visibleContributionCounts={revealManager.visibleContributionCounts}
@@ -1087,6 +1095,31 @@
 								isTransitioningSubProblem={waiting.isTransitioningSubProblem}
 								onToggleCardViewMode={view.toggleCardViewMode}
 							/>
+
+							<!-- Conclusion section for single sub-problem -->
+							{#if eventState.showConclusionTab}
+								<div class="p-4 space-y-6">
+									{#if eventState.metaSynthesisEvent}
+										<DynamicEventComponent
+											event={eventState.metaSynthesisEvent}
+											eventType="synthesis_complete"
+										/>
+									{:else if eventState.synthesisCompleteEvent}
+										<div class="space-y-6">
+											<DynamicEventComponent
+												event={eventState.synthesisCompleteEvent}
+												eventType="synthesis_complete"
+											/>
+											{#if session?.expert_summaries_by_subproblem?.[getSubProblemIndex(eventState.synthesisCompleteEvent) ?? 0] && eventState.personasBySubProblem[getSubProblemIndex(eventState.synthesisCompleteEvent) ?? 0]}
+												<ExpertSummariesPanel
+													expertSummaries={session.expert_summaries_by_subproblem[getSubProblemIndex(eventState.synthesisCompleteEvent) ?? 0]}
+													personas={eventState.personasBySubProblem[getSubProblemIndex(eventState.synthesisCompleteEvent) ?? 0]}
+												/>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/if}
 						{/if}
 					</div>
 				</div>

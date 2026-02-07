@@ -75,6 +75,15 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 
 	// Single iteration with inline filtering (combine filter + group logic)
 	for (const event of events) {
+		// Handle round_started BEFORE filtering - extract round number, then skip rendering
+		if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
+			const data = event.data as { round_number?: number };
+			if (data.round_number) {
+				currentRoundNumber = data.round_number;
+			}
+			continue;
+		}
+
 		// Handle persona_selection_complete BEFORE filtering (used as flush trigger)
 		if (event.event_type === 'persona_selection_complete') {
 			// CRITICAL FIX: Flush expert panel immediately when selection completes
@@ -106,14 +115,6 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 		if ((event.event_type as string) === 'subproblem_waiting') {
 			const idx = getSubProblemIndex(event);
 			if (idx !== undefined && subProblemsWithContent.has(idx)) continue;
-		}
-
-		// Track round_started events to get round numbers
-		if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
-			const data = event.data as { round_number?: number };
-			if (data.round_number) {
-				currentRoundNumber = data.round_number;
-			}
 		}
 
 		// Track subproblem_started for context

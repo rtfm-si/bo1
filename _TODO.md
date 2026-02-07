@@ -4,7 +4,7 @@ are there any other places where the user experience andquality of the app would
 
 check claude and chatgpt and voyage payment details are ok (switch to bank account)
 
-check blog, decisions, features, usecases and compare all work and added to google search
+check blog, decisions, features, usecases and compare pages all work and added to google search centre
 
 check meeting runs properly
 sub problems
@@ -13,8 +13,6 @@ expert selection
 contributions
 sub problem summary
 final summary
-why cant go back to sub problems?
-task decomposition on sub problems or final summary? think final summary
 
 fix user seo generation
 fix seo analysis
@@ -42,11 +40,3 @@ we seem to display
 
 use playwright to screen grab the meeting output at various stages
 or slash command?
-
-What This Does NOT Do │
-│ │
-│ - Does not refactor meeting page components (separate effort) │
-│ - Does not create new design tokens (existing system is comprehensive) │
-│ - Does not force-migrate to Bo\* wrappers (minimal benefit) │
-│ - Does not touch landing/marketing pages │
-│ - Does not create a StatCard component (only ~5 instances, not worth extracting yet)

@@ -26,10 +26,12 @@ from bo1.graph.safety.loop_prevention import check_convergence_node as _check_co
 from bo1.graph.utils import track_aggregated_cost, track_phase_cost
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
+from bo1.llm.response_parser import ResponseParser
 from bo1.models.persona import PersonaProfile
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
 from bo1.orchestration.voting import collect_recommendations
 from bo1.prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE, get_limited_context_sections
+from bo1.prompts.sanitizer import strip_prompt_artifacts
 from bo1.state.repositories import contribution_repository
 
 logger = logging.getLogger(__name__)
@@ -292,7 +294,7 @@ Your expertise: {", ".join(expert.domain_expertise)}
 {phase_instructions.get(current_phase, "")}{targeted_guidance}
 
 Respond with your analysis and recommendations. Be specific and actionable.
-Use <thinking> tags for internal reasoning, then provide your contribution."""
+Use <thinking> tags for private reasoning, then wrap your response in <contribution> tags."""
 
             broker = PromptBroker()
             request = PromptRequest(
@@ -308,14 +310,18 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
             )
 
             response = await broker.call(request)
-            content = "<thinking>" + response.content
+            raw_content = "<thinking>" + response.content
+
+            # Parse thinking from contribution content
+            thinking_text, contribution_text = ResponseParser.parse_persona_response(raw_content)
+            contribution_text = strip_prompt_artifacts(contribution_text)
 
             # Create contribution
             contribution = ContributionMessage(
                 persona_code=expert.code,
                 persona_name=expert.display_name,
-                content=content,
-                thinking=None,
+                content=contribution_text,
+                thinking=thinking_text,
                 contribution_type=ContributionType.INITIAL
                 if round_number == 1
                 else ContributionType.RESPONSE,
@@ -330,7 +336,7 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
                 contribution_repository.save_contribution(
                     session_id=state["session_id"],
                     persona_code=expert.code,
-                    content=content,
+                    content=contribution_text,
                     round_number=round_number,
                     phase="deliberation",
                     cost=response.cost_total,
@@ -356,7 +362,7 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
                     "persona_name": expert.display_name,
                     "archetype": expert.archetype,
                     "domain_expertise": expert.domain_expertise,
-                    "content": content,
+                    "content": contribution_text,
                     "contribution_type": "initial" if round_number == 1 else "followup",
                 }
             )

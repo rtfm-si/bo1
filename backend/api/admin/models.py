@@ -2058,6 +2058,22 @@ class PromptTypeCacheResponse(BaseModel):
     days: int = Field(..., description="Days analyzed")
 
 
+class PeriodAverage(BaseModel):
+    """Cost averages for a single time period."""
+
+    label: str = Field(..., description="Period label: 24h, 7d, 30d")
+    avg_per_session: float = Field(..., description="Average cost per session (USD)")
+    avg_per_meeting: float = Field(..., description="Alias for avg_per_session")
+    total_cost: float = Field(..., description="Total cost in period (USD)")
+    unique_sessions: int = Field(..., description="Unique sessions in period")
+
+
+class CostAveragesResponse(BaseModel):
+    """Multi-period cost averages."""
+
+    periods: list[PeriodAverage] = Field(..., description="Averages per period")
+
+
 class QualityIndicatorsResponse(BaseModel):
     """Response model for quality correlation indicators.
 

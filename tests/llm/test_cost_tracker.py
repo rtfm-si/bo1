@@ -1242,7 +1242,7 @@ class TestGetCacheMetrics:
         ):
             # Mock prompt cache query (Anthropic)
             mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
-            mock_cursor.fetchone.return_value = (10, 40, 50)  # hits, misses, total
+            mock_cursor.fetchone.return_value = {"hits": 10, "misses": 40, "total": 50}
 
             # Mock research cache
             mock_repo.get_hit_rate_metrics.return_value = {
@@ -1311,7 +1311,7 @@ class TestGetCacheMetrics:
             patch("backend.api.dependencies.get_session_metadata_cache") as mock_sm_cache,
         ):
             mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
-            mock_cursor.fetchone.return_value = (20, 80, 100)  # 20% hit rate
+            mock_cursor.fetchone.return_value = {"hits": 20, "misses": 80, "total": 100}
 
             mock_repo.get_hit_rate_metrics.return_value = {
                 "cache_hits": 30,
@@ -1349,7 +1349,7 @@ class TestGetCacheMetrics:
             patch("backend.api.dependencies.get_session_metadata_cache") as mock_sm_cache,
         ):
             mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
-            mock_cursor.fetchone.return_value = (0, 0, 0)  # No requests
+            mock_cursor.fetchone.return_value = {"hits": 0, "misses": 0, "total": 0}
 
             mock_repo.get_hit_rate_metrics.return_value = {
                 "cache_hits": 0,

@@ -19,6 +19,7 @@ from backend.api.admin.models import (
     CacheTypeMetrics,
     CategoryCostAggregation,
     CostAggregationsResponse,
+    CostAveragesResponse,
     CostsByProviderResponse,
     CreateFixedCostRequest,
     DailyResearchCost,
@@ -35,6 +36,7 @@ from backend.api.admin.models import (
     InternalCostsByPeriod,
     InternalCostsResponse,
     MeetingCostResponse,
+    PeriodAverage,
     PerUserCostItem,
     PerUserCostResponse,
     PromptTypeCacheItem,
@@ -408,6 +410,70 @@ async def get_per_user_costs(
         period_start=start_date.isoformat(),
         period_end=end_date.isoformat(),
     )
+
+
+@router.get(
+    "/averages",
+    response_model=CostAveragesResponse,
+    summary="Multi-period cost averages",
+    description="Get average cost per session for 24h, 7d, and 30d periods.",
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("get cost averages")
+async def get_cost_averages(
+    request: Request,
+    _admin: dict = Depends(require_admin_any),
+) -> CostAveragesResponse:
+    """Get cost averages per session across multiple time periods."""
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(total_cost) FILTER (
+                        WHERE created_at >= NOW() - INTERVAL '1 day'
+                    ), 0) as cost_1d,
+                    COUNT(DISTINCT session_id) FILTER (
+                        WHERE created_at >= NOW() - INTERVAL '1 day'
+                        AND session_id IS NOT NULL
+                    ) as sessions_1d,
+                    COALESCE(SUM(total_cost) FILTER (
+                        WHERE created_at >= NOW() - INTERVAL '7 days'
+                    ), 0) as cost_7d,
+                    COUNT(DISTINCT session_id) FILTER (
+                        WHERE created_at >= NOW() - INTERVAL '7 days'
+                        AND session_id IS NOT NULL
+                    ) as sessions_7d,
+                    COALESCE(SUM(total_cost), 0) as cost_30d,
+                    COUNT(DISTINCT session_id) FILTER (
+                        WHERE session_id IS NOT NULL
+                    ) as sessions_30d
+                FROM api_costs
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                """
+            )
+            row = cur.fetchone()
+
+    periods = []
+    for label, cost_key, sess_key in [
+        ("24h", "cost_1d", "sessions_1d"),
+        ("7d", "cost_7d", "sessions_7d"),
+        ("30d", "cost_30d", "sessions_30d"),
+    ]:
+        total = float(row[cost_key])
+        sessions = row[sess_key]
+        avg = total / sessions if sessions > 0 else 0.0
+        periods.append(
+            PeriodAverage(
+                label=label,
+                avg_per_session=round(avg, 4),
+                avg_per_meeting=round(avg, 4),
+                total_cost=round(total, 4),
+                unique_sessions=sessions,
+            )
+        )
+
+    return CostAveragesResponse(periods=periods)
 
 
 @router.get(

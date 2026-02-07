@@ -40,7 +40,8 @@
 		type ModelImpactResponse,
 		type FeatureEfficiencyResponse,
 		type TuningRecommendationsResponse,
-		type QualityIndicatorsResponse
+		type QualityIndicatorsResponse,
+		type CostAveragesResponse
 	} from '$lib/api/admin';
 
 	// State
@@ -53,6 +54,7 @@
 	let cacheMetrics = $state<UnifiedCacheMetricsResponse | null>(null);
 	let costAggregations = $state<CostAggregationsResponse | null>(null);
 	let internalCosts = $state<InternalCostsResponse | null>(null);
+	let costAverages = $state<CostAveragesResponse | null>(null);
 	// Insights state
 	let cacheEffectiveness = $state<CacheEffectivenessResponse | null>(null);
 	let modelImpact = $state<ModelImpactResponse | null>(null);
@@ -99,7 +101,7 @@
 	async function loadData() {
 		try {
 			loading = true;
-			const [summaryData, usersData, dailyData, providerData, fixedData, perUserData, cacheData, payingData, aggregationsData, internalData] =
+			const [summaryData, usersData, dailyData, providerData, fixedData, perUserData, cacheData, payingData, aggregationsData, internalData, averagesData] =
 				await Promise.all([
 					adminApi.getCostSummary(),
 					adminApi.getUserCosts({ limit: 10 }),
@@ -110,7 +112,8 @@
 					adminApi.getUnifiedCacheMetrics().catch(() => null),
 					adminApi.getPayingUsersCount().catch(() => ({ paying_users_count: 0 })),
 					adminApi.getCostAggregations(30).catch(() => null),
-					adminApi.getInternalCosts().catch(() => null)
+					adminApi.getInternalCosts().catch(() => null),
+					adminApi.getCostAverages().catch(() => null)
 				]);
 			summary = summaryData;
 			userCosts = usersData;
@@ -122,6 +125,7 @@
 			payingUsersCount = payingData.paying_users_count;
 			costAggregations = aggregationsData;
 			internalCosts = internalData;
+			costAverages = averagesData;
 			error = null;
 
 			// Calculate max for chart scaling
@@ -318,7 +322,8 @@
 
 	function getBarHeight(value: number): number {
 		if (chartMaxValue === 0) return 0;
-		return (value / chartMaxValue) * 100;
+		const height = (value / chartMaxValue) * 100;
+		return value > 0 ? Math.max(height, 2) : 0;
 	}
 
 	onMount(() => {
@@ -507,25 +512,48 @@
 				</div>
 			</div>
 
-			<!-- Per-User Average Card -->
-			{#if perUserCosts}
-				<div
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-8"
-				>
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<Users class="w-5 h-5 text-brand-600" />
-							<h3 class="text-lg font-medium text-neutral-900 dark:text-white">
-								Average Cost Per User
-							</h3>
+			<!-- Multi-Period Averages -->
+			{#if costAverages}
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+					<!-- Avg Cost Per Meeting -->
+					<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+						<div class="flex items-center gap-3 mb-4">
+							<BarChart3 class="w-5 h-5 text-brand-600" />
+							<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Avg Cost Per Meeting</h3>
 						</div>
-						<div class="text-right">
-							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								{formatCurrency(perUserCosts.overall_avg)}
-							</p>
-							<p class="text-sm text-neutral-500">
-								{perUserCosts.total_users} active users (30d)
-							</p>
+						<div class="grid grid-cols-3 gap-3">
+							{#each costAverages.periods as period}
+								<div class="text-center p-3 bg-brand-50 dark:bg-brand-900/20 rounded-lg">
+									<p class="text-xs text-neutral-500 mb-1">{period.label}</p>
+									<p class="text-lg font-semibold text-brand-600 dark:text-brand-400">
+										{formatCurrency(period.avg_per_meeting)}
+									</p>
+									<p class="text-xs text-neutral-500 mt-1">
+										{period.unique_sessions} mtg{period.unique_sessions !== 1 ? 's' : ''}
+									</p>
+								</div>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Total Spend Per Period -->
+					<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+						<div class="flex items-center gap-3 mb-4">
+							<DollarSign class="w-5 h-5 text-green-600" />
+							<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Total Spend</h3>
+						</div>
+						<div class="grid grid-cols-3 gap-3">
+							{#each costAverages.periods as period}
+								<div class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+									<p class="text-xs text-neutral-500 mb-1">{period.label}</p>
+									<p class="text-lg font-semibold text-green-600 dark:text-green-400">
+										{formatCurrency(period.total_cost)}
+									</p>
+									<p class="text-xs text-neutral-500 mt-1">
+										{period.unique_sessions} session{period.unique_sessions !== 1 ? 's' : ''}
+									</p>
+								</div>
+							{/each}
 						</div>
 					</div>
 				</div>
@@ -539,7 +567,7 @@
 					<div class="flex items-center gap-3 mb-4">
 						<Zap class="w-5 h-5 text-amber-500" />
 						<h3 class="text-lg font-medium text-neutral-900 dark:text-white">
-							Cache Performance (24h)
+							Cache Performance (7d)
 						</h3>
 					</div>
 

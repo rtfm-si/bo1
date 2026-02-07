@@ -1641,8 +1641,11 @@ class CostTracker:
         return _session_costs_cache.invalidate(session_id)
 
     @classmethod
-    def get_cache_metrics(cls) -> dict[str, Any]:
+    def get_cache_metrics(cls, prompt_window_hours: int = 168) -> dict[str, Any]:
         """Get aggregated cache metrics across all cache systems.
+
+        Args:
+            prompt_window_hours: Hours to look back for prompt cache (default 168 = 7d).
 
         Aggregates from:
         - Prompt cache: Anthropic native cache (from api_costs table)
@@ -1666,7 +1669,7 @@ class CostTracker:
             "aggregate": {"hit_rate": 0.0, "total_hits": 0, "total_requests": 0},
         }
 
-        # 1. Prompt cache (Anthropic native) - query from api_costs (24h window)
+        # 1. Prompt cache (Anthropic native) - query from api_costs
         try:
             with db_session() as conn:
                 with conn.cursor() as cur:
@@ -1678,14 +1681,15 @@ class CostTracker:
                             COUNT(*) as total
                         FROM api_costs
                         WHERE provider = 'anthropic'
-                          AND created_at >= NOW() - INTERVAL '24 hours'
-                        """
+                          AND created_at >= NOW() - make_interval(hours => %s)
+                        """,
+                        (prompt_window_hours,),
                     )
                     row = cur.fetchone()
                     if row:
-                        hits = row[0] or 0
-                        misses = row[1] or 0
-                        total = row[2] or 0
+                        hits = row["hits"] or 0
+                        misses = row["misses"] or 0
+                        total = row["total"] or 0
                         result["prompt"] = {
                             "hit_rate": hits / total if total > 0 else 0.0,
                             "hits": hits,

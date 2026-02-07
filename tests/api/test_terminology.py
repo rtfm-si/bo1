@@ -21,6 +21,8 @@ LEGACY_EXCEPTIONS = frozenset(
         "meetings_today",
         "meetings_this_week",
         "meetings_this_month",
+        # admin/models.py - PeriodAverage (frontend alias)
+        "avg_per_meeting",
         # events.py - SSE event fields
         "expert_panel",
         "expert_summaries",

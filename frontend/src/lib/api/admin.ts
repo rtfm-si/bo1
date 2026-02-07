@@ -1293,6 +1293,10 @@ class AdminApiClient {
 		return this.fetch<DailySummaryResponse>(`/api/admin/costs/daily-summary?days=${days}`);
 	}
 
+	async getCostAverages(): Promise<CostAveragesResponse> {
+		return this.fetch<CostAveragesResponse>('/api/admin/costs/averages');
+	}
+
 	async getUnifiedCacheMetrics(): Promise<UnifiedCacheMetricsResponse> {
 		return this.fetch<UnifiedCacheMetricsResponse>('/api/admin/costs/cache-metrics');
 	}
@@ -1703,6 +1707,41 @@ class AdminApiClient {
 			method: 'POST'
 		});
 	}
+
+	// =========================================================================
+	// Analytics Chat
+	// =========================================================================
+
+	async listAnalyticsChatHistory(limit: number = 50): Promise<AnalyticsChatConversation[]> {
+		return this.fetch<AnalyticsChatConversation[]>(
+			`/api/admin/analytics-chat/history?limit=${limit}`
+		);
+	}
+
+	async getAnalyticsChatConversation(
+		conversationId: string
+	): Promise<{ conversation_id: string; messages: AnalyticsChatMessage[] }> {
+		return this.fetch<{ conversation_id: string; messages: AnalyticsChatMessage[] }>(
+			`/api/admin/analytics-chat/history/${conversationId}`
+		);
+	}
+
+	async saveAnalyticsChatAnalysis(data: SaveAnalysisRequest): Promise<SavedAnalysis> {
+		return this.fetch<SavedAnalysis>('/api/admin/analytics-chat/saved', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async listAnalyticsChatSaved(): Promise<SavedAnalysis[]> {
+		return this.fetch<SavedAnalysis[]>('/api/admin/analytics-chat/saved');
+	}
+
+	async deleteAnalyticsChatSaved(id: string): Promise<{ deleted: boolean }> {
+		return this.fetch<{ deleted: boolean }>(`/api/admin/analytics-chat/saved/${id}`, {
+			method: 'DELETE'
+		});
+	}
 }
 
 // Blog Post Types
@@ -2054,6 +2093,18 @@ export interface ResearchCostsResponse {
 // =============================================================================
 // Cost Aggregations Types
 // =============================================================================
+
+export interface PeriodAverage {
+	label: string;
+	avg_per_session: number;
+	avg_per_meeting: number;
+	total_cost: number;
+	unique_sessions: number;
+}
+
+export interface CostAveragesResponse {
+	periods: PeriodAverage[];
+}
 
 export interface CategoryCostAggregation {
 	category: string;
@@ -2458,6 +2509,49 @@ export interface TopicProposal {
 
 export interface TopicProposalsResponse {
 	topics: TopicProposal[];
+}
+
+// =============================================================================
+// Analytics Chat Types
+// =============================================================================
+
+export interface SavedAnalysis {
+	id: string;
+	admin_user_id: string;
+	title: string;
+	description: string;
+	original_question: string;
+	last_run_at: string | null;
+	created_at: string;
+}
+
+export interface SaveAnalysisRequest {
+	title: string;
+	description: string;
+	original_question: string;
+	steps: Array<{
+		description: string;
+		sql: string;
+		chart_config: unknown | null;
+	}>;
+}
+
+export interface AnalyticsChatConversation {
+	id: string;
+	title: string;
+	model_preference: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AnalyticsChatMessage {
+	id: string;
+	role: string;
+	content: string;
+	steps: unknown[] | null;
+	suggestions: string[] | null;
+	llm_cost: number;
+	created_at: string;
 }
 
 export const adminApi = new AdminApiClient();

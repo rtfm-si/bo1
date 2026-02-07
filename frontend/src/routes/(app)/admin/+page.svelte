@@ -203,6 +203,27 @@
 				</a>
 			</div>
 
+		<!-- Analytics Chat Card -->
+		<div class="mb-8">
+			<a
+				href="/admin/analytics-chat"
+				class="flex items-center gap-4 bg-gradient-to-r from-accent-50 to-purple-50 dark:from-accent-900/20 dark:to-purple-900/20 rounded-lg p-5 border border-accent-200 dark:border-accent-800 hover:shadow-md transition-all duration-200"
+			>
+				<div class="p-3 bg-accent-100 dark:bg-accent-900/40 rounded-lg">
+					<svg class="w-6 h-6 text-accent-600 dark:text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+					</svg>
+				</div>
+				<div>
+					<p class="text-sm font-semibold text-neutral-900 dark:text-white">Analytics Chat</p>
+					<p class="text-xs text-neutral-500 dark:text-neutral-400">Query your database in natural language with AI-powered SQL generation</p>
+				</div>
+				<svg class="w-5 h-5 text-neutral-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+				</svg>
+			</a>
+		</div>
+
 		<!-- Email Stats Card -->
 		<div class="mb-8">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Email Activity</h2>

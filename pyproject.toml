@@ -64,6 +64,7 @@ dependencies = [
     "duckdb>=1.0.0,<2.0", # In-memory OLAP database for large dataset queries
     "setuptools>=70.0.0", # Required by ydata-profiling for pkg_resources
     "plotly>=5.18.0,<7.0", # Chart generation (JSON for frontend)
+    "sqlparse>=0.5.0,<1.0", # SQL parsing for admin analytics safety validation
     "matplotlib>=3.8.0", # PNG chart export for PDF embedding (no Chromium needed)
     # Observability
     "prometheus-client>=0.21.0", # Prometheus metrics

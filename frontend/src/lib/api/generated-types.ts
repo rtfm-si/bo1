@@ -87,6 +87,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/analytics-chat/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask Analytics
+         * @description Ask an analytics question — returns SSE stream.
+         */
+        post: operations["ask_analytics_api_admin_analytics_chat_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/analytics-chat/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get History
+         * @description List analytics conversations.
+         */
+        get: operations["get_history_api_admin_analytics_chat_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/analytics-chat/history/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation
+         * @description Get messages for a single conversation.
+         */
+        get: operations["get_conversation_api_admin_analytics_chat_history__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/analytics-chat/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Saved
+         * @description List saved analyses.
+         */
+        get: operations["list_saved_api_admin_analytics_chat_saved_get"];
+        put?: never;
+        /**
+         * Create Saved
+         * @description Save an analysis for later re-running.
+         */
+        post: operations["create_saved_api_admin_analytics_chat_saved_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/analytics-chat/saved/{analysis_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Saved
+         * @description Delete a saved analysis.
+         */
+        delete: operations["delete_saved_api_admin_analytics_chat_saved__analysis_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/analytics-chat/saved/{analysis_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rerun Saved
+         * @description Re-run a saved analysis with fresh data.
+         */
+        post: operations["rerun_saved_api_admin_analytics_chat_saved__analysis_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/analytics/bounce-rate": {
         parameters: {
             query?: never;
@@ -683,6 +807,26 @@ export interface paths {
          * @description Get total/avg per meeting/avg per user breakdowns for each cost category.
          */
         get: operations["get_cost_aggregations_api_admin_costs_aggregations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/costs/averages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Multi-period cost averages
+         * @description Get average cost per session for 24h, 7d, and 30d periods.
+         */
+        get: operations["get_cost_averages_api_admin_costs_averages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14167,26 +14311,6 @@ export interface components {
             utm_source?: string | null;
         };
         /**
-         * AskRequest
-         * @description Request model for dataset Q&A.
-         *
-         *     Attributes:
-         *         question: Natural language question about the dataset
-         *         conversation_id: Optional conversation ID to continue a thread
-         */
-        AskRequest: {
-            /**
-             * Conversation Id
-             * @description Conversation ID to continue (omit for new conversation)
-             */
-            conversation_id?: string | null;
-            /**
-             * Question
-             * @description Question about the dataset
-             */
-            question: string;
-        };
-        /**
          * AssetSuggestion
          * @description A suggested asset for article content.
          */
@@ -17797,6 +17921,17 @@ export interface components {
              * @description Period start date (ISO 8601)
              */
             period_start: string;
+        };
+        /**
+         * CostAveragesResponse
+         * @description Multi-period cost averages.
+         */
+        CostAveragesResponse: {
+            /**
+             * Periods
+             * @description Averages per period
+             */
+            periods: components["schemas"]["PeriodAverage"][];
         };
         /**
          * CostCalculatorDefaults
@@ -27244,6 +27379,37 @@ export interface components {
             timestamp: string;
         };
         /**
+         * PeriodAverage
+         * @description Cost averages for a single time period.
+         */
+        PeriodAverage: {
+            /**
+             * Avg Per Meeting
+             * @description Alias for avg_per_session
+             */
+            avg_per_meeting: number;
+            /**
+             * Avg Per Session
+             * @description Average cost per session (USD)
+             */
+            avg_per_session: number;
+            /**
+             * Label
+             * @description Period label: 24h, 7d, 30d
+             */
+            label: string;
+            /**
+             * Total Cost
+             * @description Total cost in period (USD)
+             */
+            total_cost: number;
+            /**
+             * Unique Sessions
+             * @description Unique sessions in period
+             */
+            unique_sessions: number;
+        };
+        /**
          * PersistenceHealthResponse
          * @description Event persistence health response.
          *
@@ -30709,6 +30875,28 @@ export interface components {
             timestamp?: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * SaveAnalysisRequest
+         * @description Request to save an analysis for re-running.
+         */
+        SaveAnalysisRequest: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Original Question */
+            original_question: string;
+            /**
+             * Steps
+             * @description Analysis steps with SQL and chart config
+             */
+            steps: {
+                [key: string]: unknown;
+            }[];
+            /** Title */
+            title: string;
         };
         /**
          * SemanticColumnType
@@ -35420,6 +35608,25 @@ export interface components {
             slug?: string | null;
         };
         /**
+         * AskRequest
+         * @description Request for analytics question.
+         */
+        backend__api__admin__analytics_chat__AskRequest: {
+            /**
+             * Conversation Id
+             * @description Continue existing conversation
+             */
+            conversation_id?: string | null;
+            /**
+             * Model
+             * @description Model for SQL generation
+             * @default sonnet
+             */
+            model: string;
+            /** Question */
+            question: string;
+        };
+        /**
          * DailyCostItem
          * @description Cost data for a single day.
          */
@@ -35588,6 +35795,26 @@ export interface components {
              * @description When user's value was last set (ISO timestamp)
              */
             user_value_updated_at?: string | null;
+        };
+        /**
+         * AskRequest
+         * @description Request model for dataset Q&A.
+         *
+         *     Attributes:
+         *         question: Natural language question about the dataset
+         *         conversation_id: Optional conversation ID to continue a thread
+         */
+        backend__api__models__AskRequest: {
+            /**
+             * Conversation Id
+             * @description Conversation ID to continue (omit for new conversation)
+             */
+            conversation_id?: string | null;
+            /**
+             * Question
+             * @description Question about the dataset
+             */
+            question: string;
         };
         /**
          * CategoriesResponse
@@ -36096,6 +36323,249 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_analytics_api_admin_analytics_chat_ask_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["backend__api__admin__analytics_chat__AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_history_api_admin_analytics_chat_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversation_api_admin_analytics_chat_history__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_saved_api_admin_analytics_chat_saved_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_saved_api_admin_analytics_chat_saved_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_saved_api_admin_analytics_chat_saved__analysis_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rerun_saved_api_admin_analytics_chat_saved__analysis_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -37732,6 +38202,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CostAggregationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cost_averages_api_admin_costs_averages_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostAveragesResponse"];
                 };
             };
             /** @description Validation Error */
@@ -52904,7 +53405,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AskRequest"];
+                "application/json": components["schemas"]["backend__api__models__AskRequest"];
             };
         };
         responses: {

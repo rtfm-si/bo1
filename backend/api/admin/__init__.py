@@ -22,6 +22,7 @@ from fastapi import APIRouter
 
 from backend.api.admin import (
     alerts,
+    analytics_chat,
     beta_whitelist,
     billing,
     blog,
@@ -93,6 +94,7 @@ router.include_router(seo_analytics.router)
 router.include_router(experiments.router)
 router.include_router(billing.router)
 router.include_router(gsc_analytics.router)
+router.include_router(analytics_chat.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

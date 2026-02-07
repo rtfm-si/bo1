@@ -3258,35 +3258,6 @@
         "title": "ArticleEventCreate",
         "type": "object"
       },
-      "AskRequest": {
-        "description": "Request model for dataset Q&A.\n\nAttributes:\n    question: Natural language question about the dataset\n    conversation_id: Optional conversation ID to continue a thread",
-        "properties": {
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Conversation ID to continue (omit for new conversation)",
-            "title": "Conversation Id"
-          },
-          "question": {
-            "description": "Question about the dataset",
-            "maxLength": 2000,
-            "minLength": 3,
-            "title": "Question",
-            "type": "string"
-          }
-        },
-        "required": [
-          "question"
-        ],
-        "title": "AskRequest",
-        "type": "object"
-      },
       "AssetSuggestion": {
         "description": "A suggested asset for article content.",
         "properties": {
@@ -9129,6 +9100,24 @@
           "period_end"
         ],
         "title": "CostAggregationsResponse",
+        "type": "object"
+      },
+      "CostAveragesResponse": {
+        "description": "Multi-period cost averages.",
+        "properties": {
+          "periods": {
+            "description": "Averages per period",
+            "items": {
+              "$ref": "#/components/schemas/PeriodAverage"
+            },
+            "title": "Periods",
+            "type": "array"
+          }
+        },
+        "required": [
+          "periods"
+        ],
+        "title": "CostAveragesResponse",
         "type": "object"
       },
       "CostCalculatorDefaults": {
@@ -24299,6 +24288,45 @@
         "title": "PerformanceTrendsResponse",
         "type": "object"
       },
+      "PeriodAverage": {
+        "description": "Cost averages for a single time period.",
+        "properties": {
+          "avg_per_meeting": {
+            "description": "Alias for avg_per_session",
+            "title": "Avg Per Meeting",
+            "type": "number"
+          },
+          "avg_per_session": {
+            "description": "Average cost per session (USD)",
+            "title": "Avg Per Session",
+            "type": "number"
+          },
+          "label": {
+            "description": "Period label: 24h, 7d, 30d",
+            "title": "Label",
+            "type": "string"
+          },
+          "total_cost": {
+            "description": "Total cost in period (USD)",
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "unique_sessions": {
+            "description": "Unique sessions in period",
+            "title": "Unique Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "avg_per_session",
+          "avg_per_meeting",
+          "total_cost",
+          "unique_sessions"
+        ],
+        "title": "PeriodAverage",
+        "type": "object"
+      },
       "PersistenceHealthResponse": {
         "description": "Event persistence health response.\n\nAttributes:\n    status: Overall persistence health status\n    component: Component name (persistence)\n    healthy: Whether persistence is healthy\n    sessions_checked: Number of recent sessions checked\n    sessions_with_issues: Number of sessions with persistence discrepancies\n    total_redis_events: Total events in Redis for checked sessions\n    total_postgres_events: Total events in PostgreSQL for checked sessions\n    persistence_rate: Percentage of events successfully persisted\n    queue_depth: Number of events in retry queue\n    dlq_depth: Number of events in dead letter queue\n    details: List of sessions with issues (if any)\n    message: Status message\n    timestamp: ISO 8601 timestamp",
         "properties": {
@@ -29239,6 +29267,45 @@
           "count"
         ],
         "title": "VotingStartedEvent",
+        "type": "object"
+      },
+      "SaveAnalysisRequest": {
+        "description": "Request to save an analysis for re-running.",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Description",
+            "type": "string"
+          },
+          "original_question": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Original Question",
+            "type": "string"
+          },
+          "steps": {
+            "description": "Analysis steps with SQL and chart config",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "original_question",
+          "steps"
+        ],
+        "title": "SaveAnalysisRequest",
         "type": "object"
       },
       "SemanticColumnType": {
@@ -36342,6 +36409,41 @@
         "title": "WorkspaceUpdate",
         "type": "object"
       },
+      "backend__api__admin__analytics_chat__AskRequest": {
+        "description": "Request for analytics question.",
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Continue existing conversation",
+            "title": "Conversation Id"
+          },
+          "model": {
+            "default": "sonnet",
+            "description": "Model for SQL generation",
+            "pattern": "^(sonnet|opus)$",
+            "title": "Model",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "type": "object"
+      },
       "backend__api__admin__dashboard__DailyCostItem": {
         "description": "Cost data for a single day.",
         "properties": {
@@ -36657,6 +36759,35 @@
           "category"
         ],
         "title": "BenchmarkComparison",
+        "type": "object"
+      },
+      "backend__api__models__AskRequest": {
+        "description": "Request model for dataset Q&A.\n\nAttributes:\n    question: Natural language question about the dataset\n    conversation_id: Optional conversation ID to continue a thread",
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Conversation ID to continue (omit for new conversation)",
+            "title": "Conversation Id"
+          },
+          "question": {
+            "description": "Question about the dataset",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
         "type": "object"
       },
       "backend__api__models__CategoriesResponse": {
@@ -37523,6 +37654,390 @@
           "admin",
           "admin",
           "admin"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/ask": {
+      "post": {
+        "description": "Ask an analytics question \u2014 returns SSE stream.",
+        "operationId": "ask_analytics_api_admin_analytics_chat_ask_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/backend__api__admin__analytics_chat__AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask Analytics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/history": {
+      "get": {
+        "description": "List analytics conversations.",
+        "operationId": "get_history_api_admin_analytics_chat_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get History Api Admin Analytics Chat History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get History",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/history/{conversation_id}": {
+      "get": {
+        "description": "Get messages for a single conversation.",
+        "operationId": "get_conversation_api_admin_analytics_chat_history__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Conversation Api Admin Analytics Chat History  Conversation Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Conversation",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/saved": {
+      "get": {
+        "description": "List saved analyses.",
+        "operationId": "list_saved_api_admin_analytics_chat_saved_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Saved Api Admin Analytics Chat Saved Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      },
+      "post": {
+        "description": "Save an analysis for later re-running.",
+        "operationId": "create_saved_api_admin_analytics_chat_saved_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Saved Api Admin Analytics Chat Saved Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/saved/{analysis_id}": {
+      "delete": {
+        "description": "Delete a saved analysis.",
+        "operationId": "delete_saved_api_admin_analytics_chat_saved__analysis_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Saved Api Admin Analytics Chat Saved  Analysis Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saved",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
+        ]
+      }
+    },
+    "/api/admin/analytics-chat/saved/{analysis_id}/run": {
+      "post": {
+        "description": "Re-run a saved analysis with fresh data.",
+        "operationId": "rerun_saved_api_admin_analytics_chat_saved__analysis_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rerun Saved",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-analytics-chat"
         ]
       }
     },
@@ -40200,6 +40715,51 @@
           }
         },
         "summary": "Cost aggregations",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-costs"
+        ]
+      }
+    },
+    "/api/admin/costs/averages": {
+      "get": {
+        "description": "Get average cost per session for 24h, 7d, and 30d periods.",
+        "operationId": "get_cost_averages_api_admin_costs_averages_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAveragesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Multi-period cost averages",
         "tags": [
           "admin",
           "admin",
@@ -62430,7 +62990,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AskRequest"
+                "$ref": "#/components/schemas/backend__api__models__AskRequest"
               }
             }
           },

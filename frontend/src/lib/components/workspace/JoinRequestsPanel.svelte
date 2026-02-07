@@ -144,16 +144,16 @@
 <div class="space-y-4">
 	<!-- Success/Error Messages -->
 	{#if success}
-		<div class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-			<CheckCircle size={18} class="text-green-600 dark:text-green-400" />
-			<span class="text-sm text-green-700 dark:text-green-300">{success}</span>
+		<div class="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-md">
+			<CheckCircle size={18} class="text-success-600 dark:text-success-400" />
+			<span class="text-sm text-success-700 dark:text-success-300">{success}</span>
 		</div>
 	{/if}
 
 	{#if error}
-		<div class="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-			<AlertCircle size={18} class="text-red-600 dark:text-red-400" />
-			<span class="text-sm text-red-700 dark:text-red-300">{error}</span>
+		<div class="flex items-center gap-2 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+			<AlertCircle size={18} class="text-error-600 dark:text-error-400" />
+			<span class="text-sm text-error-700 dark:text-error-300">{error}</span>
 		</div>
 	{/if}
 
@@ -164,7 +164,7 @@
 				<UserPlus size={20} />
 				Pending Join Requests
 				{#if requests.length > 0}
-					<span class="ml-2 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-full">
+					<span class="ml-2 px-2 py-0.5 text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300 rounded-full">
 						{requests.length}
 					</span>
 				{/if}
@@ -211,7 +211,7 @@
 									size="sm"
 									onclick={() => openRejectModal(request)}
 									disabled={processingId === request.id}
-									class="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+									class="text-error-600 hover:text-error-700 hover:bg-error-50 dark:text-error-400 dark:hover:text-error-300 dark:hover:bg-error-900/20"
 								>
 									<X size={16} class="mr-1" />
 									Reject

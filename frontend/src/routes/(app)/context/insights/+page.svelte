@@ -10,7 +10,9 @@
 	import { apiClient, type ClarificationInsight } from '$lib/api/client';
 	import type { InsightCategory, InsightMetric, InsightMarketContext } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import PendingUpdates from '$lib/components/context/PendingUpdates.svelte';
+	import { getCategoryColor } from '$lib/utils/colors';
 
 	// State
 	let insights = $state<ClarificationInsight[]>([]);
@@ -25,17 +27,17 @@
 
 	// Category display config
 	const categoryConfig: Record<InsightCategory, { label: string; color: string; icon: string }> = {
-		revenue: { label: 'Revenue', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: '$' },
-		growth: { label: 'Growth', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', icon: '↑' },
-		customers: { label: 'Customers', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: '👥' },
-		team: { label: 'Team', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', icon: '👤' },
-		product: { label: 'Product', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300', icon: '📦' },
-		operations: { label: 'Operations', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: '⚙️' },
-		market: { label: 'Market', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', icon: '📊' },
-		competition: { label: 'Competition', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', icon: '🏁' },
-		funding: { label: 'Funding', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: '💰' },
-		costs: { label: 'Costs', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300', icon: '💸' },
-		uncategorized: { label: 'Other', color: 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300', icon: '•' }
+		revenue: { label: 'Revenue', color: getCategoryColor('revenue'), icon: '$' },
+		growth: { label: 'Growth', color: getCategoryColor('growth'), icon: '↑' },
+		customers: { label: 'Customers', color: getCategoryColor('customers'), icon: '👥' },
+		team: { label: 'Team', color: getCategoryColor('team'), icon: '👤' },
+		product: { label: 'Product', color: getCategoryColor('product'), icon: '📦' },
+		operations: { label: 'Operations', color: getCategoryColor('operations'), icon: '⚙️' },
+		market: { label: 'Market', color: getCategoryColor('market'), icon: '📊' },
+		competition: { label: 'Competition', color: getCategoryColor('competition'), icon: '🏁' },
+		funding: { label: 'Funding', color: getCategoryColor('funding'), icon: '💰' },
+		costs: { label: 'Costs', color: getCategoryColor('costs'), icon: '💸' },
+		uncategorized: { label: 'Other', color: getCategoryColor('uncategorized'), icon: '•' }
 	};
 
 	function formatMetric(metric: InsightMetric | undefined): string | null {
@@ -162,7 +164,7 @@
 		if (percentile >= 75) return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300';
 		if (percentile >= 50) return 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300';
 		if (percentile >= 25) return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300';
-		return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+		return 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300';
 	}
 </script>
 
@@ -176,12 +178,12 @@
 
 	<!-- Header -->
 	<div
-		class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+		class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 	>
 		<div class="flex items-center justify-between">
 			<div>
-				<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Meeting Insights</h2>
-				<p class="text-slate-600 dark:text-slate-400">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">Meeting Insights</h2>
+				<p class="text-neutral-600 dark:text-neutral-400">
 					Information gathered from clarifying questions during your meetings. These help improve
 					future recommendations.
 				</p>
@@ -214,20 +216,18 @@
 	<!-- Loading State -->
 	{#if isLoading}
 		<div class="flex items-center justify-center py-12">
-			<div
-				class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"
-			></div>
+			<Spinner size="lg" />
 		</div>
 	{:else if insights.length === 0}
 		<!-- Empty State -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-12 text-center"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center"
 		>
 			<div class="text-4xl mb-4">
 				<span role="img" aria-label="lightbulb">&#128161;</span>
 			</div>
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">No insights yet</h3>
-			<p class="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">No insights yet</h3>
+			<p class="text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
 				When you answer clarifying questions during meetings, they'll appear here. These help our
 				experts give you better recommendations in future meetings.
 			</p>
@@ -235,13 +235,13 @@
 	{:else}
 		<!-- Insights List -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-700"
 		>
 			{#each insights as insight (insight.question)}
 				{@const category = insight.category || 'uncategorized'}
 				{@const config = categoryConfig[category]}
 				{@const metricDisplay = formatMetric(insight.metric ?? undefined)}
-				<div class="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+				<div class="p-6 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors group">
 					<div class="flex items-start justify-between gap-4">
 						<div class="flex-1 min-w-0">
 							<!-- Category Badge + Metric -->
@@ -262,7 +262,7 @@
 										</span>
 									{/if}
 									{#if insight.confidence_score && insight.confidence_score >= 0.8}
-										<span class="text-xs text-slate-400 dark:text-slate-500" title="High confidence parse">
+										<span class="text-xs text-neutral-400 dark:text-neutral-500" title="High confidence parse">
 											&#10003;
 										</span>
 									{/if}
@@ -272,9 +272,9 @@
 							<!-- Market Context Badge (if enriched) -->
 							{#if (insight as any).market_context?.percentile_position != null}
 								{@const mc = (insight as any).market_context}
-								<div class="mb-3 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+								<div class="mb-3 p-2 bg-neutral-50 dark:bg-neutral-900/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
 									<div class="flex items-center gap-2">
-										<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
 										</svg>
 										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {getPercentileColor(mc.percentile_position)}">
@@ -287,7 +287,7 @@
 										{/if}
 									</div>
 									{#if mc.comparison_text}
-										<p class="mt-1 text-xs text-slate-600 dark:text-slate-400">{mc.comparison_text}</p>
+										<p class="mt-1 text-xs text-neutral-600 dark:text-neutral-400">{mc.comparison_text}</p>
 									{/if}
 								</div>
 							{/if}
@@ -299,7 +299,7 @@
 								>
 									Q
 								</span>
-								<p class="font-medium text-slate-900 dark:text-white">
+								<p class="font-medium text-neutral-900 dark:text-white">
 									{insight.question}
 								</p>
 							</div>
@@ -307,18 +307,18 @@
 							<!-- Answer (or Summary if available) -->
 							<div class="flex items-start gap-2 mb-3 ml-8">
 								<span
-									class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-semibold"
+									class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-success-100 dark:bg-success-900/30 text-success-600 dark:text-success-400 text-xs font-semibold"
 								>
 									A
 								</span>
 								<div>
-									<p class="text-slate-700 dark:text-slate-300">
+									<p class="text-neutral-700 dark:text-neutral-300">
 										{insight.answer}
 									</p>
 									{#if insight.key_entities && insight.key_entities.length > 0}
 										<div class="mt-1 flex flex-wrap gap-1">
 											{#each insight.key_entities as entity}
-												<span class="inline-flex px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+												<span class="inline-flex px-1.5 py-0.5 rounded text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400">
 													{entity}
 												</span>
 											{/each}
@@ -328,7 +328,7 @@
 							</div>
 
 							<!-- Metadata -->
-							<div class="ml-8 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+							<div class="ml-8 flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
 								{#if insight.answered_at}
 									<span class="flex items-center gap-1">
 										<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -366,7 +366,7 @@
 							<!-- Enrich Button (for insights with metrics but no market context) -->
 							{#if insight.metric?.value != null && !(insight as any).market_context}
 								<button
-									class="p-2 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
+									class="p-2 text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
 									onclick={() => enrichInsight(insight.question)}
 									disabled={enrichingQuestion === insight.question}
 									title="Add market context from industry benchmarks"
@@ -383,7 +383,7 @@
 
 							<!-- Edit Button -->
 							<button
-								class="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+								class="p-2 text-neutral-400 hover:text-info-600 dark:hover:text-info-400 hover:bg-info-50 dark:hover:bg-info-900/20 rounded-lg transition-colors"
 								onclick={() => openEditModal(insight.question, insight.answer)}
 								disabled={editingQuestion === insight.question}
 								title="Edit this insight"
@@ -400,14 +400,14 @@
 
 							<!-- Delete Button -->
 							<button
-								class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+								class="p-2 text-neutral-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors"
 								onclick={() => deleteInsight(insight.question)}
 								disabled={deletingQuestion === insight.question}
 								title="Delete this insight"
 							>
 								{#if deletingQuestion === insight.question}
 									<div
-										class="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"
+										class="w-5 h-5 border-2 border-error-600 border-t-transparent rounded-full animate-spin"
 									></div>
 								{:else}
 									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -424,7 +424,7 @@
 					</div>
 
 					{#if deleteSuccess === insight.question}
-						<div class="mt-2 text-sm text-green-600 dark:text-green-400">Deleted!</div>
+						<div class="mt-2 text-sm text-success-600 dark:text-success-400">Deleted!</div>
 					{/if}
 				</div>
 			{/each}
@@ -432,11 +432,11 @@
 
 		<!-- Info Box -->
 		<div
-			class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+			class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4"
 		>
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -448,9 +448,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">How insights improve your meetings</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						When you answer clarifying questions, those answers are saved here and automatically
 						used in future meetings. This means experts don't need to ask the same questions again,
 						and they can provide more personalized recommendations from the start.
@@ -464,12 +464,12 @@
 	{#if editingQuestion}
 		<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
 			<div
-				class="bg-white dark:bg-slate-800 rounded-xl shadow-lg max-w-md w-full border border-slate-200 dark:border-slate-700"
+				class="bg-white dark:bg-neutral-800 rounded-xl shadow-lg max-w-md w-full border border-neutral-200 dark:border-neutral-700"
 			>
 				<!-- Header -->
-				<div class="border-b border-slate-200 dark:border-slate-700 p-6">
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">Edit Insight</h3>
-					<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+				<div class="border-b border-neutral-200 dark:border-neutral-700 p-6">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Edit Insight</h3>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
 						Update your answer to help keep your business context current.
 					</p>
 				</div>
@@ -478,23 +478,23 @@
 				<div class="p-6 space-y-4">
 					<!-- Question (read-only) -->
 					<div>
-						<span class="block text-sm font-medium text-slate-900 dark:text-white mb-2">
+						<span class="block text-sm font-medium text-neutral-900 dark:text-white mb-2">
 							Question
 						</span>
-						<p class="p-3 bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 rounded-lg text-sm">
+						<p class="p-3 bg-neutral-100 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300 rounded-lg text-sm">
 							{editingQuestion}
 						</p>
 					</div>
 
 					<!-- Answer (editable) -->
 					<div>
-						<label for="edit-answer" class="block text-sm font-medium text-slate-900 dark:text-white mb-2">
+						<label for="edit-answer" class="block text-sm font-medium text-neutral-900 dark:text-white mb-2">
 							Your Answer
 						</label>
 						<textarea
 							id="edit-answer"
 							bind:value={editValue}
-							class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+							class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-500 dark:placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
 							rows="4"
 							disabled={isSaving}
 						></textarea>
@@ -502,9 +502,9 @@
 				</div>
 
 				<!-- Footer -->
-				<div class="border-t border-slate-200 dark:border-slate-700 p-6 flex gap-3 justify-end">
+				<div class="border-t border-neutral-200 dark:border-neutral-700 p-6 flex gap-3 justify-end">
 					<button
-						class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+						class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
 						onclick={closeEditModal}
 						disabled={isSaving}
 					>

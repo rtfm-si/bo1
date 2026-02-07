@@ -109,16 +109,16 @@
 </script>
 
 <div class="space-y-3">
-	<div class="border-l-4 {displayError.isTransient ? 'border-info-500' : 'border-amber-500'} {displayError.isTransient ? 'bg-info-50 dark:bg-info-900/20' : 'bg-amber-50 dark:bg-amber-900/20'} rounded-lg p-4">
+	<div class="border-l-4 {displayError.isTransient ? 'border-info-500' : 'border-warning-500'} {displayError.isTransient ? 'bg-info-50 dark:bg-info-900/20' : 'bg-warning-50 dark:bg-warning-900/20'} rounded-lg p-4">
 		<div class="flex items-start gap-3">
 			<div
-				class="flex-shrink-0 w-10 h-10 {displayError.isTransient ? 'bg-info-500 dark:bg-info-600' : 'bg-amber-500 dark:bg-amber-600'} text-white rounded-full flex items-center justify-center text-lg"
+				class="flex-shrink-0 w-10 h-10 {displayError.isTransient ? 'bg-info-500 dark:bg-info-600' : 'bg-warning-500 dark:bg-warning-600'} text-white rounded-full flex items-center justify-center text-lg"
 			>
 				{displayError.icon}
 			</div>
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center gap-2 mb-2">
-					<h3 class="text-base font-semibold {displayError.isTransient ? 'text-info-900 dark:text-info-100' : 'text-amber-900 dark:text-amber-100'}">
+					<h3 class="text-base font-semibold {displayError.isTransient ? 'text-info-900 dark:text-info-100' : 'text-warning-900 dark:text-warning-100'}">
 						{displayError.title}
 					</h3>
 					{#if displayError.isTransient && recoveryTimeText}
@@ -128,24 +128,24 @@
 					{/if}
 				</div>
 
-				<p class="text-sm {displayError.isTransient ? 'text-info-800 dark:text-info-200' : 'text-amber-800 dark:text-amber-200'} mb-3">
+				<p class="text-sm {displayError.isTransient ? 'text-info-800 dark:text-info-200' : 'text-warning-800 dark:text-warning-200'} mb-3">
 					{displayError.message}
 				</p>
 
 				<!-- Actionable guidance for specific errors -->
 				{#if displayError.hasAction && displayError.action}
-					<p class="text-sm font-medium {displayError.isTransient ? 'text-info-700 dark:text-info-300' : 'text-amber-700 dark:text-amber-300'} mb-3">
+					<p class="text-sm font-medium {displayError.isTransient ? 'text-info-700 dark:text-info-300' : 'text-warning-700 dark:text-warning-300'} mb-3">
 						{displayError.action}
 					</p>
 				{/if}
 
 				<div
-					class="mt-3 p-3 {displayError.isTransient ? 'bg-info-100 dark:bg-info-900/30 border-info-200 dark:border-info-800' : 'bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800'} rounded-md border"
+					class="mt-3 p-3 {displayError.isTransient ? 'bg-info-100 dark:bg-info-900/30 border-info-200 dark:border-info-800' : 'bg-warning-100 dark:bg-warning-900/30 border-warning-200 dark:border-warning-800'} rounded-md border"
 				>
-					<p class="text-xs {displayError.isTransient ? 'text-info-900 dark:text-info-100' : 'text-amber-900 dark:text-amber-100'} font-medium mb-1">
+					<p class="text-xs {displayError.isTransient ? 'text-info-900 dark:text-info-100' : 'text-warning-900 dark:text-warning-100'} font-medium mb-1">
 						What happens next?
 					</p>
-					<p class="text-xs {displayError.isTransient ? 'text-info-800 dark:text-info-200' : 'text-amber-800 dark:text-amber-200'}">
+					<p class="text-xs {displayError.isTransient ? 'text-info-800 dark:text-info-200' : 'text-warning-800 dark:text-warning-200'}">
 						{#if displayError.isTransient}
 							We're working on resolving this automatically. Your meeting will resume shortly.
 						{:else}
@@ -159,7 +159,7 @@
 				{#if isAdmin}
 					<button
 						onclick={() => (showTechnicalDetails = !showTechnicalDetails)}
-						class="mt-3 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
+						class="mt-3 flex items-center gap-1 text-xs text-warning-700 dark:text-warning-300 hover:text-warning-900 dark:hover:text-warning-100 transition-colors"
 					>
 						{#if showTechnicalDetails}
 							<ChevronUp size={14} />

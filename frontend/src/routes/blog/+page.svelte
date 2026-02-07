@@ -195,7 +195,7 @@
 					<!-- Search -->
 					<div class="relative flex-grow max-w-md">
 						<svg
-							class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400"
+							class="absolute left-3 top-1/2 -tranneutral-y-1/2 w-5 h-5 text-neutral-400"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -228,12 +228,12 @@
 				<!-- Error State -->
 				{#if error}
 					<div
-						class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 mb-6"
+						class="rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 p-4 mb-6"
 					>
-						<p class="text-sm text-red-700 dark:text-red-400">{error}</p>
+						<p class="text-sm text-error-700 dark:text-error-400">{error}</p>
 						<button
 							onclick={() => loadPosts()}
-							class="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:no-underline"
+							class="mt-2 text-sm text-error-600 dark:text-error-400 underline hover:no-underline"
 						>
 							Try again
 						</button>

@@ -58,18 +58,18 @@
 	<title>Settings - Board of One</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<!-- Header -->
-	<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
 			<div class="flex items-center gap-4">
 				<a
 					href="/dashboard"
-					class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200"
+					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
 					aria-label="Back to dashboard"
 				>
 					<svg
-						class="w-5 h-5 text-slate-600 dark:text-slate-400"
+						class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -83,8 +83,8 @@
 					</svg>
 				</a>
 				<div>
-					<h1 class="text-2xl font-bold text-slate-900 dark:text-white">Settings</h1>
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Settings</h1>
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Manage your account and business context
 					</p>
 				</div>
@@ -93,17 +93,17 @@
 	</header>
 
 	<!-- Main Layout -->
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<div class="flex flex-col lg:flex-row gap-8">
 			<!-- Sidebar Navigation -->
 			<aside class="lg:w-64 flex-shrink-0">
-				<nav class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 sticky top-24">
+				<nav class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-4 sticky top-24">
 					{#each navSections as section, sectionIndex}
 						{#if sectionIndex > 0}
-							<div class="h-px bg-slate-200 dark:bg-slate-700 my-4"></div>
+							<div class="h-px bg-neutral-200 dark:bg-neutral-700 my-4"></div>
 						{/if}
 						<div class="mb-2">
-							<h2 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-3 mb-2">
+							<h2 class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider px-3 mb-2">
 								{section.title}
 							</h2>
 							<ul class="space-y-1">
@@ -115,13 +115,13 @@
 												'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
 												isActive(item.href)
 													? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400'
-													: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+													: 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700'
 											].join(' ')}
 										>
 											<span class="text-base">{item.icon}</span>
 											<span class="flex-1">{item.label}</span>
 											{#if item.badge}
-												<span class="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full">
+												<span class="text-xs px-2 py-0.5 bg-neutral-200 dark:bg-neutral-600 text-neutral-600 dark:text-neutral-300 rounded-full">
 													{item.badge}
 												</span>
 											{/if}

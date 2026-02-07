@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Globe, RefreshCw, Users, Eye, MousePointerClick, TrendingUp, ArrowLeft } from 'lucide-svelte';
+	import { Globe, RefreshCw, Users, Eye, MousePointerClick, TrendingUp } from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import {
 		adminApi,
 		type LandingPageMetricsResponse
@@ -94,45 +96,25 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<ArrowLeft class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
-					</a>
-					<div class="flex items-center gap-3">
-						<Globe class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							Landing Page Analytics
-						</h1>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<select
-						bind:value={selectedDays}
-						class="px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-					>
-						<option value={7}>Last 7 days</option>
-						<option value={30}>Last 30 days</option>
-						<option value={90}>Last 90 days</option>
-					</select>
-					<Button variant="secondary" size="sm" onclick={loadData}>
-						<RefreshCw class="w-4 h-4" />
-						Refresh
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Landing Page Analytics" icon={Globe}>
+		{#snippet actions()}
+			<select
+				bind:value={selectedDays}
+				class="px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+			>
+				<option value={7}>Last 7 days</option>
+				<option value={30}>Last 30 days</option>
+				<option value={90}>Last 90 days</option>
+			</select>
+			<Button variant="secondary" size="sm" onclick={loadData}>
+				<RefreshCw class="w-4 h-4" />
+				Refresh
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">{error}</Alert>
 		{/if}
@@ -189,8 +171,8 @@
 								{metrics.funnel.click_through_rate}% CTR
 							</p>
 						</div>
-						<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-							<MousePointerClick class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+						<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+							<MousePointerClick class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 						</div>
 					</div>
 				</div>
@@ -205,7 +187,7 @@
 								class="text-2xl font-semibold {metrics.bounce_rate.bounce_rate > 70
 									? 'text-error-600 dark:text-error-400'
 									: metrics.bounce_rate.bounce_rate > 50
-										? 'text-amber-600 dark:text-amber-400'
+										? 'text-warning-600 dark:text-warning-400'
 										: 'text-success-600 dark:text-success-400'}"
 							>
 								{metrics.bounce_rate.bounce_rate}%
@@ -233,7 +215,7 @@
 						<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Visitors</p>
 					</div>
 					<div class="text-center p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg relative">
-						<div class="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-neutral-400">
+						<div class="absolute left-0 top-1/2 -tranneutral-x-1/2 -tranneutral-y-1/2 text-neutral-400">
 							→
 						</div>
 						<p class="text-3xl font-bold text-neutral-900 dark:text-white">
@@ -245,7 +227,7 @@
 						</p>
 					</div>
 					<div class="text-center p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg relative">
-						<div class="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-neutral-400">
+						<div class="absolute left-0 top-1/2 -tranneutral-x-1/2 -tranneutral-y-1/2 text-neutral-400">
 							→
 						</div>
 						<p class="text-3xl font-bold text-neutral-900 dark:text-white">
@@ -257,14 +239,14 @@
 						</p>
 					</div>
 					<div class="text-center p-4 bg-success-50 dark:bg-success-900/20 rounded-lg relative">
-						<div class="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-neutral-400">
+						<div class="absolute left-0 top-1/2 -tranneutral-x-1/2 -tranneutral-y-1/2 text-neutral-400">
 							→
 						</div>
 						<p
 							class="text-3xl font-bold {metrics.funnel.overall_conversion_rate >= 5
 								? 'text-success-600 dark:text-success-400'
 								: metrics.funnel.overall_conversion_rate >= 2
-									? 'text-amber-600 dark:text-amber-400'
+									? 'text-warning-600 dark:text-warning-400'
 									: 'text-error-600 dark:text-error-400'}"
 						>
 							{metrics.funnel.overall_conversion_rate}%
@@ -341,9 +323,7 @@
 						<h3 class="text-base font-semibold text-neutral-900 dark:text-white mb-4">
 							Visitors by Country
 						</h3>
-						<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">
-							No geo data available yet
-						</p>
+						<EmptyState title="No geo data available yet" icon={Globe} />
 					</div>
 				{/if}
 			</div>

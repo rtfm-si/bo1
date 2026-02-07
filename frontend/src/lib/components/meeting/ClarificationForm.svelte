@@ -115,41 +115,41 @@
 </script>
 
 <div
-	class="mb-6 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-6 shadow-lg animate-attention-pulse"
+	class="mb-6 bg-warning-50 dark:bg-warning-900/20 border-2 border-warning-300 dark:border-warning-700 rounded-lg p-6 shadow-lg animate-attention-pulse"
 	transition:fade
 >
 	<div class="flex items-start gap-4">
 		<div class="flex-shrink-0">
-			<AlertCircle class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+			<AlertCircle class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 		</div>
 		<div class="flex-1 min-w-0">
-			<h3 class="text-lg font-semibold text-amber-900 dark:text-amber-100 mb-2">
+			<h3 class="text-lg font-semibold text-warning-900 dark:text-warning-100 mb-2">
 				Before We Begin: A Few Quick Questions
 			</h3>
-			<p class="text-sm text-amber-700 dark:text-amber-300 mb-4">
+			<p class="text-sm text-warning-700 dark:text-warning-300 mb-4">
 				{reason || 'Answering these questions will help our experts provide better recommendations.'}
 			</p>
 
 			<div class="space-y-4">
 				{#each questions as question, index}
 					<div
-						class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-amber-100 dark:border-amber-800"
+						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-warning-100 dark:border-warning-800"
 					>
 						<label
 							for="clarification-{index}"
-							class="block text-sm font-medium text-slate-900 dark:text-white mb-2"
+							class="block text-sm font-medium text-neutral-900 dark:text-white mb-2"
 						>
 							{question.question}
 							{#if question.priority === 'CRITICAL'}
 								<span
-									class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+									class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-300"
 								>
 									Critical
 								</span>
 							{/if}
 						</label>
 						{#if question.reason}
-							<p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{question.reason}</p>
+							<p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">{question.reason}</p>
 						{/if}
 						{#if index === 0}
 						<textarea
@@ -158,7 +158,7 @@
 							bind:value={answers[question.question]}
 							bind:this={firstInputRef}
 							placeholder="Your answer..."
-							class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+							class="w-full px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
 						></textarea>
 					{:else}
 						<textarea
@@ -166,7 +166,7 @@
 							rows="2"
 							bind:value={answers[question.question]}
 							placeholder="Your answer..."
-							class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+							class="w-full px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
 						></textarea>
 					{/if}
 					</div>
@@ -175,9 +175,9 @@
 
 			{#if error}
 				<div
-					class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+					class="mt-4 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg"
 				>
-					<p class="text-sm text-red-700 dark:text-red-300">{error}</p>
+					<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
 				</div>
 			{/if}
 
@@ -185,7 +185,7 @@
 				<button
 					onclick={handleSubmit}
 					disabled={isSubmitting}
-					class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+					class="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:bg-warning-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
 				>
 					{#if isSubmitting}
 						<span
@@ -199,7 +199,7 @@
 				<button
 					onclick={handleSkip}
 					disabled={isSubmitting}
-					class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium transition-colors"
+					class="px-4 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white font-medium transition-colors"
 				>
 					Skip Questions
 				</button>

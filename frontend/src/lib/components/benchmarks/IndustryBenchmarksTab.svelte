@@ -20,6 +20,7 @@
 	import BenchmarkRangeBar from '$lib/components/benchmarks/BenchmarkRangeBar.svelte';
 	import BenchmarkHistory from '$lib/components/benchmarks/BenchmarkHistory.svelte';
 	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// State
 	let isLoading = $state(true);
@@ -106,17 +107,17 @@
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'top_performer':
-				return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30';
+				return 'text-success-600 dark:text-success-400 bg-success-100 dark:bg-success-900/30';
 			case 'above_average':
-				return 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30';
+				return 'text-success-600 dark:text-success-400 bg-success-100 dark:bg-success-900/30';
 			case 'average':
-				return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30';
+				return 'text-warning-600 dark:text-warning-400 bg-warning-100 dark:bg-warning-900/30';
 			case 'below_average':
-				return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30';
+				return 'text-error-600 dark:text-error-400 bg-error-100 dark:bg-error-900/30';
 			case 'locked':
-				return 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700';
+				return 'text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700';
 			default:
-				return 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700';
+				return 'text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700';
 		}
 	}
 
@@ -142,15 +143,15 @@
 	function getCategoryColor(category: string): string {
 		switch (category) {
 			case 'growth':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			case 'retention':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
 			case 'efficiency':
-				return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+				return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400';
 			case 'engagement':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			default:
-				return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300';
 		}
 	}
 
@@ -161,9 +162,9 @@
 			case 'enterprise':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
 			case 'starter':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			default:
-				return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300';
 		}
 	}
 
@@ -193,9 +194,7 @@
 <div class="space-y-6">
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div
-			class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<!-- Monthly Check-in Banner -->
@@ -203,16 +202,16 @@
 
 	<!-- Header -->
 	<div
-		class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+		class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 	>
 		<div class="flex items-center justify-between mb-4">
 			<div class="flex items-center gap-3">
 				<span class="text-2xl">📊</span>
 				<div>
-					<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
 						Industry Benchmarks
 					</h2>
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Compare your metrics against {industry || 'your industry'} standards
 					</p>
 				</div>
@@ -222,7 +221,7 @@
 					{tier.charAt(0).toUpperCase() + tier.slice(1)} Plan
 				</span>
 				{#if lockedCount > 0}
-					<span class="text-sm text-slate-500 dark:text-slate-400">
+					<span class="text-sm text-neutral-500 dark:text-neutral-400">
 						{insights.length - lockedCount}/{insights.length} unlocked
 					</span>
 				{/if}
@@ -231,7 +230,7 @@
 
 		<!-- Tier limits info -->
 		<div
-			class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2"
+			class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg px-3 py-2"
 		>
 			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path
@@ -305,7 +304,7 @@
 				class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {selectedCategory ===
 				cat.value
 					? 'bg-brand-600 text-white'
-					: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}"
+					: 'bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'}"
 			>
 				{cat.icon} {cat.label}
 			</button>
@@ -315,8 +314,8 @@
 	<!-- Toggle view -->
 	<div class="flex items-center gap-4">
 		<label class="flex items-center gap-2 cursor-pointer">
-			<input type="checkbox" bind:checked={showComparison} class="rounded border-slate-300" />
-			<span class="text-sm text-slate-600 dark:text-slate-400">Show my metrics comparison</span>
+			<input type="checkbox" bind:checked={showComparison} class="rounded border-neutral-300" />
+			<span class="text-sm text-neutral-600 dark:text-neutral-400">Show my metrics comparison</span>
 		</label>
 	</div>
 
@@ -329,7 +328,7 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
 					</svg>
 				</div>
-				<h3 class="text-lg font-semibold text-slate-900 dark:text-white">Most Relevant for Your Goals</h3>
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Most Relevant for Your Goals</h3>
 				<span class="text-xs px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300">
 					{alignedComparisons.length} metrics
 				</span>
@@ -349,7 +348,7 @@
 						sample_size?: number;
 					} | undefined}
 					<div
-						class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-brand-200 dark:border-brand-700 p-6 relative"
+						class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border-2 border-brand-200 dark:border-brand-700 p-6 relative"
 					>
 						<!-- Relevance badge -->
 						{#if comparison.relevance_reason}
@@ -365,10 +364,10 @@
 						<!-- Header -->
 						<div class="flex items-start justify-between mb-3 mt-2">
 							<div>
-								<h3 class="font-semibold text-slate-900 dark:text-white">
+								<h3 class="font-semibold text-neutral-900 dark:text-white">
 									{content?.title || comparison.metric_name}
 								</h3>
-								<p class="text-sm text-slate-500 dark:text-slate-400">{content?.description || ''}</p>
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">{content?.description || ''}</p>
 							</div>
 							{#if comparison.category}
 								<span
@@ -383,9 +382,9 @@
 							<!-- Left: Industry Range -->
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 mb-3">
-									<span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Industry</span>
+									<span class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Industry</span>
 									{#if content?.sample_size}
-										<span class="text-xs text-slate-400">(n={content.sample_size})</span>
+										<span class="text-xs text-neutral-400">(n={content.sample_size})</span>
 									{/if}
 								</div>
 								<BenchmarkRangeBar
@@ -396,12 +395,12 @@
 								/>
 							</div>
 							<!-- Right: Your Value -->
-							<div class="space-y-2 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
-								<div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">You</div>
+							<div class="space-y-2 md:border-l md:border-neutral-200 md:dark:border-neutral-700 md:pl-6">
+								<div class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-3">You</div>
 								{#if showComparison}
 									{#if comparison.user_value !== null && comparison.user_value !== undefined}
 										<div class="flex flex-col items-center justify-center py-2">
-											<div class="text-3xl font-bold text-slate-900 dark:text-white">
+											<div class="text-3xl font-bold text-neutral-900 dark:text-white">
 												{comparison.user_value}{comparison.metric_unit === '%' ? '%' : ''}{comparison.metric_unit && comparison.metric_unit !== '%' ? ` ${comparison.metric_unit}` : ''}
 											</div>
 											<div class="mt-2 flex items-center gap-2">
@@ -413,9 +412,9 @@
 											</div>
 										</div>
 									{:else}
-										<div class="flex flex-col items-center justify-center py-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-											<div class="text-3xl font-bold text-slate-300 dark:text-slate-600 mb-2">-</div>
-											<span class="text-sm text-slate-500 dark:text-slate-400 mb-3">Not Set</span>
+										<div class="flex flex-col items-center justify-center py-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
+											<div class="text-3xl font-bold text-neutral-300 dark:text-neutral-600 mb-2">-</div>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Not Set</span>
 											<a
 												href="/context/metrics#{comparison.category || 'metrics'}"
 												class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors"
@@ -425,7 +424,7 @@
 										</div>
 									{/if}
 								{:else}
-									<div class="flex flex-col items-center justify-center py-4 text-slate-400 dark:text-slate-500">
+									<div class="flex flex-col items-center justify-center py-4 text-neutral-400 dark:text-neutral-500">
 										<span class="text-sm">Enable comparison above</span>
 									</div>
 								{/if}
@@ -439,9 +438,9 @@
 		<!-- Divider between aligned and other benchmarks -->
 		{#if otherComparisons.length > 0 || lockedComparisons.length > 0}
 			<div class="flex items-center gap-4 py-2">
-				<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
-				<span class="text-sm text-slate-500 dark:text-slate-400">Other Benchmarks</span>
-				<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+				<div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
+				<span class="text-sm text-neutral-500 dark:text-neutral-400">Other Benchmarks</span>
+				<div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
 			</div>
 		{/if}
 	{/if}
@@ -463,17 +462,17 @@
 				}}
 				{@const comparison = getComparison(content.metric_name || '')}
 				<div
-					class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 {benchmark.locked
+					class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 {benchmark.locked
 						? 'opacity-75'
 						: ''}"
 				>
 					<!-- Header -->
 					<div class="flex items-start justify-between mb-3">
 						<div>
-							<h3 class="font-semibold text-slate-900 dark:text-white">
+							<h3 class="font-semibold text-neutral-900 dark:text-white">
 								{content.title || content.metric_name}
 							</h3>
-							<p class="text-sm text-slate-500 dark:text-slate-400">{content.description}</p>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">{content.description}</p>
 						</div>
 						{#if content.category}
 							<span
@@ -487,9 +486,9 @@
 					{#if benchmark.locked}
 						<!-- Locked state -->
 						<div
-							class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 flex items-center justify-center gap-2"
+							class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-4 flex items-center justify-center gap-2"
 						>
-							<svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path
 									stroke-linecap="round"
 									stroke-linejoin="round"
@@ -497,7 +496,7 @@
 									d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
 								/>
 							</svg>
-							<span class="text-sm text-slate-500 dark:text-slate-400">
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">
 								<a
 									href="/settings/billing"
 									class="text-brand-600 dark:text-brand-400 hover:underline"
@@ -512,9 +511,9 @@
 							<!-- Left column: Industry Range -->
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 mb-3">
-									<span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Industry</span>
+									<span class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Industry</span>
 									{#if content.sample_size}
-										<span class="text-xs text-slate-400">(n={content.sample_size})</span>
+										<span class="text-xs text-neutral-400">(n={content.sample_size})</span>
 									{/if}
 								</div>
 								<BenchmarkRangeBar
@@ -526,13 +525,13 @@
 							</div>
 
 							<!-- Right column: Your Value -->
-							<div class="space-y-2 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
-								<div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">You</div>
+							<div class="space-y-2 md:border-l md:border-neutral-200 md:dark:border-neutral-700 md:pl-6">
+								<div class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-3">You</div>
 								{#if showComparison && comparison}
 									{#if comparison.user_value !== null && comparison.user_value !== undefined}
 										<!-- User has a value set -->
 										<div class="flex flex-col items-center justify-center py-2">
-											<div class="text-3xl font-bold text-slate-900 dark:text-white">
+											<div class="text-3xl font-bold text-neutral-900 dark:text-white">
 												{comparison.user_value}{content.metric_unit === '%' ? '%' : ''}{content.metric_unit && content.metric_unit !== '%' ? ` ${content.metric_unit}` : ''}
 											</div>
 											<div class="mt-2 flex items-center gap-2">
@@ -545,15 +544,15 @@
 											{#if comparison.user_value_updated_at}
 												{@const relativeTime = formatRelativeTime(comparison.user_value_updated_at)}
 												{#if relativeTime}
-													<span class="text-xs text-slate-400 mt-2" title="When you last updated this value">
+													<span class="text-xs text-neutral-400 mt-2" title="When you last updated this value">
 														Updated {relativeTime}
 													</span>
 												{/if}
 											{/if}
 											<!-- Historical values -->
 											{#if comparison.history && comparison.history.length > 0}
-												<div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-													<div class="text-xs text-slate-400 dark:text-slate-500 mb-1">History</div>
+												<div class="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-700">
+													<div class="text-xs text-neutral-400 dark:text-neutral-500 mb-1">History</div>
 													<BenchmarkHistory
 														history={comparison.history}
 														unit={content.metric_unit}
@@ -563,9 +562,9 @@
 										</div>
 									{:else}
 										<!-- User hasn't set a value - prominent empty state -->
-										<div class="flex flex-col items-center justify-center py-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-											<div class="text-3xl font-bold text-slate-300 dark:text-slate-600 mb-2">—</div>
-											<span class="text-sm text-slate-500 dark:text-slate-400 mb-3">Not Set</span>
+										<div class="flex flex-col items-center justify-center py-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
+											<div class="text-3xl font-bold text-neutral-300 dark:text-neutral-600 mb-2">—</div>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Not Set</span>
 											<a
 												href="/context/metrics#{content.category || 'metrics'}"
 												class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors"
@@ -579,7 +578,7 @@
 									{/if}
 								{:else}
 									<!-- Comparison toggle is off -->
-									<div class="flex flex-col items-center justify-center py-4 text-slate-400 dark:text-slate-500">
+									<div class="flex flex-col items-center justify-center py-4 text-neutral-400 dark:text-neutral-500">
 										<span class="text-sm">Enable comparison above</span>
 									</div>
 								{/if}
@@ -592,13 +591,13 @@
 	{:else}
 		<!-- Empty state -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-12 text-center"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center"
 		>
 			<div class="text-4xl mb-4">📊</div>
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 				No benchmarks available
 			</h3>
-			<p class="text-slate-600 dark:text-slate-400 mb-4">
+			<p class="text-neutral-600 dark:text-neutral-400 mb-4">
 				{#if industry === 'Unknown'}
 					Set your industry in
 					<a
@@ -617,11 +616,11 @@
 
 	<!-- Info Box -->
 	<div
-		class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+		class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4"
 	>
 		<div class="flex gap-3">
 			<svg
-				class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+				class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 				fill="none"
 				stroke="currentColor"
 				viewBox="0 0 24 24"
@@ -633,9 +632,9 @@
 					d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 				/>
 			</svg>
-			<div class="text-sm text-blue-900 dark:text-blue-200">
+			<div class="text-sm text-info-900 dark:text-info-200">
 				<p class="font-semibold mb-1">How to Read This</p>
-				<ul class="text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
+				<ul class="text-info-800 dark:text-info-300 space-y-1 list-disc list-inside">
 					<li><strong>Industry</strong> shows the range of values across businesses in your sector</li>
 					<li><strong>You</strong> shows your current value and how you compare</li>
 					<li><strong>Bottom 25%</strong> &mdash; lowest performers &bull; <strong>Typical</strong> &mdash; industry midpoint &bull; <strong>Top 25%</strong> &mdash; best performers</li>
@@ -643,7 +642,7 @@
 						Add your metrics in
 						<a
 							href="/context/metrics"
-							class="text-blue-700 dark:text-blue-400 hover:underline"
+							class="text-info-700 dark:text-info-400 hover:underline"
 						>
 							Context &rarr; Metrics
 						</a>

@@ -11,6 +11,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { generateReportHTML, type ReportAction } from '$lib/utils/pdf-report-generator';
 	import type { SSEEvent } from '$lib/api/sse-events';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// sessionId is always defined when this route matches (guaranteed by [id] in path)
 	const sessionId = $page.params.id as string;
@@ -91,7 +92,7 @@
 {#if status === 'loading' || status === 'generating'}
 	<div class="min-h-screen bg-white flex items-center justify-center">
 		<div class="text-center">
-			<div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+			<Spinner size="lg" class="mx-auto mb-4" />
 			<p class="text-neutral-600">
 				{status === 'loading' ? 'Loading meeting data...' : 'Generating report...'}
 			</p>
@@ -100,7 +101,7 @@
 {:else if status === 'error'}
 	<div class="min-h-screen bg-white flex items-center justify-center">
 		<div class="text-center max-w-md">
-			<div class="text-red-500 mb-4">
+			<div class="text-error-500 mb-4">
 				<svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 				</svg>
@@ -109,7 +110,7 @@
 			<p class="text-neutral-600 mb-4">{errorMessage}</p>
 			<a
 				href="/meeting/{sessionId}"
-				class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+				class="inline-flex items-center gap-2 text-info-600 hover:text-info-700 font-medium"
 			>
 				Go to meeting
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

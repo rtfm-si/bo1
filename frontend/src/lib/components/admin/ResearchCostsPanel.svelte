@@ -4,6 +4,7 @@
 	import { adminApi, type ResearchCostsResponse } from '$lib/api/admin';
 	import { preferredCurrency } from '$lib/stores/preferences';
 	import { formatCurrency } from '$lib/utils/currency';
+	import { StatCard, StatCardRow } from '$lib/components/ui';
 
 	let data = $state<ResearchCostsResponse | null>(null);
 	let loading = $state(true);
@@ -63,111 +64,30 @@
 		</div>
 	{:else if data}
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-			<!-- Brave Costs -->
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-			>
-				<div class="flex items-center gap-3 mb-4">
-					<div class="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-						<Search class="w-6 h-6 text-orange-600 dark:text-orange-400" />
-					</div>
-					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Brave Search</h3>
-				</div>
-				<div class="space-y-2">
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">Total Cost</span>
-						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{fmtCurrency(data.brave.amount_usd)}</span
-						>
-					</div>
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">Queries</span>
-						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{data.brave.query_count.toLocaleString()}</span
-						>
-					</div>
-					{#if data.brave.query_count > 0}
-						<div class="flex justify-between items-center">
-							<span class="text-sm text-neutral-600 dark:text-neutral-400">Avg/Query</span>
-							<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-								>{fmtCurrency(data.brave.amount_usd / data.brave.query_count)}</span
-							>
-						</div>
-					{/if}
-				</div>
-			</div>
+			<StatCard label="Brave Search" icon={Search} iconColorClass="text-orange-600 dark:text-orange-400" iconBgClass="bg-orange-100 dark:bg-orange-900/30">
+				<StatCardRow label="Total Cost" value={fmtCurrency(data.brave.amount_usd)} prominent />
+				<StatCardRow label="Queries" value={data.brave.query_count.toLocaleString()} />
+				{#if data.brave.query_count > 0}
+					<StatCardRow label="Avg/Query" value={fmtCurrency(data.brave.amount_usd / data.brave.query_count)} />
+				{/if}
+			</StatCard>
 
-			<!-- Tavily Costs -->
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-			>
-				<div class="flex items-center gap-3 mb-4">
-					<div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-						<Search class="w-6 h-6 text-purple-600 dark:text-purple-400" />
-					</div>
-					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Tavily</h3>
-				</div>
-				<div class="space-y-2">
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">Total Cost</span>
-						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{fmtCurrency(data.tavily.amount_usd)}</span
-						>
-					</div>
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">Queries</span>
-						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{data.tavily.query_count.toLocaleString()}</span
-						>
-					</div>
-					{#if data.tavily.query_count > 0}
-						<div class="flex justify-between items-center">
-							<span class="text-sm text-neutral-600 dark:text-neutral-400">Avg/Query</span>
-							<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-								>{fmtCurrency(data.tavily.amount_usd / data.tavily.query_count)}</span
-							>
-						</div>
-					{/if}
-				</div>
-			</div>
+			<StatCard label="Tavily" icon={Search} iconColorClass="text-purple-600 dark:text-purple-400" iconBgClass="bg-purple-100 dark:bg-purple-900/30">
+				<StatCardRow label="Total Cost" value={fmtCurrency(data.tavily.amount_usd)} prominent />
+				<StatCardRow label="Queries" value={data.tavily.query_count.toLocaleString()} />
+				{#if data.tavily.query_count > 0}
+					<StatCardRow label="Avg/Query" value={fmtCurrency(data.tavily.amount_usd / data.tavily.query_count)} />
+				{/if}
+			</StatCard>
 
-			<!-- Period Summary -->
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-			>
-				<div class="flex items-center gap-3 mb-4">
-					<div class="p-3 bg-brand-100 dark:bg-brand-900/30 rounded-lg">
-						<Search class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-					</div>
-					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Total Research</h3>
+			<StatCard label="Total Research" icon={Search} iconColorClass="text-brand-600 dark:text-brand-400" iconBgClass="bg-brand-100 dark:bg-brand-900/30">
+				<StatCardRow label="Today" value={fmtCurrency(data.by_period.today)} />
+				<StatCardRow label="This Week" value={fmtCurrency(data.by_period.week)} />
+				<StatCardRow label="This Month" value={fmtCurrency(data.by_period.month)} />
+				<div class="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+					<StatCardRow label="All Time" value={fmtCurrency(data.total_usd)} prominent />
 				</div>
-				<div class="space-y-2">
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">Today</span>
-						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{fmtCurrency(data.by_period.today)}</span
-						>
-					</div>
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">This Week</span>
-						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{fmtCurrency(data.by_period.week)}</span
-						>
-					</div>
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">This Month</span>
-						<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-							>{fmtCurrency(data.by_period.month)}</span
-						>
-					</div>
-					<div class="flex justify-between items-center pt-2 border-t border-neutral-200 dark:border-neutral-700">
-						<span class="text-sm text-neutral-600 dark:text-neutral-400">All Time</span>
-						<span class="text-lg font-semibold text-neutral-900 dark:text-white"
-							>{fmtCurrency(data.total_usd)}</span
-						>
-					</div>
-				</div>
-			</div>
+			</StatCard>
 		</div>
 
 		<!-- Daily Trend Chart (7 days) -->

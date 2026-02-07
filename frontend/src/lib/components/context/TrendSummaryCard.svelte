@@ -130,7 +130,7 @@
 							<Clock class="h-3 w-3" />
 							<span>Updated {formatDate(summary.generated_at)}</span>
 							{#if isStale}
-								<span class="text-amber-600 dark:text-amber-400">(outdated)</span>
+								<span class="text-warning-600 dark:text-warning-400">(outdated)</span>
 							{/if}
 						</p>
 					{/if}
@@ -290,20 +290,20 @@
 					<!-- Opportunities -->
 					{#if summary.opportunities.length > 0}
 						<div
-							class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800"
+							class="bg-success-50 dark:bg-success-900/20 rounded-lg p-4 border border-success-200 dark:border-success-800"
 						>
 							<div class="flex items-center gap-2 mb-3">
-								<Lightbulb class="h-4 w-4 text-green-600 dark:text-green-400" />
-								<span class="text-sm font-medium text-green-700 dark:text-green-300"
+								<Lightbulb class="h-4 w-4 text-success-600 dark:text-success-400" />
+								<span class="text-sm font-medium text-success-700 dark:text-success-300"
 									>Opportunities</span
 								>
 							</div>
 							<ul class="space-y-2">
 								{#each summary.opportunities as opportunity}
 									<li
-										class="flex items-start gap-2 text-sm text-green-700 dark:text-green-300"
+										class="flex items-start gap-2 text-sm text-success-700 dark:text-success-300"
 									>
-										<span class="text-green-500 mt-1">•</span>
+										<span class="text-success-500 mt-1">•</span>
 										<span>{opportunity}</span>
 									</li>
 								{/each}
@@ -314,18 +314,18 @@
 					<!-- Threats -->
 					{#if summary.threats.length > 0}
 						<div
-							class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800"
+							class="bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4 border border-warning-200 dark:border-warning-800"
 						>
 							<div class="flex items-center gap-2 mb-3">
-								<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
-								<span class="text-sm font-medium text-amber-700 dark:text-amber-300"
+								<AlertTriangle class="h-4 w-4 text-warning-600 dark:text-warning-400" />
+								<span class="text-sm font-medium text-warning-700 dark:text-warning-300"
 									>Challenges</span
 								>
 							</div>
 							<ul class="space-y-2">
 								{#each summary.threats as threat}
-									<li class="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
-										<span class="text-amber-500 mt-1">•</span>
+									<li class="flex items-start gap-2 text-sm text-warning-700 dark:text-warning-300">
+										<span class="text-warning-500 mt-1">•</span>
 										<span>{threat}</span>
 									</li>
 								{/each}

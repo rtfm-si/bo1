@@ -79,7 +79,7 @@
 				{/if}
 				{#if onDelete}
 					<BoButton variant="ghost" size="sm" onclick={onDelete} title="Delete insight">
-						<Trash2 class="h-4 w-4 text-red-500" />
+						<Trash2 class="h-4 w-4 text-error-500" />
 					</BoButton>
 				{/if}
 			</div>
@@ -107,13 +107,13 @@
 		{#if insight.strengths.length > 0}
 			<div>
 				<div class="flex items-center gap-1.5 mb-2">
-					<ThumbsUp class="h-4 w-4 text-green-600 dark:text-green-400" />
+					<ThumbsUp class="h-4 w-4 text-success-600 dark:text-success-400" />
 					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Strengths</span>
 				</div>
 				<ul class="space-y-1">
 					{#each insight.strengths as strength}
 						<li class="text-sm text-neutral-600 dark:text-neutral-400 flex items-start gap-2">
-							<span class="text-green-500 mt-1">+</span>
+							<span class="text-success-500 mt-1">+</span>
 							<span>{strength}</span>
 						</li>
 					{/each}
@@ -125,14 +125,14 @@
 		{#if insight.weaknesses.length > 0}
 			<div>
 				<div class="flex items-center gap-1.5 mb-2">
-					<ThumbsDown class="h-4 w-4 text-red-600 dark:text-red-400" />
+					<ThumbsDown class="h-4 w-4 text-error-600 dark:text-error-400" />
 					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Weaknesses</span
 					>
 				</div>
 				<ul class="space-y-1">
 					{#each insight.weaknesses as weakness}
 						<li class="text-sm text-neutral-600 dark:text-neutral-400 flex items-start gap-2">
-							<span class="text-red-500 mt-1">-</span>
+							<span class="text-error-500 mt-1">-</span>
 							<span>{weakness}</span>
 						</li>
 					{/each}

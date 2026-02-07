@@ -21,9 +21,9 @@
 	// Category colors
 	const categoryColors: Record<string, string> = {
 		strategy: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-		growth: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-		operations: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-		product: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+		growth: 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
+		operations: 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300',
+		product: 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300',
 		finance: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
 	};
 
@@ -88,7 +88,7 @@
 	<title>Get Started - Board of One</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 		<!-- Header -->
 		<div class="text-center mb-10">
@@ -97,14 +97,14 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 				</svg>
 			</div>
-			<h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-3">
+			<h1 class="text-3xl font-bold text-neutral-900 dark:text-white mb-3">
 				{#if userName}
 					Ready to make your first decision, {userName}?
 				{:else}
 					Ready to make your first decision?
 				{/if}
 			</h1>
-			<p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+			<p class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
 				Here are some questions tailored to your business. Pick one to get started, or ask your own.
 			</p>
 		</div>
@@ -115,13 +115,13 @@
 				<Spinner size="lg" />
 			</div>
 		{:else if error}
-			<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-				<p class="text-red-700 dark:text-red-300 mb-4">{error}</p>
+			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6 text-center">
+				<p class="text-error-700 dark:text-error-300 mb-4">{error}</p>
 				<Button variant="secondary" onclick={loadQuestions}>Try again</Button>
 			</div>
 		{:else if questions.length === 0}
-			<div class="bg-slate-100 dark:bg-slate-800 rounded-lg p-6 text-center">
-				<p class="text-slate-600 dark:text-slate-400 mb-4">No suggestions available.</p>
+			<div class="bg-neutral-100 dark:bg-neutral-800 rounded-lg p-6 text-center">
+				<p class="text-neutral-600 dark:text-neutral-400 mb-4">No suggestions available.</p>
 				<Button onclick={skipToMeeting}>Start with your own question</Button>
 			</div>
 		{:else}
@@ -130,7 +130,7 @@
 					<button
 						type="button"
 						onclick={() => useQuestion(q.question)}
-						class="text-left bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-md transition-all group"
+						class="text-left bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-5 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-md transition-all group"
 					>
 						<!-- Category badge -->
 						<span class={`inline-block px-2 py-1 rounded text-xs font-medium mb-3 ${categoryColors[q.category] || categoryColors.strategy}`}>
@@ -138,19 +138,19 @@
 						</span>
 
 						<!-- Question text -->
-						<p class="text-slate-900 dark:text-white font-medium mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+						<p class="text-neutral-900 dark:text-white font-medium mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
 							{q.question}
 						</p>
 
 						<!-- Relevance -->
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							{q.relevance}
 						</p>
 
 						<!-- Arrow indicator -->
 						<div class="mt-3 flex items-center text-sm text-brand-600 dark:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity">
 							<span>Use this question</span>
-							<svg class="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-4 h-4 ml-1 transform group-hover:tranneutral-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 							</svg>
 						</div>
@@ -182,7 +182,7 @@
 			<button
 				type="button"
 				onclick={goToDashboard}
-				class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+				class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
 			>
 				Skip to dashboard
 			</button>

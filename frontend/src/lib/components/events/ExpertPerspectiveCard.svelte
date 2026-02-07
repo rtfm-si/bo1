@@ -129,7 +129,7 @@
 				{#if event.data.summary.looking_for}
 					<div>
 						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
-							<Search size={14} class="text-blue-500 dark:text-blue-400" />
+							<Search size={14} class="text-info-500 dark:text-info-400" />
 							{eventTokens.insights.analyzing.label}
 						</p>
 						<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
@@ -142,7 +142,7 @@
 				{#if event.data.summary.value_added}
 					<div>
 						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
-							<Lightbulb size={14} class="text-amber-500 dark:text-amber-400" />
+							<Lightbulb size={14} class="text-warning-500 dark:text-warning-400" />
 							{eventTokens.insights.insight.label}
 						</p>
 						<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">

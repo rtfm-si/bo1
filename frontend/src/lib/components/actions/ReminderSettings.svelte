@@ -104,7 +104,7 @@
 <div class="bg-white dark:bg-neutral-900 rounded-xl p-4 shadow-sm border border-neutral-200 dark:border-neutral-800">
 	<div class="flex items-center justify-between mb-3">
 		<h3 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
-			<Bell class="w-4 h-4 text-amber-500" />
+			<Bell class="w-4 h-4 text-warning-500" />
 			Reminders
 		</h3>
 		{#if isLoading}
@@ -134,7 +134,7 @@
 					class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 {settings.reminders_enabled ? 'bg-brand-600' : 'bg-neutral-200 dark:bg-neutral-700'}"
 				>
 					<span
-						class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {settings.reminders_enabled ? 'translate-x-5' : 'translate-x-0'}"
+						class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {settings.reminders_enabled ? 'tranneutral-x-5' : 'tranneutral-x-0'}"
 					></span>
 				</button>
 			</div>
@@ -160,7 +160,7 @@
 
 				<!-- Snoozed status -->
 				{#if settings.snoozed_until}
-					<div class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+					<div class="flex items-center gap-2 text-sm text-warning-600 dark:text-warning-400">
 						<Clock class="w-4 h-4" />
 						<span>Snoozed until {formatSnoozedUntil(settings.snoozed_until)}</span>
 					</div>

@@ -5,6 +5,8 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button, Badge } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { RefreshCw, ThumbsUp, ThumbsDown, TrendingUp, Users, Calendar, ExternalLink } from 'lucide-svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { RatingMetricsResponse, RatingTrendItem, NegativeRatingItem } from '$lib/api/types';
@@ -82,36 +84,19 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						User Ratings
-					</h1>
-				</div>
-				<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
-					{#snippet children()}
-						<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-						Refresh
-					{/snippet}
-				</Button>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="User Ratings">
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Error State -->
 		{#if error}
 			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-4 mb-6">
@@ -234,17 +219,11 @@
 				</div>
 
 				{#if negativeRatings.length === 0}
-					<div class="p-12 text-center">
-						<div class="mx-auto w-12 h-12 bg-success-100 dark:bg-success-900/30 rounded-full flex items-center justify-center mb-4">
-							<ThumbsUp class="w-6 h-6 text-success-600 dark:text-success-400" />
-						</div>
-						<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-							No negative ratings
-						</h3>
-						<p class="text-neutral-600 dark:text-neutral-400">
-							All recent feedback has been positive!
-						</p>
-					</div>
+					<EmptyState
+						title="No negative ratings"
+						description="All recent feedback has been positive!"
+						icon={ThumbsUp}
+					/>
 				{:else}
 					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
 						{#each negativeRatings as item}

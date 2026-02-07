@@ -25,16 +25,16 @@
 			name: "Maria Santos",
 			archetype: "Financial Strategist",
 			initials: "MS",
-			borderColor: "border-l-slate-400 dark:border-l-slate-500", // analytical style
-			avatarColor: "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+			borderColor: "border-l-neutral-400 dark:border-l-neutral-500", // analytical style
+			avatarColor: "bg-success-100 text-success-700 border-success-300 dark:bg-success-900/30 dark:text-success-300 dark:border-success-700",
 			content: "Current market conditions favor companies with 18+ months runway. Your burn rate suggests urgency, but dilution at current metrics could be costly long-term."
 		},
 		{
 			name: "Ahmad Hassan",
 			archetype: "Risk Officer",
 			initials: "AH",
-			borderColor: "border-l-slate-400 dark:border-l-slate-500", // analytical style
-			avatarColor: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700",
+			borderColor: "border-l-neutral-400 dark:border-l-neutral-500", // analytical style
+			avatarColor: "bg-error-100 text-error-700 border-error-300 dark:bg-error-900/30 dark:text-error-300 dark:border-error-700",
 			content: "Waiting carries execution risk if market conditions deteriorate. Consider a bridge round to extend runway while improving key metrics."
 		}
 	];
@@ -116,38 +116,38 @@
 
 <div class="relative w-full max-w-2xl mx-auto">
 	<!-- Carousel Container -->
-	<div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+	<div class="relative bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
 		<!-- Slides wrapper with CSS transform transitions -->
 		<div class="relative min-h-[340px]">
 			<!-- Slide 1: Problem Statement Input -->
 			<div
 				class="absolute inset-0 p-6 transition-all duration-500 ease-out {currentSlide === 0
-					? 'opacity-100 translate-x-0'
+					? 'opacity-100 tranneutral-x-0'
 					: currentSlide > 0
-						? 'opacity-0 -translate-x-8 pointer-events-none'
-						: 'opacity-0 translate-x-8 pointer-events-none'}"
+						? 'opacity-0 -tranneutral-x-8 pointer-events-none'
+						: 'opacity-0 tranneutral-x-8 pointer-events-none'}"
 			>
 				<div class="flex items-center gap-2 mb-4">
 					<div class="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
 						<MessageSquare size={16} class="text-brand-600 dark:text-brand-400" />
 					</div>
-					<span class="text-sm font-medium text-slate-600 dark:text-slate-400">Your Decision</span>
+					<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Your Decision</span>
 				</div>
 
-				<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-					<p class="text-lg text-slate-900 dark:text-white font-medium min-h-[3.5rem] leading-relaxed">
+				<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+					<p class="text-lg text-neutral-900 dark:text-white font-medium min-h-[3.5rem] leading-relaxed">
 						{typedText}<span class="inline-block w-0.5 h-5 bg-brand-500 ml-0.5 {isTypingComplete ? 'animate-pulse' : 'animate-blink'}"></span>
 					</p>
 				</div>
 
 				<div class="mt-6 flex items-center gap-3">
-					<div class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+					<div class="flex-1 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
 						<div class="h-full bg-brand-500 rounded-full animate-progress"></div>
 					</div>
-					<span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">Analyzing...</span>
+					<span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">Analyzing...</span>
 				</div>
 
-				<p class="mt-4 text-sm text-slate-500 dark:text-slate-400 text-center">
+				<p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400 text-center">
 					Assembling expert panel for your decision...
 				</p>
 			</div>
@@ -155,21 +155,21 @@
 			<!-- Slide 2: Expert Discussion -->
 			<div
 				class="absolute inset-0 p-6 transition-all duration-500 ease-out {currentSlide === 1
-					? 'opacity-100 translate-x-0'
+					? 'opacity-100 tranneutral-x-0'
 					: currentSlide > 1
-						? 'opacity-0 -translate-x-8 pointer-events-none'
-						: 'opacity-0 translate-x-8 pointer-events-none'}"
+						? 'opacity-0 -tranneutral-x-8 pointer-events-none'
+						: 'opacity-0 tranneutral-x-8 pointer-events-none'}"
 			>
 				<div class="flex items-center gap-2 mb-4">
-					<div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-						<Users size={16} class="text-blue-600 dark:text-blue-400" />
+					<div class="w-8 h-8 rounded-full bg-info-100 dark:bg-info-900/30 flex items-center justify-center">
+						<Users size={16} class="text-info-600 dark:text-info-400" />
 					</div>
-					<span class="text-sm font-medium text-slate-600 dark:text-slate-400">Experts Deliberate</span>
+					<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Experts Deliberate</span>
 				</div>
 
 				<div class="space-y-3">
 					{#each expertContributions as expert (expert.name)}
-						<div class="border-l-4 {expert.borderColor} pl-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-r-lg">
+						<div class="border-l-4 {expert.borderColor} pl-3 py-2 bg-neutral-50 dark:bg-neutral-900 rounded-r-lg">
 							<div class="flex items-start gap-3">
 								<div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm border-2 {expert.avatarColor}">
 									{expert.initials}
@@ -188,7 +188,7 @@
 					{/each}
 				</div>
 
-				<p class="mt-4 text-xs text-slate-500 dark:text-slate-400 text-center italic">
+				<p class="mt-4 text-xs text-neutral-500 dark:text-neutral-400 text-center italic">
 					+ 3 more experts contributing perspectives...
 				</p>
 			</div>
@@ -196,24 +196,24 @@
 			<!-- Slide 3: Report Output -->
 			<div
 				class="absolute inset-0 p-5 transition-all duration-500 ease-out {currentSlide === 2
-					? 'opacity-100 translate-x-0'
+					? 'opacity-100 tranneutral-x-0'
 					: currentSlide < 2
-						? 'opacity-0 translate-x-8 pointer-events-none'
-						: 'opacity-0 -translate-x-8 pointer-events-none'}"
+						? 'opacity-0 tranneutral-x-8 pointer-events-none'
+						: 'opacity-0 -tranneutral-x-8 pointer-events-none'}"
 			>
 				<div class="flex items-center gap-2 mb-3">
 					<div class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
 						<FileText size={16} class="text-purple-600 dark:text-purple-400" />
 					</div>
-					<span class="text-sm font-medium text-slate-600 dark:text-slate-400">Your Report</span>
+					<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Your Report</span>
 				</div>
 
 				<!-- Metrics grid -->
 				<div class="grid grid-cols-4 gap-1.5 mb-3">
 					{#each reportMetrics as metric (metric.label)}
-						<div class="text-center p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
-							<div class="text-base font-bold text-slate-900 dark:text-white">{metric.value}</div>
-							<div class="text-[10px] text-slate-500 dark:text-slate-400">{metric.label}</div>
+						<div class="text-center p-1.5 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+							<div class="text-base font-bold text-neutral-900 dark:text-white">{metric.value}</div>
+							<div class="text-[10px] text-neutral-500 dark:text-neutral-400">{metric.label}</div>
 						</div>
 					{/each}
 				</div>
@@ -224,7 +224,7 @@
 						<Quote size={14} class="text-brand-500 flex-shrink-0 mt-0.5" />
 						<div>
 							<h4 class="font-semibold text-xs text-brand-700 dark:text-brand-400 mb-1">The Bottom Line</h4>
-							<p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+							<p class="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
 								{reportOutput.bottomLine}
 							</p>
 						</div>
@@ -234,14 +234,14 @@
 				<!-- Two column layout for remaining sections -->
 				<div class="grid grid-cols-2 gap-2">
 					<!-- Key Takeaways -->
-					<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-2">
+					<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-2">
 						<div class="flex items-center gap-1.5 mb-1.5">
-							<Lightbulb size={12} class="text-amber-500" />
-							<h4 class="font-semibold text-[11px] text-slate-900 dark:text-white">Key Takeaways</h4>
+							<Lightbulb size={12} class="text-warning-500" />
+							<h4 class="font-semibold text-[11px] text-neutral-900 dark:text-white">Key Takeaways</h4>
 						</div>
 						<ul class="space-y-0.5">
 							{#each reportOutput.takeaways as takeaway}
-								<li class="text-[10px] text-slate-600 dark:text-slate-400 flex items-start gap-1">
+								<li class="text-[10px] text-neutral-600 dark:text-neutral-400 flex items-start gap-1">
 									<span class="text-brand-500 mt-0.5">•</span>
 									<span>{takeaway}</span>
 								</li>
@@ -250,15 +250,15 @@
 					</div>
 
 					<!-- Next Steps -->
-					<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-2">
+					<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-2">
 						<div class="flex items-center gap-1.5 mb-1.5">
-							<ArrowRight size={12} class="text-emerald-500" />
-							<h4 class="font-semibold text-[11px] text-slate-900 dark:text-white">Next Steps</h4>
+							<ArrowRight size={12} class="text-success-500" />
+							<h4 class="font-semibold text-[11px] text-neutral-900 dark:text-white">Next Steps</h4>
 						</div>
 						<ul class="space-y-0.5">
 							{#each reportOutput.nextSteps as step, i}
-								<li class="text-[10px] text-slate-600 dark:text-slate-400 flex items-start gap-1">
-									<span class="text-emerald-500 font-medium">{i + 1}.</span>
+								<li class="text-[10px] text-neutral-600 dark:text-neutral-400 flex items-start gap-1">
+									<span class="text-success-500 font-medium">{i + 1}.</span>
 									<span>{step}</span>
 								</li>
 							{/each}
@@ -267,9 +267,9 @@
 				</div>
 
 				<!-- Blind Spots indicator -->
-				<div class="mt-2 flex items-center gap-2 px-2 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-					<AlertTriangle size={12} class="text-amber-500 flex-shrink-0" />
-					<p class="text-[10px] text-amber-700 dark:text-amber-400">
+				<div class="mt-2 flex items-center gap-2 px-2 py-1.5 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
+					<AlertTriangle size={12} class="text-warning-500 flex-shrink-0" />
+					<p class="text-[10px] text-warning-700 dark:text-warning-400">
 						<span class="font-semibold">Blind Spot:</span> {reportOutput.blindSpots}
 					</p>
 				</div>
@@ -284,14 +284,14 @@
 				onclick={() => goToSlide(i)}
 				class="h-2 rounded-full transition-all duration-300 {currentSlide === i
 					? 'bg-brand-500 w-6'
-					: 'bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 w-2'}"
+					: 'bg-neutral-300 dark:bg-neutral-600 hover:bg-neutral-400 dark:hover:bg-neutral-500 w-2'}"
 				aria-label="Go to slide {i + 1}"
 			></button>
 		{/each}
 	</div>
 
 	<!-- Slide Labels -->
-	<div class="flex justify-center gap-8 mt-3 text-sm text-slate-500 dark:text-slate-400">
+	<div class="flex justify-center gap-8 mt-3 text-sm text-neutral-500 dark:text-neutral-400">
 		<button
 			onclick={() => goToSlide(0)}
 			class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors {currentSlide === 0 ? 'text-brand-600 dark:text-brand-400 font-medium' : ''}"

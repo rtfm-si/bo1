@@ -75,7 +75,7 @@
 		{@render children()}
 	{:else}
 		<!-- Placeholder skeleton -->
-		<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg" style="height: {height}px">
+		<div class="animate-pulse bg-neutral-100 dark:bg-neutral-800 rounded-lg" style="height: {height}px">
 		</div>
 	{/if}
 </div>

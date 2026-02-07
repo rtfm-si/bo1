@@ -37,9 +37,9 @@
 	const ACTIVITY_COLORS: Record<ActivityType, { light: string; dark: string; label: string; shortLabel: string; group: 'actual' | 'planned' }> = {
 		sessions_run: { light: 'bg-brand-600', dark: 'dark:bg-brand-400', label: 'Meetings', shortLabel: 'Meet', group: 'actual' },
 		completed_count: { light: 'bg-success-600', dark: 'dark:bg-success-400', label: 'Actions completed', shortLabel: 'Done', group: 'actual' },
-		in_progress_count: { light: 'bg-amber-600', dark: 'dark:bg-amber-400', label: 'Actions started', shortLabel: 'Started', group: 'actual' },
+		in_progress_count: { light: 'bg-warning-600', dark: 'dark:bg-warning-400', label: 'Actions started', shortLabel: 'Started', group: 'actual' },
 		mentor_sessions: { light: 'bg-purple-600', dark: 'dark:bg-purple-400', label: 'Advisor sessions', shortLabel: 'Advisor', group: 'actual' },
-		estimated_starts: { light: 'bg-amber-300', dark: 'dark:bg-amber-500', label: 'Planned starts', shortLabel: 'Plan', group: 'planned' },
+		estimated_starts: { light: 'bg-warning-300', dark: 'dark:bg-warning-500', label: 'Planned starts', shortLabel: 'Plan', group: 'planned' },
 		estimated_completions: { light: 'bg-success-300', dark: 'dark:bg-success-500', label: 'Due dates', shortLabel: 'Due', group: 'planned' }
 	};
 
@@ -135,7 +135,7 @@
 		// Calculate max cell size to fill available space
 		const maxCellWithGap = availableWidth / weekCount;
 		const gap = Math.min(4, Math.max(2, maxCellWithGap * 0.15)); // 15% gap, clamped
-		const cell = Math.min(24, Math.max(12, maxCellWithGap - gap)); // clamp 12-24px
+		const cell = Math.min(36, Math.max(12, maxCellWithGap - gap)); // clamp 12-36px
 
 		return { cell: Math.floor(cell), gap: Math.floor(gap) };
 	});
@@ -264,11 +264,11 @@
 		}
 
 		if (intensity === 0) {
-			return 'bg-neutral-100 dark:bg-neutral-800';
+			return 'bg-neutral-200/60 dark:bg-neutral-700/60';
 		}
 
 		const dominant = getDominantType(stat);
-		if (!dominant) return 'bg-neutral-100 dark:bg-neutral-800';
+		if (!dominant) return 'bg-neutral-200/60 dark:bg-neutral-700/60';
 
 		// Apply intensity via opacity classes
 		const color = ACTIVITY_COLORS[dominant];
@@ -475,7 +475,7 @@
 					</svg>
 					<span>Trending up</span>
 				{:else if trendDirection === 'down'}
-					<svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="w-3.5 h-3.5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
 					</svg>
 					<span>Trending down</span>
@@ -554,8 +554,12 @@
 							<span class="text-neutral-600 dark:text-neutral-400">Future (no activity)</span>
 						</div>
 						<div class="flex items-center gap-2">
-							<div class="w-3 h-3 rounded-sm bg-neutral-100 dark:bg-neutral-800 opacity-30"></div>
+							<div class="w-3 h-3 rounded-sm bg-neutral-50 dark:bg-neutral-900 opacity-30"></div>
 							<span class="text-neutral-600 dark:text-neutral-400">Non-working day</span>
+						</div>
+						<div class="flex items-center gap-2">
+							<div class="w-3 h-3 rounded-sm bg-neutral-200/60 dark:bg-neutral-700/60"></div>
+							<span class="text-neutral-600 dark:text-neutral-400">No activity</span>
 						</div>
 						<p class="text-neutral-500 dark:text-neutral-400 pt-1 border-t border-neutral-200 dark:border-neutral-700">
 							Click type chips above to show/hide activities

@@ -139,14 +139,14 @@
 			</div>
 
 			<!-- Privacy Warning -->
-			<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+			<div class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4">
 				<div class="flex gap-3">
-					<Shield class="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+					<Shield class="h-5 w-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
 					<div class="space-y-2 text-sm">
-						<p class="font-medium text-amber-800 dark:text-amber-200">
+						<p class="font-medium text-warning-800 dark:text-warning-200">
 							Data Privacy Obligations
 						</p>
-						<ul class="text-amber-700 dark:text-amber-300 space-y-1 list-disc list-inside">
+						<ul class="text-warning-700 dark:text-warning-300 space-y-1 list-disc list-inside">
 							<li>Do not upload data containing real personal information</li>
 							<li>Anonymize or pseudonymize data before uploading</li>
 							<li>You are responsible for compliance with GDPR, CCPA, and other privacy regulations</li>

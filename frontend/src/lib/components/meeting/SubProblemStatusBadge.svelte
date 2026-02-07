@@ -35,9 +35,9 @@
 		pending: {
 			label: 'Pending',
 			icon: Clock,
-			bgClass: 'bg-slate-100 dark:bg-slate-700',
-			textClass: 'text-slate-600 dark:text-slate-400',
-			iconClass: 'text-slate-500 dark:text-slate-400',
+			bgClass: 'bg-neutral-100 dark:bg-neutral-700',
+			textClass: 'text-neutral-600 dark:text-neutral-400',
+			iconClass: 'text-neutral-500 dark:text-neutral-400',
 		},
 	} as const;
 

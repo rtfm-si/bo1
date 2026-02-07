@@ -13,6 +13,7 @@
 	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
 	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { startActionsPageTour, injectTourStyles, destroyActiveTour } from '$lib/tour/onboarding-tour';
 	import type {
 		AllActionsResponse,
@@ -337,12 +338,12 @@
 <div
 	class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800"
 >
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Header with stats -->
 		<div class="mb-8">
 			<div class="flex items-center justify-between mb-4">
 				<div>
-					<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Actions</h1>
+					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Actions</h1>
 					<p class="text-neutral-600 dark:text-neutral-400">
 						Track and manage actions from your meetings
 					</p>
@@ -737,7 +738,7 @@
 				/>
 			{:else}
 				<div class="flex items-center justify-center h-96 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
-					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+					<Spinner size="lg" />
 				</div>
 			{/if}
 		{:else}

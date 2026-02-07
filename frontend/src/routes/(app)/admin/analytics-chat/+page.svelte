@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import { user } from '$lib/stores/auth';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import AnalyticsChatMessage from '$lib/components/admin/AnalyticsChatMessage.svelte';
 	import AnalyticsChatInput from '$lib/components/admin/AnalyticsChatInput.svelte';
 	import SavedAnalysesList from '$lib/components/admin/SavedAnalysesList.svelte';
@@ -304,22 +305,9 @@
 	<title>Analytics Chat | Admin</title>
 </svelte:head>
 
-<div class="h-[calc(100vh-4rem)] flex flex-col max-w-6xl mx-auto">
-	<!-- Header -->
-	<div
-		class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700"
-	>
-		<div class="flex items-center gap-2">
-			<a
-				href="/admin"
-				class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-			>
-				Admin
-			</a>
-			<span class="text-neutral-300 dark:text-neutral-600">/</span>
-			<h1 class="text-sm font-semibold text-neutral-900 dark:text-white">Analytics Chat</h1>
-		</div>
-		<div class="flex items-center gap-2">
+<div class="h-[calc(100dvh-5rem)] flex flex-col mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
+	<AdminPageHeader title="Analytics Chat">
+		{#snippet actions()}
 			<button
 				class="text-xs px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
 				onclick={loadSaved}
@@ -332,8 +320,8 @@
 			>
 				Clear
 			</button>
-		</div>
-	</div>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Messages -->
 	<div bind:this={chatContainer} class="flex-1 overflow-y-auto px-4 py-4 space-y-4">

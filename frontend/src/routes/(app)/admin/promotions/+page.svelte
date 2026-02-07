@@ -4,10 +4,13 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import { Plus, RefreshCw, Tag, Users, Trash2 } from 'lucide-svelte';
 	import { adminApi, type Promotion, type UserWithPromotions } from '$lib/api/admin';
 	import PromotionCard from '$lib/components/admin/PromotionCard.svelte';
 	import AddPromotionModal from '$lib/components/admin/AddPromotionModal.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	// State
 	let promotions = $state<Promotion[]>([]);
@@ -134,44 +137,25 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						Promotions
-					</h1>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button variant="secondary" size="sm" onclick={loadPromotions} disabled={isLoading}>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-							Refresh
-						{/snippet}
-					</Button>
-					<Button variant="brand" size="sm" onclick={() => showAddModal = true}>
-						{#snippet children()}
-							<Plus class="w-4 h-4" />
-							Add Promotion
-						{/snippet}
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Promotions">
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadPromotions} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+			<Button variant="brand" size="sm" onclick={() => showAddModal = true}>
+				{#snippet children()}
+					<Plus class="w-4 h-4" />
+					Add Promotion
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Tab Switcher -->
 		<div class="mb-6 border-b border-neutral-200 dark:border-neutral-700">
 			<nav class="-mb-px flex gap-4">
@@ -249,35 +233,22 @@
 				</div>
 			{:else if filteredPromotions().length === 0}
 				<!-- Empty State -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-					<div class="mx-auto w-12 h-12 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4">
-						<Tag class="w-6 h-6 text-neutral-400" />
-					</div>
-					<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+				<EmptyState
+					title={filter === 'all' ? 'No promotions yet' : filter === 'active' ? 'No active promotions' : 'No expired/inactive promotions'}
+					description={filter === 'all' ? 'Create your first promotion code to get started.' : 'Change the filter to see other promotions.'}
+					icon={Tag}
+				>
+					{#snippet actions()}
 						{#if filter === 'all'}
-							No promotions yet
-						{:else if filter === 'active'}
-							No active promotions
-						{:else}
-							No expired/inactive promotions
+							<Button variant="brand" size="md" onclick={() => showAddModal = true}>
+								{#snippet children()}
+									<Plus class="w-4 h-4" />
+									Create Promotion
+								{/snippet}
+							</Button>
 						{/if}
-					</h3>
-					<p class="text-neutral-600 dark:text-neutral-400 mb-4">
-						{#if filter === 'all'}
-							Create your first promotion code to get started.
-						{:else}
-							Change the filter to see other promotions.
-						{/if}
-					</p>
-					{#if filter === 'all'}
-						<Button variant="brand" size="md" onclick={() => showAddModal = true}>
-							{#snippet children()}
-								<Plus class="w-4 h-4" />
-								Create Promotion
-							{/snippet}
-						</Button>
-					{/if}
-				</div>
+					{/snippet}
+				</EmptyState>
 			{:else}
 				<!-- Promotions Grid -->
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -299,17 +270,11 @@
 				</div>
 			{:else if usersWithPromos.length === 0}
 				<!-- Empty State -->
-				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-					<div class="mx-auto w-12 h-12 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4">
-						<Users class="w-6 h-6 text-neutral-400" />
-					</div>
-					<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-						No users with active promotions
-					</h3>
-					<p class="text-neutral-600 dark:text-neutral-400">
-						Users will appear here once promotions are applied to their accounts.
-					</p>
-				</div>
+				<EmptyState
+					title="No users with active promotions"
+					description="Users will appear here once promotions are applied to their accounts."
+					icon={Users}
+				/>
 			{:else}
 				<!-- Users with Promos Table -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
@@ -372,45 +337,35 @@
 />
 
 <!-- Delete Confirmation Modal -->
-{#if deleteConfirm}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={cancelDelete} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Deactivate Promotion</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to deactivate <strong class="font-mono">{deleteConfirm.code}</strong>? This will prevent the code from being used, but existing usages will remain.
-			</p>
-			<div class="flex justify-end gap-3">
-				<Button variant="secondary" size="md" onclick={cancelDelete} disabled={isDeleting}>
-					{#snippet children()}Cancel{/snippet}
-				</Button>
-				<Button variant="danger" size="md" onclick={confirmDelete} disabled={isDeleting}>
-					{#snippet children()}{isDeleting ? 'Deactivating...' : 'Deactivate'}{/snippet}
-				</Button>
-			</div>
+<Modal open={!!deleteConfirm} title="Deactivate Promotion" size="sm" onclose={cancelDelete}>
+	<p class="text-sm text-neutral-600 dark:text-neutral-400">
+		Are you sure you want to deactivate <strong class="font-mono">{deleteConfirm?.code}</strong>? This will prevent the code from being used, but existing usages will remain.
+	</p>
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="secondary" size="md" onclick={cancelDelete} disabled={isDeleting}>
+				{#snippet children()}Cancel{/snippet}
+			</Button>
+			<Button variant="danger" size="md" onclick={confirmDelete} disabled={isDeleting}>
+				{#snippet children()}{isDeleting ? 'Deactivating...' : 'Deactivate'}{/snippet}
+			</Button>
 		</div>
-	</div>
-{/if}
+	{/snippet}
+</Modal>
 
 <!-- Remove User Promotion Confirmation Modal -->
-{#if removeConfirm}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={cancelRemove} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Remove Promotion from User</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to remove <strong class="font-mono">{removeConfirm.code}</strong> from <strong>{removeConfirm.email}</strong>? This action cannot be undone.
-			</p>
-			<div class="flex justify-end gap-3">
-				<Button variant="secondary" size="md" onclick={cancelRemove} disabled={isRemoving}>
-					{#snippet children()}Cancel{/snippet}
-				</Button>
-				<Button variant="danger" size="md" onclick={confirmRemove} disabled={isRemoving}>
-					{#snippet children()}{isRemoving ? 'Removing...' : 'Remove'}{/snippet}
-				</Button>
-			</div>
+<Modal open={!!removeConfirm} title="Remove Promotion from User" size="sm" onclose={cancelRemove}>
+	<p class="text-sm text-neutral-600 dark:text-neutral-400">
+		Are you sure you want to remove <strong class="font-mono">{removeConfirm?.code}</strong> from <strong>{removeConfirm?.email}</strong>? This action cannot be undone.
+	</p>
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="secondary" size="md" onclick={cancelRemove} disabled={isRemoving}>
+				{#snippet children()}Cancel{/snippet}
+			</Button>
+			<Button variant="danger" size="md" onclick={confirmRemove} disabled={isRemoving}>
+				{#snippet children()}{isRemoving ? 'Removing...' : 'Remove'}{/snippet}
+			</Button>
 		</div>
-	</div>
-{/if}
+	{/snippet}
+</Modal>

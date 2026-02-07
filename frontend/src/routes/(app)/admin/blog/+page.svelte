@@ -8,6 +8,9 @@
 	import { adminApi, type BlogPost, type TopicProposal } from '$lib/api/admin';
 	import BlogEditorModal from '$lib/components/admin/BlogEditorModal.svelte';
 	import BlogGenerateModal from '$lib/components/admin/BlogGenerateModal.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
 
 	// State
 	let posts = $state<BlogPost[]>([]);
@@ -131,9 +134,9 @@
 			case 'draft':
 				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300';
 			case 'scheduled':
-				return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+				return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400';
 			case 'published':
-				return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			default:
 				return 'bg-neutral-100 text-neutral-600';
 		}
@@ -181,63 +184,35 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div class="flex items-center gap-2">
-						<FileText class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-xl font-semibold text-neutral-900 dark:text-white">Blog Posts</h1>
-					</div>
-					<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
-						{total} posts
-					</span>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button variant="outline" size="sm" onclick={() => loadPosts()} disabled={isLoading}>
-						<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
-						Refresh
-					</Button>
-					<Button variant="outline" size="sm" onclick={() => loadProposals()} disabled={isLoadingProposals}>
-						<Lightbulb class="w-4 h-4 mr-1.5 {isLoadingProposals ? 'animate-pulse' : ''}" />
-						Propose Topics
-					</Button>
-					<Button variant="outline" size="sm" onclick={openGenerateModal}>
-						<Sparkles class="w-4 h-4 mr-1.5" />
-						Generate
-					</Button>
-					<Button size="sm" onclick={() => openEditor()}>
-						<Plus class="w-4 h-4 mr-1.5" />
-						New Post
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Blog Posts" icon={FileText}>
+		{#snippet badge()}
+			<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+				{total} posts
+			</span>
+		{/snippet}
+		{#snippet actions()}
+			<Button variant="outline" size="sm" onclick={() => loadPosts()} disabled={isLoading}>
+				<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
+				Refresh
+			</Button>
+			<Button variant="outline" size="sm" onclick={() => loadProposals()} disabled={isLoadingProposals}>
+				<Lightbulb class="w-4 h-4 mr-1.5 {isLoadingProposals ? 'animate-pulse' : ''}" />
+				Propose Topics
+			</Button>
+			<Button variant="outline" size="sm" onclick={openGenerateModal}>
+				<Sparkles class="w-4 h-4 mr-1.5" />
+				Generate
+			</Button>
+			<Button size="sm" onclick={() => openEditor()}>
+				<Plus class="w-4 h-4 mr-1.5" />
+				New Post
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Filter tabs -->
 	<div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
 			<nav class="flex gap-6" aria-label="Tabs">
 				{#each ['all', 'draft', 'scheduled', 'published'] as tab}
 					<button
@@ -258,12 +233,12 @@
 
 	<!-- Topic Proposals -->
 	{#if showProposals && proposals.length > 0}
-		<div class="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+		<div class="bg-warning-50 dark:bg-warning-900/20 border-b border-warning-200 dark:border-warning-800">
+			<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
 				<div class="flex items-center justify-between mb-3">
 					<div class="flex items-center gap-2">
-						<Lightbulb class="w-5 h-5 text-amber-600 dark:text-amber-400" />
-						<h2 class="font-medium text-amber-900 dark:text-amber-100">Suggested Topics</h2>
+						<Lightbulb class="w-5 h-5 text-warning-600 dark:text-warning-400" />
+						<h2 class="font-medium text-warning-900 dark:text-warning-100">Suggested Topics</h2>
 					</div>
 					<div class="flex items-center gap-2">
 						<Button variant="ghost" size="sm" onclick={() => loadProposals()} disabled={isLoadingProposals}>
@@ -276,7 +251,7 @@
 				</div>
 				<div class="space-y-3">
 					{#each proposals as proposal, i}
-						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-amber-200 dark:border-amber-700 p-4">
+						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-warning-200 dark:border-warning-700 p-4">
 							<div class="flex items-start justify-between gap-4">
 								<div class="flex-1 min-w-0">
 									<h3 class="font-medium text-neutral-900 dark:text-white">{proposal.title}</h3>
@@ -312,10 +287,10 @@
 	{/if}
 
 	<!-- Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 		{#if error}
-			<div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-4 mb-6">
-				<p class="text-sm text-red-700 dark:text-red-400">{error}</p>
+			<div class="rounded-lg bg-error-50 dark:bg-error-900/20 p-4 mb-6">
+				<p class="text-sm text-error-700 dark:text-error-400">{error}</p>
 			</div>
 		{/if}
 
@@ -326,13 +301,8 @@
 				{/each}
 			</div>
 		{:else if filteredPosts().length === 0}
-			<div class="text-center py-12">
-				<FileText class="w-12 h-12 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" />
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">No posts yet</h3>
-				<p class="text-neutral-500 dark:text-neutral-400 mb-4">
-					Create your first blog post or generate one with AI.
-				</p>
-				<div class="flex justify-center gap-3">
+			<EmptyState title="No posts yet" description="Create your first blog post or generate one with AI." icon={FileText}>
+				{#snippet actions()}
 					<Button variant="outline" onclick={() => (showGenerateModal = true)}>
 						<Sparkles class="w-4 h-4 mr-1.5" />
 						Generate with AI
@@ -341,8 +311,8 @@
 						<Plus class="w-4 h-4 mr-1.5" />
 						New Post
 					</Button>
-				</div>
-			</div>
+				{/snippet}
+			</EmptyState>
 		{:else}
 			<div class="space-y-4">
 				{#each filteredPosts() as post (post.id)}
@@ -401,7 +371,7 @@
 									<Edit class="w-4 h-4" />
 								</Button>
 								<Button variant="ghost" size="sm" onclick={() => requestDelete(post)}>
-									<Trash2 class="w-4 h-4 text-red-500" />
+									<Trash2 class="w-4 h-4 text-error-500" />
 								</Button>
 							</div>
 						</div>
@@ -413,22 +383,19 @@
 </div>
 
 <!-- Delete confirmation -->
-{#if deleteConfirm}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-		<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 max-w-md mx-4">
-			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">Delete Post?</h3>
-			<p class="text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to delete "{deleteConfirm.title}"? This cannot be undone.
-			</p>
-			<div class="flex justify-end gap-3">
-				<Button variant="outline" onclick={cancelDelete} disabled={isDeleting}>Cancel</Button>
-				<Button variant="danger" onclick={confirmDelete} disabled={isDeleting}>
-					{isDeleting ? 'Deleting...' : 'Delete'}
-				</Button>
-			</div>
+<Modal open={!!deleteConfirm} title="Delete Post?" size="sm" onclose={cancelDelete}>
+	<p class="text-neutral-600 dark:text-neutral-400">
+		Are you sure you want to delete "{deleteConfirm?.title}"? This cannot be undone.
+	</p>
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="outline" onclick={cancelDelete} disabled={isDeleting}>Cancel</Button>
+			<Button variant="danger" onclick={confirmDelete} disabled={isDeleting}>
+				{isDeleting ? 'Deleting...' : 'Delete'}
+			</Button>
 		</div>
-	</div>
-{/if}
+	{/snippet}
+</Modal>
 
 <!-- Editor Modal -->
 {#if showEditorModal}

@@ -73,18 +73,18 @@
 </script>
 
 {#if convergenceData}
-	<div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
 		<!-- Header -->
 		<div class="mb-4">
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white">
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">
 				Convergence Tracking
 			</h3>
 			{#if convergenceData.convergenceAchieved}
-				<p class="text-xs text-green-600 dark:text-green-400 mt-1">
+				<p class="text-xs text-success-600 dark:text-success-400 mt-1">
 					✓ Convergence achieved at round {convergenceData.convergenceRound}
 				</p>
 			{:else}
-				<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+				<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 					Tracking expert consensus formation
 				</p>
 			{/if}
@@ -97,9 +97,9 @@
 				<rect x="0" y="0" width="300" height="150" fill="transparent" />
 
 				<!-- Grid lines (light) -->
-				<line x1="20" y1="20" x2="280" y2="20" stroke="currentColor" stroke-width="0.5" class="text-slate-200 dark:text-slate-700" />
-				<line x1="20" y1="85" x2="280" y2="85" stroke="currentColor" stroke-width="0.5" class="text-slate-200 dark:text-slate-700" />
-				<line x1="20" y1="130" x2="280" y2="130" stroke="currentColor" stroke-width="0.5" class="text-slate-200 dark:text-slate-700" />
+				<line x1="20" y1="20" x2="280" y2="20" stroke="currentColor" stroke-width="0.5" class="text-neutral-200 dark:text-neutral-700" />
+				<line x1="20" y1="85" x2="280" y2="85" stroke="currentColor" stroke-width="0.5" class="text-neutral-200 dark:text-neutral-700" />
+				<line x1="20" y1="130" x2="280" y2="130" stroke="currentColor" stroke-width="0.5" class="text-neutral-200 dark:text-neutral-700" />
 
 				<!-- Threshold line (dashed) -->
 				<line
@@ -152,16 +152,16 @@
 				{/each}
 
 				<!-- Axes -->
-				<line x1="20" y1="20" x2="20" y2="130" stroke="currentColor" stroke-width="1" class="text-slate-400 dark:text-slate-600" />
-				<line x1="20" y1="130" x2="280" y2="130" stroke="currentColor" stroke-width="1" class="text-slate-400 dark:text-slate-600" />
+				<line x1="20" y1="20" x2="20" y2="130" stroke="currentColor" stroke-width="1" class="text-neutral-400 dark:text-neutral-600" />
+				<line x1="20" y1="130" x2="280" y2="130" stroke="currentColor" stroke-width="1" class="text-neutral-400 dark:text-neutral-600" />
 
 				<!-- Y-axis labels -->
-				<text x="15" y="25" text-anchor="end" font-size="10" class="fill-slate-500 dark:fill-slate-400">1.0</text>
-				<text x="15" y="90" text-anchor="end" font-size="10" class="fill-slate-500 dark:fill-slate-400">0.5</text>
-				<text x="15" y="135" text-anchor="end" font-size="10" class="fill-slate-500 dark:fill-slate-400">0.0</text>
+				<text x="15" y="25" text-anchor="end" font-size="10" class="fill-neutral-500 dark:fill-neutral-400">1.0</text>
+				<text x="15" y="90" text-anchor="end" font-size="10" class="fill-neutral-500 dark:fill-neutral-400">0.5</text>
+				<text x="15" y="135" text-anchor="end" font-size="10" class="fill-neutral-500 dark:fill-neutral-400">0.0</text>
 
 				<!-- X-axis label -->
-				<text x="150" y="148" text-anchor="middle" font-size="10" class="fill-slate-500 dark:fill-slate-400">Rounds</text>
+				<text x="150" y="148" text-anchor="middle" font-size="10" class="fill-neutral-500 dark:fill-neutral-400">Rounds</text>
 			</svg>
 		</div>
 
@@ -169,17 +169,17 @@
 		<div class="mt-3 flex items-center justify-center gap-4 text-xs">
 			<div class="flex items-center gap-1.5">
 				<div class="w-3 h-0.5" style="background-color: {eventTokens.charts.convergence.line}"></div>
-				<span class="text-slate-600 dark:text-slate-400">Convergence Score</span>
+				<span class="text-neutral-600 dark:text-neutral-400">Convergence Score</span>
 			</div>
 			<div class="flex items-center gap-1.5">
 				<div class="w-3 h-0.5 border-t-2 border-dashed" style="border-color: {eventTokens.charts.convergence.threshold}"></div>
-				<span class="text-slate-600 dark:text-slate-400">Threshold ({(convergenceData.threshold * 100).toFixed(0)}%)</span>
+				<span class="text-neutral-600 dark:text-neutral-400">Threshold ({(convergenceData.threshold * 100).toFixed(0)}%)</span>
 			</div>
 		</div>
 	</div>
 {:else}
-	<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
-		<p class="text-xs text-slate-500 dark:text-slate-400 text-center">
+	<div class="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
+		<p class="text-xs text-neutral-500 dark:text-neutral-400 text-center">
 			Convergence tracking will appear during deliberation
 		</p>
 	</div>

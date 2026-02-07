@@ -203,11 +203,11 @@
 <div class="max-w-xl mx-auto">
 	<!-- Progress bar -->
 	<div class="mb-6">
-		<div class="flex justify-between text-sm text-slate-600 dark:text-slate-400 mb-2">
+		<div class="flex justify-between text-sm text-neutral-600 dark:text-neutral-400 mb-2">
 			<span>{instrumentLabels[instrument]}</span>
 			<span>Question {currentQuestionIndex + 1} of {questions.length}</span>
 		</div>
-		<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+		<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
 			<div
 				class="h-full bg-indigo-600 transition-all duration-300"
 				style="width: {progress}%"
@@ -217,9 +217,9 @@
 
 	<!-- Question -->
 	<div
-		class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700"
+		class="bg-white dark:bg-neutral-800 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-700"
 	>
-		<h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-6">
+		<h3 class="text-xl font-semibold text-neutral-900 dark:text-white mb-6">
 			{currentQuestion.question}
 		</h3>
 
@@ -233,7 +233,7 @@
 						'w-full p-4 text-left rounded-lg border-2 transition-all',
 						selectedValue === option.value
 							? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
-							: 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+							: 'border-neutral-200 dark:border-neutral-700 hover:border-indigo-300 dark:hover:border-indigo-700'
 					].join(' ')}
 				>
 					<div class="flex items-center gap-3">
@@ -242,7 +242,7 @@
 								'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
 								selectedValue === option.value
 									? 'border-indigo-600 bg-indigo-600'
-									: 'border-slate-300 dark:border-slate-600'
+									: 'border-neutral-300 dark:border-neutral-600'
 							].join(' ')}
 						>
 							{#if selectedValue === option.value}
@@ -255,7 +255,7 @@
 								</svg>
 							{/if}
 						</div>
-						<span class="text-slate-700 dark:text-slate-300">{option.label}</span>
+						<span class="text-neutral-700 dark:text-neutral-300">{option.label}</span>
 					</div>
 				</button>
 			{/each}

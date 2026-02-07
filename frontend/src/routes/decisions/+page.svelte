@@ -55,14 +55,14 @@
 
 	function getCategoryColor(category: string): string {
 		const colors: Record<string, string> = {
-			hiring: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+			hiring: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400',
 			pricing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-			fundraising: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+			fundraising: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400',
 			marketing: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
 			strategy: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 			product: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 			operations: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-			growth: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+			growth: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
 		};
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
@@ -126,8 +126,8 @@
 					{/each}
 				</div>
 			{:else if error}
-				<div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-6 text-center">
-					<p class="text-red-700 dark:text-red-400">{error}</p>
+				<div class="rounded-lg bg-error-50 dark:bg-error-900/20 p-6 text-center">
+					<p class="text-error-700 dark:text-error-400">{error}</p>
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -152,7 +152,7 @@
 								{categoryDescriptions[cat.category] || 'Strategic decisions'}
 							</p>
 							<div
-								class="mt-3 flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium group-hover:translate-x-1 transition-transform"
+								class="mt-3 flex items-center text-brand-600 dark:text-brand-400 text-sm font-medium group-hover:tranneutral-x-1 transition-transform"
 							>
 								View all <ArrowRight class="w-4 h-4 ml-1" />
 							</div>

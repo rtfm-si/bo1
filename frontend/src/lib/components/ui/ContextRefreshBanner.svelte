@@ -55,29 +55,29 @@
 	const urgencyColors = $derived.by(() => {
 		if (highestUrgency === 'action_affected' || highestUrgency === 'volatile') {
 			return {
-				bg: 'bg-red-50 dark:bg-red-900/20',
-				border: 'border-red-200 dark:border-red-800',
-				icon: 'text-red-600 dark:text-red-400',
-				text: 'text-red-800 dark:text-red-200',
-				subtext: 'text-red-700 dark:text-red-300'
+				bg: 'bg-error-50 dark:bg-error-900/20',
+				border: 'border-error-200 dark:border-error-800',
+				icon: 'text-error-600 dark:text-error-400',
+				text: 'text-error-800 dark:text-error-200',
+				subtext: 'text-error-700 dark:text-error-300'
 			};
 		}
 		if (highestUrgency === 'moderate') {
 			return {
-				bg: 'bg-amber-50 dark:bg-amber-900/20',
-				border: 'border-amber-200 dark:border-amber-800',
-				icon: 'text-amber-600 dark:text-amber-400',
-				text: 'text-amber-800 dark:text-amber-200',
-				subtext: 'text-amber-700 dark:text-amber-300'
+				bg: 'bg-warning-50 dark:bg-warning-900/20',
+				border: 'border-warning-200 dark:border-warning-800',
+				icon: 'text-warning-600 dark:text-warning-400',
+				text: 'text-warning-800 dark:text-warning-200',
+				subtext: 'text-warning-700 dark:text-warning-300'
 			};
 		}
 		// stable
 		return {
-			bg: 'bg-blue-50 dark:bg-blue-900/20',
-			border: 'border-blue-200 dark:border-blue-800',
-			icon: 'text-blue-600 dark:text-blue-400',
-			text: 'text-blue-800 dark:text-blue-200',
-			subtext: 'text-blue-700 dark:text-blue-300'
+			bg: 'bg-info-50 dark:bg-info-900/20',
+			border: 'border-info-200 dark:border-info-800',
+			icon: 'text-info-600 dark:text-info-400',
+			text: 'text-info-800 dark:text-info-200',
+			subtext: 'text-info-700 dark:text-info-300'
 		};
 	});
 

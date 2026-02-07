@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import {
-		ArrowLeft,
 		FlaskConical,
 		Users,
 		Clock,
@@ -24,6 +24,8 @@
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Legacy persona count experiment data
 	let legacyData = $state<ExperimentMetricsResponse | null>(null);
@@ -208,42 +210,24 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<ArrowLeft class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
-					</a>
-					<div class="flex items-center gap-3">
-						<FlaskConical class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">A/B Experiments</h1>
-					</div>
-				</div>
-				<div class="flex items-center gap-2">
-					<button
-						onclick={() => (showHelpPanel = !showHelpPanel)}
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Toggle help"
-					>
-						<HelpCircle class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
-					</button>
-					<BoButton variant="brand" onclick={() => (showCreateModal = true)}>
-						<Plus class="w-4 h-4 mr-1" />
-						New Experiment
-					</BoButton>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="A/B Experiments" icon={FlaskConical}>
+		{#snippet actions()}
+			<button
+				onclick={() => (showHelpPanel = !showHelpPanel)}
+				class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+				aria-label="Toggle help"
+			>
+				<HelpCircle class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
+			</button>
+			<BoButton variant="brand" onclick={() => (showCreateModal = true)}>
+				<Plus class="w-4 h-4 mr-1" />
+				New Experiment
+			</BoButton>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8 space-y-6">
 		<!-- Help Panel -->
 		{#if showHelpPanel}
 			<div
@@ -305,7 +289,7 @@
 
 		{#if loading}
 			<div class="flex items-center justify-center h-64">
-				<div class="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500"></div>
+				<Spinner size="lg" />
 			</div>
 		{:else}
 			<!-- Experiments List -->
@@ -313,16 +297,14 @@
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Managed Experiments</h2>
 
 				{#if experiments.length === 0}
-					<div
-						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center"
-					>
-						<FlaskConical class="w-12 h-12 text-neutral-400 mx-auto mb-4" />
-						<p class="text-neutral-600 dark:text-neutral-400 mb-4">No experiments created yet.</p>
-						<BoButton variant="brand" onclick={() => (showCreateModal = true)}>
-							<Plus class="w-4 h-4 mr-1" />
-							Create First Experiment
-						</BoButton>
-					</div>
+					<EmptyState title="No experiments created yet" icon={FlaskConical}>
+						{#snippet actions()}
+							<BoButton variant="brand" onclick={() => (showCreateModal = true)}>
+								<Plus class="w-4 h-4 mr-1" />
+								Create First Experiment
+							</BoButton>
+						{/snippet}
+					</EmptyState>
 				{:else}
 					<div class="grid gap-4">
 						{#each experiments as exp}

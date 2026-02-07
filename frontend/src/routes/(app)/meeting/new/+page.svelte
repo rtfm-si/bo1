@@ -231,25 +231,25 @@
 	<title>New Meeting - Board of One</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<!-- Header -->
-	<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 			<div class="flex items-center gap-4">
 				<a
 					href="/dashboard"
-					class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200"
+					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
 					aria-label="Back to dashboard"
 				>
-					<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
 					</svg>
 				</a>
 				<div>
-					<h1 class="text-2xl font-bold text-slate-900 dark:text-white">
+					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
 						Start New Meeting
 					</h1>
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Describe your strategic decision
 					</p>
 				</div>
@@ -264,47 +264,47 @@
 
 		<!-- Meeting Cap Warning Banner -->
 		{#if capStatus?.exceeded}
-			<div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+			<div class="mb-6 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4">
 				<div class="flex items-start gap-3">
-					<Clock class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+					<Clock class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
 					<div class="flex-1">
-						<h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+						<h3 class="text-sm font-semibold text-warning-900 dark:text-warning-200">
 							Meeting limit reached
 						</h3>
-						<p class="text-sm text-amber-800 dark:text-amber-300 mt-1">
+						<p class="text-sm text-warning-800 dark:text-warning-300 mt-1">
 							You've used all {capStatus.limit} meetings in the last 24 hours.
 							{#if capStatus.reset_time}
 								You can start a new meeting in <strong>{formatResetTime(capStatus.reset_time)}</strong>.
 							{/if}
 						</p>
-						<p class="text-xs text-amber-700 dark:text-amber-400 mt-2">
+						<p class="text-xs text-warning-700 dark:text-warning-400 mt-2">
 							During beta, meetings are limited to {capStatus.limit} per 24-hour rolling window to ensure quality for all users.
 						</p>
 					</div>
 				</div>
 			</div>
 		{:else if capStatus && capStatus.remaining <= 1 && capStatus.limit > 0}
-			<div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+			<div class="mb-6 bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-3">
 				<div class="flex items-center gap-2">
-					<Clock class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-					<p class="text-sm text-blue-800 dark:text-blue-300">
+					<Clock class="w-4 h-4 text-info-600 dark:text-info-400 flex-shrink-0" />
+					<p class="text-sm text-info-800 dark:text-info-300">
 						{capStatus.remaining} meeting{capStatus.remaining === 1 ? '' : 's'} remaining in this 24-hour period.
 					</p>
 				</div>
 			</div>
 		{/if}
 
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-8">
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Honeypot fields for bot detection -->
 				<HoneypotFields bind:values={honeypotValues} />
 
 				<!-- Problem Statement Input -->
 				<div>
-					<label for="problem" class="block text-lg font-semibold text-slate-900 dark:text-white mb-2">
+					<label for="problem" class="block text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 						What decision do you need help with?
 					</label>
-					<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 						Be specific about the decision you're facing. Include context like timeframes, constraints, or key considerations.
 					</p>
 					<textarea
@@ -313,13 +313,13 @@
 						onkeydown={handleKeyPress}
 						placeholder="Example: Should we raise a Series A round now or wait 6 months to improve our metrics? Our current burn rate is $200K/month, we have 8 months of runway, and our MRR growth is 15%..."
 						rows="8"
-						class="w-full px-4 py-3 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-colors duration-200"
+						class="w-full px-4 py-3 bg-white dark:bg-neutral-900 border-2 border-neutral-300 dark:border-neutral-600 rounded-lg focus:border-info-500 dark:focus:border-info-400 focus:outline-none text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 transition-colors duration-200"
 						required
 						minlength="20"
 						maxlength="5000"
 					></textarea>
 					<div class="flex items-center justify-between mt-2">
-						<p class="text-xs text-slate-500 dark:text-slate-400">
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">
 							{problemStatement.length}/5000 characters
 							{#if problemStatement.length > 0 && problemStatement.length < 20}
 								<span class="text-orange-600 dark:text-orange-400">
@@ -327,10 +327,10 @@
 								</span>
 							{/if}
 						</p>
-						<p class="text-xs text-slate-500 dark:text-slate-400">
-							<kbd class="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs">Ctrl</kbd>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">
+							<kbd class="px-2 py-1 bg-neutral-100 dark:bg-neutral-700 rounded text-xs">Ctrl</kbd>
 							+
-							<kbd class="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs">Enter</kbd>
+							<kbd class="px-2 py-1 bg-neutral-100 dark:bg-neutral-700 rounded text-xs">Enter</kbd>
 							to submit
 						</p>
 					</div>
@@ -339,14 +339,14 @@
 				<!-- Dataset Selector -->
 				{#if datasets.length > 0 || loadingDatasets}
 					<div>
-						<label for="dataset" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+						<label for="dataset" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 							Attach Dataset (Optional)
 						</label>
-						<p class="text-sm text-slate-500 dark:text-slate-400 mb-3">
+						<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
 							Include data from your datasets for data-driven analysis.
 						</p>
 						{#if loadingDatasets}
-							<div class="flex items-center gap-2 text-sm text-slate-500">
+							<div class="flex items-center gap-2 text-sm text-neutral-500">
 								<Spinner size="sm" variant="neutral" ariaLabel="Loading datasets" />
 								Loading datasets...
 							</div>
@@ -354,7 +354,7 @@
 							<select
 								id="dataset"
 								bind:value={selectedDatasetId}
-								class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none text-slate-900 dark:text-white transition-colors duration-200"
+								class="w-full px-4 py-2.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:border-info-500 dark:focus:border-info-400 focus:ring-1 focus:ring-info-500 dark:focus:ring-info-400 focus:outline-none text-neutral-900 dark:text-white transition-colors duration-200"
 							>
 								<option value={null}>None - Problem-focused deliberation</option>
 								{#each datasets as dataset (dataset.id)}
@@ -375,10 +375,10 @@
 
 				<!-- Project Selector -->
 				<div>
-					<span class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 						Link to Projects (Optional)
 					</span>
-					<p class="text-sm text-slate-500 dark:text-slate-400 mb-3">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
 						Connect this meeting to existing projects for better organization.
 					</p>
 					<MeetingProjectSelector
@@ -388,8 +388,8 @@
 				</div>
 
 				<!-- Examples -->
-				<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
-					<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+				<div class="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4">
+					<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
 						Need inspiration? Try one of these examples:
 					</h3>
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -397,7 +397,7 @@
 							<button
 								type="button"
 								onclick={() => useExample(example)}
-								class="text-left p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all duration-200 text-sm text-slate-700 dark:text-slate-300"
+								class="text-left p-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-info-400 dark:hover:border-info-600 hover:shadow-sm transition-all duration-200 text-sm text-neutral-700 dark:text-neutral-300"
 							>
 								"{example.substring(0, 80)}{example.length > 80 ? '...' : ''}"
 							</button>
@@ -407,21 +407,21 @@
 
 				<!-- Project Link Warning -->
 				{#if projectLinkWarning}
-					<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+					<div class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4">
 						<div class="flex items-center justify-between gap-2">
 							<div class="flex items-center gap-2">
-								<AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-								<p class="text-sm text-amber-900 dark:text-amber-200">
+								<AlertTriangle class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0" />
+								<p class="text-sm text-warning-900 dark:text-warning-200">
 									{projectLinkWarning}
 								</p>
 							</div>
 							<button
 								type="button"
 								onclick={() => { projectLinkWarning = null; }}
-								class="p-1 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded transition-colors"
+								class="p-1 hover:bg-warning-100 dark:hover:bg-warning-900/30 rounded transition-colors"
 								aria-label="Dismiss warning"
 							>
-								<X class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+								<X class="w-4 h-4 text-warning-600 dark:text-warning-400" />
 							</button>
 						</div>
 					</div>
@@ -429,12 +429,12 @@
 
 				<!-- Error Message -->
 				{#if error}
-					<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+					<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-4">
 						<div class="flex items-center gap-2">
-							<svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-5 h-5 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
-							<p class="text-sm text-red-900 dark:text-red-200">
+							<p class="text-sm text-error-900 dark:text-error-200">
 								{error}
 							</p>
 						</div>
@@ -446,7 +446,7 @@
 					<button
 						type="submit"
 						disabled={isSubmitting || problemStatement.trim().length < 20 || capStatus?.exceeded}
-						class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+						class="flex-1 px-6 py-3 bg-info-600 hover:bg-info-700 disabled:bg-neutral-300 dark:disabled:bg-neutral-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 					>
 						{#if isSubmitting}
 							<Spinner size="sm" variant="neutral" ariaLabel="Starting meeting" />
@@ -464,27 +464,27 @@
 
 					<a
 						href="/dashboard"
-						class="px-6 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors duration-200"
+						class="px-6 py-3 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 font-medium rounded-lg transition-colors duration-200"
 					>
 						Cancel
 					</a>
 				</div>
 
 				<!-- Info Box -->
-				<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+				<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 					<div class="flex gap-3">
-						<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
-						<div class="text-sm text-blue-900 dark:text-blue-200">
+						<div class="text-sm text-info-900 dark:text-info-200">
 							<p class="font-semibold mb-1">What happens next?</p>
-							<ul class="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-300">
+							<ul class="list-disc list-inside space-y-1 text-info-800 dark:text-info-300">
 								<li>Your decision will be analyzed and broken down into key focus areas</li>
 								<li>3-5 expert personas will be selected to debate your decision</li>
 								<li>Multiple rounds of deliberation will identify trade-offs and blind spots</li>
 								<li>A clear recommendation with action steps will be synthesized</li>
 							</ul>
-							<p class="mt-2 text-xs text-blue-700 dark:text-blue-400">
+							<p class="mt-2 text-xs text-info-700 dark:text-info-400">
 								Average deliberation time: 5-15 minutes
 							</p>
 						</div>
@@ -505,31 +505,31 @@
 		tabindex="-1"
 		onkeydown={(e) => e.key === 'Escape' && dismissStalenessWarning()}
 	>
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-lg w-full p-6">
 			<div class="flex items-start gap-4 mb-4">
-				<div class="flex-shrink-0 p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-					<svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="flex-shrink-0 p-2 bg-warning-100 dark:bg-warning-900/30 rounded-full">
+					<svg class="w-6 h-6 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 					</svg>
 				</div>
 				<div>
-					<h3 id="staleness-warning-title" class="text-lg font-semibold text-slate-900 dark:text-white">
+					<h3 id="staleness-warning-title" class="text-lg font-semibold text-neutral-900 dark:text-white">
 						Some of your insights may be outdated
 					</h3>
-					<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
 						The following insights haven't been updated in over 30 days. Refreshing them may improve your meeting's recommendations.
 					</p>
 				</div>
 			</div>
 
-			<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+			<div class="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
 				<ul class="space-y-2">
 					{#each staleInsights as insight (insight.question)}
 						<li class="flex items-start gap-2 text-sm">
-							<span class="text-amber-500 mt-0.5">•</span>
+							<span class="text-warning-500 mt-0.5">•</span>
 							<div>
-								<p class="text-slate-700 dark:text-slate-300">{insight.question}</p>
-								<p class="text-xs text-slate-500 dark:text-slate-400">
+								<p class="text-neutral-700 dark:text-neutral-300">{insight.question}</p>
+								<p class="text-xs text-neutral-500 dark:text-neutral-400">
 									{insight.days_stale} days since last update
 								</p>
 							</div>
@@ -541,14 +541,14 @@
 			<div class="flex flex-col sm:flex-row gap-3">
 				<a
 					href="/context/insights"
-					class="flex-1 px-4 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 font-medium rounded-lg transition-colors duration-200 text-center"
+					class="flex-1 px-4 py-2 bg-warning-100 hover:bg-warning-200 dark:bg-warning-900/30 dark:hover:bg-warning-900/50 text-warning-800 dark:text-warning-200 font-medium rounded-lg transition-colors duration-200 text-center"
 				>
 					Update Insights
 				</a>
 				<button
 					onclick={dismissStalenessWarning}
 					disabled={isSubmitting}
-					class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+					class="flex-1 px-4 py-2 bg-info-600 hover:bg-info-700 disabled:bg-neutral-300 dark:disabled:bg-neutral-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
 				>
 					{#if isSubmitting}
 						<Spinner size="sm" variant="neutral" ariaLabel="Starting meeting" />

@@ -196,8 +196,8 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div>
-			<h2 class="text-xl font-semibold text-slate-900 dark:text-white">Cognitive Profile</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-white">Cognitive Profile</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
 				How you think and decide, used to personalize your recommendations
 			</p>
 		</div>
@@ -210,8 +210,8 @@
 
 	{#if isLoading}
 		<!-- Loading state -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700">
-			<div class="flex items-center justify-center gap-3 text-slate-500">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl p-8 border border-neutral-200 dark:border-neutral-700">
+			<div class="flex items-center justify-center gap-3 text-neutral-500">
 				<svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
 					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
 					></circle>
@@ -227,25 +227,25 @@
 	{:else if error}
 		<!-- Error state -->
 		<div
-			class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6"
+			class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl p-6"
 		>
-			<p class="text-red-700 dark:text-red-300">{error}</p>
+			<p class="text-error-700 dark:text-error-300">{error}</p>
 			<Button variant="secondary" onclick={loadProfile} class="mt-4">Retry</Button>
 		</div>
 	{:else if !hasProfile}
 		<!-- No profile - show CTA to take assessment -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 text-center"
+			class="bg-white dark:bg-neutral-800 rounded-xl p-8 border border-neutral-200 dark:border-neutral-700 text-center"
 		>
 			<div
 				class="w-16 h-16 bg-brand-100 dark:bg-brand-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
 			>
 				<span class="text-3xl">🧠</span>
 			</div>
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 				Discover Your Decision Style
 			</h3>
-			<p class="text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">
+			<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
 				Take a 90-second assessment to help us personalize recommendations to how you think and
 				decide.
 			</p>
@@ -263,13 +263,13 @@
 				>
 					<div class="flex items-start gap-4">
 						<div
-							class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0"
+							class="w-12 h-12 bg-white dark:bg-neutral-800 rounded-lg flex items-center justify-center flex-shrink-0"
 						>
 							<span class="text-2xl">🧠</span>
 						</div>
 						<div>
-							<h3 class="font-medium text-slate-900 dark:text-white mb-1">Your Decision Style</h3>
-							<p class="text-slate-700 dark:text-slate-300">{profile.cognitive_style_summary}</p>
+							<h3 class="font-medium text-neutral-900 dark:text-white mb-1">Your Decision Style</h3>
+							<p class="text-neutral-700 dark:text-neutral-300">{profile.cognitive_style_summary}</p>
 						</div>
 					</div>
 				</div>
@@ -278,9 +278,9 @@
 			<!-- Blindspots -->
 			{#if profile?.primary_blindspots && profile.primary_blindspots.length > 0}
 				<div
-					class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800"
+					class="bg-warning-50 dark:bg-warning-900/20 rounded-xl p-6 border border-warning-200 dark:border-warning-800"
 				>
-					<h3 class="font-medium text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+					<h3 class="font-medium text-warning-800 dark:text-warning-200 mb-3 flex items-center gap-2">
 						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
 								stroke-linecap="round"
@@ -291,7 +291,7 @@
 						</svg>
 						Blindspot Awareness
 					</h3>
-					<p class="text-sm text-amber-700 dark:text-amber-300 mb-4">
+					<p class="text-sm text-warning-700 dark:text-warning-300 mb-4">
 						These are areas where your natural tendencies may create blind spots. Click to discuss with your advisor.
 					</p>
 					<div class="space-y-3">
@@ -300,12 +300,12 @@
 							{@const count = discussionCounts[blindspotId] || 0}
 							{@const discussions = blindspotDiscussions[blindspotId] || []}
 							{@const isExpanded = expandedBlindspots[blindspotId] || false}
-							<div class="bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
+							<div class="bg-white dark:bg-neutral-800 rounded-lg overflow-hidden">
 								<div class="p-4">
 									<div class="flex items-start justify-between gap-3">
 										<div class="flex-1 min-w-0">
-											<h4 class="font-medium text-slate-900 dark:text-white">{blindspot.label}</h4>
-											<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+											<h4 class="font-medium text-neutral-900 dark:text-white">{blindspot.label}</h4>
+											<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
 												{blindspot.compensation}
 											</p>
 										</div>
@@ -319,7 +319,7 @@
 									{#if count > 0}
 										<button
 											onclick={() => toggleBlindspot(blindspotId)}
-											class="mt-3 flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+											class="mt-3 flex items-center gap-1 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
 										>
 											<MessageCircle class="w-4 h-4" />
 											<span>{count} past discussion{count !== 1 ? 's' : ''}</span>
@@ -332,18 +332,18 @@
 									{/if}
 								</div>
 								{#if isExpanded && discussions.length > 0}
-									<div class="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50 dark:bg-slate-900/50">
+									<div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3 bg-neutral-50 dark:bg-neutral-900/50">
 										<div class="space-y-2">
 											{#each discussions as discussion}
 												<a
 													href={`/advisor/discuss?conversation_id=${discussion.id}`}
-													class="block p-2 rounded-md hover:bg-white dark:hover:bg-slate-800 transition-colors"
+													class="block p-2 rounded-md hover:bg-white dark:hover:bg-neutral-800 transition-colors"
 												>
 													<div class="flex items-center justify-between text-sm">
-														<span class="text-slate-700 dark:text-slate-300 truncate">
+														<span class="text-neutral-700 dark:text-neutral-300 truncate">
 															{discussion.label || 'Conversation'}
 														</span>
-														<span class="text-slate-500 dark:text-slate-400 text-xs flex-shrink-0 ml-2">
+														<span class="text-neutral-500 dark:text-neutral-400 text-xs flex-shrink-0 ml-2">
 															{formatDate(discussion.updated_at)}
 														</span>
 													</div>
@@ -362,21 +362,21 @@
 			<div class="grid gap-6 md:grid-cols-3">
 				<!-- Cognitive Gravity -->
 				<div
-					class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700"
+					class="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700"
 				>
-					<h3 class="font-medium text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+					<h3 class="font-medium text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-lg">🎯</span>
 						Decision Style
 					</h3>
 					<div class="space-y-4">
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Time Horizon</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Time Horizon</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('time_horizon', profile?.gravity?.time_horizon)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-brand-500 rounded-full transition-all"
 									style="width: {(profile?.gravity?.time_horizon ?? 0.5) * 100}%"
@@ -385,12 +385,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Information Preference</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Information Preference</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('information_density', profile?.gravity?.information_density)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-brand-500 rounded-full transition-all"
 									style="width: {(profile?.gravity?.information_density ?? 0.5) * 100}%"
@@ -399,12 +399,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Control Style</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Control Style</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('control_style', profile?.gravity?.control_style)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-brand-500 rounded-full transition-all"
 									style="width: {(profile?.gravity?.control_style ?? 0.5) * 100}%"
@@ -416,21 +416,21 @@
 
 				<!-- Decision Friction -->
 				<div
-					class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700"
+					class="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700"
 				>
-					<h3 class="font-medium text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+					<h3 class="font-medium text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-lg">⚡</span>
 						Decision Friction
 					</h3>
 					<div class="space-y-4">
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Risk Sensitivity</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Risk Sensitivity</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('risk_sensitivity', profile?.friction?.risk_sensitivity)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-purple-500 rounded-full transition-all"
 									style="width: {(profile?.friction?.risk_sensitivity ?? 0.5) * 100}%"
@@ -439,12 +439,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Complexity Handling</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Complexity Handling</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('cognitive_load', profile?.friction?.cognitive_load)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-purple-500 rounded-full transition-all"
 									style="width: {(profile?.friction?.cognitive_load ?? 0.5) * 100}%"
@@ -453,12 +453,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Ambiguity Tolerance</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Ambiguity Tolerance</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('ambiguity_tolerance', profile?.friction?.ambiguity_tolerance)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-purple-500 rounded-full transition-all"
 									style="width: {(profile?.friction?.ambiguity_tolerance ?? 0.5) * 100}%"
@@ -470,21 +470,21 @@
 
 				<!-- Uncertainty Posture -->
 				<div
-					class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700"
+					class="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700"
 				>
-					<h3 class="font-medium text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+					<h3 class="font-medium text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-lg">🔮</span>
 						Uncertainty Response
 					</h3>
 					<div class="space-y-4">
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Threat Lens</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Threat Lens</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('threat_lens', profile?.uncertainty?.threat_lens)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-teal-500 rounded-full transition-all"
 									style="width: {(profile?.uncertainty?.threat_lens ?? 0.5) * 100}%"
@@ -493,12 +493,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Structure Need</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Structure Need</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('control_need', profile?.uncertainty?.control_need)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-teal-500 rounded-full transition-all"
 									style="width: {(profile?.uncertainty?.control_need ?? 0.5) * 100}%"
@@ -507,12 +507,12 @@
 						</div>
 						<div>
 							<div class="flex justify-between text-sm mb-1">
-								<span class="text-slate-600 dark:text-slate-400">Exploration Drive</span>
-								<span class="font-medium text-slate-900 dark:text-white">
+								<span class="text-neutral-600 dark:text-neutral-400">Exploration Drive</span>
+								<span class="font-medium text-neutral-900 dark:text-white">
 									{getDimensionLabel('exploration_drive', profile?.uncertainty?.exploration_drive)}
 								</span>
 							</div>
-							<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+							<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full">
 								<div
 									class="h-full bg-teal-500 rounded-full transition-all"
 									style="width: {(profile?.uncertainty?.exploration_drive ?? 0.5) * 100}%"
@@ -555,11 +555,11 @@
 			{#if tier2Unlocked}
 				<div class="space-y-4">
 					<div class="flex items-center justify-between">
-						<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
 							Advanced Profiling
 						</h3>
 						{#if allTier2Complete}
-							<span class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+							<span class="text-xs px-2 py-1 bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300 rounded-full">
 								Complete
 							</span>
 						{/if}
@@ -568,10 +568,10 @@
 					<div class="grid gap-4 md:grid-cols-3">
 						<!-- Leverage Instinct -->
 						<div
-							class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700"
+							class="bg-white dark:bg-neutral-800 rounded-xl p-5 border border-neutral-200 dark:border-neutral-700"
 						>
 							<div class="flex items-center justify-between mb-3">
-								<h4 class="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+								<h4 class="font-medium text-neutral-900 dark:text-white flex items-center gap-2">
 									<span class="text-lg">💪</span>
 									Leverage Style
 								</h4>
@@ -587,20 +587,20 @@
 							{#if leverageAssessed}
 								<div class="space-y-2 text-sm">
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Systems</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('structural', profile?.leverage?.structural)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Systems</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('structural', profile?.leverage?.structural)}</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Data</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('informational', profile?.leverage?.informational)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Data</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('informational', profile?.leverage?.informational)}</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Networks</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('relational', profile?.leverage?.relational)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Networks</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('relational', profile?.leverage?.relational)}</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Timing</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('temporal', profile?.leverage?.temporal)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Timing</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('temporal', profile?.leverage?.temporal)}</span>
 									</div>
 								</div>
 								<button
@@ -610,7 +610,7 @@
 									Retake
 								</button>
 							{:else}
-								<p class="text-sm text-slate-500 dark:text-slate-400">
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">
 									How you naturally create power and influence
 								</p>
 							{/if}
@@ -618,10 +618,10 @@
 
 						<!-- Value Tensions -->
 						<div
-							class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700"
+							class="bg-white dark:bg-neutral-800 rounded-xl p-5 border border-neutral-200 dark:border-neutral-700"
 						>
 							<div class="flex items-center justify-between mb-3">
-								<h4 class="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+								<h4 class="font-medium text-neutral-900 dark:text-white flex items-center gap-2">
 									<span class="text-lg">⚖️</span>
 									Value Tensions
 								</h4>
@@ -637,16 +637,16 @@
 							{#if tensionAssessed}
 								<div class="space-y-2 text-sm">
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Autonomy/Security</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('tension_autonomy_security', profile?.tension?.autonomy_security)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Autonomy/Security</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('tension_autonomy_security', profile?.tension?.autonomy_security)}</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Mastery/Speed</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('tension_mastery_speed', profile?.tension?.mastery_speed)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Mastery/Speed</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('tension_mastery_speed', profile?.tension?.mastery_speed)}</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Growth/Stability</span>
-										<span class="text-slate-900 dark:text-white">{getTier2DimensionLabel('tension_growth_stability', profile?.tension?.growth_stability)}</span>
+										<span class="text-neutral-600 dark:text-neutral-400">Growth/Stability</span>
+										<span class="text-neutral-900 dark:text-white">{getTier2DimensionLabel('tension_growth_stability', profile?.tension?.growth_stability)}</span>
 									</div>
 								</div>
 								<button
@@ -656,7 +656,7 @@
 									Retake
 								</button>
 							{:else}
-								<p class="text-sm text-slate-500 dark:text-slate-400">
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">
 									Your competing priorities and trade-offs
 								</p>
 							{/if}
@@ -664,10 +664,10 @@
 
 						<!-- Time Orientation -->
 						<div
-							class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700"
+							class="bg-white dark:bg-neutral-800 rounded-xl p-5 border border-neutral-200 dark:border-neutral-700"
 						>
 							<div class="flex items-center justify-between mb-3">
-								<h4 class="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+								<h4 class="font-medium text-neutral-900 dark:text-white flex items-center gap-2">
 									<span class="text-lg">⏳</span>
 									Time Orientation
 								</h4>
@@ -683,8 +683,8 @@
 							{#if timeBiasAssessed}
 								<div class="space-y-2 text-sm">
 									<div class="flex justify-between">
-										<span class="text-slate-600 dark:text-slate-400">Time Bias</span>
-										<span class="text-slate-900 dark:text-white">
+										<span class="text-neutral-600 dark:text-neutral-400">Time Bias</span>
+										<span class="text-neutral-900 dark:text-white">
 											{#if (profile?.time_bias?.score ?? 0.5) < 0.35}
 												Short-term optimizer
 											{:else if (profile?.time_bias?.score ?? 0.5) > 0.65}
@@ -702,7 +702,7 @@
 									Retake
 								</button>
 							{:else}
-								<p class="text-sm text-slate-500 dark:text-slate-400">
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">
 									Short-term vs long-term orientation
 								</p>
 							{/if}
@@ -712,7 +712,7 @@
 			{/if}
 
 			<!-- Meeting count -->
-			<div class="text-sm text-slate-500 dark:text-slate-400">
+			<div class="text-sm text-neutral-500 dark:text-neutral-400">
 				Based on {profile?.completed_meetings_count || 0} completed meetings
 			</div>
 		</div>

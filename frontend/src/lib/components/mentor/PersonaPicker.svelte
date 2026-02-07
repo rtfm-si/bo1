@@ -118,7 +118,7 @@
 							<span class="font-medium">{persona.name}</span>
 						{/if}
 					{:else}
-						<Sparkles class="w-5 h-5 text-amber-500" />
+						<Sparkles class="w-5 h-5 text-warning-500" />
 						<span class="font-medium">Auto (AI chooses)</span>
 					{/if}
 				</div>
@@ -133,7 +133,7 @@
 						class="w-full px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-700/50 flex items-start gap-3 {!selected ? 'bg-brand-50 dark:bg-brand-900/20' : ''}"
 						onclick={() => handleSelect(null)}
 					>
-						<Sparkles class="w-5 h-5 text-amber-500 mt-0.5" />
+						<Sparkles class="w-5 h-5 text-warning-500 mt-0.5" />
 						<div>
 							<div class="font-medium text-neutral-900 dark:text-neutral-100">Auto (AI chooses)</div>
 							<div class="text-sm text-neutral-500 dark:text-neutral-400">
@@ -178,7 +178,7 @@
 			<button
 				type="button"
 				class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all {!selected
-					? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500'
+					? 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300 ring-1 ring-warning-500'
 					: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
 				onclick={() => onChange(null)}
 				title="Let AI select the best persona based on your question"

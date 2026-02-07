@@ -5,6 +5,8 @@
 	import { apiClient } from '$lib/api/client';
 	import type { GSCStatusResponse, GSCSitesResponse } from '$lib/api/types';
 	import { Search, Link2, Unlink, CheckCircle, AlertCircle, Loader2 } from 'lucide-svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	let gscStatus = $state<GSCStatusResponse | null>(null);
 	let gscSites = $state<GSCSitesResponse | null>(null);
@@ -117,33 +119,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center gap-4">
-				<a
-					href="/admin"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-					aria-label="Back to admin"
-				>
-					<svg
-						class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M10 19l-7-7m0 0l7-7m-7 7h18"
-						/>
-					</svg>
-				</a>
-				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Integrations</h1>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Integrations" />
 
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -192,34 +168,26 @@
 						<Loader2 class="w-6 h-6 text-brand-500 animate-spin" />
 					</div>
 				{:else if gscStatus && !gscStatus.feature_enabled}
-					<!-- Feature Disabled -->
-					<div class="text-center py-8">
-						<div
-							class="p-3 bg-neutral-100 dark:bg-neutral-700 rounded-full inline-flex mb-4"
-						>
-							<Search class="w-8 h-8 text-neutral-400" />
-						</div>
-						<p class="text-neutral-600 dark:text-neutral-400">
-							Google Search Console integration is disabled.
-						</p>
-						<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
-							Contact support to enable this feature.
-						</p>
-					</div>
+					<EmptyState
+						title="Google Search Console integration is disabled"
+						description="Contact support to enable this feature."
+						icon={Search}
+					/>
 				{:else if gscStatus && !gscStatus.connected}
-					<!-- Not Connected -->
-					<div class="text-center py-8">
-						<p class="text-neutral-600 dark:text-neutral-400 mb-4">
-							Connect your Google Search Console account to track SEO metrics for decisions.
-						</p>
-						<button
-							onclick={connectGSC}
-							class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-colors"
-						>
-							<Link2 class="w-4 h-4" />
-							Connect Google Search Console
-						</button>
-					</div>
+					<EmptyState
+						title="Connect Google Search Console"
+						description="Connect your Google Search Console account to track SEO metrics for decisions."
+					>
+						{#snippet actions()}
+							<button
+								onclick={connectGSC}
+								class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-colors"
+							>
+								<Link2 class="w-4 h-4" />
+								Connect Google Search Console
+							</button>
+						{/snippet}
+					</EmptyState>
 				{:else if gscStatus && gscStatus.connected && !gscStatus.site_url}
 					<!-- Connected, No Site Selected -->
 					<div>

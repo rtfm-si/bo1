@@ -5,6 +5,8 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import SessionDetailModal from '$lib/components/admin/SessionDetailModal.svelte';
 	import { adminApi, type ActiveSessionInfo, type ActiveSessionsResponse } from '$lib/api/admin';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	// State
 	let sessions = $state<ActiveSessionsResponse | null>(null);
@@ -99,51 +101,31 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<div class="flex items-center gap-3">
-						<Activity class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Active Sessions</h1>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<label class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-						<input
-							type="checkbox"
-							bind:checked={autoRefresh}
-							class="rounded border-neutral-300 dark:border-neutral-600"
-						/>
-						Auto-refresh (10s)
-					</label>
-					<Button variant="secondary" size="sm" onclick={loadSessions} disabled={refreshing}>
-						<RefreshCw class="w-4 h-4 {refreshing ? 'animate-spin' : ''}" />
-						Refresh
-					</Button>
-					{#if sessions && sessions.active_count > 0}
-						<Button variant="danger" size="sm" onclick={() => (showKillAllConfirm = true)}>
-							<Skull class="w-4 h-4" />
-							Kill All
-						</Button>
-					{/if}
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Active Sessions" icon={Activity}>
+		{#snippet actions()}
+			<label class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+				<input
+					type="checkbox"
+					bind:checked={autoRefresh}
+					class="rounded border-neutral-300 dark:border-neutral-600"
+				/>
+				Auto-refresh (10s)
+			</label>
+			<Button variant="secondary" size="sm" onclick={loadSessions} disabled={refreshing}>
+				<RefreshCw class="w-4 h-4 {refreshing ? 'animate-spin' : ''}" />
+				Refresh
+			</Button>
+			{#if sessions && sessions.active_count > 0}
+				<Button variant="danger" size="sm" onclick={() => (showKillAllConfirm = true)}>
+					<Skull class="w-4 h-4" />
+					Kill All
+				</Button>
+			{/if}
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">
 				{error}
@@ -176,8 +158,8 @@
 								{sessions.longest_running[0] ? formatDuration(sessions.longest_running[0].duration_seconds) : '-'}
 							</p>
 						</div>
-						<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-							<Clock class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+						<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+							<Clock class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 						</div>
 					</div>
 				</div>
@@ -197,10 +179,8 @@
 			</div>
 
 			{#if sessions.active_count === 0}
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-12 border border-neutral-200 dark:border-neutral-700 text-center">
-					<Activity class="w-12 h-12 text-neutral-400 mx-auto mb-4" />
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">No active sessions</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">Sessions will appear here when users start meetings</p>
+				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<EmptyState title="No active sessions" description="Sessions will appear here when users start meetings." icon={Activity} />
 				</div>
 			{:else}
 				<!-- Sessions Table -->
@@ -248,7 +228,7 @@
 										</span>
 									</td>
 									<td class="px-6 py-4">
-										<span class="text-sm {session.duration_seconds > 600 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-neutral-700 dark:text-neutral-300'}">
+										<span class="text-sm {session.duration_seconds > 600 ? 'text-warning-600 dark:text-warning-400 font-medium' : 'text-neutral-700 dark:text-neutral-300'}">
 											{formatDuration(session.duration_seconds)}
 										</span>
 									</td>

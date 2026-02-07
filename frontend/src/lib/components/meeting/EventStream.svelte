@@ -102,16 +102,16 @@
 	<!-- Gap Detection Warning Banner -->
 	{#if hasGap}
 		<div
-			class="mx-4 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4"
+			class="mx-4 mt-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-300 dark:border-warning-700 rounded-lg p-4"
 			transition:fade={{ duration: 200 }}
 		>
 			<div class="flex items-start gap-3">
-				<AlertTriangle size={20} class="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+				<AlertTriangle size={20} class="text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
 				<div class="flex-1 min-w-0">
-					<h4 class="text-sm font-medium text-amber-800 dark:text-amber-200">
+					<h4 class="text-sm font-medium text-warning-800 dark:text-warning-200">
 						Possible Missing Updates
 					</h4>
-					<p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+					<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">
 						{missedEventCount} event{missedEventCount === 1 ? '' : 's'} may have been missed during reconnection.
 						For complete data, consider refreshing the page.
 					</p>
@@ -120,7 +120,7 @@
 					<button
 						type="button"
 						onclick={onDismissGapWarning}
-						class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
+						class="text-warning-600 dark:text-warning-400 hover:text-warning-800 dark:hover:text-warning-200 transition-colors"
 						aria-label="Dismiss warning"
 					>
 						<X size={18} />
@@ -138,7 +138,7 @@
 			{/each}
 		</div>
 	{:else if events.length === 0}
-		<div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4">
+		<div class="flex flex-col items-center justify-center h-full text-neutral-500 dark:text-neutral-400 p-4">
 			<ActivityStatus
 				variant="card"
 				message={initialWaitingMessages[initialWaitingMessageIndex]}
@@ -150,10 +150,10 @@
 		<div class="p-4 space-y-4">
 			<!-- Focus area transition loading state -->
 			{#if isTransitioningSubProblem}
-				<div class="animate-pulse bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-					<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-					<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-					<p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
+				<div class="animate-pulse bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+					<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4 mb-2"></div>
+					<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2"></div>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-2">
 						Preparing next focus area...
 					</p>
 				</div>
@@ -161,26 +161,26 @@
 
 			<!-- Phase-specific waiting indicator (experts being selected / familiarising) -->
 			{#if isWaitingForFirstContributions}
-				<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+				<div class="bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800 py-4 px-4" transition:fade={{ duration: 300 }}>
 					<ActivityStatus
 						variant="inline"
 						message={phaseWaitingMessage}
-						class="text-amber-700 dark:text-amber-300 font-medium"
+						class="text-warning-700 dark:text-warning-300 font-medium"
 					/>
 				</div>
 			{/if}
 
 			{#if isSynthesizing}
-				<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
+				<div class="bg-info-50 dark:bg-info-900/20 rounded-lg p-6 border border-info-200 dark:border-info-800" transition:fade={{ duration: 300 }}>
 					<div class="flex items-center gap-3 mb-3">
 						<!-- Heartbeat animation -->
 						<div class="relative">
-							<div class="w-5 h-5 bg-blue-600 rounded-full animate-ping absolute"></div>
-							<div class="w-5 h-5 bg-blue-600 rounded-full relative"></div>
+							<div class="w-5 h-5 bg-info-600 rounded-full animate-ping absolute"></div>
+							<div class="w-5 h-5 bg-info-600 rounded-full relative"></div>
 						</div>
-						<h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100">
+						<h3 class="text-lg font-semibold text-info-900 dark:text-info-100">
 							Synthesizing Recommendations...
-							<span class="text-sm font-normal text-blue-700 dark:text-blue-300">
+							<span class="text-sm font-normal text-info-700 dark:text-info-300">
 								({elapsedSeconds}s)
 							</span>
 						</h3>
@@ -189,40 +189,40 @@
 					<!-- Multi-step progress indicator -->
 					<div class="mt-4 space-y-3">
 						<div class="flex items-center gap-3 text-sm">
-							<svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-5 h-5 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 							</svg>
-							<span class="text-blue-800 dark:text-blue-200">
+							<span class="text-info-800 dark:text-info-200">
 								Analyzed {events.filter(e => e.event_type === 'persona_vote').length || events.filter(e => e.event_type === 'contribution').length} expert perspectives
 							</span>
 						</div>
 						<div class="flex items-center gap-3 text-sm {elapsedSeconds > 15 ? 'opacity-100' : 'opacity-50'}">
 							{#if elapsedSeconds > 15}
-								<svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-5 h-5 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 								</svg>
 							{:else}
-								<svg class="w-5 h-5 text-blue-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-5 h-5 text-info-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 								</svg>
 							{/if}
-							<span class="text-blue-700 dark:text-blue-300">
+							<span class="text-info-700 dark:text-info-300">
 								Identifying consensus patterns and key insights
 							</span>
 						</div>
 						<div class="flex items-center gap-3 text-sm {elapsedSeconds > 30 ? 'opacity-100' : 'opacity-50'}">
 							{#if elapsedSeconds > 30}
-								<svg class="w-5 h-5 text-blue-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-5 h-5 text-info-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 								</svg>
 							{:else}
-								<svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-5 h-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
 								</svg>
 							{/if}
-							<span class="text-blue-600 dark:text-blue-400 {elapsedSeconds > 30 ? '' : 'opacity-50'}">
+							<span class="text-info-600 dark:text-info-400 {elapsedSeconds > 30 ? '' : 'opacity-50'}">
 								Generating comprehensive recommendation report
 							</span>
 						</div>
@@ -316,11 +316,11 @@
 
 			<!-- Between-rounds waiting indicator -->
 			{#if isWaitingForNextRound}
-				<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+				<div class="bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800 py-4 px-4" transition:fade={{ duration: 300 }}>
 					<ActivityStatus
 						variant="inline"
 						message={betweenRoundsMessages[betweenRoundsMessageIndex]}
-						class="text-blue-700 dark:text-blue-300 font-medium"
+						class="text-info-700 dark:text-info-300 font-medium"
 					/>
 				</div>
 			{/if}

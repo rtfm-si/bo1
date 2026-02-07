@@ -67,25 +67,25 @@
 	<!-- Overall Meeting Progress -->
 	<div>
 		<div class="flex items-center justify-between mb-1">
-			<span class="text-sm font-medium text-slate-700 dark:text-slate-300">
+			<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 				{#if totalSubProblems > 1 && currentSubProblem > 0}
 					Focus area {currentSubProblem} of {totalSubProblems}
 				{:else}
 					Meeting Progress
 				{/if}
 			</span>
-			<span class="text-xs text-slate-600 dark:text-slate-400">
+			<span class="text-xs text-neutral-600 dark:text-neutral-400">
 				{formatPhase(currentPhase)}
 			</span>
 		</div>
-		<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+		<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2.5 overflow-hidden">
 			<div
-				class="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+				class="bg-gradient-to-r from-info-500 to-info-600 h-2.5 rounded-full transition-all duration-500 ease-out"
 				style="width: {overallProgress}%"
 			></div>
 		</div>
 		<div class="flex items-center justify-between mt-1">
-			<span class="text-xs text-slate-500 dark:text-slate-400">
+			<span class="text-xs text-neutral-500 dark:text-neutral-400">
 				{overallProgress.toFixed(0)}% complete
 			</span>
 		</div>

@@ -59,7 +59,7 @@
 	function getSectionColor(sectionType: string): string {
 		switch (sectionType) {
 			case 'key_findings':
-				return 'text-amber-500';
+				return 'text-warning-500';
 			case 'analysis':
 				return 'text-brand-500';
 			case 'recommendations':

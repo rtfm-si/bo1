@@ -183,7 +183,7 @@
 				<!-- Title -->
 				<div>
 					<label for="blog-title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Title <span class="text-red-500">*</span>
+						Title <span class="text-error-500">*</span>
 					</label>
 					<input
 						id="blog-title"
@@ -198,7 +198,7 @@
 				<div>
 					<div class="flex items-center justify-between mb-1">
 						<label for="blog-content" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-							Content <span class="text-red-500">*</span>
+							Content <span class="text-error-500">*</span>
 						</label>
 						<div class="flex gap-2">
 							<button
@@ -276,7 +276,7 @@
 							<Calendar class="w-4 h-4 inline mr-1" />
 							Publish Date
 							{#if status === 'scheduled'}
-								<span class="text-red-500">*</span>
+								<span class="text-error-500">*</span>
 							{/if}
 						</label>
 						<input

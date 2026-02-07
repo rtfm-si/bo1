@@ -137,11 +137,11 @@
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'active':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			case 'paused':
-				return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+				return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400';
 			case 'completed':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			default:
 				return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
 		}

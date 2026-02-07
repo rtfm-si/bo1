@@ -120,8 +120,8 @@
 
 {#if !authChecked}
 	<!-- Show loading state while checking auth -->
-	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4" data-testid="auth-loading">
-		<div class="max-w-md w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
+	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 px-4" data-testid="auth-loading">
+		<div class="max-w-md w-full bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8 border border-neutral-200 dark:border-neutral-700">
 			<ActivityStatus
 				variant="card"
 				message={LOADING_MESSAGES.auth.verifying}
@@ -131,7 +131,7 @@
 	</div>
 {:else}
 	<!-- Auth verified - show protected content -->
-	<div class="min-h-screen bg-slate-50 dark:bg-slate-900">
+	<div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
 		<!-- Skip link for keyboard navigation (a11y) -->
 		<a
 			href="#main-content"
@@ -145,7 +145,7 @@
 		<ServiceStatusBanner />
 		<Header />
 		{#if showBreadcrumbs && breadcrumbs.length > 0}
-			<div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+			<div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
 				<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-2">
 					<Breadcrumb items={breadcrumbs} />
 				</div>

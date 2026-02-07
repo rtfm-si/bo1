@@ -66,12 +66,12 @@
 
 {#if !isLoading && !isDismissed && hasStaleBenchmarks && staleBenchmarks.length > 0}
 	<div
-		class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6"
+		class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4 mb-6"
 	>
 		<div class="flex items-start gap-3">
 			<div class="flex-shrink-0">
 				<svg
-					class="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5"
+					class="w-5 h-5 text-warning-600 dark:text-warning-400 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -85,24 +85,24 @@
 				</svg>
 			</div>
 			<div class="flex-1 min-w-0">
-				<h3 class="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+				<h3 class="text-sm font-semibold text-warning-800 dark:text-warning-200 mb-1">
 					Monthly Check-in: Are these values still accurate?
 				</h3>
-				<p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
+				<p class="text-sm text-warning-700 dark:text-warning-300 mb-3">
 					Some of your benchmark values haven't been updated recently. Please verify they're still
 					correct for accurate comparisons.
 				</p>
-				<ul class="text-sm text-amber-700 dark:text-amber-300 space-y-1 mb-3">
+				<ul class="text-sm text-warning-700 dark:text-warning-300 space-y-1 mb-3">
 					{#each staleBenchmarks.slice(0, 3) as benchmark}
 						<li class="flex items-center gap-2">
 							<span class="font-medium">{benchmark.display_name}:</span>
-							<span class="text-amber-600 dark:text-amber-400">
+							<span class="text-warning-600 dark:text-warning-400">
 								{formatDaysAgo(benchmark.days_since_update)}
 							</span>
 						</li>
 					{/each}
 					{#if staleBenchmarks.length > 3}
-						<li class="text-amber-500 dark:text-amber-400 text-xs italic">
+						<li class="text-warning-500 dark:text-warning-400 text-xs italic">
 							+{staleBenchmarks.length - 3} more...
 						</li>
 					{/if}
@@ -110,7 +110,7 @@
 				<div class="flex items-center gap-3">
 					<a
 						href="/context/metrics"
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-warning-600 hover:bg-warning-700 rounded-md transition-colors"
 					>
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
@@ -125,7 +125,7 @@
 					<button
 						type="button"
 						onclick={dismiss}
-						class="text-sm text-amber-600 dark:text-amber-400 hover:underline"
+						class="text-sm text-warning-600 dark:text-warning-400 hover:underline"
 					>
 						Remind me later
 					</button>
@@ -134,7 +134,7 @@
 			<button
 				type="button"
 				onclick={dismiss}
-				class="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300"
+				class="flex-shrink-0 text-warning-500 hover:text-warning-700 dark:hover:text-warning-300"
 				aria-label="Dismiss"
 			>
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

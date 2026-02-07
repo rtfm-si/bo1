@@ -148,8 +148,8 @@
 					{/each}
 				</div>
 			{:else if error}
-				<div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-6 text-center">
-					<p class="text-red-700 dark:text-red-400">{error}</p>
+				<div class="rounded-lg bg-error-50 dark:bg-error-900/20 p-6 text-center">
+					<p class="text-error-700 dark:text-error-400">{error}</p>
 				</div>
 			{:else if decisions.length === 0}
 				<div class="text-center py-16">

@@ -11,6 +11,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import {
 		RefreshCw,
 		Upload,
@@ -26,6 +27,7 @@
 		Check
 	} from 'lucide-svelte';
 	import { apiClient } from '$lib/api/client';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import type { MarketingAsset, MarketingAssetType } from '$lib/api/types';
 
 	// State
@@ -234,74 +236,43 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header
-		class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700"
-	>
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div>
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							Marketing Collateral Bank
-						</h1>
-						<p class="text-sm text-neutral-500 dark:text-neutral-400">
-							{total} assets
-							{#if remaining >= 0}
-								<span class="text-neutral-400">({remaining} slots remaining)</span>
-							{/if}
-						</p>
-					</div>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button
-						variant="secondary"
-						size="sm"
-						onclick={loadAssets}
-						disabled={isLoading}
-					>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-							Refresh
-						{/snippet}
-					</Button>
-					<Button
-						variant="brand"
-						size="sm"
-						onclick={() => (showUploadModal = true)}
-						disabled={remaining === 0}
-					>
-						{#snippet children()}
-							<Upload class="w-4 h-4" />
-							Upload
-						{/snippet}
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Marketing Collateral Bank" icon={Image}>
+		{#snippet badge()}
+			<span class="text-sm text-neutral-500 dark:text-neutral-400">
+				{total} assets
+				{#if remaining >= 0}
+					<span class="text-neutral-400">({remaining} slots remaining)</span>
+				{/if}
+			</span>
+		{/snippet}
+		{#snippet actions()}
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={loadAssets}
+				disabled={isLoading}
+			>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+			<Button
+				variant="brand"
+				size="sm"
+				onclick={() => (showUploadModal = true)}
+				disabled={remaining === 0}
+			>
+				{#snippet children()}
+					<Upload class="w-4 h-4" />
+					Upload
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Error State -->
 		{#if error}
 			<div
@@ -319,7 +290,7 @@
 			<!-- Search -->
 			<div class="flex-1 relative">
 				<Search
-					class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400"
+					class="absolute left-3 top-1/2 -tranneutral-y-1/2 w-4 h-4 text-neutral-400"
 				/>
 				<input
 					type="text"
@@ -388,23 +359,21 @@
 				{/each}
 			</div>
 		{:else if assets.length === 0}
-			<!-- Empty State -->
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center"
-			>
-				<Image class="w-12 h-12 mx-auto text-neutral-400 mb-4" />
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-					No assets yet
-				</h3>
-				<p class="text-neutral-600 dark:text-neutral-400 mb-4">
-					Upload images, animations, and other marketing collateral to use in AI-generated content.
-				</p>
-				<Button variant="brand" size="sm" onclick={() => (showUploadModal = true)}>
-					{#snippet children()}
-						<Upload class="w-4 h-4" />
-						Upload First Asset
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+				<EmptyState
+					title="No assets yet"
+					description="Upload images, animations, and other marketing collateral to use in AI-generated content."
+					icon={Image}
+				>
+					{#snippet actions()}
+						<Button variant="brand" size="sm" onclick={() => (showUploadModal = true)}>
+							{#snippet children()}
+								<Upload class="w-4 h-4" />
+								Upload First Asset
+							{/snippet}
+						</Button>
 					{/snippet}
-				</Button>
+				</EmptyState>
 			</div>
 		{:else}
 			<!-- Asset Grid -->

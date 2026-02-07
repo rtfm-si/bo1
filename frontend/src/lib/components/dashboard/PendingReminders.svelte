@@ -56,7 +56,7 @@
 	<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
 		<div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
 			<div class="flex items-center gap-2">
-				<svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
 				</svg>
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Action Reminders</h2>
@@ -91,8 +91,8 @@
 					<div class="p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors">
 						<div class="flex items-start gap-3">
 							<!-- Icon -->
-							<div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full {reminder.reminder_type === 'start_overdue' ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-red-100 dark:bg-red-900/30'}">
-								<svg class="w-5 h-5 {reminder.reminder_type === 'start_overdue' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full {reminder.reminder_type === 'start_overdue' ? 'bg-warning-100 dark:bg-warning-900/30' : 'bg-error-100 dark:bg-error-900/30'}">
+								<svg class="w-5 h-5 {reminder.reminder_type === 'start_overdue' ? 'text-warning-600 dark:text-warning-400' : 'text-error-600 dark:text-error-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getReminderIcon(reminder.reminder_type)} />
 								</svg>
 							</div>

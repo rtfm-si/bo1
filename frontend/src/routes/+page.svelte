@@ -456,9 +456,9 @@
 
 			<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
 				<!-- Data Analysis -->
-				<a href="/features/data-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-					<div class="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 dark:text-blue-400">
+				<a href="/features/data-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-tranneutral-y-1">
+					<div class="w-12 h-12 rounded-lg bg-info-100 dark:bg-info-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-info-600 dark:text-info-400">
 							<line x1="18" y1="20" x2="18" y2="10" />
 							<line x1="12" y1="20" x2="12" y2="4" />
 							<line x1="6" y1="20" x2="6" y2="14" />
@@ -472,7 +472,7 @@
 				</a>
 
 				<!-- Mentor Chat -->
-				<a href="/features/mentor-chat" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+				<a href="/features/mentor-chat" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-tranneutral-y-1">
 					<div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-4">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600 dark:text-purple-400">
 							<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -486,9 +486,9 @@
 				</a>
 
 				<!-- SEO Content -->
-				<a href="/features/seo-generation" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-					<div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600 dark:text-green-400">
+				<a href="/features/seo-generation" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-tranneutral-y-1">
+					<div class="w-12 h-12 rounded-lg bg-success-100 dark:bg-success-900/30 flex items-center justify-center mb-4">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-success-600 dark:text-success-400">
 							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 							<polyline points="14 2 14 8 20 8" />
 							<line x1="16" y1="13" x2="8" y2="13" />
@@ -504,7 +504,7 @@
 				</a>
 
 				<!-- Industry Benchmarks -->
-				<a href="/features/competitor-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+				<a href="/features/competitor-analysis" class="group bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-tranneutral-y-1">
 					<div class="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mb-4">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-600 dark:text-orange-400">
 							<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -1003,7 +1003,7 @@
 	>
 		<div class="absolute inset-0 pointer-events-none opacity-30">
 			<div
-				class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-brand-400/20 to-success-400/20 dark:from-brand-600/10 dark:to-success-600/10 rounded-full blur-3xl"
+				class="absolute top-1/2 left-1/2 -tranneutral-x-1/2 -tranneutral-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-brand-400/20 to-success-400/20 dark:from-brand-600/10 dark:to-success-600/10 rounded-full blur-3xl"
 			></div>
 		</div>
 

@@ -6,6 +6,8 @@
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse, type RuntimeConfigItem } from '$lib/api/admin';
 	import { onMount } from 'svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { user } from '$lib/stores/auth';
 
 	interface AdminStats {
@@ -98,7 +100,7 @@
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
 	<!-- Header -->
 	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-4">
 					<a
@@ -119,7 +121,7 @@
 	</header>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Stats Cards -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
 				<!-- Total Users -->
@@ -173,15 +175,15 @@
 				<!-- Waitlist Pending -->
 				<a
 					href="/admin/waitlist"
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200 block"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-warning-300 dark:hover:border-warning-700 transition-all duration-200 block"
 				>
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Waitlist</p>
 							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">{stats.waitlistPending}</p>
 						</div>
-						<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-							<Clock class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+						<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+							<Clock class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 						</div>
 					</div>
 				</a>
@@ -207,7 +209,7 @@
 		<div class="mb-8">
 			<a
 				href="/admin/analytics-chat"
-				class="flex items-center gap-4 bg-gradient-to-r from-accent-50 to-purple-50 dark:from-accent-900/20 dark:to-purple-900/20 rounded-lg p-5 border border-accent-200 dark:border-accent-800 hover:shadow-md transition-all duration-200"
+				class="flex items-center gap-4 bg-gradient-to-r from-accent-50 to-accent-100 dark:from-accent-900/20 dark:to-accent-900/30 rounded-lg p-5 border border-accent-200 dark:border-accent-800 hover:shadow-md transition-all duration-200"
 			>
 				<div class="p-3 bg-accent-100 dark:bg-accent-900/40 rounded-lg">
 					<svg class="w-6 h-6 text-accent-600 dark:text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -230,7 +232,7 @@
 			<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
 				{#if emailStatsLoading}
 					<div class="flex items-center justify-center h-32">
-						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+						<Spinner size="lg" />
 					</div>
 				{:else if emailStats}
 					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -279,7 +281,7 @@
 						</div>
 					{/if}
 				{:else}
-					<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No email data available</p>
+					<EmptyState title="No email data available" />
 				{/if}
 			</div>
 		</div>
@@ -290,7 +292,7 @@
 			<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
 				{#if cacheStatsLoading}
 					<div class="flex items-center justify-center h-32">
-						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+						<Spinner size="lg" />
 					</div>
 				{:else if cacheStats}
 					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -343,7 +345,7 @@
 						</details>
 					{/if}
 				{:else}
-					<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No cache data available</p>
+					<EmptyState title="No cache data available" />
 				{/if}
 			</div>
 		</div>
@@ -659,18 +661,18 @@
 			<!-- Waitlist Card -->
 			<a
 				href="/admin/waitlist"
-				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-warning-300 dark:hover:border-warning-700 transition-all duration-200"
 			>
 				<div class="flex items-center gap-4 mb-3">
-					<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-						<Clock class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+					<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+						<Clock class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 					</div>
 					<div>
 						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Waitlist</h3>
 						<p class="text-sm text-neutral-600 dark:text-neutral-400">Approve beta access requests</p>
 					</div>
 				</div>
-				<span class="text-sm text-amber-600 dark:text-amber-400">
+				<span class="text-sm text-warning-600 dark:text-warning-400">
 					{#if stats.waitlistPending > 0}
 						{stats.waitlistPending} pending →
 					{:else}
@@ -771,18 +773,18 @@
 			<!-- Billing Config Card -->
 			<a
 				href="/admin/billing"
-				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-purple-300 dark:hover:border-purple-700 transition-all duration-200"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
 			>
 				<div class="flex items-center gap-4 mb-3">
-					<div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-						<CreditCard class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<CreditCard class="w-6 h-6 text-accent-600 dark:text-accent-400" />
 					</div>
 					<div>
 						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Billing Config</h3>
 						<p class="text-sm text-neutral-600 dark:text-neutral-400">Products, prices, Stripe sync</p>
 					</div>
 				</div>
-				<span class="text-sm text-purple-600 dark:text-purple-400">Manage billing →</span>
+				<span class="text-sm text-accent-600 dark:text-accent-400">Manage billing →</span>
 			</a>
 
 			<!-- Blog Management Card -->

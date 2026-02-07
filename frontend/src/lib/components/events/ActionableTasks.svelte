@@ -111,11 +111,11 @@
 </script>
 
 <div
-	class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 mt-6"
+	class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 mt-6"
 >
 	<div class="flex items-center justify-between mb-4">
 		<div>
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
 						stroke-linecap="round"
@@ -127,7 +127,7 @@
 				Recommended Actions
 			</h3>
 			{#if !isLoading && !error}
-				<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+				<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
 					{acceptedCount} accepted • {inProgressCount} in progress • {rejectedCount} rejected
 				</p>
 			{/if}
@@ -136,7 +136,7 @@
 
 	{#if isLoading}
 		<div class="flex items-center justify-center py-12">
-			<svg class="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+			<svg class="animate-spin h-8 w-8 text-info-600" fill="none" viewBox="0 0 24 24">
 				<circle
 					class="opacity-25"
 					cx="12"
@@ -154,17 +154,17 @@
 		</div>
 	{:else if error}
 		<div
-			class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-center"
+			class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4 text-center"
 		>
-			<p class="text-sm text-yellow-800 dark:text-yellow-200 mb-2">{error}</p>
-			<p class="text-xs text-yellow-700 dark:text-yellow-300">
+			<p class="text-sm text-warning-800 dark:text-warning-200 mb-2">{error}</p>
+			<p class="text-xs text-warning-700 dark:text-warning-300">
 				Action extraction requires a completed synthesis.
 			</p>
 		</div>
 	{:else if tasks.length === 0}
-		<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-8 text-center">
+		<div class="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-8 text-center">
 			<svg
-				class="w-12 h-12 text-slate-400 mx-auto mb-3"
+				class="w-12 h-12 text-neutral-400 mx-auto mb-3"
 				fill="none"
 				stroke="currentColor"
 				viewBox="0 0 24 24"
@@ -176,7 +176,7 @@
 					d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 				/>
 			</svg>
-			<p class="text-sm text-slate-600 dark:text-slate-400">
+			<p class="text-sm text-neutral-600 dark:text-neutral-400">
 				No actions extracted from this decision.
 			</p>
 		</div>
@@ -186,7 +186,7 @@
 				{@const status = taskStatuses.get(task.id) || 'pending'}
 				{@const isExpanded = expandedTasks.has(task.id)}
 				<div
-					class="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+					class="bg-neutral-50 dark:bg-neutral-900/50 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden"
 					transition:slide={{ duration: 200 }}
 				>
 					<!-- Task Header -->
@@ -195,12 +195,12 @@
 						<div class="flex flex-col sm:flex-row sm:items-start gap-4 mb-4">
 							<div class="flex items-start gap-3 flex-1 min-w-0">
 								<span
-									class="flex-shrink-0 w-8 h-8 bg-slate-700 dark:bg-slate-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm"
+									class="flex-shrink-0 w-8 h-8 bg-neutral-700 dark:bg-neutral-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm"
 								>
 									{index + 1}
 								</span>
 								<h4
-									class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white leading-snug pt-0.5"
+									class="text-base sm:text-lg font-semibold text-neutral-900 dark:text-white leading-snug pt-0.5"
 								>
 									{getTaskTitle(task)}
 								</h4>
@@ -212,7 +212,7 @@
 						<!-- Metadata pills -->
 						<div class="flex flex-wrap gap-2 mb-4">
 							<span
-								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300"
 							>
 								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
@@ -227,10 +227,10 @@
 							<span
 								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium capitalize
 								{task.priority === 'high'
-									? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+									? 'bg-error-100 dark:bg-error-900/30 text-error-700 dark:text-error-300'
 									: task.priority === 'medium'
-										? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-										: 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}"
+										? 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300'
+										: 'bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300'}"
 							>
 								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
@@ -247,7 +247,7 @@
 						<!-- Expand/Collapse Details -->
 						<button
 							onclick={() => toggleDetails(task.id)}
-							class="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+							class="inline-flex items-center gap-1.5 text-sm text-info-600 dark:text-info-400 hover:text-info-700 dark:hover:text-info-300 font-medium transition-colors"
 						>
 							{isExpanded ? 'Hide details' : 'Show details'}
 							{#if isExpanded}

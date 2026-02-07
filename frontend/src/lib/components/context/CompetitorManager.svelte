@@ -478,7 +478,7 @@
 										<!-- Warning indicator -->
 										{#if competitor.relevance_warning}
 											<Tooltip text={competitor.relevance_warning}>
-												<AlertTriangle class="h-4 w-4 text-amber-500" />
+												<AlertTriangle class="h-4 w-4 text-warning-500" />
 											</Tooltip>
 										{/if}
 									</div>
@@ -555,7 +555,7 @@
 										onclick={() => removeCompetitor(competitor.name)}
 										ariaLabel="Remove competitor"
 									>
-										<Trash2 class="h-4 w-4 text-red-500" />
+										<Trash2 class="h-4 w-4 text-error-500" />
 									</BoButton>
 								</div>
 							</div>
@@ -699,7 +699,7 @@
 									{/if}
 
 									{#if competitor.changes_detected && competitor.changes_detected.length > 0}
-										<div class="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+										<div class="flex items-center gap-2 text-xs text-warning-600 dark:text-warning-400">
 											<AlertTriangle class="h-3 w-3" />
 											<span>Changes detected: {competitor.changes_detected.join(', ')}</span>
 										</div>

@@ -9,6 +9,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { BusinessMetricSuggestion } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Props
 	interface Props {
@@ -136,9 +137,7 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-4">
-		<div
-			class="animate-spin h-5 w-5 border-2 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="sm" />
 	</div>
 {:else if suggestions.length === 0}
 	<!-- Empty state - don't show the card at all -->
@@ -152,10 +151,10 @@
 				<div class="flex items-center gap-2">
 					<span class="text-lg">&#128161;</span>
 					<div>
-						<h3 class="text-sm font-semibold text-slate-900 dark:text-white">
+						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">
 							Suggested from Insights
 						</h3>
-						<p class="text-xs text-slate-500 dark:text-slate-400">
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">
 							Values detected in your meeting Q&A
 						</p>
 					</div>
@@ -199,14 +198,14 @@
 						<div class="flex-1 min-w-0">
 							<!-- Metric name and change -->
 							<div class="flex items-center gap-2 mb-1 flex-wrap">
-								<span class="font-medium text-slate-900 dark:text-white text-sm">
+								<span class="font-medium text-neutral-900 dark:text-white text-sm">
 									{displayName}
 								</span>
 								{#if suggestion.current_value !== null && suggestion.current_value !== undefined}
-									<span class="text-xs text-slate-400 dark:text-slate-500 line-through">
+									<span class="text-xs text-neutral-400 dark:text-neutral-500 line-through">
 										{suggestion.current_value}
 									</span>
-									<span class="text-slate-400">&rarr;</span>
+									<span class="text-neutral-400">&rarr;</span>
 								{/if}
 								<span class="font-semibold text-brand-600 dark:text-brand-400">
 									{suggestion.suggested_value}
@@ -215,7 +214,7 @@
 
 							<!-- Source question -->
 							<p
-								class="text-xs text-slate-500 dark:text-slate-400 italic"
+								class="text-xs text-neutral-500 dark:text-neutral-400 italic"
 								title={suggestion.source_question}
 							>
 								&ldquo;{truncateQuestion(suggestion.source_question)}&rdquo;
@@ -223,7 +222,7 @@
 
 							<!-- Metadata -->
 							<div
-								class="flex items-center gap-3 mt-1.5 text-xs text-slate-400 dark:text-slate-500"
+								class="flex items-center gap-3 mt-1.5 text-xs text-neutral-400 dark:text-neutral-500"
 							>
 								<span
 									class="inline-flex items-center gap-1"
@@ -253,7 +252,7 @@
 								{/if}
 							</button>
 							<button
-								class="px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+								class="px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
 								onclick={() => dismiss(suggestion)}
 								disabled={processingMetric !== null}
 								title="Dismiss this suggestion"

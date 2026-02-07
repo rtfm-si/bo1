@@ -402,10 +402,10 @@
 					SEO Preview
 				</h3>
 				<div class="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-					<p class="text-blue-600 dark:text-blue-400 text-lg hover:underline cursor-pointer">
+					<p class="text-info-600 dark:text-info-400 text-lg hover:underline cursor-pointer">
 						{article.meta_title || article.title}
 					</p>
-					<p class="text-green-700 dark:text-green-500 text-sm">
+					<p class="text-success-700 dark:text-success-500 text-sm">
 						example.com/blog/{article.id}
 					</p>
 					<p class="text-neutral-600 dark:text-neutral-400 text-sm mt-1">

@@ -3,7 +3,9 @@
 	import { History, RefreshCw, Skull, User, DollarSign, Calendar } from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import { adminApi, type SessionKillsResponse, type SessionKill } from '$lib/api/admin';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	// State
 	let kills = $state<SessionKillsResponse | null>(null);
@@ -64,35 +66,17 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<div class="flex items-center gap-3">
-						<History class="w-6 h-6 text-error-600 dark:text-error-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Kill History</h1>
-					</div>
-				</div>
-				<Button variant="secondary" size="sm" onclick={loadKills}>
-					<RefreshCw class="w-4 h-4" />
-					Refresh
-				</Button>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Kill History" icon={History}>
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadKills}>
+				<RefreshCw class="w-4 h-4" />
+				Refresh
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">{error}</Alert>
 		{/if}
@@ -103,11 +87,7 @@
 			</div>
 		{:else if kills}
 			{#if kills.kills.length === 0}
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-12 border border-neutral-200 dark:border-neutral-700 text-center">
-					<History class="w-12 h-12 text-neutral-400 mx-auto mb-4" />
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">No kill history</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">Session terminations will appear here</p>
-				</div>
+				<EmptyState title="No kill history" description="Session terminations will appear here" icon={History} />
 			{:else}
 				<!-- Stats -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-6">
@@ -155,7 +135,7 @@
 									<td class="px-6 py-4">
 										<div class="flex items-center gap-2">
 											<User class="w-4 h-4 text-neutral-400" />
-											<span class="text-sm {kill.killed_by === 'system' ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-neutral-700 dark:text-neutral-300'}">
+											<span class="text-sm {kill.killed_by === 'system' ? 'text-warning-600 dark:text-warning-400 font-medium' : 'text-neutral-700 dark:text-neutral-300'}">
 												{kill.killed_by}
 											</span>
 										</div>

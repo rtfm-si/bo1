@@ -78,7 +78,7 @@
 	const containerClasses = $derived([
 		'flex items-start gap-3 p-4 rounded-lg border shadow-lg',
 		'transform transition-all duration-300 ease-smooth',
-		visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0',
+		visible ? 'tranneutral-x-0 opacity-100' : 'tranneutral-x-full opacity-0',
 		style.bg,
 	].join(' '));
 </script>

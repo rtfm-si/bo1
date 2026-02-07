@@ -62,16 +62,16 @@
 	const categoryColors: Record<string, string> = {
 		Marketing: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
 		marketing: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-		Hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-		hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-		Product: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-		product: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+		Hiring: 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300',
+		hiring: 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300',
+		Product: 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
+		product: 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
 		Finance: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
 		pricing: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
 		Growth: 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300',
 		growth: 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300',
 		strategy: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
-		fundraising: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+		fundraising: 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
 		operations: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
 	};
 
@@ -109,7 +109,7 @@
 		<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
 			{#each displayItems as item}
 				<div
-					class="group bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+					class="group bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 hover:shadow-lg hover:-tranneutral-y-1 cursor-pointer"
 					onclick={() => handleClick(item)}
 					role="button"
 					tabindex="0"
@@ -165,7 +165,7 @@
 							stroke-width="2"
 							stroke-linecap="round"
 							stroke-linejoin="round"
-							class="group-hover:translate-x-1 transition-transform"
+							class="group-hover:tranneutral-x-1 transition-transform"
 						>
 							<path d="M5 12h14" />
 							<path d="M12 5l7 7-7 7" />

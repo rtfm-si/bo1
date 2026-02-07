@@ -210,26 +210,26 @@
 </svelte:head>
 
 <div
-	class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800"
+	class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800"
 >
 	<div class="max-w-2xl mx-auto px-4 py-12">
 		<!-- Header -->
 		<div id="onboarding-welcome" class="text-center mb-8">
-			<h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+			<h1 class="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
 				Welcome to Board of One
 			</h1>
-			<p class="text-slate-600 dark:text-slate-400">
+			<p class="text-neutral-600 dark:text-neutral-400">
 				Let's personalize your experience in a few quick steps
 			</p>
 		</div>
 
 		<!-- LLM Processing Notice (GDPR Art. 13) -->
 		<div
-			class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+			class="mb-6 p-4 bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg"
 		>
 			<div class="flex items-start gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
+					class="w-5 h-5 text-info-600 dark:text-info-400 mt-0.5 flex-shrink-0"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -241,11 +241,11 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<p class="text-sm text-blue-700 dark:text-blue-300">
+				<p class="text-sm text-info-700 dark:text-info-300">
 					Your inputs are processed by AI (Claude) to provide personalised recommendations.
 					See our <a
 						href="/legal/privacy"
-						class="underline hover:text-blue-800 dark:hover:text-blue-200">Privacy Policy</a
+						class="underline hover:text-info-800 dark:hover:text-info-200">Privacy Policy</a
 					> for details on how we handle your data.
 				</p>
 			</div>
@@ -260,10 +260,10 @@
 							class={[
 								'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
 								currentStep > i + 1
-									? 'bg-green-500 text-white'
+									? 'bg-success-500 text-white'
 									: currentStep === i + 1
 										? 'bg-brand-600 text-white'
-										: 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+										: 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400'
 							].join(' ')}
 						>
 							{#if currentStep > i + 1}
@@ -284,31 +284,31 @@
 								class={[
 									'w-16 sm:w-24 h-1 mx-2 rounded transition-colors',
 									currentStep > i + 1
-										? 'bg-green-500'
-										: 'bg-slate-200 dark:bg-slate-700'
+										? 'bg-success-500'
+										: 'bg-neutral-200 dark:bg-neutral-700'
 								].join(' ')}
 							></div>
 						{/if}
 					</div>
 				{/each}
 			</div>
-			<p class="text-center text-sm text-slate-500 dark:text-slate-400">
+			<p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
 				Step {currentStep} of {totalSteps}
 			</p>
 		</div>
 
 		<!-- Form card -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-8"
 		>
 			<!-- Step 1: Company Name -->
 			{#if currentStep === 1}
 				<div class="space-y-6">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+						<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 							What's your company name?
 						</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							This helps us personalize your strategic advice.
 						</p>
 					</div>
@@ -328,7 +328,7 @@
 							type="button"
 							onclick={handleSkip}
 							disabled={isSkipping}
-							class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+							class="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						>
 							{#if isSkipping}
 								<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -351,10 +351,10 @@
 			{#if currentStep === 2}
 				<div class="space-y-6">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+						<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 							What's your website?
 						</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							We'll automatically extract business details to save you time. (Optional)
 						</p>
 					</div>
@@ -385,17 +385,17 @@
 
 						{#if enrichmentError}
 							<div
-								class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+								class="p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg"
 							>
-								<p class="text-sm text-red-700 dark:text-red-300">{enrichmentError}</p>
+								<p class="text-sm text-error-700 dark:text-error-300">{enrichmentError}</p>
 							</div>
 						{/if}
 
 						{#if enrichedFields.length > 0}
 							<div
-								class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
+								class="p-3 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-lg"
 							>
-								<p class="text-sm text-green-700 dark:text-green-300">
+								<p class="text-sm text-success-700 dark:text-success-300">
 									Successfully extracted: {enrichedFields.join(', ')}
 								</p>
 							</div>
@@ -417,10 +417,10 @@
 			{#if currentStep === 3}
 				<div class="space-y-6">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+						<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 							What stage is your business at?
 						</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							This helps our experts tailor advice to your current situation.
 						</p>
 					</div>
@@ -454,10 +454,10 @@
 			{#if currentStep === 4}
 				<div class="space-y-6">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+						<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 							What's your primary objective?
 						</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							What are you focused on achieving right now?
 						</p>
 					</div>
@@ -491,10 +491,10 @@
 			{#if currentStep === 5}
 				<div class="space-y-6">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+						<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 							How do you make decisions?
 						</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							A quick 90-second assessment to personalize your recommendations.
 						</p>
 					</div>
@@ -505,7 +505,7 @@
 					/>
 
 					{#if isSavingCognition || isSaving}
-						<div class="flex items-center justify-center gap-2 text-slate-500">
+						<div class="flex items-center justify-center gap-2 text-neutral-500">
 							<svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -514,14 +514,14 @@
 						</div>
 					{/if}
 
-					<div class="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
+					<div class="flex items-center justify-between pt-4 border-t border-neutral-200 dark:border-neutral-700">
 						<Button variant="ghost" onclick={prevStep}>
 							Back
 						</Button>
 						<button
 							type="button"
 							onclick={skipCognition}
-							class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+							class="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
 						>
 							Skip for now
 						</button>
@@ -531,7 +531,7 @@
 		</div>
 
 		<!-- Help text -->
-		<p class="text-center text-sm text-slate-500 dark:text-slate-400 mt-6">
+		<p class="text-center text-sm text-neutral-500 dark:text-neutral-400 mt-6">
 			You can update these settings anytime in your profile.
 		</p>
 	</div>

@@ -42,3 +42,11 @@ we seem to display
 
 use playwright to screen grab the meeting output at various stages
 or slash command?
+
+What This Does NOT Do │
+│ │
+│ - Does not refactor meeting page components (separate effort) │
+│ - Does not create new design tokens (existing system is comprehensive) │
+│ - Does not force-migrate to Bo\* wrappers (minimal benefit) │
+│ - Does not touch landing/marketing pages │
+│ - Does not create a StatCard component (only ~5 instances, not worth extracting yet)

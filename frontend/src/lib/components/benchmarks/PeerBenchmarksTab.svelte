@@ -115,10 +115,10 @@
 
 	function getPercentileColor(percentile: number | null): string {
 		if (percentile === null) return 'bg-neutral-100 dark:bg-neutral-800';
-		if (percentile >= 75) return 'bg-green-100 dark:bg-green-900/30';
-		if (percentile >= 50) return 'bg-blue-100 dark:bg-blue-900/30';
-		if (percentile >= 25) return 'bg-amber-100 dark:bg-amber-900/30';
-		return 'bg-red-100 dark:bg-red-900/30';
+		if (percentile >= 75) return 'bg-success-100 dark:bg-success-900/30';
+		if (percentile >= 50) return 'bg-info-100 dark:bg-info-900/30';
+		if (percentile >= 25) return 'bg-warning-100 dark:bg-warning-900/30';
+		return 'bg-error-100 dark:bg-error-900/30';
 	}
 
 	function getPercentileLabel(percentile: number | null): string {
@@ -135,19 +135,19 @@
 			case 'industry_research':
 				return {
 					label: 'Industry Research',
-					color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+					color: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300',
 					description: 'Benchmark data sourced from industry research and reports'
 				};
 			case 'similar_industry':
 				return {
 					label: 'Similar Industry',
-					color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+					color: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300',
 					description: 'Benchmarks from a similar industry (no exact match found)'
 				};
 			default:
 				return {
 					label: 'Peer Data',
-					color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+					color: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300',
 					description: 'Anonymized data from opted-in peers in your industry'
 				};
 		}
@@ -170,7 +170,7 @@
 		<Alert variant="error">
 			<p>{error}</p>
 			<button
-				class="mt-2 text-sm font-medium text-red-700 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200"
+				class="mt-2 text-sm font-medium text-error-700 hover:text-error-600 dark:text-error-300 dark:hover:text-error-200"
 				onclick={loadData}
 			>
 				Try again
@@ -261,19 +261,19 @@
 						</p>
 						<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400 dark:text-neutral-500">
 							<span class="flex items-center gap-1">
-								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+								<svg class="w-3.5 h-3.5 text-success-500" fill="currentColor" viewBox="0 0 20 20">
 									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
 								</svg>
 								K-anonymity protected (min 5 peers)
 							</span>
 							<span class="flex items-center gap-1">
-								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+								<svg class="w-3.5 h-3.5 text-success-500" fill="currentColor" viewBox="0 0 20 20">
 									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
 								</svg>
 								No PII or company names
 							</span>
 							<span class="flex items-center gap-1">
-								<svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+								<svg class="w-3.5 h-3.5 text-success-500" fill="currentColor" viewBox="0 0 20 20">
 									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
 								</svg>
 								Industry-level aggregates only
@@ -342,7 +342,7 @@
 						{/if}
 					</p>
 					{#if benchmarks.similar_industry}
-						<p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+						<p class="text-xs text-warning-600 dark:text-warning-400 mt-1">
 							Based on: {benchmarks.similar_industry}
 						</p>
 					{/if}
@@ -398,7 +398,7 @@
 										Upgrade to unlock
 									</span>
 								{:else if benchmarks.source === 'peer_data' && metric.sample_count < 5}
-									<span class="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
+									<span class="text-xs px-2 py-0.5 bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300 rounded-full">
 										Insufficient data
 									</span>
 								{/if}
@@ -449,7 +449,7 @@
 										<!-- Bar -->
 										<div class="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
 											<div
-												class="h-full bg-gradient-to-r from-red-400 via-yellow-400 via-50% to-green-400"
+												class="h-full bg-gradient-to-r from-error-400 via-yellow-400 via-50% to-success-400"
 												style="width: 100%"
 											></div>
 										</div>
@@ -467,7 +467,7 @@
 												class="absolute top-2 w-0.5 h-2 bg-brand-600 dark:bg-brand-400"
 												style="left: {metric.user_percentile}%"
 											>
-												<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-brand-600 dark:bg-brand-400"></div>
+												<div class="absolute -top-1 left-1/2 -tranneutral-x-1/2 w-2 h-2 rounded-full bg-brand-600 dark:bg-brand-400"></div>
 											</div>
 										{/if}
 									</div>

@@ -3,6 +3,8 @@
 	import { Bell, RefreshCw, Calendar, Filter, CheckCircle, XCircle } from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { adminApi, type AlertHistoryResponse, type AlertHistoryItem } from '$lib/api/admin';
 
 	// State
@@ -57,7 +59,7 @@
 			case 'high':
 				return { bg: 'bg-warning-100 dark:bg-warning-900/30', text: 'text-warning-700 dark:text-warning-400' };
 			case 'warning':
-				return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400' };
+				return { bg: 'bg-warning-100 dark:bg-warning-900/30', text: 'text-warning-700 dark:text-warning-400' };
 			case 'info':
 			default:
 				return { bg: 'bg-info-100 dark:bg-info-900/30', text: 'text-info-700 dark:text-info-400' };
@@ -100,42 +102,22 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<div class="flex items-center gap-3">
-						<Bell class="w-6 h-6 text-warning-600 dark:text-warning-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Alert History</h1>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<a href="/admin/alerts/settings">
-						<Button variant="secondary" size="sm">
-							Settings
-						</Button>
-					</a>
-					<Button variant="secondary" size="sm" onclick={loadAlerts}>
-						<RefreshCw class="w-4 h-4" />
-						Refresh
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Alert History" icon={Bell}>
+		{#snippet actions()}
+			<a href="/admin/alerts/settings">
+				<Button variant="secondary" size="sm">
+					Settings
+				</Button>
+			</a>
+			<Button variant="secondary" size="sm" onclick={loadAlerts}>
+				<RefreshCw class="w-4 h-4" />
+				Refresh
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">{error}</Alert>
 		{/if}
@@ -165,13 +147,11 @@
 			</div>
 		{:else if alerts}
 			{#if alerts.alerts.length === 0}
-				<div class="bg-white dark:bg-neutral-800 rounded-lg p-12 border border-neutral-200 dark:border-neutral-700 text-center">
-					<Bell class="w-12 h-12 text-neutral-400 mx-auto mb-4" />
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">No alerts found</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
-						{selectedType ? 'No alerts of this type yet' : 'Alert history will appear here when alerts are sent'}
-					</p>
-				</div>
+				<EmptyState
+					title="No alerts found"
+					description={selectedType ? 'No alerts of this type yet' : 'Alert history will appear here when alerts are sent'}
+					icon={Bell}
+				/>
 			{:else}
 				<!-- Stats -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-6">

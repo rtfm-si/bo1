@@ -116,8 +116,8 @@
 			<!-- File selected - show selection -->
 			<div class="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-lg">
 				<div class="flex items-center gap-3 min-w-0">
-					<div class="flex-shrink-0 w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-						<svg class="w-6 h-6 text-green-600 dark:text-green-400" viewBox="0 0 24 24" fill="currentColor">
+					<div class="flex-shrink-0 w-10 h-10 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center">
+						<svg class="w-6 h-6 text-success-600 dark:text-success-400" viewBox="0 0 24 24" fill="currentColor">
 							<path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm-9 15H6v-3h4.5v3zm0-4.5H6v-3h4.5v3zm0-4.5H6V6h4.5v3zm4.5 9h-3v-3h3v3zm0-4.5h-3v-3h3v3zm0-4.5h-3V6h3v3zm4.5 9h-3v-3h3v3zm0-4.5h-3v-3h3v3zm0-4.5h-3V6h3v3z"/>
 						</svg>
 					</div>

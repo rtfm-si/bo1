@@ -89,8 +89,8 @@
 			class={[
 				'px-4 py-3 text-sm font-medium flex items-center justify-between gap-4',
 				isOutage
-					? 'bg-red-600 text-white dark:bg-red-700'
-					: 'bg-amber-500 text-amber-950 dark:bg-amber-600 dark:text-amber-50'
+					? 'bg-error-600 text-white dark:bg-error-700'
+					: 'bg-warning-500 text-warning-950 dark:bg-warning-600 dark:text-warning-50'
 			].join(' ')}
 			role="alert"
 			aria-live="polite"
@@ -112,8 +112,8 @@
 				class={[
 					'p-1 rounded-md transition-colors flex-shrink-0',
 					isOutage
-						? 'hover:bg-red-700 dark:hover:bg-red-800'
-						: 'hover:bg-amber-600 dark:hover:bg-amber-700'
+						? 'hover:bg-error-700 dark:hover:bg-error-800'
+						: 'hover:bg-warning-600 dark:hover:bg-warning-700'
 				].join(' ')}
 				aria-label="Dismiss status message"
 			>

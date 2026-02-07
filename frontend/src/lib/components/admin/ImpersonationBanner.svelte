@@ -81,7 +81,7 @@
 	role="alert"
 	aria-live="polite"
 >
-	<div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between gap-4">
 		<!-- Left: Icon and message -->
 		<div class="flex items-center gap-3">
 			<!-- Eye icon -->

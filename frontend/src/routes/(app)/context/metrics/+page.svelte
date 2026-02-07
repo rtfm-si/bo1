@@ -11,6 +11,7 @@
 	import { apiClient, type UserMetric, type MetricTemplate, type MetricCategory } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
 	import MetricCalculatorModal from '$lib/components/context/MetricCalculatorModal.svelte';
 	import BusinessMetricSuggestions from '$lib/components/context/BusinessMetricSuggestions.svelte';
@@ -267,27 +268,27 @@
 
 {#snippet metricRow(metric: UserMetric, isSaved: boolean)}
 	<div
-		class="flex items-start justify-between py-3 border-b border-slate-100 dark:border-slate-700 last:border-0"
+		class="flex items-start justify-between py-3 border-b border-neutral-100 dark:border-neutral-700 last:border-0"
 	>
 		<div class="flex-1 min-w-0 pr-4">
 			<div class="flex items-center gap-2">
-				<p class="font-medium text-slate-900 dark:text-white">
+				<p class="font-medium text-neutral-900 dark:text-white">
 					{metric.name}
 				</p>
 				{#if saveSuccess === metric.metric_key}
-					<span class="text-xs text-green-600 dark:text-green-400">Saved!</span>
+					<span class="text-xs text-success-600 dark:text-success-400">Saved!</span>
 				{/if}
 				{#if !isSaved}
-					<span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+					<span class="text-xs px-1.5 py-0.5 bg-info-100 dark:bg-info-900/30 text-info-600 dark:text-info-400 rounded">
 						{categoryLabels[metric.category || 'custom']}
 					</span>
 				{/if}
 			</div>
-			<p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+			<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
 				{metric.definition || 'No description'}
 			</p>
 			{#if metric.importance}
-				<p class="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+				<p class="text-xs text-neutral-400 dark:text-neutral-500 mt-1 flex items-center gap-1">
 					<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
 							stroke-linecap="round"
@@ -300,7 +301,7 @@
 				</p>
 			{/if}
 			{#if metric.captured_at}
-				<p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+				<p class="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
 					Updated: {formatDate(metric.captured_at)}
 				</p>
 			{/if}
@@ -311,12 +312,12 @@
 				<!-- Edit Mode -->
 				<div class="flex items-center gap-2">
 					{#if metric.value_unit === '$'}
-						<span class="text-slate-400">{getCurrencySymbol($preferredCurrency)}</span>
+						<span class="text-neutral-400">{getCurrencySymbol($preferredCurrency)}</span>
 					{/if}
 					<input
 						type="number"
 						bind:value={editValue}
-						class="w-28 px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+						class="w-28 px-3 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
 						placeholder="Enter value"
 						onkeydown={(e) => {
 							if (e.key === 'Enter') saveMetric(metric);
@@ -324,15 +325,15 @@
 						}}
 					/>
 					{#if metric.value_unit && metric.value_unit !== '$'}
-						<span class="text-sm text-slate-400">{metric.value_unit}</span>
+						<span class="text-sm text-neutral-400">{metric.value_unit}</span>
 					{/if}
 					<button
-						class="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+						class="p-1.5 text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20 rounded"
 						onclick={() => saveMetric(metric)}
 						disabled={savingMetric === metric.metric_key}
 					>
 						{#if savingMetric === metric.metric_key}
-							<div class="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+							<div class="w-4 h-4 border-2 border-success-600 border-t-transparent rounded-full animate-spin"></div>
 						{:else}
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -340,7 +341,7 @@
 						{/if}
 					</button>
 					<button
-						class="p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+						class="p-1.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded"
 						onclick={cancelEdit}
 						aria-label="Cancel"
 					>
@@ -353,21 +354,21 @@
 				<!-- Display Mode -->
 				<div class="flex items-center gap-1 group">
 					<button
-						class="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+						class="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
 						onclick={() => startEdit(metric)}
 					>
 						<span
 							class={[
 								'text-lg font-semibold',
 								metric.value !== null
-									? 'text-slate-900 dark:text-white'
-									: 'text-slate-400 dark:text-slate-500'
+									? 'text-neutral-900 dark:text-white'
+									: 'text-neutral-400 dark:text-neutral-500'
 							].join(' ')}
 						>
 							{formatValue(metric.value, metric.value_unit)}
 						</span>
 						<svg
-							class="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+							class="w-4 h-4 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -384,16 +385,16 @@
 					{#if metric.is_predefined && metric.id}
 						{#if confirmDismiss === metric.metric_key}
 							<!-- Confirmation inline -->
-							<div class="flex items-center gap-1 ml-2 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
-								<span class="text-xs text-amber-700 dark:text-amber-300">Hide?</span>
+							<div class="flex items-center gap-1 ml-2 px-2 py-1 bg-warning-50 dark:bg-warning-900/20 rounded border border-warning-200 dark:border-warning-800">
+								<span class="text-xs text-warning-700 dark:text-warning-300">Hide?</span>
 								<button
-									class="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+									class="p-1 text-success-600 hover:bg-success-100 dark:hover:bg-success-900/30 rounded"
 									onclick={() => dismissMetric(metric.metric_key)}
 									disabled={dismissingMetric === metric.metric_key}
 									title="Confirm hide"
 								>
 									{#if dismissingMetric === metric.metric_key}
-										<div class="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+										<div class="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin"></div>
 									{:else}
 										<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -401,7 +402,7 @@
 									{/if}
 								</button>
 								<button
-									class="p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+									class="p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded"
 									onclick={() => { confirmDismiss = null; }}
 									title="Cancel"
 								>
@@ -412,7 +413,7 @@
 							</div>
 						{:else}
 							<button
-								class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+								class="p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
 								onclick={() => { confirmDismiss = metric.metric_key; }}
 								title="Not relevant to me"
 							>
@@ -437,13 +438,13 @@
 	<BenchmarkRefreshBanner />
 
 	<!-- Header -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 		<div class="flex items-center justify-between">
 			<div>
-				<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 					Business Metrics
 				</h2>
-				<p class="text-slate-600 dark:text-slate-400">
+				<p class="text-neutral-600 dark:text-neutral-400">
 					Track key performance indicators for context-aware recommendations.
 				</p>
 			</div>
@@ -471,13 +472,13 @@
 	<!-- Loading State -->
 	{#if isLoading}
 		<div class="flex items-center justify-center py-12">
-			<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"></div>
+			<Spinner size="lg" />
 		</div>
 	{:else}
 		<!-- SECTION 1: Your Metrics (filled values) -->
 		{#if filledMetrics().length > 0}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-4">
 					Your Metrics
 				</h3>
 				<div class="space-y-4">
@@ -490,10 +491,10 @@
 
 		<!-- SECTION 2: Recommended Metrics (top unfilled templates) -->
 		{#if topUnfilledTemplates().length > 0 || unfilledSavedMetrics().length > 0}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-4">
 					Recommended Metrics
-					<span class="ml-2 text-xs font-normal normal-case text-slate-400">Click to add a value</span>
+					<span class="ml-2 text-xs font-normal normal-case text-neutral-400">Click to add a value</span>
 				</h3>
 				<div class="space-y-4">
 					<!-- Unfilled saved metrics first -->
@@ -510,26 +511,26 @@
 
 		<!-- SECTION 3: More Metrics (collapsed remaining templates) -->
 		{#if remainingTemplates().length > 0}
-			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+			<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
 				<button
-					class="w-full p-4 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors rounded-lg"
+					class="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors rounded-lg"
 					onclick={() => { moreMetricsExpanded = !moreMetricsExpanded; }}
 				>
 					<div class="flex items-center gap-3">
-						<span class="text-slate-400">
+						<span class="text-neutral-400">
 							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
 							</svg>
 						</span>
 						<div>
-							<span class="font-medium text-slate-700 dark:text-slate-300">More Metrics</span>
-							<span class="ml-2 text-xs font-medium px-2 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full">
+							<span class="font-medium text-neutral-700 dark:text-neutral-300">More Metrics</span>
+							<span class="ml-2 text-xs font-medium px-2 py-0.5 bg-neutral-200 dark:bg-neutral-600 text-neutral-600 dark:text-neutral-300 rounded-full">
 								{remainingTemplates().length}
 							</span>
 						</div>
 					</div>
 					<svg
-						class="w-5 h-5 text-slate-400 transition-transform {moreMetricsExpanded ? 'rotate-180' : ''}"
+						class="w-5 h-5 text-neutral-400 transition-transform {moreMetricsExpanded ? 'rotate-180' : ''}"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -550,26 +551,26 @@
 
 		<!-- Hidden Metrics Section (collapsible) -->
 		{#if hiddenMetrics.length > 0}
-			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+			<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
 				<button
-					class="w-full p-4 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors rounded-lg"
+					class="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors rounded-lg"
 					onclick={() => { hiddenExpanded = !hiddenExpanded; }}
 				>
 					<div class="flex items-center gap-3">
-						<span class="text-slate-400">
+						<span class="text-neutral-400">
 							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
 							</svg>
 						</span>
 						<div>
-							<span class="font-medium text-slate-700 dark:text-slate-300">Hidden Metrics</span>
-							<span class="ml-2 text-xs font-medium px-2 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full">
+							<span class="font-medium text-neutral-700 dark:text-neutral-300">Hidden Metrics</span>
+							<span class="ml-2 text-xs font-medium px-2 py-0.5 bg-neutral-200 dark:bg-neutral-600 text-neutral-600 dark:text-neutral-300 rounded-full">
 								{hiddenMetrics.length}
 							</span>
 						</div>
 					</div>
 					<svg
-						class="w-5 h-5 text-slate-400 transition-transform {hiddenExpanded ? 'rotate-180' : ''}"
+						class="w-5 h-5 text-neutral-400 transition-transform {hiddenExpanded ? 'rotate-180' : ''}"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -581,10 +582,10 @@
 				{#if hiddenExpanded}
 					<div class="px-4 pb-4 space-y-2">
 						{#each hiddenMetrics as metric (metric.metric_key)}
-							<div class="flex items-center justify-between py-2 px-3 bg-white dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-600">
+							<div class="flex items-center justify-between py-2 px-3 bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-600">
 								<div class="flex-1 min-w-0">
-									<p class="font-medium text-slate-700 dark:text-slate-300 text-sm">{metric.name}</p>
-									<p class="text-xs text-slate-500 dark:text-slate-400 truncate">{metric.definition || 'No description'}</p>
+									<p class="font-medium text-neutral-700 dark:text-neutral-300 text-sm">{metric.name}</p>
+									<p class="text-xs text-neutral-500 dark:text-neutral-400 truncate">{metric.definition || 'No description'}</p>
 								</div>
 								<Button
 									variant="ghost"
@@ -609,12 +610,12 @@
 		{/if}
 
 		<!-- Industry Benchmarks Link -->
-		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 flex items-center justify-between">
+		<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<span class="text-xl">📊</span>
 				<div>
-					<p class="font-medium text-slate-900 dark:text-white">Industry Benchmarks</p>
-					<p class="text-sm text-slate-500 dark:text-slate-400">Compare your metrics against industry standards</p>
+					<p class="font-medium text-neutral-900 dark:text-white">Industry Benchmarks</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">Compare your metrics against industry standards</p>
 				</div>
 			</div>
 			<a href="/reports/benchmarks" class="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline">
@@ -627,8 +628,8 @@
 			<div class="flex items-center gap-3">
 				<span class="text-xl">🧮</span>
 				<div>
-					<p class="font-medium text-slate-900 dark:text-white">Help me calculate</p>
-					<p class="text-sm text-slate-500 dark:text-slate-400">Answer a few questions to derive your metric values</p>
+					<p class="font-medium text-neutral-900 dark:text-white">Help me calculate</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">Answer a few questions to derive your metric values</p>
 				</div>
 			</div>
 			<Button variant="brand" size="sm" onclick={() => { calculatorOpen = true; }}>
@@ -637,12 +638,12 @@
 		</div>
 
 		<!-- Request Metric CTA -->
-		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 flex items-center justify-between">
+		<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<span class="text-xl">💡</span>
 				<div>
-					<p class="font-medium text-slate-900 dark:text-white">Need a different metric?</p>
-					<p class="text-sm text-slate-500 dark:text-slate-400">Request a metric that's not listed</p>
+					<p class="font-medium text-neutral-900 dark:text-white">Need a different metric?</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">Request a metric that's not listed</p>
 				</div>
 			</div>
 			<a
@@ -656,10 +657,10 @@
 		</div>
 
 		<!-- Info Box -->
-		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+		<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -671,9 +672,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">Why track metrics?</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						When you provide key metrics, our experts can give data-informed recommendations.
 						Instead of generic advice, they can tailor guidance to your specific numbers -
 						like suggesting churn reduction strategies when your churn is high.

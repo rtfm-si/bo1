@@ -4,6 +4,7 @@
 	 * Walks user through questions to derive metric values
 	 */
 	import Modal from '$lib/components/ui/Modal.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { Button } from '$lib/components/ui/shadcn/button';
 	import { Input } from '$lib/components/ui/shadcn/input';
 	import {
@@ -196,14 +197,14 @@
 <Modal bind:open title="Calculate a Metric" size="md" onclose={handleClose}>
 	<div class="space-y-4">
 		{#if error}
-			<div class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-				<p class="text-sm text-red-700 dark:text-red-300">{error}</p>
+			<div class="p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg">
+				<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
 			</div>
 		{/if}
 
 		{#if isLoading && step === 'select'}
 			<div class="flex items-center justify-center py-8">
-				<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full"></div>
+				<Spinner size="md" />
 			</div>
 		{:else if step === 'select'}
 			<!-- Step 1: Select Metric -->
@@ -298,12 +299,12 @@
 					</p>
 				</div>
 
-				<div class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+				<div class="p-3 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-lg">
 					<div class="flex items-center gap-2">
-						<svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 						</svg>
-						<p class="text-sm text-green-700 dark:text-green-300">
+						<p class="text-sm text-success-700 dark:text-success-300">
 							Calculation saved to your insights
 						</p>
 					</div>

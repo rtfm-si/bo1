@@ -114,14 +114,14 @@
 			icon: 'bg-brand-100 dark:bg-brand-800/50 text-brand-600 dark:text-brand-400'
 		},
 		warning: {
-			banner: 'bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/10 border-amber-200 dark:border-amber-800',
-			button: 'bg-amber-600 hover:bg-amber-700 text-white',
-			icon: 'bg-amber-100 dark:bg-amber-800/50 text-amber-600 dark:text-amber-400'
+			banner: 'bg-gradient-to-r from-warning-50 to-warning-100/50 dark:from-warning-900/20 dark:to-warning-800/10 border-warning-200 dark:border-warning-800',
+			button: 'bg-warning-600 hover:bg-warning-700 text-white',
+			icon: 'bg-warning-100 dark:bg-warning-800/50 text-warning-600 dark:text-warning-400'
 		},
 		error: {
-			banner: 'bg-gradient-to-r from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 border-red-200 dark:border-red-800',
-			button: 'bg-red-600 hover:bg-red-700 text-white',
-			icon: 'bg-red-100 dark:bg-red-800/50 text-red-600 dark:text-red-400'
+			banner: 'bg-gradient-to-r from-error-50 to-error-100/50 dark:from-error-900/20 dark:to-error-800/10 border-error-200 dark:border-error-800',
+			button: 'bg-error-600 hover:bg-error-700 text-white',
+			icon: 'bg-error-100 dark:bg-error-800/50 text-error-600 dark:text-error-400'
 		},
 		neutral: {
 			banner: 'bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-700/30 border-neutral-200 dark:border-neutral-700',

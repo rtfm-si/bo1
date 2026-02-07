@@ -62,7 +62,7 @@
 							Re-run
 						</button>
 						<button
-							class="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+							class="text-xs px-2 py-1 rounded text-error-500 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors"
 							onclick={() => onDelete(analysis.id)}
 						>
 							Delete

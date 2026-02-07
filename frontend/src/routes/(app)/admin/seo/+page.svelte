@@ -11,7 +11,9 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import { RefreshCw, Eye, MousePointer, UserPlus, TrendingUp, BarChart3, PoundSterling, ExternalLink } from 'lucide-svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import {
 		adminApi,
 		type AdminSeoAnalyticsResponse,
@@ -84,41 +86,19 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<div>
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							SEO Content Analytics
-						</h1>
-						<p class="text-sm text-neutral-500 dark:text-neutral-400">
-							Track blog article performance and conversions
-						</p>
-					</div>
-				</div>
-				<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
-					{#snippet children()}
-						<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-						Refresh
-					{/snippet}
-				</Button>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="SEO Content Analytics">
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Error State -->
 		{#if error}
 			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-4 mb-6">
@@ -156,7 +136,7 @@
 
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
 					<div class="flex items-center gap-2 mb-2">
-						<Eye class="w-5 h-5 text-blue-500" />
+						<Eye class="w-5 h-5 text-info-500" />
 						<span class="text-sm text-neutral-500 dark:text-neutral-400">Total Views</span>
 					</div>
 					<div class="text-2xl font-bold text-neutral-900 dark:text-white">
@@ -166,7 +146,7 @@
 
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
 					<div class="flex items-center gap-2 mb-2">
-						<MousePointer class="w-5 h-5 text-amber-500" />
+						<MousePointer class="w-5 h-5 text-warning-500" />
 						<span class="text-sm text-neutral-500 dark:text-neutral-400">Total Clicks</span>
 					</div>
 					<div class="text-2xl font-bold text-neutral-900 dark:text-white">
@@ -222,15 +202,13 @@
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
 					<div class="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
 						<h2 class="text-lg font-medium text-neutral-900 dark:text-white flex items-center gap-2">
-							<Eye class="w-5 h-5 text-blue-500" />
+							<Eye class="w-5 h-5 text-info-500" />
 							Top Articles by Views
 						</h2>
 					</div>
 					<div class="overflow-x-auto">
 						{#if analytics.top_by_views.length === 0}
-							<div class="p-8 text-center text-neutral-500 dark:text-neutral-400">
-								No article data yet
-							</div>
+							<EmptyState title="No article data yet" icon={Eye} />
 						{:else}
 							<table class="w-full">
 								<thead class="bg-neutral-50 dark:bg-neutral-900">
@@ -278,9 +256,7 @@
 					</div>
 					<div class="overflow-x-auto">
 						{#if analytics.top_by_conversion.length === 0}
-							<div class="p-8 text-center text-neutral-500 dark:text-neutral-400">
-								No articles with 10+ views yet
-							</div>
+							<EmptyState title="No articles with 10+ views yet" icon={TrendingUp} />
 						{:else}
 							<table class="w-full">
 								<thead class="bg-neutral-50 dark:bg-neutral-900">
@@ -379,9 +355,7 @@
 
 					<div class="overflow-x-auto">
 						{#if blogPerf.posts.length === 0}
-							<div class="p-8 text-center text-neutral-500 dark:text-neutral-400">
-								No published blog posts yet
-							</div>
+							<EmptyState title="No published blog posts yet" icon={PoundSterling} />
 						{:else}
 							<table class="w-full">
 								<thead class="bg-neutral-50 dark:bg-neutral-900">
@@ -419,7 +393,7 @@
 												{formatNumber(post.click_through_count)}
 											</td>
 											<td class="px-4 py-3 text-right">
-												<span class="{post.ctr_percent >= 5 ? 'text-success-600 dark:text-success-400' : post.ctr_percent >= 2 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-500'} font-medium">
+												<span class="{post.ctr_percent >= 5 ? 'text-success-600 dark:text-success-400' : post.ctr_percent >= 2 ? 'text-warning-600 dark:text-warning-400' : 'text-neutral-500'} font-medium">
 													{post.ctr_percent.toFixed(2)}%
 												</span>
 											</td>
@@ -428,7 +402,7 @@
 											</td>
 											<td class="px-4 py-3 text-right">
 												{#if post.click_through_count > 0}
-													<span class="{post.cost_per_click <= 0.10 ? 'text-success-600 dark:text-success-400' : post.cost_per_click <= 0.50 ? 'text-amber-600 dark:text-amber-400' : 'text-error-600 dark:text-error-400'} font-medium">
+													<span class="{post.cost_per_click <= 0.10 ? 'text-success-600 dark:text-success-400' : post.cost_per_click <= 0.50 ? 'text-warning-600 dark:text-warning-400' : 'text-error-600 dark:text-error-400'} font-medium">
 														£{post.cost_per_click.toFixed(4)}
 													</span>
 												{:else}

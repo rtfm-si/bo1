@@ -92,7 +92,7 @@
 		cancelled: { label: 'Cancelled', color: 'bg-neutral-400' },
 		failed: { label: 'Failed', color: 'bg-error-500' },
 		abandoned: { label: 'Abandoned', color: 'bg-neutral-400' },
-		replanned: { label: 'Replanned', color: 'bg-amber-500' }
+		replanned: { label: 'Replanned', color: 'bg-warning-500' }
 	};
 
 	// Priority configuration
@@ -258,7 +258,7 @@
 <div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<!-- Sticky Header -->
 	<div class="sticky top-0 z-10 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
-		<div class="max-w-6xl mx-auto px-4 sm:px-6 py-4">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
 			<div class="flex items-center gap-4">
 				<button
 					onclick={goBack}
@@ -295,7 +295,7 @@
 		</div>
 	</div>
 
-	<div class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 		{#if isLoading}
 			<!-- Loading skeleton -->
 			<div class="space-y-6">
@@ -415,7 +415,7 @@
 						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 							{#if project.target_start_date}
 								<div class="flex items-start gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-									<Calendar class="w-5 h-5 text-amber-500 mt-0.5" />
+									<Calendar class="w-5 h-5 text-warning-500 mt-0.5" />
 									<div>
 										<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Target Start</div>
 										<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
@@ -427,7 +427,7 @@
 
 							{#if project.target_end_date}
 								<div class="flex items-start gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-									<Calendar class="w-5 h-5 text-amber-500 mt-0.5" />
+									<Calendar class="w-5 h-5 text-warning-500 mt-0.5" />
 									<div>
 										<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Target End</div>
 										<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">

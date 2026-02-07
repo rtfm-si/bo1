@@ -132,9 +132,9 @@
 								</div>
 							{/if}
 							{#if sections.recommendation}
-								<div class="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm border-l-2 border-green-500">
-									<span class="font-medium text-green-800 dark:text-green-300">Recommendation:</span>
-									<div class="text-green-700 dark:text-green-200 mt-1"><MarkdownContent content={sections.recommendation} /></div>
+								<div class="mt-2 p-2 bg-success-50 dark:bg-success-900/20 rounded text-sm border-l-2 border-success-500">
+									<span class="font-medium text-success-800 dark:text-success-300">Recommendation:</span>
+									<div class="text-success-700 dark:text-success-200 mt-1"><MarkdownContent content={sections.recommendation} /></div>
 								</div>
 							{/if}
 						{:else}

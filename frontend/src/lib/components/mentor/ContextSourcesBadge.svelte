@@ -14,7 +14,7 @@
 		business_context: {
 			label: 'Business',
 			icon: Briefcase,
-			color: 'text-blue-600 dark:text-blue-400'
+			color: 'text-info-600 dark:text-info-400'
 		},
 		recent_meetings: {
 			label: 'Meetings',
@@ -24,12 +24,12 @@
 		active_actions: {
 			label: 'Actions',
 			icon: CheckSquare,
-			color: 'text-green-600 dark:text-green-400'
+			color: 'text-success-600 dark:text-success-400'
 		},
 		datasets: {
 			label: 'Data',
 			icon: Database,
-			color: 'text-amber-600 dark:text-amber-400'
+			color: 'text-warning-600 dark:text-warning-400'
 		}
 	} as const;
 

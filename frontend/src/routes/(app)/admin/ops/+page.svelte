@@ -22,6 +22,8 @@
 	import BoButton from '$lib/components/ui/BoButton.svelte';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	// State
 	let health = $state<SystemHealthResponse | null>(null);
@@ -168,56 +170,25 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header
-		class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700"
-	>
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div>
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							AI Ops Self-Healing
-						</h1>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400">
-							Error pattern detection and automated recovery
-						</p>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<BoButton variant="outline" onclick={loadData} disabled={loading}>
-						<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
-						Refresh
-					</BoButton>
-					<BoButton variant="brand" onclick={triggerCheck} disabled={checkRunning}>
-						<Wrench class="w-4 h-4 {checkRunning ? 'animate-spin' : ''}" />
-						Run Check
-					</BoButton>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="AI Ops Self-Healing" icon={Wrench}>
+		{#snippet badge()}
+			<span class="text-sm text-neutral-600 dark:text-neutral-400">
+				Error pattern detection and automated recovery
+			</span>
+		{/snippet}
+		{#snippet actions()}
+			<BoButton variant="outline" onclick={loadData} disabled={loading}>
+				<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
+				Refresh
+			</BoButton>
+			<BoButton variant="brand" onclick={triggerCheck} disabled={checkRunning}>
+				<Wrench class="w-4 h-4 {checkRunning ? 'animate-spin' : ''}" />
+				Run Check
+			</BoButton>
+		{/snippet}
+	</AdminPageHeader>
 
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">
 				{error}
@@ -421,19 +392,16 @@
 											>
 												<span
 													class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {pattern.enabled
-														? 'translate-x-6'
-														: 'translate-x-1'}"
+														? 'tranneutral-x-6'
+														: 'tranneutral-x-1'}"
 												></span>
 											</button>
 										</td>
 									</tr>
 								{:else}
 									<tr>
-										<td
-											colspan="7"
-											class="px-4 py-8 text-center text-neutral-500 dark:text-neutral-400"
-										>
-											No error patterns configured
+										<td colspan="7">
+											<EmptyState title="No error patterns configured" icon={Settings} />
 										</td>
 									</tr>
 								{/each}
@@ -455,15 +423,7 @@
 				</div>
 				<BoCard>
 					{#if remediations.length === 0}
-						<div class="py-8 text-center">
-							<Activity class="w-12 h-12 mx-auto text-neutral-400 mb-3" />
-							<p class="text-neutral-600 dark:text-neutral-400">
-								No remediations yet
-							</p>
-							<p class="text-sm text-neutral-500 dark:text-neutral-500">
-								Auto-remediation events will appear here
-							</p>
-						</div>
+						<EmptyState title="No remediations yet" description="Auto-remediation events will appear here" icon={Activity} />
 					{:else}
 						<div class="overflow-x-auto">
 							<table class="w-full">

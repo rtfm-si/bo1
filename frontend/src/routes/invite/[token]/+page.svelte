@@ -119,8 +119,8 @@
 		<!-- Error State -->
 		{#if error || !invitation}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-					<AlertTriangle class="w-8 h-8 text-red-600 dark:text-red-400" />
+				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-error-100 dark:bg-error-900/20 flex items-center justify-center">
+					<AlertTriangle class="w-8 h-8 text-error-600 dark:text-error-400" />
 				</div>
 				<h1 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 					Invitation Not Found
@@ -134,8 +134,8 @@
 		<!-- Already Accepted -->
 		{:else if actionResult === 'accepted'}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-					<CheckCircle class="w-8 h-8 text-green-600 dark:text-green-400" />
+				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-success-100 dark:bg-success-900/20 flex items-center justify-center">
+					<CheckCircle class="w-8 h-8 text-success-600 dark:text-success-400" />
 				</div>
 				<h1 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 					Welcome to {invitation.workspace_name}!
@@ -166,8 +166,8 @@
 		<!-- Expired -->
 		{:else if isExpired}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center">
-					<Clock class="w-8 h-8 text-amber-600 dark:text-amber-400" />
+				<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-warning-100 dark:bg-warning-900/20 flex items-center justify-center">
+					<Clock class="w-8 h-8 text-warning-600 dark:text-warning-400" />
 				</div>
 				<h1 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 					Invitation Expired
@@ -231,9 +231,9 @@
 						<Clock size={18} />
 						<span>
 							{#if daysUntilExpiry <= 1}
-								<span class="text-amber-600 dark:text-amber-400">Expires today</span>
+								<span class="text-warning-600 dark:text-warning-400">Expires today</span>
 							{:else if daysUntilExpiry <= 3}
-								<span class="text-amber-600 dark:text-amber-400">Expires in {daysUntilExpiry} days</span>
+								<span class="text-warning-600 dark:text-warning-400">Expires in {daysUntilExpiry} days</span>
 							{:else}
 								Expires {formatDate(invitation.expires_at)}
 							{/if}
@@ -242,8 +242,8 @@
 
 					<!-- Error -->
 					{#if actionError}
-						<div class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-							<p class="text-sm text-red-700 dark:text-red-300">{actionError}</p>
+						<div class="p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+							<p class="text-sm text-error-700 dark:text-error-300">{actionError}</p>
 						</div>
 					{/if}
 

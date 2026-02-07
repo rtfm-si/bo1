@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Loader2, AlertCircle, TrendingUp, TrendingDown, Gauge, Settings2, Info } from 'lucide-svelte';
 	import { adminApi, type CacheMetricsResponse } from '$lib/api/admin';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
 
 	let data = $state<CacheMetricsResponse | null>(null);
 	let loading = $state(true);
@@ -214,30 +215,9 @@
 
 		<!-- Summary Stats -->
 		<div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
-			>
-				<p class="text-sm text-neutral-600 dark:text-neutral-400">Cached Results</p>
-				<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-					{data.total_cached_results.toLocaleString()}
-				</p>
-			</div>
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
-			>
-				<p class="text-sm text-neutral-600 dark:text-neutral-400">Cost Savings (30d)</p>
-				<p class="text-xl font-semibold text-success-600 dark:text-success-400">
-					${data.cost_savings_30d.toFixed(2)}
-				</p>
-			</div>
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
-			>
-				<p class="text-sm text-neutral-600 dark:text-neutral-400">Total Queries (30d)</p>
-				<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-					{data.total_queries_30d.toLocaleString()}
-				</p>
-			</div>
+			<StatCard size="sm" label="Cached Results" value={data.total_cached_results.toLocaleString()} />
+			<StatCard size="sm" label="Cost Savings (30d)" value={'$' + data.cost_savings_30d.toFixed(2)} />
+			<StatCard size="sm" label="Total Queries (30d)" value={data.total_queries_30d.toLocaleString()} />
 		</div>
 	{:else}
 		<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No cache data available</p>

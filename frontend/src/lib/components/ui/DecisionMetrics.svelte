@@ -261,28 +261,28 @@
 			count: topicsExplored,
 			label: 'Focus Areas',
 			title: 'Focus Areas Analyzed',
-			color: 'text-amber-500'
+			color: 'text-warning-500'
 		},
 		{
 			icon: GitBranch,
 			count: roundsCompleted,
 			label: 'Rounds',
 			title: 'Discussion Rounds',
-			color: 'text-blue-500'
+			color: 'text-info-500'
 		},
 		{
 			icon: ShieldCheck,
 			count: risksMitigated,
 			label: 'Risks',
 			title: 'Risks Identified',
-			color: 'text-red-500'
+			color: 'text-error-500'
 		},
 		{
 			icon: Search,
 			count: researchPerformed,
 			label: 'Research',
 			title: 'Research Triggered',
-			color: 'text-green-500'
+			color: 'text-success-500'
 		},
 		{
 			icon: MessageSquare,
@@ -297,23 +297,23 @@
 <div class="space-y-4">
 	<!-- Deliberation Progress Counters (TODO.md Tier 1) -->
 	{#if progressCounters.some(c => c.count > 0)}
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
 				Deliberation Progress
 			</h3>
 			<div class="grid grid-cols-5 gap-2">
 				{#each progressCounters as counter (counter.label)}
 					<div
-						class="flex flex-col items-center p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-default"
+						class="flex flex-col items-center p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-default"
 						title={counter.title}
 					>
 						<div class={counter.color}>
 							<counter.icon size={18} />
 						</div>
-						<span class="text-lg font-bold text-slate-900 dark:text-white mt-1">
+						<span class="text-lg font-bold text-neutral-900 dark:text-white mt-1">
 							{counter.count}
 						</span>
-						<span class="text-xs text-slate-500 dark:text-slate-400 truncate">
+						<span class="text-xs text-neutral-500 dark:text-neutral-400 truncate">
 							{counter.label}
 						</span>
 					</div>
@@ -324,8 +324,8 @@
 
 	<!-- Context indicator for multi-sub-problem scenarios -->
 	{#if totalSubProblems > 1}
-		<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-3 mb-4">
-			<p class="text-xs text-blue-800 dark:text-blue-200">
+		<div class="bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800 p-3 mb-4">
+			<p class="text-xs text-info-800 dark:text-info-200">
 				{#if activeSubProblemIndex !== null}
 					Showing metrics for <strong>Sub-Problem {activeSubProblemIndex + 1}</strong>
 				{:else}
@@ -338,26 +338,26 @@
 	<!-- Discussion Quality (Natural Language - P0 UX Refactor) -->
 	<!-- Show status message if no quality metrics yet, otherwise show quality -->
 	{#if !overallQuality && latestStatus}
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 				</svg>
 				Discussion Quality
 			</h3>
-			<div class="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
-				<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+			<div class="flex items-center gap-2 p-3 bg-info-50 dark:bg-info-900/20 rounded">
+				<svg class="w-5 h-5 text-info-600 dark:text-info-400 animate-spin" fill="none" viewBox="0 0 24 24">
 					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 				</svg>
-				<span class="text-sm text-slate-700 dark:text-slate-300">
+				<span class="text-sm text-neutral-700 dark:text-neutral-300">
 					{(latestStatus.data as { message: string }).message}
 				</span>
 			</div>
 		</div>
 	{:else if overallQuality}
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 				</svg>
@@ -365,13 +365,13 @@
 			</h3>
 
 			<div class="flex items-center justify-between mb-2">
-				<span class="text-lg font-semibold text-slate-900 dark:text-white">
+				<span class="text-lg font-semibold text-neutral-900 dark:text-white">
 					{overallQuality.label}
 				</span>
 				<span class="px-2 py-1 rounded-full text-xs font-medium {
-					overallQuality.color === 'green' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-					overallQuality.color === 'amber' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400' :
-					'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+					overallQuality.color === 'green' ? 'bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-400' :
+					overallQuality.color === 'amber' ? 'bg-warning-100 text-warning-800 dark:bg-warning-900/20 dark:text-warning-400' :
+					'bg-info-100 text-info-800 dark:bg-info-900/20 dark:text-info-400'
 				}">
 					{#if isMeetingComplete}
 						✓ Complete
@@ -381,21 +381,21 @@
 				</span>
 			</div>
 
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 				{overallQuality.description}
 			</p>
 
 			<!-- Optional: Show phase-specific insight (hidden when meeting complete - redundant) -->
 			{#if convergenceMetaphor && !isMeetingComplete}
-				<div class="flex items-start gap-2 p-2 bg-slate-50 dark:bg-slate-900 rounded">
-					<svg class="w-4 h-4 mt-0.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="flex items-start gap-2 p-2 bg-neutral-50 dark:bg-neutral-900 rounded">
+					<svg class="w-4 h-4 mt-0.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 					</svg>
 					<div class="flex-1">
-						<p class="text-xs font-medium text-slate-700 dark:text-slate-300">
+						<p class="text-xs font-medium text-neutral-700 dark:text-neutral-300">
 							{convergenceMetaphor.status}
 						</p>
-						<p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+						<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
 							{convergenceMetaphor.description}
 						</p>
 					</div>
@@ -406,8 +406,8 @@
 
 	<!-- Expert Confidence -->
 	{#if avgConfidence !== null && confidenceLevels.length > 0}
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 				</svg>
@@ -415,14 +415,14 @@
 			</h3>
 			<div class="mb-3">
 				<div class="flex items-center justify-between mb-1">
-					<span class="text-xs text-slate-600 dark:text-slate-400">Average</span>
+					<span class="text-xs text-neutral-600 dark:text-neutral-400">Average</span>
 					<span class="text-sm font-bold {getConfidenceColor(avgConfidence)}">
 						{(avgConfidence * 100).toFixed(0)}%
 					</span>
 				</div>
-				<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+				<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
 					<div
-						class="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-500"
+						class="bg-gradient-to-r from-success-500 to-success-600 h-2 rounded-full transition-all duration-500"
 						style="width: {avgConfidence * 100}%"
 					></div>
 				</div>
@@ -430,7 +430,7 @@
 			<div class="space-y-2">
 				{#each confidenceLevels.slice(0, 5) as { expert, confidence }}
 					<div class="flex items-center justify-between text-xs">
-						<span class="text-slate-700 dark:text-slate-300 truncate flex-1">{expert}</span>
+						<span class="text-neutral-700 dark:text-neutral-300 truncate flex-1">{expert}</span>
 						<span class="font-medium {getConfidenceColor(confidence)} ml-2">
 							{(confidence * 100).toFixed(0)}%
 						</span>
@@ -442,8 +442,8 @@
 
 	<!-- Contribution Stats -->
 	{#if contributionsByExpert.length > 0}
-		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
-			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
 				</svg>
@@ -455,12 +455,12 @@
 					<div class="flex items-center gap-2">
 						<div class="flex-1">
 							<div class="flex items-center justify-between mb-1">
-								<span class="text-xs text-slate-700 dark:text-slate-300 truncate">{name}</span>
-								<span class="text-xs font-medium text-slate-600 dark:text-slate-400">{count}</span>
+								<span class="text-xs text-neutral-700 dark:text-neutral-300 truncate">{name}</span>
+								<span class="text-xs font-medium text-neutral-600 dark:text-neutral-400">{count}</span>
 							</div>
-							<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+							<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
 								<div
-									class="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+									class="bg-info-500 h-1.5 rounded-full transition-all duration-300"
 									style="width: {(count / maxCount) * 100}%"
 								></div>
 							</div>

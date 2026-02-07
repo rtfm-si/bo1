@@ -15,6 +15,9 @@
 		type FeedbackStatus,
 		type FeedbackSentiment
 	} from '$lib/api/admin';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
 
 	// State
 	let feedback = $state<FeedbackResponse[]>([]);
@@ -138,36 +141,19 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						User Feedback
-					</h1>
-				</div>
-				<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
-					{#snippet children()}
-						<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-						Refresh
-					{/snippet}
-				</Button>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="User Feedback">
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Stats Cards -->
 		{#if stats}
 			<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -180,7 +166,7 @@
 					<div class="text-sm text-neutral-500 dark:text-neutral-400">New</div>
 				</div>
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
-					<div class="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.by_type?.feature_request ?? 0}</div>
+					<div class="text-2xl font-bold text-warning-600 dark:text-warning-400">{stats.by_type?.feature_request ?? 0}</div>
 					<div class="text-sm text-neutral-500 dark:text-neutral-400">Feature Requests</div>
 				</div>
 				<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4">
@@ -242,7 +228,7 @@
 					All
 				</button>
 				<button
-					class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {typeFilter === 'feature_request' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
+					class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {typeFilter === 'feature_request' ? 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 					onclick={() => typeFilter = 'feature_request'}
 				>
 					<Lightbulb class="w-4 h-4 inline mr-1" />
@@ -314,20 +300,14 @@
 			</div>
 		{:else if feedback.length === 0}
 			<!-- Empty State -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-				<div class="mx-auto w-12 h-12 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4">
-					<MessageSquare class="w-6 h-6 text-neutral-400" />
-				</div>
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-					No feedback found
-				</h3>
-				<p class="text-neutral-600 dark:text-neutral-400">
-					{#if typeFilter !== 'all' || statusFilter !== 'all'}
-						Try adjusting your filters to see more feedback.
-					{:else}
-						Users haven't submitted any feedback yet.
-					{/if}
-				</p>
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+				<EmptyState
+					title="No feedback found"
+					description={typeFilter !== 'all' || statusFilter !== 'all'
+						? 'Try adjusting your filters to see more feedback.'
+						: "Users haven't submitted any feedback yet."}
+					icon={MessageSquare}
+				/>
 			</div>
 		{:else}
 			<!-- Feedback List -->
@@ -346,13 +326,13 @@
 							<div class={[
 								'w-10 h-10 rounded-lg flex items-center justify-center',
 								item.type === 'feature_request'
-									? 'bg-amber-100 dark:bg-amber-900/30'
+									? 'bg-warning-100 dark:bg-warning-900/30'
 									: 'bg-error-100 dark:bg-error-900/30'
 							].join(' ')}>
 								<TypeIcon class={[
 									'w-5 h-5',
 									item.type === 'feature_request'
-										? 'text-amber-600 dark:text-amber-400'
+										? 'text-warning-600 dark:text-warning-400'
 										: 'text-error-600 dark:text-error-400'
 								].join(' ')} />
 							</div>
@@ -427,165 +407,143 @@
 </div>
 
 <!-- Detail Modal -->
-{#if selectedFeedback}
-	{@const TypeIcon = getTypeIcon(selectedFeedback.type)}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onclick={() => selectedFeedback = null} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<!-- Header -->
-			<div class="sticky top-0 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-3">
-						<div class={[
-							'w-10 h-10 rounded-lg flex items-center justify-center',
-							selectedFeedback.type === 'feature_request'
-								? 'bg-amber-100 dark:bg-amber-900/30'
-								: 'bg-error-100 dark:bg-error-900/30'
-						].join(' ')}>
-							<TypeIcon class={[
-								'w-5 h-5',
-								selectedFeedback.type === 'feature_request'
-									? 'text-amber-600 dark:text-amber-400'
-									: 'text-error-600 dark:text-error-400'
-							].join(' ')} />
-						</div>
-						<div>
-							<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
-								{selectedFeedback.title}
-							</h2>
-							<p class="text-sm text-neutral-500 dark:text-neutral-400">
-								{selectedFeedback.type === 'feature_request' ? 'Feature Request' : 'Problem Report'}
-							</p>
-						</div>
-					</div>
-					<button
-						type="button"
-						class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-						onclick={() => selectedFeedback = null}
-						aria-label="Close"
-					>
-						<XCircle class="w-6 h-6" />
-					</button>
+<Modal open={!!selectedFeedback} title={selectedFeedback?.title ?? 'Feedback Detail'} size="lg" onclose={() => selectedFeedback = null}>
+	{#if selectedFeedback}
+		{@const TypeIcon = getTypeIcon(selectedFeedback.type)}
+		<!-- Type indicator -->
+		<div class="flex items-center gap-3 mb-6">
+			<div class={[
+				'w-10 h-10 rounded-lg flex items-center justify-center',
+				selectedFeedback.type === 'feature_request'
+					? 'bg-warning-100 dark:bg-warning-900/30'
+					: 'bg-error-100 dark:bg-error-900/30'
+			].join(' ')}>
+				<TypeIcon class={[
+					'w-5 h-5',
+					selectedFeedback.type === 'feature_request'
+						? 'text-warning-600 dark:text-warning-400'
+						: 'text-error-600 dark:text-error-400'
+				].join(' ')} />
+			</div>
+			<p class="text-sm text-neutral-500 dark:text-neutral-400">
+				{selectedFeedback.type === 'feature_request' ? 'Feature Request' : 'Problem Report'}
+			</p>
+		</div>
+
+		<div class="space-y-6">
+			<!-- Status -->
+			<div>
+				<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Status</span>
+				<div class="flex gap-2">
+					{#each (['new', 'reviewing', 'resolved', 'closed'] as const) as status}
+						<button
+							class={[
+								'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+								selectedFeedback.status === status
+									? `bg-${statusStyles[status].variant}-100 text-${statusStyles[status].variant}-700 dark:bg-${statusStyles[status].variant}-900/30 dark:text-${statusStyles[status].variant}-300`
+									: 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+							].join(' ')}
+							onclick={() => selectedFeedback && updateStatus(selectedFeedback.id, status)}
+							disabled={isUpdating}
+						>
+							{statusStyles[status].label}
+						</button>
+					{/each}
 				</div>
 			</div>
 
-			<!-- Content -->
-			<div class="px-6 py-4 space-y-6">
-				<!-- Status -->
-				<div>
-					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Status</span>
-					<div class="flex gap-2">
-						{#each (['new', 'reviewing', 'resolved', 'closed'] as const) as status}
-							<button
-								class={[
-									'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-									selectedFeedback.status === status
-										? `bg-${statusStyles[status].variant}-100 text-${statusStyles[status].variant}-700 dark:bg-${statusStyles[status].variant}-900/30 dark:text-${statusStyles[status].variant}-300`
-										: 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700'
-								].join(' ')}
-								onclick={() => selectedFeedback && updateStatus(selectedFeedback.id, status)}
-								disabled={isUpdating}
-							>
-								{statusStyles[status].label}
-							</button>
-						{/each}
-					</div>
-				</div>
+			<!-- Description -->
+			<div>
+				<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Description</span>
+				<p class="text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
+					{selectedFeedback.description}
+				</p>
+			</div>
 
-				<!-- Description -->
+			<!-- Analysis (if available) -->
+			{#if selectedFeedback.analysis}
+				{@const style = sentimentStyles[selectedFeedback.analysis.sentiment]}
+				{@const SentimentIcon = style.icon}
 				<div>
-					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Description</span>
-					<p class="text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
-						{selectedFeedback.description}
-					</p>
-				</div>
-
-				<!-- Analysis (if available) -->
-				{#if selectedFeedback.analysis}
-					{@const style = sentimentStyles[selectedFeedback.analysis.sentiment]}
-					{@const SentimentIcon = style.icon}
-					<div>
-						<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">AI Analysis</span>
-						<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-3 text-sm">
-							<div class="flex items-center justify-between">
-								<span class="text-neutral-500 dark:text-neutral-400">Sentiment</span>
-								<span class="flex items-center gap-1.5 {style.color}">
-									<SentimentIcon class="w-4 h-4" />
-									<span class="font-medium">{style.label}</span>
-									<span class="text-neutral-400">({Math.round(selectedFeedback.analysis.sentiment_confidence * 100)}%)</span>
-								</span>
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">AI Analysis</span>
+					<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-3 text-sm">
+						<div class="flex items-center justify-between">
+							<span class="text-neutral-500 dark:text-neutral-400">Sentiment</span>
+							<span class="flex items-center gap-1.5 {style.color}">
+								<SentimentIcon class="w-4 h-4" />
+								<span class="font-medium">{style.label}</span>
+								<span class="text-neutral-400">({Math.round(selectedFeedback.analysis.sentiment_confidence * 100)}%)</span>
+							</span>
+						</div>
+						{#if selectedFeedback.analysis.themes.length > 0}
+							<div>
+								<span class="text-neutral-500 dark:text-neutral-400 block mb-1.5">Themes</span>
+								<div class="flex flex-wrap gap-1.5">
+									{#each selectedFeedback.analysis.themes as theme}
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs">
+											<Tag class="w-3 h-3" />
+											{theme}
+										</span>
+									{/each}
+								</div>
 							</div>
-							{#if selectedFeedback.analysis.themes.length > 0}
-								<div>
-									<span class="text-neutral-500 dark:text-neutral-400 block mb-1.5">Themes</span>
-									<div class="flex flex-wrap gap-1.5">
-										{#each selectedFeedback.analysis.themes as theme}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs">
-												<Tag class="w-3 h-3" />
-												{theme}
-											</span>
-										{/each}
-									</div>
-								</div>
-							{/if}
-						</div>
+						{/if}
 					</div>
-				{/if}
+				</div>
+			{/if}
 
-				<!-- Context (if available) -->
-				{#if selectedFeedback.context}
-					<div>
-						<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Context</span>
-						<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-2 text-sm">
-							{#if selectedFeedback.context.user_tier}
-								<div class="flex justify-between">
-									<span class="text-neutral-500 dark:text-neutral-400">User Tier</span>
-									<span class="text-neutral-900 dark:text-white font-medium">{selectedFeedback.context.user_tier}</span>
-								</div>
-							{/if}
-							{#if selectedFeedback.context.page_url}
-								<div class="flex justify-between">
-									<span class="text-neutral-500 dark:text-neutral-400">Page URL</span>
-									<span class="text-neutral-900 dark:text-white font-mono text-xs truncate max-w-xs">{selectedFeedback.context.page_url}</span>
-								</div>
-							{/if}
-							{#if selectedFeedback.context.user_agent}
-								<div class="flex justify-between">
-									<span class="text-neutral-500 dark:text-neutral-400">Browser</span>
-									<span class="text-neutral-900 dark:text-white text-xs truncate max-w-xs">{selectedFeedback.context.user_agent}</span>
-								</div>
-							{/if}
-							{#if selectedFeedback.context.timestamp}
-								<div class="flex justify-between">
-									<span class="text-neutral-500 dark:text-neutral-400">Reported At</span>
-									<span class="text-neutral-900 dark:text-white">{formatDate(selectedFeedback.context.timestamp)}</span>
-								</div>
-							{/if}
-						</div>
+			<!-- Context (if available) -->
+			{#if selectedFeedback.context}
+				<div>
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Context</span>
+					<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-2 text-sm">
+						{#if selectedFeedback.context.user_tier}
+							<div class="flex justify-between">
+								<span class="text-neutral-500 dark:text-neutral-400">User Tier</span>
+								<span class="text-neutral-900 dark:text-white font-medium">{selectedFeedback.context.user_tier}</span>
+							</div>
+						{/if}
+						{#if selectedFeedback.context.page_url}
+							<div class="flex justify-between">
+								<span class="text-neutral-500 dark:text-neutral-400">Page URL</span>
+								<span class="text-neutral-900 dark:text-white font-mono text-xs truncate max-w-xs">{selectedFeedback.context.page_url}</span>
+							</div>
+						{/if}
+						{#if selectedFeedback.context.user_agent}
+							<div class="flex justify-between">
+								<span class="text-neutral-500 dark:text-neutral-400">Browser</span>
+								<span class="text-neutral-900 dark:text-white text-xs truncate max-w-xs">{selectedFeedback.context.user_agent}</span>
+							</div>
+						{/if}
+						{#if selectedFeedback.context.timestamp}
+							<div class="flex justify-between">
+								<span class="text-neutral-500 dark:text-neutral-400">Reported At</span>
+								<span class="text-neutral-900 dark:text-white">{formatDate(selectedFeedback.context.timestamp)}</span>
+							</div>
+						{/if}
 					</div>
-				{/if}
+				</div>
+			{/if}
 
-				<!-- Metadata -->
-				<div class="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
-					<div>
-						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">User ID</span>
-						<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.user_id}</span>
-					</div>
-					<div>
-						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Feedback ID</span>
-						<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.id}</span>
-					</div>
-					<div>
-						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Created</span>
-						<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.created_at)}</span>
-					</div>
-					<div>
-						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Updated</span>
-						<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.updated_at)}</span>
-					</div>
+			<!-- Metadata -->
+			<div class="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+				<div>
+					<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">User ID</span>
+					<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.user_id}</span>
+				</div>
+				<div>
+					<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Feedback ID</span>
+					<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.id}</span>
+				</div>
+				<div>
+					<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Created</span>
+					<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.created_at)}</span>
+				</div>
+				<div>
+					<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Updated</span>
+					<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.updated_at)}</span>
 				</div>
 			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+</Modal>

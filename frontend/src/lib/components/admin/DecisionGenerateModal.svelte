@@ -105,7 +105,7 @@
 				<Alert variant="error">{error}</Alert>
 			{/if}
 
-			<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm text-amber-700 dark:text-amber-400">
+			<div class="bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4 text-sm text-warning-700 dark:text-warning-400">
 				<p>
 					AI will generate expert perspectives and a synthesis for this decision question.
 					Content is saved as draft for review before publishing.
@@ -194,7 +194,7 @@
 										<button
 											type="button"
 											onclick={() => removeConstraint(i)}
-											class="hover:text-red-500"
+											class="hover:text-error-500"
 										>
 											<X class="w-3 h-3" />
 										</button>

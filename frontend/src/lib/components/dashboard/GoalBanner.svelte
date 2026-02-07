@@ -61,7 +61,7 @@
 
 {#if hasGoal}
 	<!-- Goal Banner with content -->
-	<div class="mb-6 bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-xl p-5 sm:p-6 {shouldPromptReview ? 'ring-2 ring-amber-300/50 dark:ring-amber-500/30' : ''}">
+	<div class="mb-6 bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-xl p-5 sm:p-6 {shouldPromptReview ? 'ring-2 ring-warning-300/50 dark:ring-warning-500/30' : ''}">
 		<div class="flex items-start gap-4">
 			<!-- Target icon - larger -->
 			<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 {shouldPromptReview ? 'animate-pulse' : ''}">
@@ -82,7 +82,7 @@
 							<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 								{daysText()}
 								{#if shouldPromptReview}
-									<span class="text-amber-600 dark:text-amber-400 ml-1">
+									<span class="text-warning-600 dark:text-warning-400 ml-1">
 										— <a href="/context/strategic" class="hover:underline">Review your goal?</a>
 									</span>
 								{/if}

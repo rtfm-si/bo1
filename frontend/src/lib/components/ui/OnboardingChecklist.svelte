@@ -139,7 +139,7 @@
 					<!-- Arrow -->
 					{#if !step.completed}
 						<svg
-							class="w-4 h-4 text-brand-400 dark:text-brand-500 group-hover:translate-x-0.5 transition-transform"
+							class="w-4 h-4 text-brand-400 dark:text-brand-500 group-hover:tranneutral-x-0.5 transition-transform"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"

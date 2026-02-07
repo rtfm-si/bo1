@@ -59,15 +59,15 @@
 	function getMarkerColor(s: string): string {
 		switch (s) {
 			case 'top_performer':
-				return 'bg-green-500';
+				return 'bg-success-500';
 			case 'above_average':
-				return 'bg-emerald-500';
+				return 'bg-success-500';
 			case 'average':
-				return 'bg-yellow-500';
+				return 'bg-warning-500';
 			case 'below_average':
-				return 'bg-red-500';
+				return 'bg-error-500';
 			default:
-				return 'bg-slate-400';
+				return 'bg-neutral-400';
 		}
 	}
 
@@ -81,16 +81,16 @@
 
 <div class="benchmark-range-bar">
 	<!-- Range bar container -->
-	<div class="relative h-6 bg-slate-100 dark:bg-slate-700 rounded-full overflow-visible">
+	<div class="relative h-6 bg-neutral-100 dark:bg-neutral-700 rounded-full overflow-visible">
 		<!-- Industry range (P25-P75) highlighted area -->
 		<div
-			class="absolute top-0 h-full bg-slate-200 dark:bg-slate-600 rounded-full"
+			class="absolute top-0 h-full bg-neutral-200 dark:bg-neutral-600 rounded-full"
 			style="left: {rangeStartPos}%; width: {rangeEndPos - rangeStartPos}%;"
 		></div>
 
 		<!-- Median marker -->
 		<div
-			class="absolute top-0 h-full w-0.5 bg-slate-400 dark:bg-slate-500"
+			class="absolute top-0 h-full w-0.5 bg-neutral-400 dark:bg-neutral-500"
 			style="left: {medianPos}%;"
 			title="Typical: {formatValue(rangeMedian)}"
 		></div>
@@ -98,7 +98,7 @@
 		<!-- User value marker -->
 		{#if markerPosition !== null}
 			<div
-				class="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 shadow-md transition-all duration-300 {getMarkerColor(status)}"
+				class="absolute top-1/2 -tranneutral-y-1/2 w-4 h-4 rounded-full border-2 border-white dark:border-neutral-800 shadow-md transition-all duration-300 {getMarkerColor(status)}"
 				style="left: calc({markerPosition}% - 8px);"
 				title="Your value: {formatValue(userValue!)}"
 			>
@@ -109,18 +109,18 @@
 	</div>
 
 	<!-- Labels -->
-	<div class="flex justify-between mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+	<div class="flex justify-between mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
 		<div class="flex flex-col items-start">
 			<span>Bottom 25%</span>
-			<span class="font-medium text-slate-600 dark:text-slate-300">{formatValue(rangeMin)}</span>
+			<span class="font-medium text-neutral-600 dark:text-neutral-300">{formatValue(rangeMin)}</span>
 		</div>
 		<div class="flex flex-col items-center">
 			<span>Typical</span>
-			<span class="font-medium text-slate-600 dark:text-slate-300">{formatValue(rangeMedian)}</span>
+			<span class="font-medium text-neutral-600 dark:text-neutral-300">{formatValue(rangeMedian)}</span>
 		</div>
 		<div class="flex flex-col items-end">
 			<span>Top 25%</span>
-			<span class="font-medium text-slate-600 dark:text-slate-300">{formatValue(rangeMax)}</span>
+			<span class="font-medium text-neutral-600 dark:text-neutral-300">{formatValue(rangeMax)}</span>
 		</div>
 	</div>
 
@@ -128,7 +128,7 @@
 	{#if userValue !== null && userValue !== undefined}
 		<div class="mt-2 flex items-center justify-center gap-2">
 			<span class="w-3 h-3 rounded-full {getMarkerColor(status)}"></span>
-			<span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+			<span class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
 				Your value: {formatValue(userValue)}
 			</span>
 		</div>

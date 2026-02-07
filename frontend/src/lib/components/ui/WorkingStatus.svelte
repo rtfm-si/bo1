@@ -25,7 +25,7 @@
 </script>
 
 <div
-	class="sticky top-4 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-lg shadow-lg mx-4 mb-4 animate-fade-in"
+	class="sticky top-4 z-50 bg-gradient-to-r from-info-600 to-purple-600 text-white px-6 py-4 rounded-lg shadow-lg mx-4 mb-4 animate-fade-in"
 >
 	<div class="flex items-center gap-3">
 		<!-- Spinner -->

@@ -32,7 +32,7 @@
 </script>
 
 <span
-	class="text-xs text-slate-500 dark:text-slate-400 cursor-help"
+	class="text-xs text-neutral-500 dark:text-neutral-400 cursor-help"
 	title={formatAbsoluteTime(timestamp)}
 >
 	{relativeTime}

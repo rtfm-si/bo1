@@ -134,7 +134,7 @@
 						<div class="relative">
 							<Mail
 								size={18}
-								class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+								class="absolute left-3 top-1/2 -tranneutral-y-1/2 text-neutral-400"
 							/>
 							<input
 								id="email"
@@ -175,16 +175,16 @@
 
 	<!-- Success/Error Messages -->
 	{#if success}
-		<div class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-			<CheckCircle size={18} class="text-green-600 dark:text-green-400" />
-			<span class="text-sm text-green-700 dark:text-green-300">{success}</span>
+		<div class="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-md">
+			<CheckCircle size={18} class="text-success-600 dark:text-success-400" />
+			<span class="text-sm text-success-700 dark:text-success-300">{success}</span>
 		</div>
 	{/if}
 
 	{#if error}
-		<div class="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-			<AlertCircle size={18} class="text-red-600 dark:text-red-400" />
-			<span class="text-sm text-red-700 dark:text-red-300">{error}</span>
+		<div class="flex items-center gap-2 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+			<AlertCircle size={18} class="text-error-600 dark:text-error-400" />
+			<span class="text-sm text-error-700 dark:text-error-300">{error}</span>
 		</div>
 	{/if}
 
@@ -239,8 +239,8 @@
 						<!-- Expiry -->
 						<span
 							class="text-xs whitespace-nowrap"
-							class:text-amber-600={daysUntilExpiry(invitation.expires_at) <= 2}
-							class:dark:text-amber-400={daysUntilExpiry(invitation.expires_at) <= 2}
+							class:text-warning-600={daysUntilExpiry(invitation.expires_at) <= 2}
+							class:dark:text-warning-400={daysUntilExpiry(invitation.expires_at) <= 2}
 							class:text-neutral-500={daysUntilExpiry(invitation.expires_at) > 2}
 							class:dark:text-neutral-400={daysUntilExpiry(invitation.expires_at) > 2}
 						>
@@ -260,7 +260,7 @@
 								size="sm"
 								onclick={() => handleRevoke(invitation.id)}
 								ariaLabel="Revoke invitation"
-								class="text-neutral-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400"
+								class="text-neutral-500 hover:text-error-600 dark:text-neutral-400 dark:hover:text-error-400"
 							>
 								<Trash2 size={16} />
 							</Button>

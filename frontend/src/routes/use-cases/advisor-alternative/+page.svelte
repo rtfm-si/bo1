@@ -131,12 +131,12 @@
 							Traditional Advisors
 						</h3>
 						<ul class="space-y-3 text-neutral-600 dark:text-neutral-400 text-sm">
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>0.25-1% equity + cash retainer</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>Monthly or quarterly availability</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>Needs context re-sync every call</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>One perspective (their background)</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>Scheduling friction and delays</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">✗</span>Quality varies by their mood/energy</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>0.25-1% equity + cash retainer</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>Monthly or quarterly availability</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>Needs context re-sync every call</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>One perspective (their background)</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>Scheduling friction and delays</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">✗</span>Quality varies by their mood/energy</li>
 						</ul>
 					</div>
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700">
@@ -144,12 +144,12 @@
 							Board of One
 						</h3>
 						<ul class="space-y-3 text-neutral-600 dark:text-neutral-400 text-sm">
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>Fixed monthly cost, no equity</li>
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>Available 24/7, instantly</li>
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>Context always loaded</li>
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>Multiple expert perspectives</li>
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>No scheduling, immediate access</li>
-							<li class="flex items-start gap-2"><span class="text-green-500">✓</span>Consistent quality every time</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>Fixed monthly cost, no equity</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>Available 24/7, instantly</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>Context always loaded</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>Multiple expert perspectives</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>No scheduling, immediate access</li>
+							<li class="flex items-start gap-2"><span class="text-success-500">✓</span>Consistent quality every time</li>
 						</ul>
 					</div>
 				</div>

@@ -4,6 +4,8 @@
 	import { enhance } from '$app/forms';
 	import { Button, Spinner } from '$lib/components/ui';
 	import { Check, Clock, Mail, UserCheck, AlertCircle } from 'lucide-svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	interface WaitlistEntry {
 		id: string;
@@ -59,9 +61,9 @@
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'pending':
-				return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+				return 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300';
 			case 'invited':
-				return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+				return 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300';
 			case 'converted':
 				return 'bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300';
 			default:
@@ -92,48 +94,31 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center gap-4">
-				<a
-					href="/admin"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-					aria-label="Back to admin"
-				>
-					<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-					</svg>
-				</a>
-				<div>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						Waitlist
-					</h1>
-					<p class="text-sm text-neutral-500 dark:text-neutral-400">
-						{pendingCount} pending &bull; {totalCount} total
-					</p>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Waitlist">
+		{#snippet badge()}
+			<span class="text-sm text-neutral-500 dark:text-neutral-400">
+				{pendingCount} pending &bull; {totalCount} total
+			</span>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Approval Result Toast -->
 		{#if approveResult}
 			<div
-				class="mb-6 p-4 rounded-lg flex items-start gap-3 {approveResult.success ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800'}"
+				class="mb-6 p-4 rounded-lg flex items-start gap-3 {approveResult.success ? 'bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800' : 'bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800'}"
 			>
 				{#if approveResult.success}
-					<Check class="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+					<Check class="w-5 h-5 text-success-600 dark:text-success-400 flex-shrink-0 mt-0.5" />
 				{:else}
 					<AlertCircle class="w-5 h-5 text-error-600 dark:text-error-400 flex-shrink-0 mt-0.5" />
 				{/if}
 				<div class="flex-1">
-					<p class="font-medium {approveResult.success ? 'text-green-800 dark:text-green-200' : 'text-error-800 dark:text-error-200'}">
+					<p class="font-medium {approveResult.success ? 'text-success-800 dark:text-success-200' : 'text-error-800 dark:text-error-200'}">
 						{approveResult.success ? 'Approved!' : 'Error'}
 					</p>
-					<p class="text-sm {approveResult.success ? 'text-green-700 dark:text-green-300' : 'text-error-700 dark:text-error-300'}">
+					<p class="text-sm {approveResult.success ? 'text-success-700 dark:text-success-300' : 'text-error-700 dark:text-error-300'}">
 						{approveResult.message}
 					</p>
 				</div>
@@ -172,17 +157,15 @@
 		</div>
 
 		{#if entries.length === 0}
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<Mail class="w-12 h-12 text-neutral-400 mx-auto mb-2" />
-				<p class="text-neutral-600 dark:text-neutral-400">
-					{#if statusFilter === 'pending'}
-						No pending requests
-					{:else if statusFilter === 'invited'}
-						No invited users yet
-					{:else}
-						Waitlist is empty
-					{/if}
-				</p>
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+				<EmptyState
+					title={statusFilter === 'pending'
+						? 'No pending requests'
+						: statusFilter === 'invited'
+							? 'No invited users yet'
+							: 'Waitlist is empty'}
+					icon={Mail}
+				/>
 			</div>
 		{:else}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
@@ -240,7 +223,7 @@
 										</Button>
 									</form>
 								{:else if entry.status === 'invited'}
-									<span class="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+									<span class="flex items-center gap-1 text-sm text-success-600 dark:text-success-400">
 										<Check class="w-4 h-4" />
 										Approved
 									</span>

@@ -9,21 +9,21 @@
 	<div class="flex items-start justify-between gap-4">
 		<div class="flex-1 min-w-0 space-y-4">
 			<div class="flex items-center gap-3">
-				<div class="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20"></div>
-				<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+				<div class="h-6 bg-neutral-200 dark:bg-neutral-700 rounded-full w-20"></div>
+				<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-24"></div>
 			</div>
 			<div class="space-y-2">
-				<div class="h-5 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
-				<div class="h-5 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+				<div class="h-5 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+				<div class="h-5 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4"></div>
 			</div>
 			<div class="flex items-center gap-4">
-				<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32"></div>
-				<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+				<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+				<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-24"></div>
 			</div>
 		</div>
 		<div class="flex items-center gap-2">
-			<div class="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
-			<div class="w-5 h-5 bg-slate-200 dark:bg-slate-700 rounded"></div>
+			<div class="w-10 h-10 bg-neutral-200 dark:bg-neutral-700 rounded-lg"></div>
+			<div class="w-5 h-5 bg-neutral-200 dark:bg-neutral-700 rounded"></div>
 		</div>
 	</div>
 </div>

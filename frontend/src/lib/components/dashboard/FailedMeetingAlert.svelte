@@ -133,14 +133,14 @@
 
 {#if showAlert}
 	<div
-		class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20 {className}"
+		class="rounded-lg border border-warning-200 bg-warning-50 p-4 dark:border-warning-800 dark:bg-warning-900/20 {className}"
 		role="alert"
 	>
 		<div class="flex items-start gap-3">
 			<!-- Warning Icon -->
 			<div class="flex-shrink-0 mt-0.5">
 				<svg
-					class="h-5 w-5 text-amber-600 dark:text-amber-400"
+					class="h-5 w-5 text-warning-600 dark:text-warning-400"
 					fill="currentColor"
 					viewBox="0 0 20 20"
 					aria-hidden="true"
@@ -155,12 +155,12 @@
 
 			<!-- Content -->
 			<div class="flex-1 min-w-0">
-				<h3 class="text-sm font-medium text-amber-800 dark:text-amber-200">
+				<h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">
 					{failedMeetings.length === 1
 						? 'A meeting didn\'t complete'
 						: `${failedMeetings.length} meetings didn't complete`}
 				</h3>
-				<p class="mt-1 text-sm text-amber-700 dark:text-amber-300">
+				<p class="mt-1 text-sm text-warning-700 dark:text-warning-300">
 					This doesn't count toward your usage. Retry to continue from where it stopped, or start fresh.
 				</p>
 
@@ -169,13 +169,13 @@
 					<div class="mt-3 space-y-2">
 						{#each failedMeetings as meeting}
 							{@const checkpoint = checkpointStates.get(meeting.session_id)}
-							<div class="flex items-center justify-between gap-2 rounded-md bg-amber-100/50 dark:bg-amber-800/30 px-3 py-2">
+							<div class="flex items-center justify-between gap-2 rounded-md bg-warning-100/50 dark:bg-warning-800/30 px-3 py-2">
 								<div class="flex-1 min-w-0">
-									<span class="text-sm text-amber-800 dark:text-amber-200 truncate block">
+									<span class="text-sm text-warning-800 dark:text-warning-200 truncate block">
 										{meeting.problem_statement_preview || 'Untitled meeting'}
 									</span>
 									{#if checkpoint && checkpoint.total_sub_problems && checkpoint.can_resume}
-										<span class="text-xs text-amber-600 dark:text-amber-400 mt-0.5 block">
+										<span class="text-xs text-warning-600 dark:text-warning-400 mt-0.5 block">
 											{checkpoint.completed_sub_problems}/{checkpoint.total_sub_problems} focus areas complete
 										</span>
 									{/if}
@@ -221,7 +221,7 @@
 			<!-- Close button -->
 			<button
 				type="button"
-				class="flex-shrink-0 rounded-md p-1.5 text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-800/50 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+				class="flex-shrink-0 rounded-md p-1.5 text-warning-600 hover:bg-warning-100 dark:text-warning-400 dark:hover:bg-warning-800/50 focus:outline-none focus:ring-2 focus:ring-warning-500 focus:ring-offset-2"
 				onclick={handleDismiss}
 				aria-label="Dismiss alert"
 			>

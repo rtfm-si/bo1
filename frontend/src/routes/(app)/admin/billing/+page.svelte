@@ -13,6 +13,8 @@
 		type SyncResult,
 		type StripeConfigStatus
 	} from '$lib/api/admin';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	// State
 	let config = $state<BillingConfigResponse | null>(null);
@@ -123,56 +125,37 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						Billing Config
-					</h1>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-							Refresh
-						{/snippet}
-					</Button>
-					<div class="relative group">
-						<Button
-							variant="brand"
-							size="sm"
-							onclick={syncToStripe}
-							disabled={isSyncing || !stripeConfig?.configured}
-						>
-							{#snippet children()}
-								<Cloud class="w-4 h-4 {isSyncing ? 'animate-pulse' : ''}" />
-								{isSyncing ? 'Syncing...' : 'Sync to Stripe'}
-							{/snippet}
-						</Button>
-						{#if stripeConfig && !stripeConfig.configured}
-							<div class="absolute right-0 top-full mt-1 w-64 p-2 bg-neutral-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10">
-								{stripeConfig.error || 'Stripe not configured'}
-							</div>
-						{/if}
+	<AdminPageHeader title="Billing Config">
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+			<div class="relative group">
+				<Button
+					variant="brand"
+					size="sm"
+					onclick={syncToStripe}
+					disabled={isSyncing || !stripeConfig?.configured}
+				>
+					{#snippet children()}
+						<Cloud class="w-4 h-4 {isSyncing ? 'animate-pulse' : ''}" />
+						{isSyncing ? 'Syncing...' : 'Sync to Stripe'}
+					{/snippet}
+				</Button>
+				{#if stripeConfig && !stripeConfig.configured}
+					<div class="absolute right-0 top-full mt-1 w-64 p-2 bg-neutral-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10">
+						{stripeConfig.error || 'Stripe not configured'}
 					</div>
-				</div>
+				{/if}
 			</div>
-		</div>
-	</header>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Stripe Config Warning Banner -->
 		{#if stripeConfig && !stripeConfig.configured}
 			<div class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4 mb-6">
@@ -190,10 +173,10 @@
 				</div>
 			</div>
 		{:else if stripeConfig?.mode === 'test'}
-			<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
+			<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-3 mb-6">
 				<div class="flex items-center gap-2">
-					<div class="w-2 h-2 bg-blue-500 rounded-full"></div>
-					<span class="text-sm text-blue-700 dark:text-blue-300">Stripe is in <strong>test mode</strong></span>
+					<div class="w-2 h-2 bg-info-500 rounded-full"></div>
+					<span class="text-sm text-info-700 dark:text-info-300">Stripe is in <strong>test mode</strong></span>
 				</div>
 			</div>
 		{:else if stripeConfig?.mode === 'live'}
@@ -284,14 +267,14 @@
 				All ({config?.products.length ?? 0})
 			</button>
 			<button
-				class="px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 {filter === 'subscriptions' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
+				class="px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 {filter === 'subscriptions' ? 'bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 				onclick={() => filter = 'subscriptions'}
 			>
 				<CreditCard class="w-4 h-4" />
 				Subscriptions ({subscriptionCount})
 			</button>
 			<button
-				class="px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 {filter === 'bundles' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
+				class="px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 {filter === 'bundles' ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 				onclick={() => filter = 'bundles'}
 			>
 				<Package class="w-4 h-4" />
@@ -316,17 +299,7 @@
 			</div>
 		{:else if filteredProducts().length === 0}
 			<!-- Empty State -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-				<div class="mx-auto w-12 h-12 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4">
-					<Package class="w-6 h-6 text-neutral-400" />
-				</div>
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-					No products found
-				</h3>
-				<p class="text-neutral-600 dark:text-neutral-400">
-					Products will appear here once configured.
-				</p>
-			</div>
+			<EmptyState title="No products found" description="Products will appear here once configured." icon={Package} />
 		{:else}
 			<!-- Products List -->
 			<div class="space-y-4">
@@ -336,11 +309,11 @@
 							<div class="flex items-start justify-between">
 								<div class="flex items-start gap-4">
 									<!-- Type Badge -->
-									<div class="p-2 rounded-lg {product.type === 'subscription' ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}">
+									<div class="p-2 rounded-lg {product.type === 'subscription' ? 'bg-accent-100 dark:bg-accent-900/30' : 'bg-success-100 dark:bg-success-900/30'}">
 										{#if product.type === 'subscription'}
-											<CreditCard class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+											<CreditCard class="w-5 h-5 text-accent-600 dark:text-accent-400" />
 										{:else}
-											<Package class="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+											<Package class="w-5 h-5 text-success-600 dark:text-success-400" />
 										{/if}
 									</div>
 

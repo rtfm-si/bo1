@@ -218,7 +218,7 @@
 		</div>
 	{:else if error}
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-			<AlertCircle class="w-12 h-12 mx-auto text-red-500 mb-4" />
+			<AlertCircle class="w-12 h-12 mx-auto text-error-500 mb-4" />
 			<h1 class="text-2xl font-bold text-neutral-900 dark:text-white mb-2">{error}</h1>
 			<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 				The decision you're looking for doesn't exist or has been removed.
@@ -358,26 +358,26 @@
 					{#if hasParsedSections && sections}
 						<!-- Executive Summary -->
 						{#if sections.executive_summary}
-							<div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 p-4 rounded-r-lg mb-4">
-								<h3 class="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+							<div class="bg-info-50 dark:bg-info-900/20 border-l-4 border-info-600 p-4 rounded-r-lg mb-4">
+								<h3 class="font-semibold text-info-900 dark:text-info-100 mb-2">
 									Executive Summary
 								</h3>
 								<MarkdownContent
 									content={sections.executive_summary}
-									class="text-sm text-blue-800 dark:text-blue-200"
+									class="text-sm text-info-800 dark:text-info-200"
 								/>
 							</div>
 						{/if}
 
 						<!-- Recommendation -->
 						{#if sections.recommendation}
-							<div class="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-600 p-4 rounded-r-lg mb-4">
-								<h3 class="font-semibold text-green-900 dark:text-green-100 mb-2">
+							<div class="bg-success-50 dark:bg-success-900/20 border-l-4 border-success-600 p-4 rounded-r-lg mb-4">
+								<h3 class="font-semibold text-success-900 dark:text-success-100 mb-2">
 									Recommendation
 								</h3>
 								<MarkdownContent
 									content={sections.recommendation}
-									class="text-sm text-green-800 dark:text-green-200"
+									class="text-sm text-success-800 dark:text-success-200"
 								/>
 							</div>
 						{/if}

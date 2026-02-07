@@ -2,6 +2,7 @@
 	import { redirect } from '@sveltejs/kit';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Redirect to account settings on mount (client-side)
 	onMount(() => {
@@ -11,5 +12,5 @@
 
 <!-- Fallback while redirecting -->
 <div class="flex items-center justify-center py-12">
-	<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"></div>
+	<Spinner size="lg" />
 </div>

@@ -39,7 +39,7 @@
 			<h1
 				class="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-neutral-100 mb-6 leading-tight transition-all duration-700"
 				class:opacity-0={!mounted}
-				class:translate-y-8={!mounted}
+				class:tranneutral-y-8={!mounted}
 			>
 				Decide With Confidence.<br />
 				<span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word"
@@ -49,7 +49,7 @@
 			<div
 				class="space-y-4 mb-8 transition-all duration-700 delay-200"
 				class:opacity-0={!mounted}
-				class:translate-y-8={!mounted}
+				class:tranneutral-y-8={!mounted}
 			>
 				<p class="text-lg md:text-xl text-neutral-700 dark:text-neutral-300 max-w-2xl mx-auto font-medium">
 					Management-grade thinking. No management required.
@@ -84,7 +84,7 @@
 			<div
 				class="my-12 transition-all duration-700 delay-250"
 				class:opacity-0={!mounted}
-				class:translate-y-8={!mounted}
+				class:tranneutral-y-8={!mounted}
 			>
 				<HeroCarousel />
 
@@ -122,7 +122,7 @@
 				<div
 					class="max-w-md mx-auto mb-6 transition-all duration-700 delay-300"
 					class:opacity-0={!mounted}
-					class:translate-y-8={!mounted}
+					class:tranneutral-y-8={!mounted}
 				>
 					<div
 						class="relative bg-white/90 dark:bg-neutral-800/90 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-brand-200 dark:border-brand-700 hover:shadow-2xl transition-shadow duration-300"
@@ -160,7 +160,7 @@
 				<div
 					class="transition-all duration-700 delay-400"
 					class:opacity-0={!mounted}
-					class:translate-y-8={!mounted}
+					class:tranneutral-y-8={!mounted}
 				>
 					<button
 						onclick={onShowSample}

@@ -128,7 +128,7 @@
 </script>
 
 <header class={`sticky top-0 z-50 ${headerClasses}`}>
-	<nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+	<nav class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
 		<div class="flex items-center justify-between h-16">
 			<!-- Mobile menu button -->
 			<button
@@ -203,8 +203,8 @@
 						<a
 							href="/admin"
 							class="text-sm {isActive('/admin')
-								? 'text-amber-700 dark:text-amber-300 font-bold'
-								: 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium'}"
+								? 'text-warning-700 dark:text-warning-300 font-bold'
+								: 'text-warning-600 dark:text-warning-400 hover:text-warning-700 dark:hover:text-warning-300 transition-colors font-medium'}"
 						>
 							Admin
 						</a>
@@ -443,8 +443,8 @@
 							<a
 								href="/admin"
 								class={isActive('/admin')
-									? 'block py-3 text-base font-bold text-amber-700 dark:text-amber-300'
-									: 'block py-3 text-base font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'}
+									? 'block py-3 text-base font-bold text-warning-700 dark:text-warning-300'
+									: 'block py-3 text-base font-medium text-warning-600 dark:text-warning-400 hover:text-warning-700 dark:hover:text-warning-300'}
 								onclick={closeMobileMenu}
 							>
 								Admin

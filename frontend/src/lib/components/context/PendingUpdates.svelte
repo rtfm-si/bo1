@@ -9,6 +9,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { ContextUpdateSuggestion, ContextUpdateSource } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// State
 	let suggestions = $state<ContextUpdateSuggestion[]>([]);
@@ -135,26 +136,25 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-8">
-		<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="md" />
 	</div>
 {:else if suggestions.length === 0}
 	<!-- Empty state - don't show the card at all -->
 {:else}
 	<div
-		class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700"
+		class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700"
 	>
 		<!-- Header -->
-		<div class="p-4 border-b border-slate-200 dark:border-slate-700">
+		<div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
 			<div class="flex items-center justify-between">
 				<div>
-					<h3 class="text-sm font-semibold text-slate-900 dark:text-white">Suggested Updates</h3>
-					<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+					<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">Suggested Updates</h3>
+					<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
 						We detected these from your meetings
 					</p>
 				</div>
 				<span
-					class="px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full"
+					class="px-2 py-0.5 text-xs font-medium bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300 rounded-full"
 				>
 					{suggestions.length} pending
 				</span>
@@ -163,7 +163,7 @@
 
 		<!-- Error Alert -->
 		{#if error}
-			<div class="p-4 border-b border-slate-200 dark:border-slate-700">
+			<div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
 				<Alert variant="error">
 					{error}
 					<button
@@ -178,28 +178,28 @@
 
 		<!-- Success message -->
 		{#if successMessage}
-			<div class="p-4 border-b border-slate-200 dark:border-slate-700">
+			<div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
 				<Alert variant="success">{successMessage}</Alert>
 			</div>
 		{/if}
 
 		<!-- Suggestions List -->
-		<div class="divide-y divide-slate-200 dark:divide-slate-700">
+		<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
 			{#each suggestions as suggestion (suggestion.id)}
 				{@const source = sourceLabels[suggestion.source_type]}
 				{@const fieldLabel = fieldLabels[suggestion.field_name] || suggestion.field_name}
-				<div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+				<div class="p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors">
 					<div class="flex items-start gap-3">
 						<div class="flex-1 min-w-0">
 							<!-- Field name and source -->
 							<div class="flex items-center gap-2 mb-2">
 								<span
-									class="font-medium text-slate-900 dark:text-white text-sm"
+									class="font-medium text-neutral-900 dark:text-white text-sm"
 								>
 									{fieldLabel}
 								</span>
 								<span
-									class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded"
+									class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 rounded"
 								>
 									<span>{source.icon}</span>
 									{source.label}
@@ -209,10 +209,10 @@
 							<!-- Value change -->
 							<div class="flex items-center gap-2 text-sm mb-2">
 								{#if suggestion.current_value}
-									<span class="text-slate-500 dark:text-slate-400 line-through">
+									<span class="text-neutral-500 dark:text-neutral-400 line-through">
 										{formatValue(suggestion.field_name, suggestion.current_value)}
 									</span>
-									<span class="text-slate-400">→</span>
+									<span class="text-neutral-400">→</span>
 								{/if}
 								<!-- Competitors: show as chips with category badges -->
 								{#if suggestion.field_name === 'competitors' && isCompetitorList(suggestion.new_value)}
@@ -225,8 +225,8 @@
 												{#if competitor.category}
 													<span
 														class="text-xs px-1 py-0.5 rounded {competitor.category === 'direct'
-															? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-															: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}"
+															? 'bg-error-100 dark:bg-error-900/30 text-error-600 dark:text-error-400'
+															: 'bg-warning-100 dark:bg-warning-900/30 text-warning-600 dark:text-warning-400'}"
 													>
 														{competitor.category}
 													</span>
@@ -242,12 +242,12 @@
 							</div>
 
 							<!-- Source text -->
-							<p class="text-xs text-slate-500 dark:text-slate-400 italic truncate">
+							<p class="text-xs text-neutral-500 dark:text-neutral-400 italic truncate">
 								"{suggestion.source_text}"
 							</p>
 
 							<!-- Metadata -->
-							<div class="flex items-center gap-3 mt-2 text-xs text-slate-400 dark:text-slate-500">
+							<div class="flex items-center gap-3 mt-2 text-xs text-neutral-400 dark:text-neutral-500">
 								<span>Confidence: {formatConfidence(suggestion.confidence)}</span>
 								<span>{formatDate(suggestion.extracted_at)}</span>
 							</div>
@@ -267,7 +267,7 @@
 								{/if}
 							</button>
 							<button
-								class="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors disabled:opacity-50"
+								class="px-3 py-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors disabled:opacity-50"
 								onclick={() => dismiss(suggestion.id)}
 								disabled={processingId === suggestion.id}
 							>

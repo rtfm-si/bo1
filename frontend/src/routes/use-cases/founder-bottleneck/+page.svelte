@@ -185,38 +185,38 @@
 				</h2>
 				<div class="grid md:grid-cols-2 gap-6">
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">"Can I get 5 minutes?" is your most-heard phrase</p>
 					</div>
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">Your inbox has 50+ messages needing your input</p>
 					</div>
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">Projects stall when you're traveling or sick</p>
 					</div>
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">You know how decisions should be made but can't articulate it</p>
 					</div>
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">Strategic thinking only happens on weekends or late nights</p>
 					</div>
 					<div class="flex gap-3">
-						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 dark:text-red-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
+						<div class="flex-shrink-0 w-6 h-6 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+							<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error-600 dark:text-error-400"><path d="M18 6L6 18M6 6l12 12"/></svg>
 						</div>
 						<p class="text-neutral-600 dark:text-neutral-400">You've hired good people but still make most decisions</p>
 					</div>

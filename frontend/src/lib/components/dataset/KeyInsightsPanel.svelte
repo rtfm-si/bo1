@@ -51,9 +51,9 @@
 			case 'id':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
 			case 'timestamp':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300';
 			case 'metric':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300';
 			case 'dimension':
 				return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
 			default:
@@ -176,7 +176,7 @@
 						<div class="text-xs text-neutral-500">Columns</div>
 					</div>
 					<div class="text-center">
-						<div class="font-semibold text-green-600 dark:text-green-400">{metricsCount}</div>
+						<div class="font-semibold text-success-600 dark:text-success-400">{metricsCount}</div>
 						<div class="text-xs text-neutral-500">Metrics</div>
 					</div>
 					<div class="text-center">
@@ -273,8 +273,8 @@
 					class="w-full flex items-center justify-between text-left"
 				>
 					<div class="flex items-center gap-3">
-						<span class="p-1.5 rounded bg-yellow-100 dark:bg-yellow-900/30">
-							<svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<span class="p-1.5 rounded bg-warning-100 dark:bg-warning-900/30">
+							<svg class="w-4 h-4 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
 						</span>
@@ -329,8 +329,8 @@
 					class="w-full flex items-center justify-between text-left"
 				>
 					<div class="flex items-center gap-3">
-						<span class="p-1.5 rounded bg-blue-100 dark:bg-blue-900/30">
-							<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<span class="p-1.5 rounded bg-info-100 dark:bg-info-900/30">
+							<svg class="w-4 h-4 text-info-600 dark:text-info-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
 							</svg>
 						</span>
@@ -407,14 +407,14 @@
 					class="w-full flex items-center justify-between text-left"
 				>
 					<div class="flex items-center gap-3">
-						<span class="p-1.5 rounded bg-red-100 dark:bg-red-900/30">
-							<svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<span class="p-1.5 rounded bg-error-100 dark:bg-error-900/30">
+							<svg class="w-4 h-4 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 							</svg>
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Outliers</span>
 						{#if outlierColumns > 0}
-							<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+							<span class="text-xs px-2 py-0.5 rounded-full bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300">
 								{outlierColumns} columns affected
 							</span>
 						{:else}
@@ -467,7 +467,7 @@
 						</span>
 						<span class="font-medium text-neutral-900 dark:text-white">Correlations</span>
 						{#if safeData.potentialLeakage.length > 0}
-							<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+							<span class="text-xs px-2 py-0.5 rounded-full bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300">
 								{safeData.potentialLeakage.length} highly correlated
 							</span>
 						{/if}
@@ -483,19 +483,19 @@
 							Correlation measures how closely two columns move together (1.0 = perfect positive, -1.0 = perfect negative, 0 = no relationship).
 						</p>
 						{#if safeData.potentialLeakage.length > 0}
-							<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-								<div class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-2">
+							<div class="p-3 bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800">
+								<div class="text-sm font-medium text-info-700 dark:text-info-300 mb-1 flex items-center gap-2">
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 									</svg>
 									Highly Correlated Pairs
 								</div>
-								<div class="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+								<div class="text-xs text-info-600 dark:text-info-400 space-y-1">
 									{#each safeData.potentialLeakage as pair}
 										<div>{pair.column_a} ↔ {pair.column_b}: {formatCorrelation(pair.correlation)}</div>
 									{/each}
 								</div>
-								<p class="text-xs text-blue-500 dark:text-blue-400 mt-2">
+								<p class="text-xs text-info-500 dark:text-info-400 mt-2">
 									<strong>Review needed:</strong> High correlation may be expected (e.g., Gross Sales ↔ Net Sales) or indicate redundant columns.
 									If using for ML, consider if one column derives from another.
 								</p>
@@ -641,8 +641,8 @@
 					class="w-full flex items-center justify-between text-left"
 				>
 					<div class="flex items-center gap-3">
-						<span class="p-1.5 rounded bg-emerald-100 dark:bg-emerald-900/30">
-							<svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<span class="p-1.5 rounded bg-success-100 dark:bg-success-900/30">
+							<svg class="w-4 h-4 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
 							</svg>
 						</span>

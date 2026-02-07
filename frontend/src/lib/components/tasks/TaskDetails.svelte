@@ -78,17 +78,17 @@
 	}
 </script>
 
-<div class="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 border-t border-slate-200 dark:border-slate-700">
+<div class="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 border-t border-neutral-200 dark:border-neutral-700">
 	<div class="pt-5 space-y-5">
 		<!-- What & How -->
 		<div>
-			<h5 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2.5">What & How</h5>
+			<h5 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-2.5">What & How</h5>
 			<ul class="space-y-2">
 				{#each getWhatAndHow(task) as item}
 					<li
-						class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
+						class="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed"
 					>
-						<span class="text-slate-400 dark:text-slate-500 mt-1.5">•</span>
+						<span class="text-neutral-400 dark:text-neutral-500 mt-1.5">•</span>
 						<span>{item}</span>
 					</li>
 				{/each}
@@ -98,9 +98,9 @@
 		<!-- Success & Kill Criteria - Side by side on larger screens -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 			<!-- Success Criteria -->
-			<div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+			<div class="bg-success-50 dark:bg-success-900/20 rounded-lg p-4">
 				<h5
-					class="text-sm font-semibold text-green-800 dark:text-green-200 mb-2.5 flex items-center gap-2"
+					class="text-sm font-semibold text-success-800 dark:text-success-200 mb-2.5 flex items-center gap-2"
 				>
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -115,9 +115,9 @@
 				<ul class="space-y-2">
 					{#each getSuccessCriteria(task) as criterion}
 						<li
-							class="flex items-start gap-2 text-sm text-green-700 dark:text-green-300 leading-relaxed"
+							class="flex items-start gap-2 text-sm text-success-700 dark:text-success-300 leading-relaxed"
 						>
-							<span class="text-green-500 dark:text-green-400 mt-1">✓</span>
+							<span class="text-success-500 dark:text-success-400 mt-1">✓</span>
 							<span>{criterion}</span>
 						</li>
 					{/each}
@@ -125,9 +125,9 @@
 			</div>
 
 			<!-- Kill Criteria -->
-			<div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+			<div class="bg-error-50 dark:bg-error-900/20 rounded-lg p-4">
 				<h5
-					class="text-sm font-semibold text-red-800 dark:text-red-200 mb-2.5 flex items-center gap-2"
+					class="text-sm font-semibold text-error-800 dark:text-error-200 mb-2.5 flex items-center gap-2"
 				>
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -142,9 +142,9 @@
 				<ul class="space-y-2">
 					{#each getKillCriteria(task) as criterion}
 						<li
-							class="flex items-start gap-2 text-sm text-red-700 dark:text-red-300 leading-relaxed"
+							class="flex items-start gap-2 text-sm text-error-700 dark:text-error-300 leading-relaxed"
 						>
-							<span class="text-red-500 dark:text-red-400 mt-1">✗</span>
+							<span class="text-error-500 dark:text-error-400 mt-1">✗</span>
 							<span>{criterion}</span>
 						</li>
 					{/each}
@@ -154,9 +154,9 @@
 
 		<!-- Dependencies -->
 		{#if task.dependencies && task.dependencies.length > 0}
-			<div class="bg-slate-100 dark:bg-slate-800 rounded-lg p-4">
+			<div class="bg-neutral-100 dark:bg-neutral-800 rounded-lg p-4">
 				<h5
-					class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2.5 flex items-center gap-2"
+					class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-2.5 flex items-center gap-2"
 				>
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -171,9 +171,9 @@
 				<ul class="space-y-2">
 					{#each task.dependencies as dep}
 						<li
-							class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
+							class="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed"
 						>
-							<span class="text-slate-400 dark:text-slate-500 mt-1">→</span>
+							<span class="text-neutral-400 dark:text-neutral-500 mt-1">→</span>
 							<span>{dep}</span>
 						</li>
 					{/each}

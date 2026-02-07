@@ -79,7 +79,7 @@
 	<title>{comparison ? `${comparison.dataset_a_name} vs ${comparison.dataset_b_name}` : 'Dataset Comparison'} | Bo1</title>
 </svelte:head>
 
-<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+<div class="mx-auto px-4 py-6 sm:px-6 lg:px-8 xl:px-12">
 	<!-- Breadcrumb -->
 	<nav class="mb-4">
 		<ol class="flex items-center gap-2 text-sm text-neutral-500">

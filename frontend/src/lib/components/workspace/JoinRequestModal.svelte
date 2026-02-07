@@ -106,9 +106,9 @@
 				</p>
 
 				{#if error}
-					<div class="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-						<AlertCircle size={18} class="text-red-600 dark:text-red-400 shrink-0" />
-						<span class="text-sm text-red-700 dark:text-red-300">{error}</span>
+					<div class="flex items-center gap-2 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+						<AlertCircle size={18} class="text-error-600 dark:text-error-400 shrink-0" />
+						<span class="text-sm text-error-700 dark:text-error-300">{error}</span>
 					</div>
 				{/if}
 

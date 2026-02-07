@@ -26,13 +26,13 @@
 <div class="flex items-center gap-3 py-2">
 	<div class="flex-shrink-0">
 		<div
-			class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"
+			class="w-8 h-8 rounded-full bg-info-100 dark:bg-info-900/30 flex items-center justify-center"
 		>
-			<Clock size={16} class="text-blue-600 dark:text-blue-400 animate-pulse" />
+			<Clock size={16} class="text-info-600 dark:text-info-400 animate-pulse" />
 		</div>
 	</div>
 	<div class="flex-1 min-w-0">
-		<p class="text-sm text-slate-600 dark:text-slate-400">
+		<p class="text-sm text-neutral-600 dark:text-neutral-400">
 			Focus Area {subProblemIndex + 1} is waiting for {waitingForText} to provide initial context...
 		</p>
 	</div>

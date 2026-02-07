@@ -24,6 +24,9 @@
 	} from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import {
 		adminApi,
 		type CostSummaryResponse,
@@ -92,10 +95,10 @@
 	// Provider colors
 	const providerColors: Record<string, string> = {
 		anthropic: 'bg-orange-500',
-		voyage: 'bg-blue-500',
-		brave: 'bg-red-500',
-		tavily: 'bg-green-500',
-		openai: 'bg-emerald-500'
+		voyage: 'bg-info-500',
+		brave: 'bg-error-500',
+		tavily: 'bg-success-500',
+		openai: 'bg-success-500'
 	};
 
 	async function loadData() {
@@ -336,105 +339,77 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div class="flex items-center gap-3">
-						<BarChart3 class="w-6 h-6 text-success-600 dark:text-success-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Cost Analytics</h1>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<Button variant="secondary" size="sm" onclick={loadData}>
-						<RefreshCw class="w-4 h-4" />
-						Refresh
-					</Button>
-					<Button
-						variant="brand"
-						size="sm"
-						onclick={downloadCsv}
-						disabled={!userCosts || !dailyCosts}
-					>
-						<Download class="w-4 h-4" />
-						Export CSV
-					</Button>
-				</div>
-			</div>
+	<AdminPageHeader title="Cost Analytics" icon={BarChart3}>
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadData}>
+				<RefreshCw class="w-4 h-4" />
+				Refresh
+			</Button>
+			<Button
+				variant="brand"
+				size="sm"
+				onclick={downloadCsv}
+				disabled={!userCosts || !dailyCosts}
+			>
+				<Download class="w-4 h-4" />
+				Export CSV
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
-			<!-- Tabs -->
-			<div class="flex gap-4 mt-4">
-				<button
-					class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab ===
-					'overview'
-						? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-						: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
-					onclick={() => (activeTab = 'overview')}
-				>
-					Overview
-				</button>
-				<button
-					class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab ===
-					'providers'
-						? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-						: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
-					onclick={() => (activeTab = 'providers')}
-				>
-					By Provider
-				</button>
-				<button
-					class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'fixed'
-						? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-						: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
-					onclick={() => (activeTab = 'fixed')}
-				>
-					Fixed Costs
-				</button>
-				<button
-					class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'internal'
-						? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-						: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
-					onclick={() => (activeTab = 'internal')}
-				>
-					Internal Costs
-				</button>
-				<button
-					class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'insights'
-						? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-						: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
-					onclick={() => (activeTab = 'insights')}
-				>
-					<span class="flex items-center gap-1.5">
-						<Lightbulb class="w-4 h-4" />
-						Insights
-					</span>
-				</button>
-			</div>
+	<!-- Tabs -->
+	<div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-4 sm:px-6 lg:px-8 xl:px-12">
+		<div class="flex gap-4">
+			<button
+				class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab ===
+				'overview'
+					? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+					: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
+				onclick={() => (activeTab = 'overview')}
+			>
+				Overview
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab ===
+				'providers'
+					? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+					: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
+				onclick={() => (activeTab = 'providers')}
+			>
+				By Provider
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'fixed'
+					? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+					: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
+				onclick={() => (activeTab = 'fixed')}
+			>
+				Fixed Costs
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'internal'
+					? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+					: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
+				onclick={() => (activeTab = 'internal')}
+			>
+				Internal Costs
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {activeTab === 'insights'
+					? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+					: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700'}"
+				onclick={() => (activeTab = 'insights')}
+			>
+				<span class="flex items-center gap-1.5">
+					<Lightbulb class="w-4 h-4" />
+					Insights
+				</span>
+			</button>
 		</div>
-	</header>
+	</div>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">{error}</Alert>
 		{/if}
@@ -446,70 +421,10 @@
 		{:else if activeTab === 'overview' && summary}
 			<!-- Summary Cards -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-				<div
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-				>
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Today</p>
-							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								{formatCurrency(summary.today)}
-							</p>
-							<p class="text-xs text-neutral-500 mt-1">{summary.session_count_today} sessions</p>
-						</div>
-						<div class="p-3 bg-success-100 dark:bg-success-900/30 rounded-lg">
-							<DollarSign class="w-6 h-6 text-success-600 dark:text-success-400" />
-						</div>
-					</div>
-				</div>
-				<div
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-				>
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">This Week</p>
-							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								{formatCurrency(summary.this_week)}
-							</p>
-							<p class="text-xs text-neutral-500 mt-1">{summary.session_count_week} sessions</p>
-						</div>
-						<div class="p-3 bg-brand-100 dark:bg-brand-900/30 rounded-lg">
-							<Calendar class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						</div>
-					</div>
-				</div>
-				<div
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-				>
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">This Month</p>
-							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								{formatCurrency(summary.this_month)}
-							</p>
-							<p class="text-xs text-neutral-500 mt-1">{summary.session_count_month} sessions</p>
-						</div>
-						<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-							<TrendingUp class="w-6 h-6 text-amber-600 dark:text-amber-400" />
-						</div>
-					</div>
-				</div>
-				<div
-					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
-				>
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">All Time</p>
-							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								{formatCurrency(summary.all_time)}
-							</p>
-							<p class="text-xs text-neutral-500 mt-1">{summary.session_count_total} sessions</p>
-						</div>
-						<div class="p-3 bg-neutral-100 dark:bg-neutral-700 rounded-lg">
-							<BarChart3 class="w-6 h-6 text-neutral-600 dark:text-neutral-400" />
-						</div>
-					</div>
-				</div>
+				<StatCard label="Today" value={formatCurrency(summary.today)} subtitle="{summary.session_count_today} sessions" icon={DollarSign} iconColorClass="text-success-600 dark:text-success-400" iconBgClass="bg-success-100 dark:bg-success-900/30" />
+				<StatCard label="This Week" value={formatCurrency(summary.this_week)} subtitle="{summary.session_count_week} sessions" icon={Calendar} iconColorClass="text-brand-600 dark:text-brand-400" iconBgClass="bg-brand-100 dark:bg-brand-900/30" />
+				<StatCard label="This Month" value={formatCurrency(summary.this_month)} subtitle="{summary.session_count_month} sessions" icon={TrendingUp} iconColorClass="text-warning-600 dark:text-warning-400" iconBgClass="bg-warning-100 dark:bg-warning-900/30" />
+				<StatCard label="All Time" value={formatCurrency(summary.all_time)} subtitle="{summary.session_count_total} sessions" icon={BarChart3} />
 			</div>
 
 			<!-- Multi-Period Averages -->
@@ -539,14 +454,14 @@
 					<!-- Total Spend Per Period -->
 					<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
 						<div class="flex items-center gap-3 mb-4">
-							<DollarSign class="w-5 h-5 text-green-600" />
+							<DollarSign class="w-5 h-5 text-success-600" />
 							<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Total Spend</h3>
 						</div>
 						<div class="grid grid-cols-3 gap-3">
 							{#each costAverages.periods as period}
-								<div class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+								<div class="text-center p-3 bg-success-50 dark:bg-success-900/20 rounded-lg">
 									<p class="text-xs text-neutral-500 mb-1">{period.label}</p>
-									<p class="text-lg font-semibold text-green-600 dark:text-green-400">
+									<p class="text-lg font-semibold text-success-600 dark:text-success-400">
 										{formatCurrency(period.total_cost)}
 									</p>
 									<p class="text-xs text-neutral-500 mt-1">
@@ -565,7 +480,7 @@
 					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-8"
 				>
 					<div class="flex items-center gap-3 mb-4">
-						<Zap class="w-5 h-5 text-amber-500" />
+						<Zap class="w-5 h-5 text-warning-500" />
 						<h3 class="text-lg font-medium text-neutral-900 dark:text-white">
 							Cache Performance (7d)
 						</h3>
@@ -584,9 +499,9 @@
 						</div>
 
 						<!-- Research Cache -->
-						<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+						<div class="p-4 bg-info-50 dark:bg-info-900/20 rounded-lg">
 							<p class="text-xs text-neutral-500 mb-1">Research Cache</p>
-							<p class="text-xl font-semibold text-blue-600 dark:text-blue-400">
+							<p class="text-xl font-semibold text-info-600 dark:text-info-400">
 								{formatPercent(cacheMetrics.research.hit_rate)}
 							</p>
 							<p class="text-xs text-neutral-500 mt-1">
@@ -595,9 +510,9 @@
 						</div>
 
 						<!-- LLM Cache -->
-						<div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+						<div class="p-4 bg-success-50 dark:bg-success-900/20 rounded-lg">
 							<p class="text-xs text-neutral-500 mb-1">LLM Cache</p>
-							<p class="text-xl font-semibold text-green-600 dark:text-green-400">
+							<p class="text-xl font-semibold text-success-600 dark:text-success-400">
 								{formatPercent(cacheMetrics.llm.hit_rate)}
 							</p>
 							<p class="text-xs text-neutral-500 mt-1">
@@ -690,11 +605,11 @@
 										<span
 											class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium {i ===
 											0
-												? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+												? 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-400'
 												: i === 1
 													? 'bg-neutral-200 text-neutral-800 dark:bg-neutral-600 dark:text-neutral-300'
 													: i === 2
-														? 'bg-amber-700/20 text-amber-700 dark:bg-amber-800/30 dark:text-amber-500'
+														? 'bg-warning-700/20 text-warning-700 dark:bg-warning-800/30 dark:text-warning-500'
 														: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400'}"
 										>
 											{i + 1}
@@ -1075,10 +990,10 @@
 									{formatCurrency(summary.this_month)}
 								</p>
 							</div>
-							<div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+							<div class="p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
 								<p class="text-xs text-neutral-500 mb-1">Fixed per Paying User</p>
 								{#if payingUsersCount > 0}
-									<p class="text-xl font-semibold text-amber-700 dark:text-amber-400">
+									<p class="text-xl font-semibold text-warning-700 dark:text-warning-400">
 										{formatCurrency(fixedCosts.monthly_total / payingUsersCount)}
 									</p>
 									<p class="text-xs text-neutral-500 mt-1">{payingUsersCount} paying user{payingUsersCount !== 1 ? 's' : ''}</p>
@@ -1140,9 +1055,7 @@
 						<p class="text-sm text-neutral-500 mt-1">Costs for automated blog post generation</p>
 					</div>
 					{#if internalCosts.seo.length === 0}
-						<div class="p-8 text-center">
-							<p class="text-neutral-500">No SEO costs recorded yet</p>
-						</div>
+						<EmptyState title="No SEO costs recorded yet" />
 					{:else}
 						<table class="w-full">
 							<thead class="bg-neutral-50 dark:bg-neutral-700">
@@ -1186,9 +1099,7 @@
 						<p class="text-sm text-neutral-500 mt-1">Costs for background processing and system tasks</p>
 					</div>
 					{#if internalCosts.system.length === 0}
-						<div class="p-8 text-center">
-							<p class="text-neutral-500">No system costs recorded yet</p>
-						</div>
+						<EmptyState title="No system costs recorded yet" />
 					{:else}
 						<table class="w-full">
 							<thead class="bg-neutral-50 dark:bg-neutral-700">
@@ -1232,9 +1143,7 @@
 						<p class="text-sm text-neutral-500 mt-1">Costs for user dataset analysis and insights</p>
 					</div>
 					{#if internalCosts.data_analysis.length === 0}
-						<div class="p-8 text-center">
-							<p class="text-neutral-500">No data analysis costs recorded yet</p>
-						</div>
+						<EmptyState title="No data analysis costs recorded yet" />
 					{:else}
 						<table class="w-full">
 							<thead class="bg-neutral-50 dark:bg-neutral-700">
@@ -1323,7 +1232,7 @@
 				<!-- Period Selector -->
 				<div class="flex items-center justify-between">
 					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
-						<Lightbulb class="w-5 h-5 text-amber-500" />
+						<Lightbulb class="w-5 h-5 text-warning-500" />
 						Cost Optimization Insights
 					</h2>
 					<div class="flex items-center gap-2">
@@ -1358,18 +1267,18 @@
 							</div>
 							<div class="space-y-4">
 								{#each tuningRecommendations.recommendations as rec}
-									<div class="p-4 rounded-lg {rec.area === 'cache' ? 'bg-orange-50 dark:bg-orange-900/20' : rec.area === 'model' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-green-50 dark:bg-green-900/20'}">
+									<div class="p-4 rounded-lg {rec.area === 'cache' ? 'bg-orange-50 dark:bg-orange-900/20' : rec.area === 'model' ? 'bg-info-50 dark:bg-info-900/20' : 'bg-success-50 dark:bg-success-900/20'}">
 										<div class="flex items-start justify-between mb-2">
 											<div class="flex items-center gap-2">
 												{#if rec.area === 'cache'}
 													<Zap class="w-4 h-4 text-orange-600 dark:text-orange-400" />
 												{:else if rec.area === 'model'}
-													<Cpu class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+													<Cpu class="w-4 h-4 text-info-600 dark:text-info-400" />
 												{:else}
-													<Layers class="w-4 h-4 text-green-600 dark:text-green-400" />
+													<Layers class="w-4 h-4 text-success-600 dark:text-success-400" />
 												{/if}
 												<span class="text-sm font-medium text-neutral-900 dark:text-white capitalize">{rec.area}</span>
-												<span class="text-xs px-1.5 py-0.5 rounded {rec.confidence === 'high' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : rec.confidence === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400'}">
+												<span class="text-xs px-1.5 py-0.5 rounded {rec.confidence === 'high' ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400' : rec.confidence === 'medium' ? 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400'}">
 													{rec.confidence}
 												</span>
 											</div>
@@ -1438,7 +1347,7 @@
 						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
 							<div class="flex items-center justify-between mb-4">
 								<div class="flex items-center gap-2">
-									<Cpu class="w-5 h-5 text-blue-500" />
+									<Cpu class="w-5 h-5 text-info-500" />
 									<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Model Impact Analysis</h3>
 								</div>
 								<div class="text-right">
@@ -1493,7 +1402,7 @@
 					{#if featureEfficiency && featureEfficiency.features.length > 0}
 						<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
 							<div class="flex items-center gap-2 mb-4">
-								<Layers class="w-5 h-5 text-green-500" />
+								<Layers class="w-5 h-5 text-success-500" />
 								<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Feature Efficiency</h3>
 							</div>
 							<div class="overflow-x-auto">
@@ -1541,15 +1450,15 @@
 										{formatPercent(qualityIndicators.overall_cache_hit_rate)}
 									</p>
 								</div>
-								<div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+								<div class="p-3 rounded-lg bg-info-50 dark:bg-info-900/20">
 									<p class="text-xs text-neutral-500 mb-1">Session Continuation</p>
-									<p class="text-xl font-semibold text-blue-600 dark:text-blue-400">
+									<p class="text-xl font-semibold text-info-600 dark:text-info-400">
 										{formatPercent(qualityIndicators.session_continuation_rate)}
 									</p>
 								</div>
-								<div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+								<div class="p-3 rounded-lg bg-success-50 dark:bg-success-900/20">
 									<p class="text-xs text-neutral-500 mb-1">Cached Continuation</p>
-									<p class="text-xl font-semibold text-green-600 dark:text-green-400">
+									<p class="text-xl font-semibold text-success-600 dark:text-success-400">
 										{qualityIndicators.cached_continuation_rate !== null ? formatPercent(qualityIndicators.cached_continuation_rate) : 'N/A'}
 									</p>
 								</div>
@@ -1627,7 +1536,7 @@
 								Monthly Amount (USD) <span class="text-danger-500">*</span>
 							</label>
 							<div class="relative">
-								<span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
+								<span class="absolute left-3 top-1/2 -tranneutral-y-1/2 text-neutral-500">$</span>
 								<input
 									id="cost-amount"
 									type="number"

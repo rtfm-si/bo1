@@ -3,10 +3,14 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
+	import Modal from '$lib/components/ui/Modal.svelte';
 	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail, Heart, Sparkles } from 'lucide-svelte';
 	import SendEmailModal from '$lib/components/admin/SendEmailModal.svelte';
 	import { getTierColor } from '$lib/utils/colors';
 	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	let { data } = $props();
 
@@ -231,28 +235,10 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center gap-4">
-				<a
-					href="/admin"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-					aria-label="Back to admin dashboard"
-				>
-					<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-					</svg>
-				</a>
-				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-					User Management
-				</h1>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="User Management" />
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Search -->
 		<div class="mb-6 bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
 			<div class="flex gap-4">
@@ -278,8 +264,8 @@
 
 		{#if users.length === 0}
 			<!-- Empty State -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-				<p class="text-neutral-600 dark:text-neutral-400">No users found</p>
+			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+				<EmptyState title="No users found" description="Try adjusting your search criteria." icon={Search} />
 			</div>
 		{:else}
 			<!-- Users Table -->
@@ -551,270 +537,246 @@
 </div>
 
 <!-- Lock User Modal -->
-{#if lockModalUser}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeLockModal} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Lock User Account</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to lock <strong>{lockModalUser.email}</strong>? This will prevent them from signing in and revoke all active sessions.
-			</p>
-			<form
-				method="POST"
-				action="?/lockUser"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ result, update }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							closeLockModal();
-							await update();
-						} else if (result.type === 'failure') {
-							alert(result.data?.error || 'Failed to lock user');
-						}
-					};
-				}}
-			>
-				<input type="hidden" name="userId" value={lockModalUser.user_id} />
-				<div class="mb-4">
-					<label for="lockReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Reason (optional)
-					</label>
-					<input
-						type="text"
-						id="lockReason"
-						name="reason"
-						bind:value={lockReason}
-						placeholder="e.g., Suspicious activity, Payment issue"
-						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-					/>
-				</div>
-				<div class="flex justify-end gap-3">
-					<Button variant="secondary" size="md" onclick={closeLockModal} disabled={isSubmitting}>
-						{#snippet children()}Cancel{/snippet}
-					</Button>
-					<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
-						{#snippet children()}{isSubmitting ? 'Locking...' : 'Lock User'}{/snippet}
-					</Button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- Delete User Modal -->
-{#if deleteModalUser}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeDeleteModal} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Delete User Account</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to delete <strong>{deleteModalUser.email}</strong>? This action will revoke all active sessions.
-			</p>
-			<form
-				method="POST"
-				action="?/deleteUser"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ result, update }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							closeDeleteModal();
-							await update();
-						} else if (result.type === 'failure') {
-							alert(result.data?.error || 'Failed to delete user');
-						}
-					};
-				}}
-			>
-				<input type="hidden" name="userId" value={deleteModalUser.user_id} />
-				<div class="mb-4">
-					<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-						<input
-							type="checkbox"
-							name="hard_delete"
-							bind:checked={hardDelete}
-							value="true"
-							class="rounded border-neutral-300 dark:border-neutral-600"
-						/>
-						<span>Permanent deletion (cannot be undone)</span>
-					</label>
-					{#if hardDelete}
-						<p class="mt-2 text-xs text-error-600 dark:text-error-400">
-							Warning: This will permanently delete all user data including meetings, contributions, and settings.
-						</p>
-					{:else}
-						<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-							Soft delete: User will be marked as deleted but data is preserved.
-						</p>
-					{/if}
-				</div>
-				<div class="flex justify-end gap-3">
-					<Button variant="secondary" size="md" onclick={closeDeleteModal} disabled={isSubmitting}>
-						{#snippet children()}Cancel{/snippet}
-					</Button>
-					<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
-						{#snippet children()}{isSubmitting ? 'Deleting...' : (hardDelete ? 'Permanently Delete' : 'Delete User')}{/snippet}
-					</Button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- Impersonate User Modal -->
-{#if impersonateModalUser}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeImpersonateModal} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-				<Eye class="w-5 h-5 text-info-500" />
-				View As User
-			</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				You will see the application as <strong>{impersonateModalUser.email}</strong>. This is logged for audit purposes.
-			</p>
-
-			<div class="space-y-4">
-				<div>
-					<label for="impersonateReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Reason <span class="text-error-500">*</span>
-					</label>
-					<input
-						type="text"
-						id="impersonateReason"
-						bind:value={impersonateReason}
-						placeholder="e.g., Investigating user-reported bug"
-						minlength="5"
-						required
-						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-info-500"
-					/>
-					<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-						Required for audit trail (min 5 characters)
-					</p>
-				</div>
-
-				<div>
-					<label for="impersonateDuration" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Duration
-					</label>
-					<select
-						id="impersonateDuration"
-						bind:value={impersonateDuration}
-						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-info-500"
-					>
-						<option value={5}>5 minutes</option>
-						<option value={15}>15 minutes</option>
-						<option value={30}>30 minutes</option>
-						<option value={60}>60 minutes</option>
-					</select>
-				</div>
-
-				<div>
-					<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-						<input
-							type="checkbox"
-							bind:checked={impersonateWriteMode}
-							class="rounded border-neutral-300 dark:border-neutral-600"
-						/>
-						<span>Enable write mode (allow mutations)</span>
-					</label>
-					{#if impersonateWriteMode}
-						<p class="mt-2 text-xs text-warning-600 dark:text-warning-400">
-							Warning: Write mode allows creating, editing, and deleting data as this user.
-						</p>
-					{:else}
-						<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-							Read-only mode: You can view the app but cannot make changes.
-						</p>
-					{/if}
-				</div>
-			</div>
-
-			<div class="flex justify-end gap-3 mt-6">
-				<Button variant="secondary" size="md" onclick={closeImpersonateModal} disabled={isSubmitting}>
-					{#snippet children()}Cancel{/snippet}
-				</Button>
-				<Button
-					variant="brand"
-					size="md"
-					onclick={handleImpersonate}
-					disabled={isSubmitting || impersonateReason.trim().length < 5}
-				>
-					{#snippet children()}
-						{#if isSubmitting}
-							Starting...
-						{:else}
-							<Eye class="w-4 h-4" />
-							View As User
-						{/if}
-					{/snippet}
-				</Button>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Apply Promo Modal -->
-{#if promoModalUser}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closePromoModal} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-				<Gift class="w-5 h-5 text-purple-500" />
-				Apply Promotion
-			</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Apply a promo code to <strong>{promoModalUser.email}</strong>
-			</p>
-
-			{#if promoError}
-				<div class="mb-4 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
-					<p class="text-sm text-error-800 dark:text-error-200">{promoError}</p>
-				</div>
-			{/if}
-
+<Modal open={!!lockModalUser} title="Lock User Account" size="sm" onclose={closeLockModal}>
+	{#if lockModalUser}
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+			Are you sure you want to lock <strong>{lockModalUser.email}</strong>? This will prevent them from signing in and revoke all active sessions.
+		</p>
+		<form
+			method="POST"
+			action="?/lockUser"
+			use:enhance={() => {
+				isSubmitting = true;
+				return async ({ result, update }) => {
+					isSubmitting = false;
+					if (result.type === 'success') {
+						closeLockModal();
+						await update();
+					} else if (result.type === 'failure') {
+						alert(result.data?.error || 'Failed to lock user');
+					}
+				};
+			}}
+		>
+			<input type="hidden" name="userId" value={lockModalUser.user_id} />
 			<div class="mb-4">
-				<label for="promoCode" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-					Promo Code <span class="text-error-500">*</span>
+				<label for="lockReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					Reason (optional)
 				</label>
 				<input
 					type="text"
-					id="promoCode"
-					bind:value={promoCode}
-					placeholder="e.g., WELCOME10"
-					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase"
-					onkeydown={(e) => e.key === 'Enter' && handleApplyPromo()}
+					id="lockReason"
+					name="reason"
+					bind:value={lockReason}
+					placeholder="e.g., Suspicious activity, Payment issue"
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
 				/>
 			</div>
-
 			<div class="flex justify-end gap-3">
-				<Button variant="secondary" size="md" onclick={closePromoModal} disabled={isSubmitting}>
+				<Button variant="secondary" size="md" onclick={closeLockModal} disabled={isSubmitting}>
 					{#snippet children()}Cancel{/snippet}
 				</Button>
-				<Button
-					variant="brand"
-					size="md"
-					onclick={handleApplyPromo}
-					disabled={isSubmitting || !promoCode.trim()}
-				>
-					{#snippet children()}
-						{#if isSubmitting}
-							Applying...
-						{:else}
-							<Gift class="w-4 h-4" />
-							Apply Promo
-						{/if}
-					{/snippet}
+				<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
+					{#snippet children()}{isSubmitting ? 'Locking...' : 'Lock User'}{/snippet}
 				</Button>
 			</div>
+		</form>
+	{/if}
+</Modal>
+
+<!-- Delete User Modal -->
+<Modal open={!!deleteModalUser} title="Delete User Account" size="sm" onclose={closeDeleteModal}>
+	{#if deleteModalUser}
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+			Are you sure you want to delete <strong>{deleteModalUser.email}</strong>? This action will revoke all active sessions.
+		</p>
+		<form
+			method="POST"
+			action="?/deleteUser"
+			use:enhance={() => {
+				isSubmitting = true;
+				return async ({ result, update }) => {
+					isSubmitting = false;
+					if (result.type === 'success') {
+						closeDeleteModal();
+						await update();
+					} else if (result.type === 'failure') {
+						alert(result.data?.error || 'Failed to delete user');
+					}
+				};
+			}}
+		>
+			<input type="hidden" name="userId" value={deleteModalUser.user_id} />
+			<div class="mb-4">
+				<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+					<input
+						type="checkbox"
+						name="hard_delete"
+						bind:checked={hardDelete}
+						value="true"
+						class="rounded border-neutral-300 dark:border-neutral-600"
+					/>
+					<span>Permanent deletion (cannot be undone)</span>
+				</label>
+				{#if hardDelete}
+					<p class="mt-2 text-xs text-error-600 dark:text-error-400">
+						Warning: This will permanently delete all user data including meetings, contributions, and settings.
+					</p>
+				{:else}
+					<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+						Soft delete: User will be marked as deleted but data is preserved.
+					</p>
+				{/if}
+			</div>
+			<div class="flex justify-end gap-3">
+				<Button variant="secondary" size="md" onclick={closeDeleteModal} disabled={isSubmitting}>
+					{#snippet children()}Cancel{/snippet}
+				</Button>
+				<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
+					{#snippet children()}{isSubmitting ? 'Deleting...' : (hardDelete ? 'Permanently Delete' : 'Delete User')}{/snippet}
+				</Button>
+			</div>
+		</form>
+	{/if}
+</Modal>
+
+<!-- Impersonate User Modal -->
+<Modal open={!!impersonateModalUser} title="View As User" size="sm" onclose={closeImpersonateModal}>
+	{#if impersonateModalUser}
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+			You will see the application as <strong>{impersonateModalUser.email}</strong>. This is logged for audit purposes.
+		</p>
+
+		<div class="space-y-4">
+			<div>
+				<label for="impersonateReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					Reason <span class="text-error-500">*</span>
+				</label>
+				<input
+					type="text"
+					id="impersonateReason"
+					bind:value={impersonateReason}
+					placeholder="e.g., Investigating user-reported bug"
+					minlength="5"
+					required
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-info-500"
+				/>
+				<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					Required for audit trail (min 5 characters)
+				</p>
+			</div>
+
+			<div>
+				<label for="impersonateDuration" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					Duration
+				</label>
+				<select
+					id="impersonateDuration"
+					bind:value={impersonateDuration}
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-info-500"
+				>
+					<option value={5}>5 minutes</option>
+					<option value={15}>15 minutes</option>
+					<option value={30}>30 minutes</option>
+					<option value={60}>60 minutes</option>
+				</select>
+			</div>
+
+			<div>
+				<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+					<input
+						type="checkbox"
+						bind:checked={impersonateWriteMode}
+						class="rounded border-neutral-300 dark:border-neutral-600"
+					/>
+					<span>Enable write mode (allow mutations)</span>
+				</label>
+				{#if impersonateWriteMode}
+					<p class="mt-2 text-xs text-warning-600 dark:text-warning-400">
+						Warning: Write mode allows creating, editing, and deleting data as this user.
+					</p>
+				{:else}
+					<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+						Read-only mode: You can view the app but cannot make changes.
+					</p>
+				{/if}
+			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="secondary" size="md" onclick={closeImpersonateModal} disabled={isSubmitting}>
+				{#snippet children()}Cancel{/snippet}
+			</Button>
+			<Button
+				variant="brand"
+				size="md"
+				onclick={handleImpersonate}
+				disabled={isSubmitting || impersonateReason.trim().length < 5}
+			>
+				{#snippet children()}
+					{#if isSubmitting}
+						Starting...
+					{:else}
+						<Eye class="w-4 h-4" />
+						View As User
+					{/if}
+				{/snippet}
+			</Button>
+		</div>
+	{/snippet}
+</Modal>
+
+<!-- Apply Promo Modal -->
+<Modal open={!!promoModalUser} title="Apply Promotion" size="sm" onclose={closePromoModal}>
+	{#if promoModalUser}
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+			Apply a promo code to <strong>{promoModalUser.email}</strong>
+		</p>
+
+		{#if promoError}
+			<div class="mb-4 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+				<p class="text-sm text-error-800 dark:text-error-200">{promoError}</p>
+			</div>
+		{/if}
+
+		<div>
+			<label for="promoCode" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+				Promo Code <span class="text-error-500">*</span>
+			</label>
+			<input
+				type="text"
+				id="promoCode"
+				bind:value={promoCode}
+				placeholder="e.g., WELCOME10"
+				class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase"
+				onkeydown={(e) => e.key === 'Enter' && handleApplyPromo()}
+			/>
+		</div>
+	{/if}
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="secondary" size="md" onclick={closePromoModal} disabled={isSubmitting}>
+				{#snippet children()}Cancel{/snippet}
+			</Button>
+			<Button
+				variant="brand"
+				size="md"
+				onclick={handleApplyPromo}
+				disabled={isSubmitting || !promoCode.trim()}
+			>
+				{#snippet children()}
+					{#if isSubmitting}
+						Applying...
+					{:else}
+						<Gift class="w-4 h-4" />
+						Apply Promo
+					{/if}
+				{/snippet}
+			</Button>
+		</div>
+	{/snippet}
+</Modal>
 
 <!-- Send Email Modal -->
 <SendEmailModal
@@ -825,58 +787,53 @@
 />
 
 <!-- SEO Access Modal -->
-{#if seoAccessModalUser}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeSeoAccessModal} role="presentation">
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-				<Sparkles class="w-5 h-5 text-orange-500" />
-				SEO Tools Access
-			</h2>
-			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-				Manage SEO tools access for <strong>{seoAccessModalUser.email}</strong>
-			</p>
+<Modal open={!!seoAccessModalUser} title="SEO Tools Access" size="sm" onclose={closeSeoAccessModal}>
+	{#if seoAccessModalUser}
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+			Manage SEO tools access for <strong>{seoAccessModalUser.email}</strong>
+		</p>
 
-			{#if seoAccessLoading && seoAccessModalUser.has_seo_access === undefined}
-				<div class="flex items-center justify-center py-4">
-					<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
-					<span class="ml-2 text-neutral-600 dark:text-neutral-400">Loading status...</span>
+		{#if seoAccessLoading && seoAccessModalUser.has_seo_access === undefined}
+			<div class="flex items-center justify-center py-4">
+				<Spinner size="md" />
+				<span class="ml-2 text-neutral-600 dark:text-neutral-400">Loading status...</span>
+			</div>
+		{:else}
+			<div class="p-4 rounded-lg {seoAccessModalUser.has_seo_access ? 'bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800' : 'bg-neutral-100 dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600'}">
+				<div class="flex items-center gap-2">
+					<span class="text-sm font-medium {seoAccessModalUser.has_seo_access ? 'text-success-800 dark:text-success-200' : 'text-neutral-700 dark:text-neutral-300'}">
+						Current Status:
+					</span>
+					<span class="inline-flex text-xs px-2 py-1 rounded-full {seoAccessModalUser.has_seo_access ? 'bg-success-100 text-success-800 dark:bg-success-800 dark:text-success-200' : 'bg-neutral-200 text-neutral-600 dark:bg-neutral-600 dark:text-neutral-300'}">
+						{seoAccessModalUser.has_seo_access ? 'Has Access' : 'No Access'}
+					</span>
 				</div>
-			{:else}
-				<div class="mb-4 p-4 rounded-lg {seoAccessModalUser.has_seo_access ? 'bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800' : 'bg-neutral-100 dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600'}">
-					<div class="flex items-center gap-2">
-						<span class="text-sm font-medium {seoAccessModalUser.has_seo_access ? 'text-success-800 dark:text-success-200' : 'text-neutral-700 dark:text-neutral-300'}">
-							Current Status:
-						</span>
-						<span class="inline-flex text-xs px-2 py-1 rounded-full {seoAccessModalUser.has_seo_access ? 'bg-success-100 text-success-800 dark:bg-success-800 dark:text-success-200' : 'bg-neutral-200 text-neutral-600 dark:bg-neutral-600 dark:text-neutral-300'}">
-							{seoAccessModalUser.has_seo_access ? 'Has Access' : 'No Access'}
-						</span>
-					</div>
-				</div>
-
-				<div class="flex justify-end gap-3">
-					<Button variant="secondary" size="md" onclick={closeSeoAccessModal} disabled={seoAccessLoading}>
-						{#snippet children()}Close{/snippet}
-					</Button>
-					<Button
-						variant={seoAccessModalUser?.has_seo_access ? 'danger' : 'brand'}
-						size="md"
-						onclick={handleToggleSeoAccess}
-						disabled={seoAccessLoading}
-					>
-						{#snippet children()}
-							{#if seoAccessLoading}
-								{seoAccessModalUser?.has_seo_access ? 'Revoking...' : 'Granting...'}
-							{:else if seoAccessModalUser?.has_seo_access}
-								Revoke Access
-							{:else}
-								Grant Access
-							{/if}
-						{/snippet}
-					</Button>
-				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
+			</div>
+		{/if}
+	{/if}
+	{#snippet footer()}
+		{#if !(seoAccessLoading && seoAccessModalUser?.has_seo_access === undefined)}
+			<div class="flex justify-end gap-3">
+				<Button variant="secondary" size="md" onclick={closeSeoAccessModal} disabled={seoAccessLoading}>
+					{#snippet children()}Close{/snippet}
+				</Button>
+				<Button
+					variant={seoAccessModalUser?.has_seo_access ? 'danger' : 'brand'}
+					size="md"
+					onclick={handleToggleSeoAccess}
+					disabled={seoAccessLoading}
+				>
+					{#snippet children()}
+						{#if seoAccessLoading}
+							{seoAccessModalUser?.has_seo_access ? 'Revoking...' : 'Granting...'}
+						{:else if seoAccessModalUser?.has_seo_access}
+							Revoke Access
+						{:else}
+							Grant Access
+						{/if}
+					{/snippet}
+				</Button>
+			</div>
+		{/if}
+	{/snippet}
+</Modal>

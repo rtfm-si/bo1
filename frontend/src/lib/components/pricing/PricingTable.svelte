@@ -106,7 +106,7 @@
 						<div class="relative">
 							{#if tier.highlight}
 								<span
-									class="absolute -top-8 left-1/2 -translate-x-1/2 inline-block px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 bg-brand-100 dark:bg-brand-900/30 rounded-full whitespace-nowrap"
+									class="absolute -top-8 left-1/2 -tranneutral-x-1/2 inline-block px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 bg-brand-100 dark:bg-brand-900/30 rounded-full whitespace-nowrap"
 								>
 									Most Popular
 								</span>

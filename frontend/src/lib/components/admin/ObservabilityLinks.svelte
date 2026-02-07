@@ -55,9 +55,9 @@
 					class="flex items-center justify-between px-4 py-3 rounded-lg bg-neutral-50 dark:bg-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-600 border border-neutral-200 dark:border-neutral-600 transition-colors group"
 				>
 					<div class="flex items-center gap-3">
-						<div class="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+						<div class="p-2 bg-info-100 dark:bg-info-900/30 rounded-lg">
 							<svg
-								class="w-5 h-5 text-blue-600 dark:text-blue-400"
+								class="w-5 h-5 text-info-600 dark:text-info-400"
 								fill="currentColor"
 								viewBox="0 0 24 24"
 							>
@@ -111,9 +111,9 @@
 					class="flex items-center justify-between px-4 py-3 rounded-lg bg-neutral-50 dark:bg-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-600 border border-neutral-200 dark:border-neutral-600 transition-colors group"
 				>
 					<div class="flex items-center gap-3">
-						<div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+						<div class="p-2 bg-success-100 dark:bg-success-900/30 rounded-lg">
 							<svg
-								class="w-5 h-5 text-green-600 dark:text-green-400"
+								class="w-5 h-5 text-success-600 dark:text-success-400"
 								fill="currentColor"
 								viewBox="0 0 24 24"
 							>

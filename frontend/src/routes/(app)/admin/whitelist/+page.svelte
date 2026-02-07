@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { Plus, Trash2, Mail } from 'lucide-svelte';
 
 	interface WhitelistEntry {
@@ -32,25 +34,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center gap-4">
-				<a
-					href="/admin"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-					aria-label="Back to admin"
-				>
-					<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-					</svg>
-				</a>
-				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-					Beta Whitelist
-				</h1>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Beta Whitelist" />
 
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -123,13 +107,7 @@
 			</div>
 
 			{#if entries.length === 0}
-				<div class="p-8 text-center">
-					<Mail class="w-12 h-12 text-neutral-400 mx-auto mb-2" />
-					<p class="text-neutral-600 dark:text-neutral-400">No whitelisted emails yet</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
-						Add emails above to allow beta access
-					</p>
-				</div>
+				<EmptyState title="No whitelisted emails yet" description="Add emails above to allow beta access." icon={Mail} />
 			{:else}
 				<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
 					{#each entries as entry (entry.id)}

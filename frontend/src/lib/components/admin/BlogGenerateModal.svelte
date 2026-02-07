@@ -107,9 +107,9 @@
 	function getSourceBadgeColor(source: string) {
 		switch (source) {
 			case 'context':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			case 'trend':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			case 'gap':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
 			default:
@@ -185,7 +185,7 @@
 					<form onsubmit={handleGenerate} class="space-y-4">
 						<div>
 							<label for="generate-topic" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-								Topic <span class="text-red-500">*</span>
+								Topic <span class="text-error-500">*</span>
 							</label>
 							<input
 								id="generate-topic"
@@ -261,8 +261,8 @@
 							</div>
 						{:else if discoveryFailed}
 							<div class="text-center py-8 text-neutral-500 dark:text-neutral-400">
-								<div class="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-									<X class="w-6 h-6 text-red-500" />
+								<div class="w-12 h-12 mx-auto mb-3 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+									<X class="w-6 h-6 text-error-500" />
 								</div>
 								<p class="text-neutral-700 dark:text-neutral-300 mb-4">{error}</p>
 								<Button variant="outline" onclick={discoverTopics}>

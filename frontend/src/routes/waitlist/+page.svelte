@@ -57,29 +57,29 @@
 </svelte:head>
 
 <div
-	class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4"
+	class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 px-4"
 >
 	<div class="max-w-lg w-full">
 		<!-- Logo -->
 		<div class="text-center mb-8">
 			<a href="/" class="inline-block">
-				<h1 class="text-4xl font-bold text-slate-900 dark:text-white mb-2">Board of One</h1>
+				<h1 class="text-4xl font-bold text-neutral-900 dark:text-white mb-2">Board of One</h1>
 			</a>
-			<p class="text-slate-600 dark:text-slate-400">
+			<p class="text-neutral-600 dark:text-neutral-400">
 				AI-powered strategic decision-making
 			</p>
 		</div>
 
 		<!-- Waitlist Card -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700"
+			class="bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8 border border-neutral-200 dark:border-neutral-700"
 		>
 			{#if !submitted}
-				<h2 class="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
+				<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-4">
 					Join the Waitlist
 				</h2>
 
-				<p class="text-slate-600 dark:text-slate-400 mb-6">
+				<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 					We're currently in closed beta. Enter your email to join the waitlist and get early
 					access when we open up.
 				</p>
@@ -87,7 +87,7 @@
 				<!-- Waitlist Form -->
 				<form onsubmit={handleSubmit} class="space-y-4">
 					<div>
-						<label for="email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+						<label for="email" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 							Email Address
 						</label>
 						<input
@@ -96,21 +96,21 @@
 							bind:value={email}
 							placeholder="you@example.com"
 							disabled={loading}
-							class="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							class="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
 							required
 						/>
 					</div>
 
 					{#if error}
-						<div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-							<p class="text-sm text-red-900 dark:text-red-200">{error}</p>
+						<div class="p-4 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg">
+							<p class="text-sm text-error-900 dark:text-error-200">{error}</p>
 						</div>
 					{/if}
 
 					<button
 						type="submit"
 						disabled={loading}
-						class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+						class="w-full px-6 py-3 bg-info-600 hover:bg-info-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 					>
 						{#if loading}
 							<Spinner size="sm" variant="neutral" ariaLabel="Joining waitlist" />
@@ -122,14 +122,14 @@
 				</form>
 
 				<!-- Benefits -->
-				<div class="mt-8 pt-8 border-t border-slate-200 dark:border-slate-700">
-					<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">
+				<div class="mt-8 pt-8 border-t border-neutral-200 dark:border-neutral-700">
+					<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-4">
 						What you'll get:
 					</h3>
 					<ul class="space-y-3">
 						<li class="flex items-start gap-3">
 							<svg
-								class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0"
+								class="w-5 h-5 text-success-500 mt-0.5 flex-shrink-0"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -141,13 +141,13 @@
 									d="M5 13l4 4L19 7"
 								></path>
 							</svg>
-							<span class="text-sm text-slate-700 dark:text-slate-300">
+							<span class="text-sm text-neutral-700 dark:text-neutral-300">
 								Early access to Board of One platform
 							</span>
 						</li>
 						<li class="flex items-start gap-3">
 							<svg
-								class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0"
+								class="w-5 h-5 text-success-500 mt-0.5 flex-shrink-0"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -159,13 +159,13 @@
 									d="M5 13l4 4L19 7"
 								></path>
 							</svg>
-							<span class="text-sm text-slate-700 dark:text-slate-300">
+							<span class="text-sm text-neutral-700 dark:text-neutral-300">
 								Expert AI personas for strategic decisions
 							</span>
 						</li>
 						<li class="flex items-start gap-3">
 							<svg
-								class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0"
+								class="w-5 h-5 text-success-500 mt-0.5 flex-shrink-0"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -177,7 +177,7 @@
 									d="M5 13l4 4L19 7"
 								></path>
 							</svg>
-							<span class="text-sm text-slate-700 dark:text-slate-300">
+							<span class="text-sm text-neutral-700 dark:text-neutral-300">
 								Priority support and feature requests
 							</span>
 						</li>
@@ -189,10 +189,10 @@
 					{#if isWhitelisted}
 						<div class="mb-6">
 							<div
-								class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4"
+								class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success-100 dark:bg-success-900/20 mb-4"
 							>
 								<svg
-									class="w-8 h-8 text-green-600 dark:text-green-400"
+									class="w-8 h-8 text-success-600 dark:text-success-400"
 									fill="none"
 									stroke="currentColor"
 									viewBox="0 0 24 24"
@@ -205,15 +205,15 @@
 									></path>
 								</svg>
 							</div>
-							<h2 class="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
+							<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
 								You're Already Whitelisted!
 							</h2>
-							<p class="text-slate-600 dark:text-slate-400 mb-6">
+							<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 								Great news! You have immediate access to Board of One.
 							</p>
 							<a
 								href="/login"
-								class="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200"
+								class="inline-block px-6 py-3 bg-info-600 hover:bg-info-700 text-white font-medium rounded-lg transition-colors duration-200"
 							>
 								Sign In Now
 							</a>
@@ -221,10 +221,10 @@
 					{:else}
 						<div class="mb-6">
 							<div
-								class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 mb-4"
+								class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-info-100 dark:bg-info-900/20 mb-4"
 							>
 								<svg
-									class="w-8 h-8 text-blue-600 dark:text-blue-400"
+									class="w-8 h-8 text-info-600 dark:text-info-400"
 									fill="none"
 									stroke="currentColor"
 									viewBox="0 0 24 24"
@@ -237,10 +237,10 @@
 									></path>
 								</svg>
 							</div>
-							<h2 class="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
+							<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
 								You're on the List!
 							</h2>
-							<p class="text-slate-600 dark:text-slate-400 mb-6">
+							<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 								We'll notify you via email when your spot is ready. Check your inbox for a
 								confirmation email.
 							</p>
@@ -249,7 +249,7 @@
 
 					<a
 						href="/"
-						class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+						class="text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-colors"
 					>
 						← Back to home
 					</a>
@@ -260,11 +260,11 @@
 		<!-- Additional Info -->
 		{#if !submitted}
 			<div class="mt-6 text-center">
-				<p class="text-sm text-slate-600 dark:text-slate-400">
+				<p class="text-sm text-neutral-600 dark:text-neutral-400">
 					Already have access?
 					<a
 						href="/login"
-						class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+						class="text-info-600 dark:text-info-400 hover:underline font-medium"
 					>
 						Sign in
 					</a>

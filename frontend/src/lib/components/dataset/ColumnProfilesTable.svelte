@@ -30,10 +30,10 @@
 			case 'integer':
 			case 'float':
 			case 'numeric':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300';
 			case 'string':
 			case 'text':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300';
 			case 'date':
 			case 'datetime':
 			case 'timestamp':
@@ -41,7 +41,7 @@
 			case 'boolean':
 				return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
 			case 'currency':
-				return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300';
 			case 'percentage':
 				return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300';
 			default:

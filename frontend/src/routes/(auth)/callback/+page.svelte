@@ -116,33 +116,33 @@
 </svelte:head>
 
 {#if error}
-	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4">
-		<div class="max-w-md w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
+	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 px-4">
+		<div class="max-w-md w-full bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8 border border-neutral-200 dark:border-neutral-700">
 			<div class="text-center">
-				<div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
-					<svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-error-100 dark:bg-error-900/20 mb-4">
+					<svg class="h-6 w-6 text-error-600 dark:text-error-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</div>
-				<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+				<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
 					Authentication Failed
 				</h2>
-				<p class="text-slate-600 dark:text-slate-400 mb-4">
+				<p class="text-neutral-600 dark:text-neutral-400 mb-4">
 					{error}
 				</p>
-				<p class="text-sm text-slate-500 dark:text-slate-500">
+				<p class="text-sm text-neutral-500 dark:text-neutral-500">
 					Redirecting to login...
 				</p>
 			</div>
 		</div>
 	</div>
 {:else if showTermsModal}
-	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4">
+	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 px-4">
 		<TermsConsentModal bind:open={showTermsModal} onAccept={handleTermsAccept} />
 	</div>
 {:else}
-	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4">
-		<div class="max-w-md w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
+	<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 px-4">
+		<div class="max-w-md w-full bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8 border border-neutral-200 dark:border-neutral-700">
 			<ActivityStatus
 				variant="card"
 				message={isCheckingTerms ? 'Checking terms...' : LOADING_MESSAGES.auth.completing}

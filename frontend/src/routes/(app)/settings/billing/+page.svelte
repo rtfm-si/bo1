@@ -11,6 +11,7 @@
 	import type { MeetingCreditsResponse } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { Package } from 'lucide-svelte';
 
 	// Get Stripe price IDs from environment
@@ -133,7 +134,7 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<div class="space-y-6">
@@ -146,13 +147,13 @@
 		{/if}
 
 		<!-- Current Plan -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 			<div class="flex items-start justify-between mb-6">
 				<div>
-					<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
 						Current Plan
 					</h2>
-					<p class="text-slate-600 dark:text-slate-400">
+					<p class="text-neutral-600 dark:text-neutral-400">
 						Manage your subscription and billing
 					</p>
 				</div>
@@ -176,11 +177,11 @@
 
 			{#if plan?.features && plan.features.length > 0}
 				<div class="mt-4">
-					<p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Included features:</p>
+					<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Included features:</p>
 					<ul class="space-y-1">
 						{#each plan.features as feature}
-							<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-								<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+								<svg class="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 								</svg>
 								{feature}
@@ -195,18 +196,18 @@
 		{#if plan?.tier !== 'pro'}
 			{#if isStripeConfigured && getUpgradeTiers().length > 0}
 				<!-- Show upgrade cards when Stripe is configured -->
-				<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+				<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 						Upgrade Your Plan
 					</h3>
 
 					<div class="grid gap-4 {getUpgradeTiers().length === 1 ? '' : 'md:grid-cols-2'}">
 						{#each getUpgradeTiers() as tier}
 							{@const priceId = getPriceId(tier.id)}
-							<div class="p-4 rounded-lg border {tier.highlight ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10' : 'border-slate-200 dark:border-slate-700'}">
+							<div class="p-4 rounded-lg border {tier.highlight ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10' : 'border-neutral-200 dark:border-neutral-700'}">
 								<div class="flex items-start justify-between mb-3">
 									<div>
-										<h4 class="font-semibold text-slate-900 dark:text-white">
+										<h4 class="font-semibold text-neutral-900 dark:text-white">
 											{tier.name}
 											{#if tier.highlight}
 												<span class="ml-2 text-xs bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400 px-2 py-0.5 rounded-full">
@@ -214,34 +215,34 @@
 												</span>
 											{/if}
 										</h4>
-										<p class="text-sm text-slate-600 dark:text-slate-400">{tier.description}</p>
+										<p class="text-sm text-neutral-600 dark:text-neutral-400">{tier.description}</p>
 									</div>
 									<div class="text-right">
-										<span class="text-xl font-bold text-slate-900 dark:text-white">{tier.priceLabel}</span>
+										<span class="text-xl font-bold text-neutral-900 dark:text-white">{tier.priceLabel}</span>
 										{#if tier.period}
-											<span class="text-sm text-slate-500 dark:text-slate-400">/{tier.period}</span>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400">/{tier.period}</span>
 										{/if}
 									</div>
 								</div>
 
 								<ul class="space-y-1 mb-4">
-									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+										<svg class="w-4 h-4 text-success-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 										</svg>
 										{tier.limits.meetings_monthly === -1 ? 'Unlimited meetings' : `${tier.limits.meetings_monthly} meetings/month`}
 									</li>
 									{#if tier.features.api_access}
-										<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-											<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+											<svg class="w-4 h-4 text-success-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 											</svg>
 											API access
 										</li>
 									{/if}
 									{#if tier.features.priority_support}
-										<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-											<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+											<svg class="w-4 h-4 text-success-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 											</svg>
 											Priority support
@@ -277,13 +278,13 @@
 							</svg>
 						</div>
 						<div class="flex-1">
-							<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+							<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 								Paid Plans Coming Soon
 							</h3>
-							<p class="text-slate-600 dark:text-slate-400 mb-4">
+							<p class="text-neutral-600 dark:text-neutral-400 mb-4">
 								We're finalizing our pricing for Starter and Pro plans. Enjoy full access to all features during our beta period.
 							</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+							<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
 								Interested in upgrading when available? Let us know and we'll notify you.
 							</p>
 							<Button
@@ -299,13 +300,13 @@
 		{/if}
 
 		<!-- Meeting Credits -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 			<div class="flex items-start justify-between mb-4">
 				<div>
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
 						Meeting Credits
 					</h3>
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Prepaid meetings that never expire
 					</p>
 				</div>
@@ -318,7 +319,7 @@
 			</div>
 
 			{#if !credits?.meeting_credits}
-				<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+				<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
 					No meeting credits. Purchase a bundle to get started.
 				</p>
 			{/if}
@@ -328,14 +329,14 @@
 					<button
 						class="p-3 rounded-lg border text-center transition-colors {bundle.meetings === 5
 							? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10 hover:bg-brand-50 dark:hover:bg-brand-900/20'
-							: 'border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600'}"
+							: 'border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600'}"
 						onclick={() => purchaseBundle(bundle.meetings)}
 						disabled={purchasingBundle !== null}
 					>
-						<div class="text-xl font-bold text-slate-900 dark:text-white">
+						<div class="text-xl font-bold text-neutral-900 dark:text-white">
 							{bundle.meetings}
 						</div>
-						<div class="text-xs text-slate-500 dark:text-slate-400">
+						<div class="text-xs text-neutral-500 dark:text-neutral-400">
 							meeting{bundle.meetings > 1 ? 's' : ''}
 						</div>
 						<div class="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400">
@@ -351,41 +352,41 @@
 		</div>
 
 		<!-- Usage -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 				Usage This Month
 			</h3>
 
 			<div class="space-y-4">
 				<div>
 					<div class="flex items-center justify-between mb-2">
-						<span class="text-sm text-slate-600 dark:text-slate-400">Meetings</span>
-						<span class="text-sm font-medium text-slate-900 dark:text-white">
+						<span class="text-sm text-neutral-600 dark:text-neutral-400">Meetings</span>
+						<span class="text-sm font-medium text-neutral-900 dark:text-white">
 							{usage?.meetings_used ?? 0} / {usage?.meetings_limit ?? '∞'}
 						</span>
 					</div>
-					<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+					<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
 						<div
-							class="h-full rounded-full transition-all duration-300 {getUsagePercent(usage?.meetings_used ?? 0, usage?.meetings_limit ?? null) > 80 ? 'bg-amber-500' : 'bg-brand-500'}"
+							class="h-full rounded-full transition-all duration-300 {getUsagePercent(usage?.meetings_used ?? 0, usage?.meetings_limit ?? null) > 80 ? 'bg-warning-500' : 'bg-brand-500'}"
 							style="width: {usage?.meetings_limit ? getUsagePercent(usage?.meetings_used ?? 0, usage?.meetings_limit ?? null) : 0}%"
 						></div>
 					</div>
 					{#if usage?.meetings_remaining !== null && usage?.meetings_remaining !== undefined}
-						<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+						<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 							{usage.meetings_remaining} meetings remaining
 						</p>
 					{:else if usage?.meetings_limit === null}
-						<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+						<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 							Unlimited meetings
 						</p>
 					{/if}
 				</div>
 
 				{#if usage && usage.total_cost_cents > 0}
-					<div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+					<div class="pt-4 border-t border-neutral-200 dark:border-neutral-700">
 						<div class="flex items-center justify-between">
-							<span class="text-sm text-slate-600 dark:text-slate-400">API costs this month</span>
-							<span class="text-sm font-medium text-slate-900 dark:text-white">
+							<span class="text-sm text-neutral-600 dark:text-neutral-400">API costs this month</span>
+							<span class="text-sm font-medium text-neutral-900 dark:text-white">
 								{formatPrice(usage.total_cost_cents)}
 							</span>
 						</div>
@@ -396,16 +397,16 @@
 
 		<!-- Payment Method (only show for paying customers) -->
 		{#if plan?.tier !== 'free'}
-			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+			<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 p-6">
 				<div class="flex items-center gap-4">
-					<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div class="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
 						</svg>
 					</div>
 					<div class="flex-1">
-						<h3 class="font-medium text-slate-700 dark:text-slate-300">Payment Method</h3>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<h3 class="font-medium text-neutral-700 dark:text-neutral-300">Payment Method</h3>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Manage payment methods through the billing portal
 						</p>
 					</div>
@@ -416,16 +417,16 @@
 			</div>
 
 			<!-- Invoices -->
-			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+			<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 p-6">
 				<div class="flex items-center gap-4">
-					<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div class="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
 						</svg>
 					</div>
 					<div class="flex-1">
-						<h3 class="font-medium text-slate-700 dark:text-slate-300">Invoices</h3>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<h3 class="font-medium text-neutral-700 dark:text-neutral-300">Invoices</h3>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							View and download invoices through the billing portal
 						</p>
 					</div>
@@ -437,10 +438,10 @@
 		{/if}
 
 		<!-- Help Note -->
-		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+		<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -452,9 +453,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">Need help with billing?</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						Contact us at <a href="mailto:support@boardof.one" class="underline hover:no-underline">support@boardof.one</a> for any billing questions or to request plan changes.
 					</p>
 				</div>

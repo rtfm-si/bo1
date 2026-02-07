@@ -163,7 +163,7 @@
 							</label>
 						</div>
 						{#if useOriginalProblem && problemStatement}
-							<div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-300">
+							<div class="p-3 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 text-sm text-info-900 dark:text-info-300">
 								{problemStatement}
 							</div>
 						{/if}

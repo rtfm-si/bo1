@@ -262,8 +262,8 @@
 										>
 											<span
 												class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {item.effective_value
-													? 'translate-x-6'
-													: 'translate-x-1'}"
+													? 'tranneutral-x-6'
+													: 'tranneutral-x-1'}"
 											></span>
 										</button>
 									</div>

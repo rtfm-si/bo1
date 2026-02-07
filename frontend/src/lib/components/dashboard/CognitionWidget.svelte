@@ -48,12 +48,12 @@
 </script>
 
 {#if isLoading}
-	<div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl p-4 border border-neutral-200 dark:border-neutral-700">
 		<div class="animate-pulse flex items-center gap-3">
-			<div class="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+			<div class="w-10 h-10 bg-neutral-200 dark:bg-neutral-700 rounded-lg"></div>
 			<div class="flex-1 space-y-2">
-				<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-				<div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+				<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4"></div>
+				<div class="h-3 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2"></div>
 			</div>
 		</div>
 	</div>
@@ -84,7 +84,7 @@
 	<!-- Profile summary -->
 	<a
 		href="/settings/cognition"
-		class="block bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
+		class="block bg-white dark:bg-neutral-800 rounded-xl p-4 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
 	>
 		<div class="flex items-start gap-3">
 			<div class="w-10 h-10 bg-brand-100 dark:bg-brand-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -92,23 +92,23 @@
 			</div>
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center justify-between gap-2">
-					<p class="font-medium text-slate-900 dark:text-white text-sm truncate">
+					<p class="font-medium text-neutral-900 dark:text-white text-sm truncate">
 						{profile?.cognitive_style_summary || 'Cognitive Profile'}
 					</p>
-					<svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 					</svg>
 				</div>
 
 				{#if getDimensionHighlight()}
-					<p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+					<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
 						{getDimensionHighlight()}
 					</p>
 				{/if}
 
 				{#if topBlindspot}
 					<div class="mt-2 flex items-center gap-1.5">
-						<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+						<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-200">
 							{topBlindspot.label}
 						</span>
 					</div>

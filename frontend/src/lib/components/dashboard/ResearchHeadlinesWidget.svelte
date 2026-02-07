@@ -33,15 +33,15 @@
 	// Category display config
 	type CategoryKey = 'saas_metrics' | 'market_analysis' | 'competitor_analysis' | 'industry_trends' | 'pricing' | 'growth' | 'funding' | 'general';
 	const categoryConfig: Record<CategoryKey | 'default', { label: string; color: string }> = {
-		saas_metrics: { label: 'Metrics', color: 'text-green-600 dark:text-green-400' },
+		saas_metrics: { label: 'Metrics', color: 'text-success-600 dark:text-success-400' },
 		market_analysis: { label: 'Market', color: 'text-cyan-600 dark:text-cyan-400' },
-		competitor_analysis: { label: 'Competition', color: 'text-red-600 dark:text-red-400' },
+		competitor_analysis: { label: 'Competition', color: 'text-error-600 dark:text-error-400' },
 		industry_trends: { label: 'Trends', color: 'text-purple-600 dark:text-purple-400' },
-		pricing: { label: 'Pricing', color: 'text-amber-600 dark:text-amber-400' },
-		growth: { label: 'Growth', color: 'text-emerald-600 dark:text-emerald-400' },
-		funding: { label: 'Funding', color: 'text-blue-600 dark:text-blue-400' },
-		general: { label: 'Research', color: 'text-slate-600 dark:text-slate-400' },
-		default: { label: 'Research', color: 'text-slate-500 dark:text-slate-400' }
+		pricing: { label: 'Pricing', color: 'text-warning-600 dark:text-warning-400' },
+		growth: { label: 'Growth', color: 'text-success-600 dark:text-success-400' },
+		funding: { label: 'Funding', color: 'text-info-600 dark:text-info-400' },
+		general: { label: 'Research', color: 'text-neutral-600 dark:text-neutral-400' },
+		default: { label: 'Research', color: 'text-neutral-500 dark:text-neutral-400' }
 	};
 
 	function getCategoryInfo(category: string | null | undefined) {

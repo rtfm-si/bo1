@@ -4,8 +4,10 @@
 	 * Dedicated full-width page for critical system toggles
 	 */
 	import { onMount } from 'svelte';
-	import { Shield, AlertTriangle, RefreshCw, ArrowLeft, Info } from 'lucide-svelte';
+	import { Shield, AlertTriangle, RefreshCw, Info } from 'lucide-svelte';
 	import { BoCard, BoButton, Alert, Badge } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { adminApi, type RuntimeConfigItem } from '$lib/api/admin';
 	import { toast } from '$lib/stores/toast';
 
@@ -200,43 +202,21 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<ArrowLeft class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
-					</a>
-					<div class="flex items-center gap-3">
-						<div class="p-2 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
-							<Shield class="w-6 h-6 text-warning-600 dark:text-warning-400" />
-						</div>
-						<div>
-							<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-								Emergency Toggles
-							</h1>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400">
-								Critical system controls with instant effect
-							</p>
-						</div>
-					</div>
-				</div>
-				<div class="flex items-center gap-3">
-					<BoButton variant="outline" onclick={loadConfig} disabled={loading}>
-						<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
-						Refresh
-					</BoButton>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Emergency Toggles" icon={Shield}>
+		{#snippet badge()}
+			<span class="text-sm text-neutral-600 dark:text-neutral-400">
+				Critical system controls with instant effect
+			</span>
+		{/snippet}
+		{#snippet actions()}
+			<BoButton variant="outline" onclick={loadConfig} disabled={loading}>
+				<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
+				Refresh
+			</BoButton>
+		{/snippet}
+	</AdminPageHeader>
 
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		{#if error}
 			<Alert variant="error" class="mb-6">
 				{error}
@@ -277,9 +257,7 @@
 			</div>
 		{:else if configItems.length === 0}
 			<BoCard>
-				<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">
-					No configurable items available
-				</p>
+				<EmptyState title="No configurable items available" icon={Shield} />
 			</BoCard>
 		{:else}
 			<div class="space-y-8">
@@ -392,8 +370,8 @@
 												>
 													<span
 														class="inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform {item.effective_value
-															? 'translate-x-7'
-															: 'translate-x-1'}"
+															? 'tranneutral-x-7'
+															: 'tranneutral-x-1'}"
 													></span>
 												</button>
 											</div>

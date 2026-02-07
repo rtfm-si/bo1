@@ -8,6 +8,7 @@
 	import { apiClient } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { resetTour } from '$lib/stores/tour';
 	import { APP_VERSION } from '$lib/config/version';
 
@@ -233,8 +234,8 @@
 
 <div class="space-y-6">
 	<!-- Profile Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Profile
 		</h2>
 
@@ -243,24 +244,24 @@
 				<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 					Email Address
 				</p>
-				<p class="text-slate-900 dark:text-white">{displayEmail}</p>
+				<p class="text-neutral-900 dark:text-white">{displayEmail}</p>
 			</div>
 
 			<div>
 				<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 					User ID
 				</p>
-				<p class="text-sm text-slate-500 dark:text-slate-400 font-mono">{$user?.id || 'Unknown'}</p>
+				<p class="text-sm text-neutral-500 dark:text-neutral-400 font-mono">{$user?.id || 'Unknown'}</p>
 			</div>
 		</div>
 	</div>
 
 	<!-- Meeting Preferences Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Meeting Preferences
 		</h2>
-		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 			Customize how meetings work for you.
 		</p>
 
@@ -271,14 +272,14 @@
 
 		{#if isLoadingPrefs}
 			<div class="flex items-center justify-center py-4">
-				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+				<Spinner size="md" />
 			</div>
 		{:else}
 			<div class="space-y-4">
 				<label class="flex items-center justify-between cursor-pointer">
 					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Skip clarifying questions</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="font-medium text-neutral-900 dark:text-white">Skip clarifying questions</p>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Start meetings directly without pre-meeting questions. Use your business profile for context instead.
 						</p>
 					</div>
@@ -290,7 +291,7 @@
 						disabled={isSavingPrefs}
 						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {skipClarification
 							? 'bg-brand-600'
-							: 'bg-slate-300 dark:bg-slate-600'} {isSavingPrefs ? 'opacity-60 cursor-not-allowed' : ''}"
+							: 'bg-neutral-300 dark:bg-neutral-600'} {isSavingPrefs ? 'opacity-60 cursor-not-allowed' : ''}"
 						onclick={toggleAndSave}
 					>
 						{#if isSavingPrefs}
@@ -300,16 +301,16 @@
 						{:else}
 							<span
 								class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {skipClarification
-									? 'translate-x-6'
-									: 'translate-x-1'}"
+									? 'tranneutral-x-6'
+									: 'tranneutral-x-1'}"
 							></span>
 						{/if}
 					</button>
 				</label>
 			</div>
 
-			<div class="mt-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-				<p class="text-sm text-amber-800 dark:text-amber-200">
+			<div class="mt-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4">
+				<p class="text-sm text-warning-800 dark:text-warning-200">
 					<strong>Note:</strong> Changes are saved automatically. Clarifying questions help the experts understand your specific situation.
 					Skipping them may result in more generic recommendations unless you've provided detailed business context.
 				</p>
@@ -318,11 +319,11 @@
 	</div>
 
 	<!-- Currency Preference Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Currency Display
 		</h2>
-		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 			Choose your preferred currency for displaying financial metrics and values.
 		</p>
 
@@ -332,7 +333,7 @@
 
 		{#if isLoadingCurrency}
 			<div class="flex items-center justify-center py-4">
-				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+				<Spinner size="md" />
 			</div>
 		{:else}
 			<div class="flex flex-wrap gap-2">
@@ -344,25 +345,25 @@
 						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
 							{preferredCurrency === value
 								? 'bg-brand-600 text-white hover:bg-brand-700'
-								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+								: 'bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-600'}
 							{isSavingCurrency ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
 					>
 						{symbol} {label}
 					</button>
 				{/each}
 			</div>
-			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+			<p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
 				Changes save automatically. This affects how values are shown in the dashboard and key metrics.
 			</p>
 		{/if}
 	</div>
 
 	<!-- Working Pattern Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Working Days
 		</h2>
-		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 			Select which days you typically work. Non-working days are greyed out in activity visualizations.
 		</p>
 
@@ -372,7 +373,7 @@
 
 		{#if isLoadingPattern}
 			<div class="flex items-center justify-center py-4">
-				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+				<Spinner size="md" />
 			</div>
 		{:else}
 			<div class="flex flex-wrap gap-2">
@@ -384,25 +385,25 @@
 						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
 							{workingDays.includes(value)
 								? 'bg-brand-600 text-white hover:bg-brand-700'
-								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+								: 'bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-600'}
 							{isSavingPattern ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
 					>
 						{label}
 					</button>
 				{/each}
 			</div>
-			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+			<p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
 				Changes save automatically. At least one day must be selected.
 			</p>
 		{/if}
 	</div>
 
 	<!-- Activity Heatmap Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Activity Heatmap
 		</h2>
-		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 			Choose how much history to display in the activity heatmap on your dashboard.
 		</p>
 
@@ -412,7 +413,7 @@
 
 		{#if isLoadingDepth}
 			<div class="flex items-center justify-center py-4">
-				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+				<Spinner size="md" />
 			</div>
 		{:else}
 			<div class="flex flex-wrap gap-2">
@@ -424,29 +425,29 @@
 						class="px-4 py-2 rounded-full text-sm font-medium transition-colors
 							{heatmapDepth === value
 								? 'bg-brand-600 text-white hover:bg-brand-700'
-								: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+								: 'bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-600'}
 							{isSavingDepth ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}"
 					>
 						{label}
 					</button>
 				{/each}
 			</div>
-			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+			<p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
 				Changes save automatically. A shorter history shows a more compact heatmap.
 			</p>
 		{/if}
 	</div>
 
 	<!-- Subscription Section -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 			Subscription
 		</h2>
 
 		<div class="flex items-center justify-between">
 			<div>
 				<p class="text-sm text-neutral-700 dark:text-neutral-300">Current Plan</p>
-				<p class="text-xl font-semibold text-slate-900 dark:text-white">{tierDisplay}</p>
+				<p class="text-xl font-semibold text-neutral-900 dark:text-white">{tierDisplay}</p>
 			</div>
 
 			<a href="/settings/billing">
@@ -458,12 +459,12 @@
 	</div>
 
 	<!-- Privacy & Data Link -->
-	<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+	<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 p-6">
 		<div class="flex items-center gap-4">
 			<div class="text-2xl">&#128274;</div>
 			<div class="flex-1">
-				<h3 class="font-medium text-slate-700 dark:text-slate-300">Privacy & Data</h3>
-				<p class="text-sm text-slate-500 dark:text-slate-400">
+				<h3 class="font-medium text-neutral-700 dark:text-neutral-300">Privacy & Data</h3>
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">
 					Manage email preferences, export your data, or delete your account
 				</p>
 			</div>
@@ -476,12 +477,12 @@
 	</div>
 
 	<!-- Onboarding Tour -->
-	<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+	<div class="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 p-6">
 		<div class="flex items-center gap-4">
 			<div class="text-2xl">&#127891;</div>
 			<div class="flex-1">
-				<h3 class="font-medium text-slate-700 dark:text-slate-300">Onboarding Tour</h3>
-				<p class="text-sm text-slate-500 dark:text-slate-400">
+				<h3 class="font-medium text-neutral-700 dark:text-neutral-300">Onboarding Tour</h3>
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">
 					Take a guided tour of Board of One features
 				</p>
 			</div>
@@ -492,7 +493,7 @@
 	</div>
 
 	<!-- Version Footer -->
-	<p class="text-center text-sm text-slate-400 dark:text-slate-500">
+	<p class="text-center text-sm text-neutral-400 dark:text-neutral-500">
 		Board of One v{APP_VERSION}
 	</p>
 </div>

@@ -75,7 +75,7 @@
 							{/if}
 
 							{#if step.error}
-								<p class="text-sm text-red-600 dark:text-red-400 mt-1">{step.error}</p>
+								<p class="text-sm text-error-600 dark:text-error-400 mt-1">{step.error}</p>
 							{/if}
 						</div>
 					{/each}

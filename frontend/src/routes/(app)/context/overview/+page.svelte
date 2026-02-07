@@ -15,6 +15,7 @@
 	import Input from '$lib/components/ui/Input.svelte';
 	import Dropdown, { type DropdownItem } from '$lib/components/ui/Dropdown.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import GoalHistory from '$lib/components/context/GoalHistory.svelte';
 	import { trackEvent, AnalyticsEvents, trackContextEnriched } from '$lib/utils/analytics';
@@ -301,7 +302,7 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<div class="space-y-6">
@@ -310,7 +311,7 @@
 
 		<!-- Welcome Banner (shown for new users or after onboarding tour) -->
 		{#if showWelcomeBanner}
-			<div class="bg-brand-50 dark:bg-brand-900/20 border-2 border-brand-300 dark:border-brand-700 rounded-lg p-5 {isWelcomeFlow ? 'ring-2 ring-brand-400 ring-offset-2 dark:ring-offset-slate-800' : ''}">
+			<div class="bg-brand-50 dark:bg-brand-900/20 border-2 border-brand-300 dark:border-brand-700 rounded-lg p-5 {isWelcomeFlow ? 'ring-2 ring-brand-400 ring-offset-2 dark:ring-offset-neutral-800' : ''}">
 				<div class="flex items-start gap-4">
 					<div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center">
 						<svg
@@ -375,14 +376,14 @@
 
 		<!-- Last Updated -->
 		{#if lastUpdated}
-			<p class="text-sm text-slate-500 dark:text-slate-400">
+			<p class="text-sm text-neutral-500 dark:text-neutral-400">
 				Last updated: {formatDate(lastUpdated)}
 			</p>
 		{/if}
 
 		<!-- Company Information Section -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 				Company Information
 			</h2>
 
@@ -425,11 +426,11 @@
 					</div>
 
 					{#if enrichmentError}
-						<p class="mt-2 text-sm text-red-600 dark:text-red-400">{enrichmentError}</p>
+						<p class="mt-2 text-sm text-error-600 dark:text-error-400">{enrichmentError}</p>
 					{/if}
 
 					{#if enrichedFields.length > 0}
-						<p class="mt-2 text-sm text-green-600 dark:text-green-400">
+						<p class="mt-2 text-sm text-success-600 dark:text-success-400">
 							Extracted: {enrichedFields.join(', ')}
 						</p>
 					{/if}
@@ -438,8 +439,8 @@
 		</div>
 
 		<!-- Business Details Section -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 				Business Details
 			</h2>
 
@@ -498,7 +499,7 @@
 									onclick={() => {
 										strategicObjectives = strategicObjectives.filter((_, idx) => idx !== i);
 									}}
-									class="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+									class="p-2 text-error-600 hover:text-error-700 dark:text-error-400 dark:hover:text-error-300 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-md transition-colors"
 									aria-label="Remove objective"
 								>
 									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -574,10 +575,10 @@
 		</div>
 
 		<!-- Info Box -->
-		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+		<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -589,9 +590,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">Why provide business context?</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						Your business context helps our AI experts provide more relevant, tailored advice
 						for your specific situation. The more context you provide, the better the
 						recommendations will be.

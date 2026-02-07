@@ -18,6 +18,7 @@
 		ContextProjectSuggestion,
 		ProjectDetailResponse
 	} from '$lib/api/types';
+	import { getPriorityConfig } from '$lib/utils/priority';
 
 	interface Props {
 		open?: boolean;
@@ -203,31 +204,22 @@
 			case 'strategy':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
 			case 'growth':
-				return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			case 'operations':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			case 'product':
 				return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
 			case 'marketing':
 				return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400';
 			case 'finance':
-				return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+				return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400';
 			default:
 				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-900/30 dark:text-neutral-400';
 		}
 	}
 
 	function getPriorityColor(priority: string): string {
-		switch (priority) {
-			case 'high':
-				return 'text-error-600 dark:text-error-400';
-			case 'medium':
-				return 'text-warning-600 dark:text-warning-400';
-			case 'low':
-				return 'text-neutral-500';
-			default:
-				return 'text-neutral-500';
-		}
+		return getPriorityConfig(priority).text;
 	}
 
 	function formatFieldName(field: string): string {

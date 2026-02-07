@@ -115,7 +115,7 @@
 				{percentage}% of threshold - {statusMessage}
 			</span>
 			{#if event.data.converged}
-				<span class="text-green-600 dark:text-green-400 font-semibold flex items-center gap-1">
+				<span class="text-success-600 dark:text-success-400 font-semibold flex items-center gap-1">
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
@@ -128,7 +128,7 @@
 	<!-- NEW: Quality Metrics Grid -->
 	<div class="grid grid-cols-3 gap-4 mt-4">
 		<!-- Novelty Card -->
-		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+		<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3 border border-neutral-200 dark:border-neutral-700">
 			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Novelty</div>
 			<div class="text-lg font-bold {getNoveltyColor(event.data.novelty_score)}">
 				{formatScore(event.data.novelty_score)}
@@ -139,7 +139,7 @@
 		</div>
 
 		<!-- Conflict Card -->
-		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+		<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3 border border-neutral-200 dark:border-neutral-700">
 			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Conflict</div>
 			<div class="text-lg font-bold {getConflictColor(event.data.conflict_score)}">
 				{formatScore(event.data.conflict_score)}
@@ -150,7 +150,7 @@
 		</div>
 
 		<!-- Drift Card -->
-		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+		<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3 border border-neutral-200 dark:border-neutral-700">
 			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Drift Events</div>
 			<div class="text-lg font-bold {getDriftColor(event.data.drift_events)}">
 				{event.data.drift_events}

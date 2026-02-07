@@ -21,32 +21,32 @@
 		{
 			value: 'pending',
 			label: 'Pending',
-			color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+			color: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
 		},
 		{
 			value: 'accepted',
 			label: 'Accepted',
-			color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+			color: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300'
 		},
 		{
 			value: 'in_progress',
 			label: 'In Progress',
-			color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+			color: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300'
 		},
 		{
 			value: 'delayed',
 			label: 'Delayed',
-			color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+			color: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300'
 		},
 		{
 			value: 'rejected',
 			label: 'Rejected',
-			color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+			color: 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300'
 		},
 		{
 			value: 'complete',
 			label: 'Complete',
-			color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+			color: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300'
 		},
 		{
 			value: 'failed',
@@ -67,7 +67,7 @@
 		onchange={handleChange}
 		class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium rounded-lg border-0 {getTaskStatusColor(
 			status
-		)} cursor-pointer focus:ring-2 focus:ring-blue-500 shadow-sm"
+		)} cursor-pointer focus:ring-2 focus:ring-info-500 shadow-sm"
 	>
 		{#each statusOptions as option}
 			<option value={option.value}>{option.label}</option>

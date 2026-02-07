@@ -303,7 +303,7 @@
 												<button
 													type="button"
 													onclick={() => removeConstraint(i)}
-													class="hover:text-red-500"
+													class="hover:text-error-500"
 												>
 													<X class="w-3 h-3" />
 												</button>
@@ -361,7 +361,7 @@
 											onclick={() => removePerspective(i)}
 											class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg"
 										>
-											<Trash2 class="w-4 h-4 text-red-500" />
+											<Trash2 class="w-4 h-4 text-error-500" />
 										</button>
 									</div>
 									<textarea
@@ -423,7 +423,7 @@
 											onclick={() => removeFaq(i)}
 											class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg"
 										>
-											<Trash2 class="w-4 h-4 text-red-500" />
+											<Trash2 class="w-4 h-4 text-error-500" />
 										</button>
 									</div>
 									<textarea

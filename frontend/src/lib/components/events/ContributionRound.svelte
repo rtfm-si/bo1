@@ -58,7 +58,7 @@
 </script>
 
 <div class="space-y-3" transition:fade={{ duration: 300, delay: 50 }}>
-	<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+	<h3 class="text-sm font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-2">
 		<span>Round {roundNumber} Contributions</span>
 	</h3>
 
@@ -81,7 +81,7 @@
 	{#if hasMoreToReveal && nextExpert}
 		<div class="flex items-center gap-2 py-2 px-3" transition:fade={{ duration: 200 }}>
 			<LoadingDots size="sm" variant="thinking" />
-			<span class="text-sm text-slate-500 dark:text-slate-400 italic">
+			<span class="text-sm text-neutral-500 dark:text-neutral-400 italic">
 				{getThinkingMessage(nextExpert, visibleCount)}
 			</span>
 		</div>

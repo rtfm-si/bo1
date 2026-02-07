@@ -47,7 +47,7 @@ const PERSONA_COLORS: Record<string, string> = {
 };
 
 const DEFAULT_PERSONA_COLOR =
-	'bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700';
+	'bg-neutral-100 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700';
 
 export function getPersonaColor(code: string): string {
 	return PERSONA_COLORS[code] ?? DEFAULT_PERSONA_COLOR;
@@ -74,13 +74,13 @@ export function getSessionStatusColor(status: string): string {
 // ============================================================================
 
 const TASK_STATUS_COLORS: Record<string, string> = {
-	pending: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-	accepted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-	in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-	delayed: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-	rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-	complete: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-	failed: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+	pending: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+	accepted: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300',
+	in_progress: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300',
+	delayed: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300',
+	rejected: 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300',
+	complete: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300',
+	failed: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300'
 };
 
 export function getTaskStatusColor(status: string): string {
@@ -106,17 +106,17 @@ export function getTierColor(tier: string): string {
 // ============================================================================
 
 export function getProgressColor(ratio: number): string {
-	if (ratio >= 0.9) return 'bg-green-500 dark:bg-green-600';
-	if (ratio >= 0.7) return 'bg-yellow-500 dark:bg-yellow-600';
-	if (ratio >= 0.4) return 'bg-orange-500 dark:bg-orange-600';
-	return 'bg-red-500 dark:bg-red-600';
+	if (ratio >= 0.9) return 'bg-success-500 dark:bg-success-600';
+	if (ratio >= 0.7) return 'bg-warning-500 dark:bg-warning-600';
+	if (ratio >= 0.4) return 'bg-warning-500 dark:bg-warning-600';
+	return 'bg-error-500 dark:bg-error-600';
 }
 
 export function getProgressTextColor(ratio: number): string {
-	if (ratio >= 0.9) return 'text-green-700 dark:text-green-300';
-	if (ratio >= 0.7) return 'text-yellow-700 dark:text-yellow-300';
-	if (ratio >= 0.4) return 'text-orange-700 dark:text-orange-300';
-	return 'text-red-700 dark:text-red-300';
+	if (ratio >= 0.9) return 'text-success-700 dark:text-success-300';
+	if (ratio >= 0.7) return 'text-warning-700 dark:text-warning-300';
+	if (ratio >= 0.4) return 'text-warning-700 dark:text-warning-300';
+	return 'text-error-700 dark:text-error-300';
 }
 
 export function getProgressStatusMessage(ratio: number): string {
@@ -132,9 +132,9 @@ export function getProgressStatusMessage(ratio: number): string {
 // ============================================================================
 
 export function getConfidenceColor(confidence: number): string {
-	if (confidence >= 0.8) return 'text-green-600 dark:text-green-400';
-	if (confidence >= 0.6) return 'text-yellow-600 dark:text-yellow-400';
-	return 'text-red-600 dark:text-red-400';
+	if (confidence >= 0.8) return 'text-success-600 dark:text-success-400';
+	if (confidence >= 0.6) return 'text-warning-600 dark:text-warning-400';
+	return 'text-error-600 dark:text-error-400';
 }
 
 // ============================================================================
@@ -143,22 +143,22 @@ export function getConfidenceColor(confidence: number): string {
 
 export function getNoveltyColor(score: number | null): string {
 	if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
-	if (score >= 0.7) return 'text-green-600 dark:text-green-400';
-	if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
-	return 'text-red-600 dark:text-red-400';
+	if (score >= 0.7) return 'text-success-600 dark:text-success-400';
+	if (score >= 0.4) return 'text-warning-600 dark:text-warning-400';
+	return 'text-error-600 dark:text-error-400';
 }
 
 export function getConflictColor(score: number | null): string {
 	if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
-	if (score >= 0.7) return 'text-orange-600 dark:text-orange-400';
-	if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
-	return 'text-green-600 dark:text-green-400';
+	if (score >= 0.7) return 'text-warning-600 dark:text-warning-400';
+	if (score >= 0.4) return 'text-warning-600 dark:text-warning-400';
+	return 'text-success-600 dark:text-success-400';
 }
 
 export function getDriftColor(events: number): string {
-	if (events === 0) return 'text-green-600 dark:text-green-400';
-	if (events <= 2) return 'text-yellow-600 dark:text-yellow-400';
-	return 'text-red-600 dark:text-red-400';
+	if (events === 0) return 'text-success-600 dark:text-success-400';
+	if (events <= 2) return 'text-warning-600 dark:text-warning-400';
+	return 'text-error-600 dark:text-error-400';
 }
 
 // ============================================================================
@@ -167,21 +167,21 @@ export function getDriftColor(events: number): string {
 
 const STEP_STATUS_COLORS: Record<StepStatus, StatusColorResult> = {
 	complete: {
-		iconColor: 'text-green-600 dark:text-green-400',
-		labelColor: 'text-green-700 dark:text-green-300',
-		bgColor: 'bg-green-100 dark:bg-green-900/30',
+		iconColor: 'text-success-600 dark:text-success-400',
+		labelColor: 'text-success-700 dark:text-success-300',
+		bgColor: 'bg-success-100 dark:bg-success-900/30',
 		animate: false
 	},
 	active: {
-		iconColor: 'text-blue-600 dark:text-blue-400',
-		labelColor: 'text-blue-700 dark:text-blue-300',
-		bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+		iconColor: 'text-info-600 dark:text-info-400',
+		labelColor: 'text-info-700 dark:text-info-300',
+		bgColor: 'bg-info-100 dark:bg-info-900/30',
 		animate: true
 	},
 	pending: {
-		iconColor: 'text-slate-400 dark:text-slate-500',
-		labelColor: 'text-slate-500 dark:text-slate-400',
-		bgColor: 'bg-slate-100 dark:bg-slate-800/50',
+		iconColor: 'text-neutral-400 dark:text-neutral-500',
+		labelColor: 'text-neutral-500 dark:text-neutral-400',
+		bgColor: 'bg-neutral-100 dark:bg-neutral-800/50',
 		animate: false
 	}
 };
@@ -196,33 +196,33 @@ export function getStepStatusColor(status: StepStatus): StatusColorResult {
 
 const CONNECTION_STATUS_COLORS: Record<ConnectionStatus, StatusColorResult> = {
 	connecting: {
-		iconColor: 'text-blue-500',
-		labelColor: 'text-blue-600 dark:text-blue-400',
-		bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+		iconColor: 'text-info-500',
+		labelColor: 'text-info-600 dark:text-info-400',
+		bgColor: 'bg-info-50 dark:bg-info-900/20',
 		animate: true
 	},
 	connected: {
-		iconColor: 'text-green-500',
-		labelColor: 'text-green-600 dark:text-green-400',
-		bgColor: 'bg-green-50 dark:bg-green-900/20',
+		iconColor: 'text-success-500',
+		labelColor: 'text-success-600 dark:text-success-400',
+		bgColor: 'bg-success-50 dark:bg-success-900/20',
 		animate: false
 	},
 	retrying: {
-		iconColor: 'text-amber-500',
-		labelColor: 'text-amber-600 dark:text-amber-400',
-		bgColor: 'bg-amber-50 dark:bg-amber-900/20',
+		iconColor: 'text-warning-500',
+		labelColor: 'text-warning-600 dark:text-warning-400',
+		bgColor: 'bg-warning-50 dark:bg-warning-900/20',
 		animate: true
 	},
 	error: {
-		iconColor: 'text-red-500',
-		labelColor: 'text-red-600 dark:text-red-400',
-		bgColor: 'bg-red-50 dark:bg-red-900/20',
+		iconColor: 'text-error-500',
+		labelColor: 'text-error-600 dark:text-error-400',
+		bgColor: 'bg-error-50 dark:bg-error-900/20',
 		animate: false
 	},
 	disconnected: {
-		iconColor: 'text-slate-400',
-		labelColor: 'text-slate-500 dark:text-slate-400',
-		bgColor: 'bg-slate-50 dark:bg-slate-800/50',
+		iconColor: 'text-neutral-400',
+		labelColor: 'text-neutral-500 dark:text-neutral-400',
+		bgColor: 'bg-neutral-50 dark:bg-neutral-800/50',
 		animate: false
 	}
 };
@@ -236,10 +236,10 @@ export function getConnectionStatusColor(status: ConnectionStatus): StatusColorR
 // ============================================================================
 
 const AVATAR_STATUS_COLORS: Record<AvatarStatus, string> = {
-	online: 'bg-green-500',
-	offline: 'bg-slate-400',
-	typing: 'bg-blue-500',
-	busy: 'bg-amber-500'
+	online: 'bg-success-500',
+	offline: 'bg-neutral-400',
+	typing: 'bg-info-500',
+	busy: 'bg-warning-500'
 };
 
 export function getAvatarStatusColor(status: AvatarStatus): string {
@@ -251,12 +251,12 @@ export function getAvatarStatusColor(status: AvatarStatus): string {
 // ============================================================================
 
 const USER_STATUS_COLORS: Record<UserStatus, string> = {
-	pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-	invited: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-	converted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-	rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-	active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-	inactive: 'bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-300'
+	pending: 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300',
+	invited: 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300',
+	converted: 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300',
+	rejected: 'bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-300',
+	active: 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300',
+	inactive: 'bg-neutral-100 text-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-300'
 };
 
 export function getUserStatusColor(status: UserStatus): string {
@@ -269,52 +269,52 @@ export function getUserStatusColor(status: UserStatus): string {
 
 const SECTION_STYLES: Record<SectionType, SectionStyleResult> = {
 	executive: {
-		container: 'bg-blue-50 dark:bg-blue-900/20',
-		border: 'border-l-4 border-blue-600 dark:border-blue-400',
-		icon: 'text-blue-600 dark:text-blue-400',
-		title: 'text-blue-900 dark:text-blue-100'
+		container: 'bg-info-50 dark:bg-info-900/20',
+		border: 'border-l-4 border-info-600 dark:border-info-400',
+		icon: 'text-info-600 dark:text-info-400',
+		title: 'text-info-900 dark:text-info-100'
 	},
 	recommendation: {
-		container: 'bg-green-50 dark:bg-green-900/20',
-		border: 'border-l-4 border-green-600 dark:border-green-400',
-		icon: 'text-green-600 dark:text-green-400',
-		title: 'text-green-900 dark:text-green-100'
+		container: 'bg-success-50 dark:bg-success-900/20',
+		border: 'border-l-4 border-success-600 dark:border-success-400',
+		icon: 'text-success-600 dark:text-success-400',
+		title: 'text-success-900 dark:text-success-100'
 	},
 	details: {
-		container: 'bg-slate-50 dark:bg-slate-800/50',
-		border: 'border-l-4 border-slate-400 dark:border-slate-600',
-		icon: 'text-slate-600 dark:text-slate-400',
-		title: 'text-slate-900 dark:text-slate-100'
+		container: 'bg-neutral-50 dark:bg-neutral-800/50',
+		border: 'border-l-4 border-neutral-400 dark:border-neutral-600',
+		icon: 'text-neutral-600 dark:text-neutral-400',
+		title: 'text-neutral-900 dark:text-neutral-100'
 	},
 	success: {
-		container: 'bg-green-50 dark:bg-green-900/20',
-		border: 'border-l-4 border-green-500',
-		icon: 'text-green-600 dark:text-green-400',
-		title: 'text-green-900 dark:text-green-100'
+		container: 'bg-success-50 dark:bg-success-900/20',
+		border: 'border-l-4 border-success-500',
+		icon: 'text-success-600 dark:text-success-400',
+		title: 'text-success-900 dark:text-success-100'
 	},
 	warning: {
-		container: 'bg-amber-50 dark:bg-amber-900/20',
-		border: 'border-l-4 border-amber-500',
-		icon: 'text-amber-600 dark:text-amber-400',
-		title: 'text-amber-900 dark:text-amber-100'
+		container: 'bg-warning-50 dark:bg-warning-900/20',
+		border: 'border-l-4 border-warning-500',
+		icon: 'text-warning-600 dark:text-warning-400',
+		title: 'text-warning-900 dark:text-warning-100'
 	},
 	error: {
-		container: 'bg-red-50 dark:bg-red-900/20',
-		border: 'border-l-4 border-red-500',
-		icon: 'text-red-600 dark:text-red-400',
-		title: 'text-red-900 dark:text-red-100'
+		container: 'bg-error-50 dark:bg-error-900/20',
+		border: 'border-l-4 border-error-500',
+		icon: 'text-error-600 dark:text-error-400',
+		title: 'text-error-900 dark:text-error-100'
 	},
 	info: {
-		container: 'bg-blue-50 dark:bg-blue-900/20',
-		border: 'border-l-4 border-blue-500',
-		icon: 'text-blue-600 dark:text-blue-400',
-		title: 'text-blue-900 dark:text-blue-100'
+		container: 'bg-info-50 dark:bg-info-900/20',
+		border: 'border-l-4 border-info-500',
+		icon: 'text-info-600 dark:text-info-400',
+		title: 'text-info-900 dark:text-info-100'
 	},
 	neutral: {
-		container: 'bg-slate-50 dark:bg-slate-800/50',
-		border: 'border border-slate-200 dark:border-slate-700',
-		icon: 'text-slate-500 dark:text-slate-400',
-		title: 'text-slate-900 dark:text-slate-100'
+		container: 'bg-neutral-50 dark:bg-neutral-800/50',
+		border: 'border border-neutral-200 dark:border-neutral-700',
+		icon: 'text-neutral-500 dark:text-neutral-400',
+		title: 'text-neutral-900 dark:text-neutral-100'
 	}
 };
 
@@ -332,11 +332,11 @@ export function getSectionClasses(type: SectionType): string {
 // ============================================================================
 
 const BADGE_COLORS: Record<BadgeVariant, string> = {
-	success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-	warning: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-	error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-	info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-	neutral: 'bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-300'
+	success: 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300',
+	warning: 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300',
+	error: 'bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-300',
+	info: 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300',
+	neutral: 'bg-neutral-100 text-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-300'
 };
 
 export function getBadgeColor(variant: BadgeVariant): string {
@@ -363,6 +363,27 @@ export function statusToBadgeVariant(
 		return 'info';
 	}
 	return 'neutral';
+}
+
+// ============================================================================
+// CATEGORY COLORS (Insight/metric categories)
+// ============================================================================
+
+const CATEGORY_COLORS: Record<string, string> = {
+	revenue: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300',
+	growth: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300',
+	customers: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300',
+	team: 'bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-300',
+	product: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-300',
+	operations: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300',
+	market: 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300',
+	competition: 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300',
+	funding: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300',
+	costs: 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300',
+};
+
+export function getCategoryColor(category: string): string {
+	return CATEGORY_COLORS[category] ?? 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700/50 dark:text-neutral-300';
 }
 
 // ============================================================================

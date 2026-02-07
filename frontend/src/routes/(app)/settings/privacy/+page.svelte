@@ -9,6 +9,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Retention period options (days) - 1-3 years or forever
 	const RETENTION_OPTIONS = [
@@ -209,9 +210,7 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div
-			class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<div class="space-y-6">
@@ -227,10 +226,10 @@
 
 		<!-- Legal Agreements -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Legal Agreements</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Legal Agreements</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 				Your consent to our terms and policies.
 			</p>
 
@@ -250,10 +249,10 @@
 					{#each Object.entries(policyGroups) as [policyType, consent]}
 						<div class="flex items-start justify-between">
 							<div>
-								<p class="font-medium text-slate-900 dark:text-white">
+								<p class="font-medium text-neutral-900 dark:text-white">
 									{consent.policy_label || 'Terms & Conditions'}
 								</p>
-								<p class="text-sm text-slate-500 dark:text-slate-400">
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">
 									Version {consent.version} · Accepted on {new Date(
 										consent.consented_at
 									).toLocaleDateString()}
@@ -268,7 +267,7 @@
 						</div>
 					{/each}
 				{:else}
-					<p class="text-sm text-slate-500 dark:text-slate-400 italic">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400 italic">
 						No consent records found.
 					</p>
 				{/if}
@@ -277,18 +276,18 @@
 
 		<!-- Email Preferences -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Email Preferences</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Email Preferences</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
 				Choose which emails you want to receive from Board of One.
 			</p>
 
 			<div class="space-y-4">
 				<label class="flex items-center justify-between cursor-pointer">
 					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Meeting notifications</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="font-medium text-neutral-900 dark:text-white">Meeting notifications</p>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Emails when your meetings complete
 						</p>
 					</div>
@@ -299,23 +298,23 @@
 						aria-label="Toggle meeting notifications"
 						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {emailPrefs?.meeting_emails
 							? 'bg-brand-600'
-							: 'bg-slate-300 dark:bg-slate-600'}"
+							: 'bg-neutral-300 dark:bg-neutral-600'}"
 						onclick={() => {
 							if (emailPrefs) emailPrefs.meeting_emails = !emailPrefs.meeting_emails;
 						}}
 					>
 						<span
 							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {emailPrefs?.meeting_emails
-								? 'translate-x-6'
-								: 'translate-x-1'}"
+								? 'tranneutral-x-6'
+								: 'tranneutral-x-1'}"
 						></span>
 					</button>
 				</label>
 
 				<label class="flex items-center justify-between cursor-pointer">
 					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Action reminders</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="font-medium text-neutral-900 dark:text-white">Action reminders</p>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Reminders for upcoming and overdue actions
 						</p>
 					</div>
@@ -326,23 +325,23 @@
 						aria-label="Toggle action reminders"
 						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {emailPrefs?.reminder_emails
 							? 'bg-brand-600'
-							: 'bg-slate-300 dark:bg-slate-600'}"
+							: 'bg-neutral-300 dark:bg-neutral-600'}"
 						onclick={() => {
 							if (emailPrefs) emailPrefs.reminder_emails = !emailPrefs.reminder_emails;
 						}}
 					>
 						<span
 							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {emailPrefs?.reminder_emails
-								? 'translate-x-6'
-								: 'translate-x-1'}"
+								? 'tranneutral-x-6'
+								: 'tranneutral-x-1'}"
 						></span>
 					</button>
 				</label>
 
 				<label class="flex items-center justify-between cursor-pointer">
 					<div>
-						<p class="font-medium text-slate-900 dark:text-white">Weekly digest</p>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="font-medium text-neutral-900 dark:text-white">Weekly digest</p>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Weekly summary of your meetings and actions
 						</p>
 					</div>
@@ -353,15 +352,15 @@
 						aria-label="Toggle weekly digest"
 						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {emailPrefs?.digest_emails
 							? 'bg-brand-600'
-							: 'bg-slate-300 dark:bg-slate-600'}"
+							: 'bg-neutral-300 dark:bg-neutral-600'}"
 						onclick={() => {
 							if (emailPrefs) emailPrefs.digest_emails = !emailPrefs.digest_emails;
 						}}
 					>
 						<span
 							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {emailPrefs?.digest_emails
-								? 'translate-x-6'
-								: 'translate-x-1'}"
+								? 'tranneutral-x-6'
+								: 'tranneutral-x-1'}"
 						></span>
 					</button>
 				</label>
@@ -376,10 +375,10 @@
 
 		<!-- Data Retention -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Data Retention</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Data Retention</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 				Choose how long to keep your meeting data. After this period, meetings, actions, and
 				associated data will be automatically deleted. Select "Forever" to keep data until you
 				delete your account.
@@ -402,7 +401,7 @@
 				<select
 					id="retention-select"
 					bind:value={retentionDays}
-					class="flex-1 sm:flex-none sm:w-48 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+					class="flex-1 sm:flex-none sm:w-48 px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
 				>
 					{#each displayOptions() as option}
 						<option value={option.value}>{option.label}</option>
@@ -413,25 +412,25 @@
 				</Button>
 			</div>
 
-			<div class="mt-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-				<p class="text-sm text-amber-800 dark:text-amber-200">
+			<div class="mt-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4">
+				<p class="text-sm text-warning-800 dark:text-warning-200">
 					<strong>What gets deleted:</strong> Meetings, contributions, actions, and session data older
 					than your retention period. Your profile, business context, and datasets are not affected.
 				</p>
 			</div>
 
-			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+			<p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
 				Note: Changing to a shorter period does not immediately delete data. The cleanup job runs
 				periodically.
 			</p>
 
 			<!-- Deletion Reminder Emails Toggle -->
 			{#if retentionDays !== -1}
-				<div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+				<div class="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700">
 					<label class="flex items-center justify-between cursor-pointer">
 						<div>
-							<p class="font-medium text-slate-900 dark:text-white">Deletion reminder emails</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
+							<p class="font-medium text-neutral-900 dark:text-white">Deletion reminder emails</p>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">
 								Receive reminders before your data is scheduled for deletion
 							</p>
 						</div>
@@ -443,17 +442,17 @@
 							disabled={isSavingReminderSuppression}
 							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 {!deletionRemindersSuppressed
 								? 'bg-brand-600'
-								: 'bg-slate-300 dark:bg-slate-600'}"
+								: 'bg-neutral-300 dark:bg-neutral-600'}"
 							onclick={toggleDeletionReminders}
 						>
 							<span
 								class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {!deletionRemindersSuppressed
-									? 'translate-x-6'
-									: 'translate-x-1'}"
+									? 'tranneutral-x-6'
+									: 'tranneutral-x-1'}"
 							></span>
 						</button>
 					</label>
-					<p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+					<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 						We'll send you a reminder at 28 days and 1 day before scheduled data deletion.
 					</p>
 				</div>
@@ -462,10 +461,10 @@
 
 		<!-- Data Export -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
-			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Export Your Data</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Export Your Data</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 				Download a copy of all your data including your profile, business context, meetings,
 				actions, and datasets. This export is provided in JSON format.
 			</p>
@@ -482,17 +481,17 @@
 				{/if}
 			</Button>
 
-			<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+			<p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
 				Note: You can request a data export once every 24 hours.
 			</p>
 		</div>
 
 		<!-- Account Deletion -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-error-200 dark:border-error-800 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-error-200 dark:border-error-800 p-6"
 		>
 			<h2 class="text-lg font-semibold text-error-700 dark:text-error-400 mb-4">Delete Account</h2>
-			<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 				Permanently delete your account and all associated data. This action cannot be undone.
 			</p>
 
@@ -513,11 +512,11 @@
 
 		<!-- GDPR Info -->
 		<div
-			class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+			class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4"
 		>
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -529,9 +528,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">Your Privacy Rights</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						Under GDPR, you have the right to access, export, and delete your personal data. For
 						more information, see our
 						<a href="/legal/privacy" class="underline hover:no-underline">Privacy Policy</a>.
@@ -553,7 +552,7 @@
 			<Alert variant="warning">{deleteError}</Alert>
 		{/if}
 
-		<p class="text-slate-700 dark:text-slate-300">
+		<p class="text-neutral-700 dark:text-neutral-300">
 			To confirm deletion, please type <span class="font-mono font-bold">DELETE</span> below:
 		</p>
 
@@ -561,7 +560,7 @@
 			type="text"
 			bind:value={deleteConfirmText}
 			placeholder="Type DELETE to confirm"
-			class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-error-500 focus:border-error-500"
+			class="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-error-500 focus:border-error-500"
 		/>
 	</div>
 

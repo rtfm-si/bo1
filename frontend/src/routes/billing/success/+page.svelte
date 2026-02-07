@@ -37,21 +37,21 @@
 	<title>Payment Successful - Board of One</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
+<div class="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-900 p-4">
 	<div class="max-w-md w-full">
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8 text-center">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-8 text-center">
 			<!-- Success Icon -->
-			<div class="w-16 h-16 mx-auto mb-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-				<svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<div class="w-16 h-16 mx-auto mb-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+				<svg class="w-8 h-8 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 				</svg>
 			</div>
 
-			<h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+			<h1 class="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
 				Payment Successful!
 			</h1>
 
-			<p class="text-slate-600 dark:text-slate-400 mb-6">
+			<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 				Thank you for upgrading your subscription. Your new plan is now active.
 			</p>
 
@@ -68,7 +68,7 @@
 				</Button>
 			</div>
 
-			<p class="mt-4 text-sm text-slate-500 dark:text-slate-400">
+			<p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400">
 				Redirecting in {countdown} seconds...
 			</p>
 		</div>

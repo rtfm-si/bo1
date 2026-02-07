@@ -26,6 +26,9 @@
 	import DecisionEditorModal from '$lib/components/admin/DecisionEditorModal.svelte';
 	import DecisionGenerateModal from '$lib/components/admin/DecisionGenerateModal.svelte';
 	import FeaturedDecisionsModal from '$lib/components/admin/FeaturedDecisionsModal.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
 
 	// State
 	let decisions = $state<Decision[]>([]);
@@ -173,7 +176,7 @@
 			case 'draft':
 				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300';
 			case 'published':
-				return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+				return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400';
 			default:
 				return 'bg-neutral-100 text-neutral-600';
 		}
@@ -181,14 +184,14 @@
 
 	function getCategoryColor(category: string) {
 		const colors: Record<string, string> = {
-			hiring: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+			hiring: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400',
 			pricing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-			fundraising: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+			fundraising: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400',
 			marketing: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
 			strategy: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 			product: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 			operations: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-			growth: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+			growth: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
 		};
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
@@ -203,65 +206,35 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div class="flex items-center gap-2">
-						<BookOpen class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-xl font-semibold text-neutral-900 dark:text-white">Decision Library</h1>
-					</div>
-					<span
-						class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400"
-					>
-						{total} decisions
-					</span>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button variant="outline" size="sm" onclick={() => loadDecisions()} disabled={isLoading}>
-						<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
-						Refresh
-					</Button>
-					<Button variant="outline" size="sm" onclick={() => (showFeaturedModal = true)}>
-						<LayoutGrid class="w-4 h-4 mr-1.5" />
-						Manage Featured
-					</Button>
-					<Button variant="outline" size="sm" onclick={() => (showGenerateModal = true)}>
-						<Sparkles class="w-4 h-4 mr-1.5" />
-						Generate
-					</Button>
-					<Button size="sm" onclick={() => openEditor()}>
-						<Plus class="w-4 h-4 mr-1.5" />
-						New Decision
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Decision Library" icon={BookOpen}>
+		{#snippet badge()}
+			<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+				{total} decisions
+			</span>
+		{/snippet}
+		{#snippet actions()}
+			<Button variant="outline" size="sm" onclick={() => loadDecisions()} disabled={isLoading}>
+				<RefreshCw class="w-4 h-4 mr-1.5 {isLoading ? 'animate-spin' : ''}" />
+				Refresh
+			</Button>
+			<Button variant="outline" size="sm" onclick={() => (showFeaturedModal = true)}>
+				<LayoutGrid class="w-4 h-4 mr-1.5" />
+				Manage Featured
+			</Button>
+			<Button variant="outline" size="sm" onclick={() => (showGenerateModal = true)}>
+				<Sparkles class="w-4 h-4 mr-1.5" />
+				Generate
+			</Button>
+			<Button size="sm" onclick={() => openEditor()}>
+				<Plus class="w-4 h-4 mr-1.5" />
+				New Decision
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Filters -->
 	<div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
 			<div class="flex items-center justify-between py-3">
 				<!-- Status tabs -->
 				<nav class="flex gap-6" aria-label="Status filter">
@@ -296,10 +269,10 @@
 	</div>
 
 	<!-- Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 		{#if error}
-			<div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-4 mb-6">
-				<p class="text-sm text-red-700 dark:text-red-400">{error}</p>
+			<div class="rounded-lg bg-error-50 dark:bg-error-900/20 p-4 mb-6">
+				<p class="text-sm text-error-700 dark:text-error-400">{error}</p>
 			</div>
 		{/if}
 
@@ -310,15 +283,8 @@
 				{/each}
 			</div>
 		{:else if filteredDecisions().length === 0}
-			<div class="text-center py-12">
-				<BookOpen class="w-12 h-12 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" />
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-					No decisions yet
-				</h3>
-				<p class="text-neutral-500 dark:text-neutral-400 mb-4">
-					Create decision pages to help founders with common strategic questions.
-				</p>
-				<div class="flex justify-center gap-3">
+			<EmptyState title="No decisions yet" description="Create decision pages to help founders with common strategic questions." icon={BookOpen}>
+				{#snippet actions()}
 					<Button variant="outline" onclick={() => (showGenerateModal = true)}>
 						<Sparkles class="w-4 h-4 mr-1.5" />
 						Generate with AI
@@ -327,8 +293,8 @@
 						<Plus class="w-4 h-4 mr-1.5" />
 						New Decision
 					</Button>
-				</div>
-			</div>
+				{/snippet}
+			</EmptyState>
 		{:else}
 			<div class="space-y-4">
 				{#each filteredDecisions() as decision (decision.id)}
@@ -397,7 +363,7 @@
 								>
 									<Star
 										class="w-4 h-4 {decision.homepage_featured
-											? 'text-amber-500 fill-amber-500'
+											? 'text-warning-500 fill-amber-500'
 											: 'text-neutral-400'}"
 									/>
 								</button>
@@ -417,7 +383,7 @@
 									<Edit class="w-4 h-4" />
 								</Button>
 								<Button variant="ghost" size="sm" onclick={() => requestDelete(decision)}>
-									<Trash2 class="w-4 h-4 text-red-500" />
+									<Trash2 class="w-4 h-4 text-error-500" />
 								</Button>
 							</div>
 						</div>
@@ -429,22 +395,19 @@
 </div>
 
 <!-- Delete confirmation -->
-{#if deleteConfirm}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-		<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 max-w-md mx-4">
-			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">Delete Decision?</h3>
-			<p class="text-neutral-600 dark:text-neutral-400 mb-4">
-				Are you sure you want to delete "{deleteConfirm.title}"? This cannot be undone.
-			</p>
-			<div class="flex justify-end gap-3">
-				<Button variant="outline" onclick={cancelDelete} disabled={isDeleting}>Cancel</Button>
-				<Button variant="danger" onclick={confirmDelete} disabled={isDeleting}>
-					{isDeleting ? 'Deleting...' : 'Delete'}
-				</Button>
-			</div>
+<Modal open={!!deleteConfirm} title="Delete Decision?" size="sm" onclose={cancelDelete}>
+	<p class="text-neutral-600 dark:text-neutral-400">
+		Are you sure you want to delete "{deleteConfirm?.title}"? This cannot be undone.
+	</p>
+	{#snippet footer()}
+		<div class="flex justify-end gap-3">
+			<Button variant="outline" onclick={cancelDelete} disabled={isDeleting}>Cancel</Button>
+			<Button variant="danger" onclick={confirmDelete} disabled={isDeleting}>
+				{isDeleting ? 'Deleting...' : 'Delete'}
+			</Button>
 		</div>
-	</div>
-{/if}
+	{/snippet}
+</Modal>
 
 <!-- Editor Modal -->
 {#if showEditorModal}

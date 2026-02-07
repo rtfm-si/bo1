@@ -2,7 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import { ChevronLeft, ChevronRight, FileText, Clock, Globe, User } from 'lucide-svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	interface ConsentAuditItem {
 		user_id: string;
@@ -86,34 +88,11 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center gap-4">
-				<a
-					href="/admin"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-					aria-label="Back to admin"
-				>
-					<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-					</svg>
-				</a>
-				<div>
-					<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-						Terms & Conditions
-					</h1>
-					<p class="text-sm text-neutral-600 dark:text-neutral-400">
-						User consent history with timestamps, versions, and IPs
-					</p>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Terms & Conditions" />
 
 	<!-- Tabs -->
 	<div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
 			<nav class="flex gap-4">
 				<a
 					href="/admin/terms"
@@ -133,7 +112,7 @@
 	</div>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Filters -->
 		<div class="mb-6 bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
 			<div class="flex items-center gap-4 flex-wrap">
@@ -192,13 +171,7 @@
 
 		<!-- Table -->
 		{#if consents.length === 0}
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
-				<FileText class="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-				<p class="text-neutral-600 dark:text-neutral-400">No consent records found</p>
-				<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
-					Try adjusting the time period filter
-				</p>
-			</div>
+			<EmptyState title="No consent records found" description="Try adjusting the time period filter" icon={FileText} />
 		{:else}
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
 				<div class="overflow-x-auto">

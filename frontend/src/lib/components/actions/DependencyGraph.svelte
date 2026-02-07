@@ -66,9 +66,9 @@
 		},
 		replanned: {
 			label: 'Replanned',
-			bgColor: 'bg-amber-50 dark:bg-amber-900/20',
-			textColor: 'text-amber-700 dark:text-amber-300',
-			borderColor: 'border-amber-300 dark:border-amber-700'
+			bgColor: 'bg-warning-50 dark:bg-warning-900/20',
+			textColor: 'text-warning-700 dark:text-warning-300',
+			borderColor: 'border-warning-300 dark:border-warning-700'
 		}
 	};
 

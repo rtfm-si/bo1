@@ -42,6 +42,13 @@ export { default as SynthesisProgress } from './SynthesisProgress.svelte';
 export { default as LazyRender } from './LazyRender.svelte';
 export { default as VirtualizedList } from './VirtualizedList.svelte';
 
+// Stat components
+export { default as StatCard } from './StatCard.svelte';
+export { default as StatCardRow } from './StatCardRow.svelte';
+
+// Panel components
+export { default as PanelCard } from './PanelCard.svelte';
+
 // Feedback components
 export { default as RatingPrompt } from './RatingPrompt.svelte';
 

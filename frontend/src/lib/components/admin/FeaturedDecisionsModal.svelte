@@ -84,14 +84,14 @@
 
 	function getCategoryColor(category: string) {
 		const colors: Record<string, string> = {
-			hiring: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+			hiring: 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400',
 			pricing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-			fundraising: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+			fundraising: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400',
 			marketing: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
 			strategy: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 			product: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 			operations: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-			growth: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+			growth: 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
 		};
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
@@ -113,7 +113,7 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
 			<div class="flex items-center gap-2">
-				<Star class="w-5 h-5 text-amber-500" />
+				<Star class="w-5 h-5 text-warning-500" />
 				<h2 id="modal-title" class="text-lg font-semibold text-neutral-900 dark:text-white">
 					Homepage Featured
 				</h2>
@@ -133,8 +133,8 @@
 		<!-- Content -->
 		<div class="flex-1 overflow-y-auto p-6">
 			{#if error}
-				<div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 mb-4">
-					<p class="text-sm text-red-700 dark:text-red-400">{error}</p>
+				<div class="rounded-lg bg-error-50 dark:bg-error-900/20 p-3 mb-4">
+					<p class="text-sm text-error-700 dark:text-error-400">{error}</p>
 				</div>
 			{/if}
 
@@ -184,10 +184,10 @@
 							</div>
 							<button
 								onclick={() => removeFromFeatured(decision)}
-								class="flex-shrink-0 p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+								class="flex-shrink-0 p-1.5 hover:bg-error-100 dark:hover:bg-error-900/30 rounded-lg transition-colors"
 								title="Remove from featured"
 							>
-								<Trash2 class="w-4 h-4 text-red-500" />
+								<Trash2 class="w-4 h-4 text-error-500" />
 							</button>
 						</div>
 					{/each}

@@ -160,11 +160,11 @@
 					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700">
 						<h3 class="font-bold text-neutral-900 dark:text-neutral-100 mb-4">Things you might hesitate to share in a mastermind</h3>
 						<ul class="space-y-2 text-neutral-600 dark:text-neutral-400 text-sm">
-							<li class="flex items-start gap-2"><span class="text-red-500">→</span>Exact revenue and financial details</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">→</span>Issues with specific team members</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">→</span>Concerns about a competitor in the room</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">→</span>Doubts about your own ability</li>
-							<li class="flex items-start gap-2"><span class="text-red-500">→</span>Strategic moves you don't want leaked</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">→</span>Exact revenue and financial details</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">→</span>Issues with specific team members</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">→</span>Concerns about a competitor in the room</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">→</span>Doubts about your own ability</li>
+							<li class="flex items-start gap-2"><span class="text-error-500">→</span>Strategic moves you don't want leaked</li>
 						</ul>
 					</div>
 					<div class="bg-brand-50 dark:bg-brand-900/20 rounded-xl p-6 border border-brand-200 dark:border-brand-800">

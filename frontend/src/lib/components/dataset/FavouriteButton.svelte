@@ -31,8 +31,8 @@
 	disabled={loading}
 	class="rounded-lg transition-all duration-200 {buttonSizeClasses[size]}
 		{isFavourited
-		? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-900/20'
-		: 'text-neutral-400 hover:text-amber-500 hover:bg-neutral-100 dark:hover:bg-neutral-700'}
+		? 'text-warning-500 hover:text-warning-600 bg-warning-50 dark:bg-warning-900/20'
+		: 'text-neutral-400 hover:text-warning-500 hover:bg-neutral-100 dark:hover:bg-neutral-700'}
 		disabled:opacity-50 disabled:cursor-not-allowed"
 	title={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
 >

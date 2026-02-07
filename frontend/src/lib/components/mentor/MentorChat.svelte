@@ -444,7 +444,7 @@
 			<div class="relative">
 				<div class="flex items-center gap-2">
 					<div class="relative flex-1">
-						<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+						<Search class="absolute left-3 top-1/2 -tranneutral-y-1/2 w-4 h-4 text-neutral-400" />
 						<input
 							type="text"
 							value={searchQuery}
@@ -453,7 +453,7 @@
 							class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
 						/>
 						{#if isSearching}
-							<Loader2 class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 animate-spin" />
+							<Loader2 class="absolute right-3 top-1/2 -tranneutral-y-1/2 w-4 h-4 text-neutral-400 animate-spin" />
 						{/if}
 					</div>
 				</div>

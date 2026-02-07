@@ -253,8 +253,8 @@
 							<!-- Success Metrics & Risks Grid -->
 							<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 								<!-- Success Metrics -->
-								<div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-									<h5 class="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+								<div class="bg-success-50 dark:bg-success-900/20 rounded-lg p-4">
+									<h5 class="text-xs font-semibold uppercase tracking-wide text-success-700 dark:text-success-300 mb-3 flex items-center gap-2">
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 										</svg>
@@ -262,8 +262,8 @@
 									</h5>
 									<ul class="space-y-2">
 										{#each action.success_metrics as metric (metric)}
-											<li class="flex items-start gap-2 text-sm text-green-800 dark:text-green-200 leading-relaxed">
-												<span class="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0">✓</span>
+											<li class="flex items-start gap-2 text-sm text-success-800 dark:text-success-200 leading-relaxed">
+												<span class="text-success-500 dark:text-success-400 mt-0.5 flex-shrink-0">✓</span>
 												<span>{metric}</span>
 											</li>
 										{/each}
@@ -271,8 +271,8 @@
 								</div>
 
 								<!-- Risks -->
-								<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-									<h5 class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-3 flex items-center gap-2">
+								<div class="bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4">
+									<h5 class="text-xs font-semibold uppercase tracking-wide text-warning-700 dark:text-warning-300 mb-3 flex items-center gap-2">
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 										</svg>
@@ -280,8 +280,8 @@
 									</h5>
 									<ul class="space-y-2">
 										{#each action.risks as risk (risk)}
-											<li class="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-												<span class="text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
+											<li class="flex items-start gap-2 text-sm text-warning-800 dark:text-warning-200 leading-relaxed">
+												<span class="text-warning-500 dark:text-warning-400 mt-0.5 flex-shrink-0">⚠</span>
 												<span>{risk}</span>
 											</li>
 										{/each}

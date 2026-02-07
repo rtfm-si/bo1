@@ -9,6 +9,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { MetricSuggestion } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Props
 	interface Props {
@@ -138,13 +139,13 @@
 
 {#if isLoading}
 	<div class="flex items-center justify-center py-4">
-		<div class="animate-spin h-5 w-5 border-2 border-brand-600 border-t-transparent rounded-full"></div>
+		<Spinner size="sm" />
 	</div>
 {:else if suggestions.length === 0}
 	<!-- Empty state - don't show the card at all -->
 {:else}
 	<div
-		class="bg-gradient-to-r from-brand-50 to-indigo-50 dark:from-brand-900/20 dark:to-indigo-900/20 rounded-xl border border-brand-200 dark:border-brand-800"
+		class="bg-gradient-to-r from-brand-50 to-info-50 dark:from-brand-900/20 dark:to-info-900/20 rounded-xl border border-brand-200 dark:border-brand-800"
 	>
 		<!-- Header -->
 		<div class="p-4 border-b border-brand-200 dark:border-brand-800">
@@ -152,10 +153,10 @@
 				<div class="flex items-center gap-2">
 					<span class="text-lg">💡</span>
 					<div>
-						<h3 class="text-sm font-semibold text-slate-900 dark:text-white">
+						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">
 							Suggested from Insights
 						</h3>
-						<p class="text-xs text-slate-500 dark:text-slate-400">
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">
 							We found these values in your meeting Q&A
 						</p>
 					</div>
@@ -210,14 +211,14 @@
 						<div class="flex-1 min-w-0">
 							<!-- Field name and change -->
 							<div class="flex items-center gap-2 mb-1">
-								<span class="font-medium text-slate-900 dark:text-white text-sm">
+								<span class="font-medium text-neutral-900 dark:text-white text-sm">
 									{fieldLabel}
 								</span>
 								{#if suggestion.current_value}
-									<span class="text-xs text-slate-400 dark:text-slate-500 line-through">
+									<span class="text-xs text-neutral-400 dark:text-neutral-500 line-through">
 										{suggestion.current_value}
 									</span>
-									<span class="text-slate-400">→</span>
+									<span class="text-neutral-400">→</span>
 								{/if}
 								<span class="font-semibold text-brand-600 dark:text-brand-400">
 									{suggestion.suggested_value}
@@ -226,14 +227,14 @@
 
 							<!-- Source question -->
 							<p
-								class="text-xs text-slate-500 dark:text-slate-400 italic"
+								class="text-xs text-neutral-500 dark:text-neutral-400 italic"
 								title={suggestion.source_question}
 							>
 								"{truncateQuestion(suggestion.source_question)}"
 							</p>
 
 							<!-- Metadata -->
-							<div class="flex items-center gap-3 mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+							<div class="flex items-center gap-3 mt-1.5 text-xs text-neutral-400 dark:text-neutral-500">
 								<span
 									class="inline-flex items-center gap-1"
 									title="How confident we are in this extraction"
@@ -262,7 +263,7 @@
 								{/if}
 							</button>
 							<button
-								class="px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+								class="px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
 								onclick={() => dismiss(suggestion.field)}
 								disabled={processingField !== null}
 								title="Dismiss this suggestion"

@@ -16,6 +16,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// State
 	let isLoading = $state(true);
@@ -151,9 +152,9 @@
 			case 'pro':
 				return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
 			case 'starter':
-				return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+				return 'bg-info-100 text-info-700 dark:bg-info-900/30 dark:text-info-400';
 			default:
-				return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+				return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300';
 		}
 	}
 
@@ -203,9 +204,9 @@
 
 	// Get completeness color
 	function getCompletenessColor(percentage: number): string {
-		if (percentage >= 75) return 'bg-green-500';
-		if (percentage >= 50) return 'bg-amber-500';
-		return 'bg-red-400';
+		if (percentage >= 75) return 'bg-success-500';
+		if (percentage >= 50) return 'bg-warning-500';
+		return 'bg-error-400';
 	}
 
 	// Collapsible sections state
@@ -235,25 +236,23 @@
 	<title>Competitor Watch - Board of One</title>
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div
-			class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<div class="space-y-6">
 		<!-- Header -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
 			<div class="flex items-center justify-between mb-4">
 				<div class="flex items-center gap-3">
 					<span class="text-2xl">🔍</span>
 					<div>
-						<h2 class="text-lg font-semibold text-slate-900 dark:text-white">Competitor Watch</h2>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Competitor Watch</h2>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							Track and monitor your competitors with AI-powered intelligence
 						</p>
 					</div>
@@ -262,7 +261,7 @@
 					<span class={`text-xs px-2 py-1 rounded-full font-medium ${getTierBadgeColor(tier)}`}>
 						{tier.charAt(0).toUpperCase() + tier.slice(1)} Plan
 					</span>
-					<span class="text-sm text-slate-500 dark:text-slate-400">
+					<span class="text-sm text-neutral-500 dark:text-neutral-400">
 						{competitors.length}/{maxAllowed} tracked
 					</span>
 				</div>
@@ -270,7 +269,7 @@
 
 			<!-- Data depth indicator -->
 			<div
-				class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2"
+				class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg px-3 py-2"
 			>
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
@@ -302,9 +301,9 @@
 		<!-- Add competitor form -->
 		{#if competitors.length < maxAllowed}
 			<div
-				class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+				class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 			>
-				<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">Add Competitor</h3>
+				<h3 class="text-sm font-semibold text-neutral-900 dark:text-white mb-4">Add Competitor</h3>
 				<div class="flex gap-4">
 					<div class="flex-1">
 						<Input
@@ -323,11 +322,11 @@
 			</div>
 		{:else}
 			<div
-				class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4"
+				class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4"
 			>
 				<div class="flex gap-3">
 					<svg
-						class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0"
+						class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -339,13 +338,13 @@
 							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
 						/>
 					</svg>
-					<div class="text-sm text-amber-900 dark:text-amber-200">
+					<div class="text-sm text-warning-900 dark:text-warning-200">
 						<p class="font-semibold">Competitor limit reached</p>
-						<p class="text-amber-800 dark:text-amber-300">
+						<p class="text-warning-800 dark:text-warning-300">
 							You're tracking the maximum {maxAllowed} competitors on the {tier} plan.
 							<a
 								href="/settings/billing"
-								class="text-amber-700 dark:text-amber-400 font-medium hover:underline"
+								class="text-warning-700 dark:text-warning-400 font-medium hover:underline"
 							>
 								Upgrade to track more
 							</a>
@@ -359,7 +358,7 @@
 		{#if competitors.length > 0}
 			<div class="space-y-4">
 				<div class="flex items-center justify-between">
-					<h3 class="text-sm font-semibold text-slate-900 dark:text-white">Tracked Competitors</h3>
+					<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">Tracked Competitors</h3>
 					<Button
 						variant="outline"
 						size="sm"
@@ -373,18 +372,18 @@
 
 				<!-- Quick Comparison Table (Standard/Deep tier, >1 competitor) -->
 				{#if dataDepth !== 'basic' && competitors.length > 1}
-					<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+					<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
 						<button
 							type="button"
-							class="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+							class="w-full flex items-center justify-between p-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
 							onclick={() => showComparison = !showComparison}
 						>
 							<div class="flex items-center gap-2">
 								<span class="text-lg">📊</span>
-								<span class="font-semibold text-slate-900 dark:text-white">Quick Comparison</span>
+								<span class="font-semibold text-neutral-900 dark:text-white">Quick Comparison</span>
 							</div>
 							<svg
-								class="w-5 h-5 text-slate-400 transition-transform {showComparison ? 'rotate-180' : ''}"
+								class="w-5 h-5 text-neutral-400 transition-transform {showComparison ? 'rotate-180' : ''}"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -393,47 +392,47 @@
 							</svg>
 						</button>
 						{#if showComparison}
-							<div class="border-t border-slate-200 dark:border-slate-700 overflow-x-auto">
+							<div class="border-t border-neutral-200 dark:border-neutral-700 overflow-x-auto">
 								<table class="w-full text-sm">
-									<thead class="bg-slate-50 dark:bg-slate-700/50">
+									<thead class="bg-neutral-50 dark:bg-neutral-700/50">
 										<tr>
-											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Competitor</th>
-											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Industry</th>
-											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Pricing</th>
-											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Target Market</th>
+											<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Competitor</th>
+											<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Industry</th>
+											<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Pricing</th>
+											<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Target Market</th>
 											{#if dataDepth === 'deep'}
-												<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Team Size</th>
+												<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Team Size</th>
 											{/if}
-											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Data</th>
+											<th class="px-4 py-3 text-left font-medium text-neutral-600 dark:text-neutral-300">Data</th>
 										</tr>
 									</thead>
-									<tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+									<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
 										{#each competitors as competitor (competitor.id)}
 											{@const completeness = getDataCompleteness(competitor)}
-											<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-												<td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
+											<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-700/30">
+												<td class="px-4 py-3 font-medium text-neutral-900 dark:text-white">
 													{competitor.name}
 												</td>
-												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+												<td class="px-4 py-3 text-neutral-600 dark:text-neutral-400">
 													{competitor.industry || '—'}
 												</td>
-												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+												<td class="px-4 py-3 text-neutral-600 dark:text-neutral-400">
 													{competitor.pricing_model || '—'}
 												</td>
-												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+												<td class="px-4 py-3 text-neutral-600 dark:text-neutral-400">
 													{competitor.target_market || '—'}
 												</td>
 												{#if dataDepth === 'deep'}
-													<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+													<td class="px-4 py-3 text-neutral-600 dark:text-neutral-400">
 														{competitor.employee_count || '—'}
 													</td>
 												{/if}
 												<td class="px-4 py-3">
 													<div class="flex items-center gap-2">
-														<div class="w-16 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+														<div class="w-16 h-2 bg-neutral-200 dark:bg-neutral-600 rounded-full overflow-hidden">
 															<div class="h-full {getCompletenessColor(completeness.percentage)}" style="width: {completeness.percentage}%"></div>
 														</div>
-														<span class="text-xs text-slate-500 dark:text-slate-400">{completeness.percentage}%</span>
+														<span class="text-xs text-neutral-500 dark:text-neutral-400">{completeness.percentage}%</span>
 													</div>
 												</td>
 											</tr>
@@ -448,21 +447,21 @@
 				{#each competitors as competitor (competitor.id)}
 					{@const completeness = getDataCompleteness(competitor)}
 					<div
-						class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+						class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 					>
 						<!-- Header with name, industry badge, and actions -->
 						<div class="flex items-start justify-between mb-4">
 							<div class="flex items-center gap-3">
 								<div
-									class="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-lg font-semibold text-slate-600 dark:text-slate-300"
+									class="w-10 h-10 bg-neutral-100 dark:bg-neutral-700 rounded-lg flex items-center justify-center text-lg font-semibold text-neutral-600 dark:text-neutral-300"
 								>
 									{competitor.name.charAt(0).toUpperCase()}
 								</div>
 								<div>
 									<div class="flex items-center gap-2">
-										<h4 class="font-semibold text-slate-900 dark:text-white">{competitor.name}</h4>
+										<h4 class="font-semibold text-neutral-900 dark:text-white">{competitor.name}</h4>
 										{#if competitor.industry}
-											<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+											<span class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400">
 												{competitor.industry}
 											</span>
 										{/if}
@@ -484,10 +483,10 @@
 							<div class="flex items-center gap-2">
 								<!-- Data completeness indicator -->
 								<div class="flex items-center gap-1.5 mr-2" title="{completeness.populated}/{completeness.total} fields populated">
-									<div class="w-12 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+									<div class="w-12 h-1.5 bg-neutral-200 dark:bg-neutral-600 rounded-full overflow-hidden">
 										<div class="h-full {getCompletenessColor(completeness.percentage)}" style="width: {completeness.percentage}%"></div>
 									</div>
-									<span class="text-xs text-slate-500 dark:text-slate-400">{completeness.percentage}%</span>
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">{completeness.percentage}%</span>
 								</div>
 								<Button
 									variant="ghost"
@@ -501,7 +500,7 @@
 								<button
 									type="button"
 									onclick={() => deleteCompetitor(competitor.id!, competitor.name)}
-									class="p-2 text-slate-400 hover:text-red-500 transition-colors"
+									class="p-2 text-neutral-400 hover:text-error-500 transition-colors"
 									aria-label="Remove competitor"
 								>
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,12 +519,12 @@
 						{#if competitor.tagline || competitor.product_description}
 							<div class="space-y-2 mb-4">
 								{#if competitor.tagline}
-									<p class="text-sm text-slate-600 dark:text-slate-400 italic">
+									<p class="text-sm text-neutral-600 dark:text-neutral-400 italic">
 										"{competitor.tagline}"
 									</p>
 								{/if}
 								{#if competitor.product_description}
-									<p class="text-sm text-slate-700 dark:text-slate-300">
+									<p class="text-sm text-neutral-700 dark:text-neutral-300">
 										{competitor.product_description}
 									</p>
 								{/if}
@@ -534,10 +533,10 @@
 
 						<!-- Section: Market & Business (Standard+ tier) -->
 						{#if dataDepth !== 'basic' && (competitor.pricing_model || competitor.target_market || competitor.business_model)}
-							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+							<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-4">
 								<button
 									type="button"
-									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									class="flex items-center gap-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
 									onclick={() => toggleSection(competitor.id!, 'market')}
 								>
 									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'market') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
@@ -549,26 +548,26 @@
 									<div class="grid grid-cols-2 gap-4 pl-5">
 										{#if competitor.pricing_model}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Pricing</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.pricing_model}</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Pricing</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.pricing_model}</p>
 											</div>
 										{/if}
 										{#if competitor.target_market}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Target Market</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.target_market}</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Target Market</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.target_market}</p>
 											</div>
 										{/if}
 										{#if competitor.business_model}
 											<div class="col-span-2">
-												<span class="text-xs text-slate-500 dark:text-slate-400">Business Model</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.business_model}</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Business Model</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.business_model}</p>
 											</div>
 										{/if}
 									</div>
 								{:else}
 									<!-- Collapsed preview -->
-									<div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400 pl-5">
+									<div class="flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400 pl-5">
 										{#if competitor.pricing_model}<span>{competitor.pricing_model}</span>{/if}
 										{#if competitor.target_market}<span>• {competitor.target_market}</span>{/if}
 									</div>
@@ -578,10 +577,10 @@
 
 						<!-- Section: Company & Funding (Deep tier) -->
 						{#if dataDepth === 'deep' && (competitor.funding_info || competitor.employee_count)}
-							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+							<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-4">
 								<button
 									type="button"
-									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									class="flex items-center gap-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
 									onclick={() => toggleSection(competitor.id!, 'company')}
 								>
 									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'company') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
@@ -593,19 +592,19 @@
 									<div class="grid grid-cols-2 gap-4 pl-5">
 										{#if competitor.employee_count}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Team Size</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.employee_count} employees</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Team Size</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.employee_count} employees</p>
 											</div>
 										{/if}
 										{#if competitor.funding_info}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Funding</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.funding_info}</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Funding</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.funding_info}</p>
 											</div>
 										{/if}
 									</div>
 								{:else}
-									<div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400 pl-5">
+									<div class="flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400 pl-5">
 										{#if competitor.employee_count}<span>{competitor.employee_count} employees</span>{/if}
 										{#if competitor.funding_info}<span>• {competitor.funding_info}</span>{/if}
 									</div>
@@ -615,10 +614,10 @@
 
 						<!-- Section: Product & Tech (Deep tier) -->
 						{#if dataDepth === 'deep' && (competitor.value_proposition || competitor.tech_stack?.length)}
-							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+							<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-4">
 								<button
 									type="button"
-									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									class="flex items-center gap-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
 									onclick={() => toggleSection(competitor.id!, 'tech')}
 								>
 									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'tech') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
@@ -630,13 +629,13 @@
 									<div class="space-y-3 pl-5">
 										{#if competitor.value_proposition}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Value Proposition</span>
-												<p class="text-sm text-slate-900 dark:text-white">{competitor.value_proposition}</p>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Value Proposition</span>
+												<p class="text-sm text-neutral-900 dark:text-white">{competitor.value_proposition}</p>
 											</div>
 										{/if}
 										{#if competitor.tech_stack?.length}
 											<div>
-												<span class="text-xs text-slate-500 dark:text-slate-400">Tech Stack</span>
+												<span class="text-xs text-neutral-500 dark:text-neutral-400">Tech Stack</span>
 												<div class="flex flex-wrap gap-1.5 mt-1">
 													{#each competitor.tech_stack as tech}
 														<span class="text-xs px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
@@ -656,10 +655,10 @@
 												</span>
 											{/each}
 											{#if competitor.tech_stack.length > 4}
-												<span class="text-xs text-slate-500">+{competitor.tech_stack.length - 4} more</span>
+												<span class="text-xs text-neutral-500">+{competitor.tech_stack.length - 4} more</span>
 											{/if}
 										{:else if competitor.value_proposition}
-											<span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">
+											<span class="text-xs text-neutral-500 dark:text-neutral-400 truncate max-w-xs">
 												{competitor.value_proposition}
 											</span>
 										{/if}
@@ -670,10 +669,10 @@
 
 						<!-- Section: Recent News (Deep tier) -->
 						{#if dataDepth === 'deep' && competitor.recent_news?.length}
-							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+							<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-4">
 								<button
 									type="button"
-									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									class="flex items-center gap-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
 									onclick={() => toggleSection(competitor.id!, 'news')}
 								>
 									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'news') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
@@ -685,7 +684,7 @@
 									<ul class="space-y-2 pl-5">
 										{#each competitor.recent_news as news}
 											<li class="flex items-start gap-2">
-												<span class="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap mt-0.5">
+												<span class="text-xs text-neutral-400 dark:text-neutral-500 whitespace-nowrap mt-0.5">
 													{news.date ? new Date(news.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
 												</span>
 												<a
@@ -700,7 +699,7 @@
 										{/each}
 									</ul>
 								{:else}
-									<div class="text-xs text-slate-500 dark:text-slate-400 pl-5">
+									<div class="text-xs text-neutral-500 dark:text-neutral-400 pl-5">
 										{competitor.recent_news[0]?.title || 'View recent news'}
 									</div>
 								{/if}
@@ -709,11 +708,11 @@
 
 						<!-- Footer metadata -->
 						<div
-							class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700"
+							class="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-700"
 						>
 							<span>Last enriched: {formatDate(competitor.last_enriched_at)}</span>
 							{#if competitor.changes_detected?.length}
-								<span class="text-green-600 dark:text-green-400">
+								<span class="text-success-600 dark:text-success-400">
 									{competitor.changes_detected.length} updates detected
 								</span>
 							{/if}
@@ -724,13 +723,13 @@
 		{:else}
 			<!-- Empty state -->
 			<div
-				class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-12 text-center"
+				class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center"
 			>
 				<div class="text-4xl mb-4">🔍</div>
-				<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
 					No competitors tracked yet
 				</h3>
-				<p class="text-slate-600 dark:text-slate-400 mb-4">
+				<p class="text-neutral-600 dark:text-neutral-400 mb-4">
 					Add your competitors above to start monitoring their activity and strategy.
 				</p>
 			</div>
@@ -738,11 +737,11 @@
 
 		<!-- Info Box -->
 		<div
-			class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+			class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4"
 		>
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -754,9 +753,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">How Competitor Watch works</p>
-					<ul class="text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
+					<ul class="text-info-800 dark:text-info-300 space-y-1 list-disc list-inside">
 						<li>Add competitors by name and optionally their website</li>
 						<li>Click "Enrich" to pull the latest data from review sites and news</li>
 						<li>Use "Refresh All" monthly to detect changes in their strategy</li>

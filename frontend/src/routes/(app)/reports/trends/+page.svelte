@@ -9,6 +9,7 @@
 	import { apiClient, getCsrfToken, type MarketTrend } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import TrendSummaryCard from '$lib/components/context/TrendSummaryCard.svelte';
 
@@ -161,7 +162,7 @@
 	<title>Market Trends - Board of One</title>
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 	<!-- Breadcrumb -->
 	<div class="mb-6">
 		<Breadcrumb
@@ -175,19 +176,19 @@
 
 	{#if isLoading}
 		<div class="flex items-center justify-center py-12">
-			<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"></div>
+			<Spinner size="lg" />
 		</div>
 	{:else}
 		<div class="space-y-6">
 			<!-- Header -->
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 				<div class="flex items-center gap-3">
 					<span class="text-2xl">📈</span>
 					<div>
-						<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
 							Market Trends
 						</h2>
-						<p class="text-slate-600 dark:text-slate-400">
+						<p class="text-neutral-600 dark:text-neutral-400">
 							AI-powered trend forecasts and market intelligence for your industry.
 						</p>
 					</div>
@@ -212,11 +213,11 @@
 			/>
 
 			<!-- Market Trends Section -->
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 				<div class="flex items-center justify-between mb-4">
 					<div class="flex items-center gap-3">
 						<span class="text-2xl">📊</span>
-						<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
 							Live Market Trends
 						</h3>
 					</div>
@@ -241,13 +242,13 @@
 					<div class="space-y-4">
 						{#each marketTrends as trend, index}
 							{@const hasAISummary = trend.summary && trend.key_points}
-							<div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+							<div class="p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg border border-neutral-200 dark:border-neutral-600">
 								<!-- Headline -->
-								<h4 class="font-medium text-slate-900 dark:text-white mb-2">{trend.trend}</h4>
+								<h4 class="font-medium text-neutral-900 dark:text-white mb-2">{trend.trend}</h4>
 
 								{#if hasAISummary}
 									<!-- AI Summary -->
-									<p class="text-sm text-slate-700 dark:text-slate-300 mb-3">{trend.summary}</p>
+									<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-3">{trend.summary}</p>
 
 									<!-- Key Points (collapsible) -->
 									<details class="group">
@@ -257,7 +258,7 @@
 											</svg>
 											Key Takeaways
 										</summary>
-										<ul class="mt-2 space-y-1 pl-4 text-sm text-slate-600 dark:text-slate-400">
+										<ul class="mt-2 space-y-1 pl-4 text-sm text-neutral-600 dark:text-neutral-400">
 											{#each trend.key_points || [] as point}
 												<li class="flex items-start gap-2">
 													<span class="text-brand-500 mt-0.5">•</span>
@@ -268,8 +269,8 @@
 									</details>
 
 									<!-- AI indicator + Source -->
-									<div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-200 dark:border-slate-600">
-										<span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+									<div class="flex items-center justify-between mt-3 pt-2 border-t border-neutral-200 dark:border-neutral-600">
+										<span class="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
 											<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 											</svg>
@@ -303,7 +304,7 @@
 						{/each}
 					</div>
 				{:else}
-					<p class="text-sm text-slate-500 dark:text-slate-400">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">
 						Click "Refresh Trends" to fetch the latest market trends for your industry.
 						Make sure you've set your industry in <a href="/context/overview" class="text-brand-600 dark:text-brand-400 hover:underline">Context → Overview</a> first.
 					</p>
@@ -311,10 +312,10 @@
 			</div>
 
 			<!-- Info Box -->
-			<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+			<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 				<div class="flex gap-3">
 					<svg
-						class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+						class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -326,9 +327,9 @@
 							d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 						/>
 					</svg>
-					<div class="text-sm text-blue-900 dark:text-blue-200">
+					<div class="text-sm text-info-900 dark:text-info-200">
 						<p class="font-semibold mb-1">Using trends effectively</p>
-						<ul class="text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
+						<ul class="text-info-800 dark:text-info-300 space-y-1 list-disc list-inside">
 							<li>Set your industry in <a href="/context/overview" class="underline">Context → Overview</a> for relevant forecasts</li>
 							<li>Use timeframe selector to see predictions for different horizons</li>
 							<li>Trends inform your Board meetings for better recommendations</li>

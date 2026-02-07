@@ -713,13 +713,13 @@
 			<!-- Events Stream with Tab Navigation -->
 			<div class="lg:col-span-2 lg:self-stretch">
 				<div
-					class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700"
+					class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700"
 				>
-					<div class="border-b border-slate-200 dark:border-slate-700">
+					<div class="border-b border-neutral-200 dark:border-neutral-700">
 						<!-- Header Row -->
 						<div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
 							<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-								<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+								<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
 									{#if memoized.subProblemTabs.length > 1}
 										Focus Area Analysis
 									{:else}
@@ -728,13 +728,13 @@
 								</h2>
 								{#if session?.status !== 'completed' && session?.status !== 'failed'}
 								{#if connectionStatus === 'connecting'}
-									<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-										<span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+									<span class="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+										<span class="inline-block w-2 h-2 bg-warning-500 rounded-full animate-pulse"></span>
 										Connecting...
 									</span>
 								{:else if connectionStatus === 'connected'}
-									<span class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-										<span class="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+									<span class="flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
+										<span class="inline-block w-2 h-2 bg-success-500 rounded-full"></span>
 										Connected
 									</span>
 								{:else if connectionStatus === 'retrying'}
@@ -752,13 +752,13 @@
 									</div>
 								{:else if connectionStatus === 'error'}
 									<div class="flex items-center gap-2">
-										<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
-											<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
+										<span class="flex items-center gap-1.5 text-xs text-error-600 dark:text-error-400">
+											<span class="inline-block w-2 h-2 bg-error-500 rounded-full"></span>
 											Connection Failed
 										</span>
 										<button
 											onclick={() => startEventStream()}
-											class="px-2 py-1 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+											class="px-2 py-1 text-xs font-medium text-error-700 dark:text-error-300 hover:text-error-900 dark:hover:text-error-100 hover:bg-error-50 dark:hover:bg-error-900/20 rounded transition-colors"
 										>
 											Retry Now
 										</button>
@@ -769,7 +769,7 @@
 							<div class="flex items-center gap-4">
 								<label
 									for="auto-scroll-checkbox"
-									class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400"
+									class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400"
 								>
 									<input
 										id="auto-scroll-checkbox"
@@ -781,21 +781,21 @@
 								</label>
 
 								<div class="flex items-center gap-2">
-									<span class="text-sm text-slate-600 dark:text-slate-400">View:</span>
-									<div class="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 rounded-lg p-0.5">
+									<span class="text-sm text-neutral-600 dark:text-neutral-400">View:</span>
+									<div class="flex items-center gap-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg p-0.5">
 										<button
 											onclick={() => view.setGlobalViewMode('simple')}
 											class="px-2 py-1 text-xs font-medium rounded-md transition-colors {view.contributionViewMode === 'simple'
-												? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
-												: 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+												? 'bg-white dark:bg-neutral-600 text-neutral-900 dark:text-white shadow-sm'
+												: 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
 										>
 											Simple
 										</button>
 										<button
 											onclick={() => view.setGlobalViewMode('full')}
 											class="px-2 py-1 text-xs font-medium rounded-md transition-colors {view.contributionViewMode === 'full'
-												? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
-												: 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+												? 'bg-white dark:bg-neutral-600 text-neutral-900 dark:text-white shadow-sm'
+												: 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
 										>
 											Detailed
 										</button>
@@ -821,7 +821,7 @@
 							</div>
 						{:else if events.length === 0}
 							<div
-								class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4"
+								class="flex flex-col items-center justify-center h-full text-neutral-500 dark:text-neutral-400 p-4"
 							>
 								<ActivityStatus
 									variant="card"
@@ -865,9 +865,9 @@
 										hidden={tab.id !== view.activeSubProblemTab}
 									>
 										<div
-											class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
+											class="bg-neutral-50 dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4"
 										>
-											<h3 class="text-base font-semibold text-slate-900 dark:text-white">
+											<h3 class="text-base font-semibold text-neutral-900 dark:text-white">
 												{tab.goal}
 											</h3>
 										</div>
@@ -933,7 +933,7 @@
 										{/each}
 
 										{#if eventState.subProblemCompleteEvents[tabIndex]?.data?.synthesis}
-											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6 space-y-6">
+											<div class="mt-8 border-t border-neutral-200 dark:border-neutral-700 pt-6 space-y-6">
 												<DynamicEventComponent
 													event={eventState.subProblemCompleteEvents[tabIndex]}
 													eventType="subproblem_complete"
@@ -960,26 +960,26 @@
 
 										{#if waiting.isWaitingForFirstContributions && tab.id === view.activeSubProblemTab}
 											<div
-												class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4"
+												class="bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800 py-4 px-4"
 												transition:fade={{ duration: 300 }}
 											>
 												<ActivityStatus
 													variant="inline"
 													message={waiting.phaseWaitingMessage}
-													class="text-amber-700 dark:text-amber-300 font-medium"
+													class="text-warning-700 dark:text-warning-300 font-medium"
 												/>
 											</div>
 										{/if}
 
 										{#if waiting.isWaitingForNextRound && tab.id === view.activeSubProblemTab}
 											<div
-												class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4"
+												class="bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800 py-4 px-4"
 												transition:fade={{ duration: 300 }}
 											>
 												<ActivityStatus
 													variant="inline"
 													message={BETWEEN_ROUNDS_MESSAGES[revealManager.betweenRoundsMessageIndex]}
-													class="text-blue-700 dark:text-blue-300 font-medium"
+													class="text-info-700 dark:text-info-300 font-medium"
 												/>
 											</div>
 										{/if}
@@ -1006,13 +1006,13 @@
 
 										{#if eventState.subProblemCompleteEvents.length > 0 && !eventState.metaSynthesisEvent && memoized.subProblemTabs.length > 1}
 											<div
-												class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6"
+												class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-700 rounded-lg p-4 mb-6"
 											>
 												<ActivityStatus
 													variant="inline"
 													message="Generating final synthesis..."
 													phase="{eventState.subProblemCompleteEvents.length} of {memoized.subProblemTabs.length} focus areas completed"
-													class="text-blue-900 dark:text-blue-100"
+													class="text-info-900 dark:text-info-100"
 												/>
 											</div>
 										{/if}
@@ -1049,12 +1049,12 @@
 														phase="The final synthesis will appear here when complete"
 													/>
 												{:else if session?.status === 'failed'}
-													<div class="text-red-600 dark:text-red-400">
+													<div class="text-error-600 dark:text-error-400">
 														<p class="font-medium">Synthesis generation failed</p>
 														<p class="text-sm mt-2">Please check the logs or retry the meeting</p>
 													</div>
 												{:else}
-													<p class="text-slate-500 dark:text-slate-400">No synthesis available</p>
+													<p class="text-neutral-500 dark:text-neutral-400">No synthesis available</p>
 												{/if}
 											</div>
 										{/if}
@@ -1096,16 +1096,16 @@
 			<div class="space-y-6 lg:self-stretch flex flex-col">
 				{#if session}
 					<details
-						class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700"
+						class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700"
 						open
 					>
 						<summary
-							class="cursor-pointer p-4 font-semibold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-t-lg transition-colors text-sm"
+							class="cursor-pointer p-4 font-semibold text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-700/50 rounded-t-lg transition-colors text-sm"
 						>
 							Problem Statement
 						</summary>
 						<div class="px-4 pb-4">
-							<p class="text-sm text-slate-700 dark:text-slate-300">
+							<p class="text-sm text-neutral-700 dark:text-neutral-300">
 								{session.problem?.statement || 'Problem statement not available'}
 							</p>
 						</div>
@@ -1146,7 +1146,7 @@
 							{/if}
 
 							<!-- Meeting Rating Prompt -->
-							<div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+							<div class="pt-2 border-t border-neutral-200 dark:border-neutral-700">
 								<RatingPrompt
 									entityType="meeting"
 									entityId={sessionId}
@@ -1169,7 +1169,7 @@
 				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 				window.scrollTo({ top: 0, behavior: 'smooth' });
 			}}
-			class="fixed bottom-4 left-4 right-4 z-50 lg:hidden bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2 animate-bounce"
+			class="fixed bottom-4 left-4 right-4 z-50 lg:hidden bg-warning-500 hover:bg-warning-600 text-white font-semibold py-3 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2 animate-bounce"
 			transition:fade
 		>
 			<AlertCircle size={20} />

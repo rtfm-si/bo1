@@ -25,6 +25,7 @@
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
+	import { getPriorityBadgeVariant } from '$lib/utils/priority';
 	import { startOnboardingTour, injectTourStyles, cleanupTour, destroyActiveTour, setTourNavigationCallbacks } from '$lib/tour/onboarding-tour';
 	import tourStore, { checkOnboardingStatus, setTourActive, completeTour, handleNavigationDuringTour, setTourPage, allowTourNavigation } from '$lib/stores/tour';
 	import { toast } from '$lib/stores/toast';
@@ -335,7 +336,7 @@
 	<h1 class="sr-only">Dashboard</h1>
 
 	<!-- Page Content -->
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Onboarding checklist for new users -->
 		{#if showOnboarding}
 			<OnboardingChecklist
@@ -420,7 +421,7 @@
 							<span class="hidden sm:inline">done</span>
 						</span>
 						<span class="flex items-center gap-1">
-							<span class="font-semibold text-amber-600 dark:text-amber-400">{statsData.data.totals.in_progress}</span>
+							<span class="font-semibold text-warning-600 dark:text-warning-400">{statsData.data.totals.in_progress}</span>
 							<span class="hidden sm:inline">active</span>
 						</span>
 						<span class="flex items-center gap-1">
@@ -437,7 +438,7 @@
 						<ActivityHeatmap
 							data={statsData.data.daily}
 							workingDays={workingPatternData.data?.pattern.working_days ?? [1, 2, 3, 4, 5]}
-							historyMonths={heatmapDepthData.data?.depth.history_months ?? 3}
+							historyMonths={heatmapDepthData.data?.depth.history_months ?? 6}
 						/>
 					{:else}
 						<div class="text-center text-neutral-500 dark:text-neutral-400 py-8">No data available</div>
@@ -538,7 +539,7 @@
 										<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${getDueDateBadgeClasses(dueDateStatus)}`}>
 											{getDueDateLabel(dueDateStatus)}
 										</span>
-										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
+										<Badge variant={getPriorityBadgeVariant(action.priority)}>
 											{action.priority}
 										</Badge>
 									</div>
@@ -617,7 +618,7 @@
 										<Badge variant={action.status === 'in_progress' ? 'warning' : 'neutral'}>
 											{action.status === 'in_progress' ? 'In Progress' : 'To Do'}
 										</Badge>
-										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
+										<Badge variant={getPriorityBadgeVariant(action.priority)}>
 											{action.priority}
 										</Badge>
 										{#if getDueDateStatus(action.suggested_completion_date) === 'overdue' || getDueDateStatus(action.suggested_completion_date) === 'due-today' || getDueDateStatus(action.suggested_completion_date) === 'due-soon'}

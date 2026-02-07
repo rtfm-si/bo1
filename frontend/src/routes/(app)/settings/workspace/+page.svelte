@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import { currentWorkspace, workspaces, refreshWorkspaces } from '$lib/stores/workspace';
 	import { user } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
@@ -234,9 +235,9 @@
 
 <div class="space-y-6">
 	<!-- Page Header -->
-	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-		<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">Workspace Settings</h2>
-		<p class="text-slate-600 dark:text-slate-400">
+	<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+		<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">Workspace Settings</h2>
+		<p class="text-neutral-600 dark:text-neutral-400">
 			Manage your workspace, members, and team settings.
 		</p>
 	</div>
@@ -247,11 +248,11 @@
 
 	{#if !$currentWorkspace}
 		<!-- No workspace selected -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 			<div class="text-center py-8">
 				<div class="text-4xl mb-4">🏢</div>
-				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-2">No Workspace Selected</h3>
-				<p class="text-slate-600 dark:text-slate-400 mb-6">
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">No Workspace Selected</h3>
+				<p class="text-neutral-600 dark:text-neutral-400 mb-6">
 					You're currently in Personal mode. Create or join a workspace to collaborate with others.
 				</p>
 				<Button variant="brand" onclick={() => (showCreateModal = true)}>
@@ -261,17 +262,17 @@
 		</div>
 
 		{#if $workspaces.length > 0}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">Your Workspaces</h3>
-				<ul class="divide-y divide-slate-200 dark:divide-slate-700">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-4">Your Workspaces</h3>
+				<ul class="divide-y divide-neutral-200 dark:divide-neutral-700">
 					{#each $workspaces as workspace}
 						<li class="py-3 flex items-center justify-between">
 							<div>
-								<p class="font-medium text-slate-900 dark:text-white">{workspace.name}</p>
-								<p class="text-sm text-slate-500">/{workspace.slug}</p>
+								<p class="font-medium text-neutral-900 dark:text-white">{workspace.name}</p>
+								<p class="text-sm text-neutral-500">/{workspace.slug}</p>
 							</div>
 							{#if workspace.member_count !== undefined}
-								<span class="text-sm text-slate-500">
+								<span class="text-sm text-neutral-500">
 									{workspace.member_count} member{workspace.member_count !== 1 ? 's' : ''}
 								</span>
 							{/if}
@@ -282,22 +283,22 @@
 		{/if}
 	{:else}
 		<!-- Current workspace details -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 			<div class="flex items-start justify-between mb-6">
 				<div>
-					<h3 class="text-lg font-medium text-slate-900 dark:text-white">{$currentWorkspace.name}</h3>
-					<p class="text-sm text-slate-500 dark:text-slate-400">/{$currentWorkspace.slug}</p>
+					<h3 class="text-lg font-medium text-neutral-900 dark:text-white">{$currentWorkspace.name}</h3>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">/{$currentWorkspace.slug}</p>
 				</div>
 				{#if isOwner}
 					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200">
 						Owner
 					</span>
 				{:else if isAdmin}
-					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-900 dark:text-warning-200">
 						Admin
 					</span>
 				{:else}
-					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200">
 						Member
 					</span>
 				{/if}
@@ -305,12 +306,12 @@
 
 			<dl class="grid grid-cols-2 gap-4 text-sm">
 				<div>
-					<dt class="text-slate-500 dark:text-slate-400">Members</dt>
-					<dd class="font-medium text-slate-900 dark:text-white">{members.length}</dd>
+					<dt class="text-neutral-500 dark:text-neutral-400">Members</dt>
+					<dd class="font-medium text-neutral-900 dark:text-white">{members.length}</dd>
 				</div>
 				<div>
-					<dt class="text-slate-500 dark:text-slate-400">Created</dt>
-					<dd class="font-medium text-slate-900 dark:text-white">
+					<dt class="text-neutral-500 dark:text-neutral-400">Created</dt>
+					<dd class="font-medium text-neutral-900 dark:text-white">
 						{new Date($currentWorkspace.created_at).toLocaleDateString()}
 					</dd>
 				</div>
@@ -318,27 +319,27 @@
 		</div>
 
 		<!-- Members List -->
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-			<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">Members</h3>
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-4">Members</h3>
 
 			{#if isLoading}
 				<div class="py-8 text-center">
-					<div class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full mx-auto"></div>
+					<Spinner size="lg" class="mx-auto" />
 				</div>
 			{:else if members.length === 0}
-				<p class="text-slate-500 py-4">No members found.</p>
+				<p class="text-neutral-500 py-4">No members found.</p>
 			{:else}
-				<ul class="divide-y divide-slate-200 dark:divide-slate-700">
+				<ul class="divide-y divide-neutral-200 dark:divide-neutral-700">
 					{#each members as member}
 						<li class="py-3 flex items-center justify-between gap-4">
 							<div class="flex-1 min-w-0">
-								<p class="font-medium text-slate-900 dark:text-white truncate">
+								<p class="font-medium text-neutral-900 dark:text-white truncate">
 									{member.user_email || member.user_id}
 								</p>
-								<p class="text-sm text-slate-500 capitalize">{member.role}</p>
+								<p class="text-sm text-neutral-500 capitalize">{member.role}</p>
 							</div>
 							<div class="flex items-center gap-2">
-								<span class="text-sm text-slate-500 hidden sm:inline">
+								<span class="text-sm text-neutral-500 hidden sm:inline">
 									Joined {new Date(member.joined_at).toLocaleDateString()}
 								</span>
 								<!-- Role management actions (owner only) -->
@@ -355,13 +356,13 @@
 										<button
 											onclick={() => handleDemote(member.user_id)}
 											disabled={isChangingRole === member.user_id}
-											class="px-2 py-1 text-xs font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-900/20 rounded transition-colors disabled:opacity-50"
+											class="px-2 py-1 text-xs font-medium text-warning-600 hover:text-warning-700 hover:bg-warning-50 dark:text-warning-400 dark:hover:text-warning-300 dark:hover:bg-warning-900/20 rounded transition-colors disabled:opacity-50"
 										>
 											{isChangingRole === member.user_id ? 'Demoting...' : 'Remove Admin'}
 										</button>
 										<button
 											onclick={() => openTransferModal(member.user_id)}
-											class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded transition-colors"
+											class="px-2 py-1 text-xs font-medium text-error-600 hover:text-error-700 hover:bg-error-50 dark:text-error-400 dark:hover:text-error-300 dark:hover:bg-error-900/20 rounded transition-colors"
 										>
 											Transfer Ownership
 										</button>
@@ -376,22 +377,22 @@
 
 		<!-- Invitation Manager (admin+) -->
 		{#if isAdmin}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">Invitations</h3>
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-4">Invitations</h3>
 				<InvitationManager workspaceId={$currentWorkspace.id} />
 			</div>
 		{/if}
 
 		<!-- Discoverability Settings (admin+) -->
 		{#if isAdmin}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-2">Discoverability</h3>
-				<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">Discoverability</h3>
+				<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 					Control how users can find and join this workspace.
 				</p>
 
 				<div class="space-y-3">
-					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'private' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors {discoverability === 'private' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
 						<input
 							type="radio"
 							name="discoverability"
@@ -402,14 +403,14 @@
 							class="mt-1"
 						/>
 						<div>
-							<p class="font-medium text-slate-900 dark:text-white">Private</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
+							<p class="font-medium text-neutral-900 dark:text-white">Private</p>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">
 								Only invited members can join. Workspace is not discoverable.
 							</p>
 						</div>
 					</label>
 
-					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'invite_only' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors {discoverability === 'invite_only' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
 						<input
 							type="radio"
 							name="discoverability"
@@ -420,14 +421,14 @@
 							class="mt-1"
 						/>
 						<div>
-							<p class="font-medium text-slate-900 dark:text-white">Invite Only</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
+							<p class="font-medium text-neutral-900 dark:text-white">Invite Only</p>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">
 								Only invited members can join. Workspace is visible but not joinable.
 							</p>
 						</div>
 					</label>
 
-					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'request_to_join' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors {discoverability === 'request_to_join' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
 						<input
 							type="radio"
 							name="discoverability"
@@ -438,8 +439,8 @@
 							class="mt-1"
 						/>
 						<div>
-							<p class="font-medium text-slate-900 dark:text-white">Request to Join</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
+							<p class="font-medium text-neutral-900 dark:text-white">Request to Join</p>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">
 								Anyone can request to join. Admins must approve each request.
 							</p>
 						</div>
@@ -447,18 +448,18 @@
 				</div>
 
 				{#if isSavingDiscoverability}
-					<p class="text-sm text-slate-500 mt-3">Saving...</p>
+					<p class="text-sm text-neutral-500 mt-3">Saving...</p>
 				{/if}
 			</div>
 		{/if}
 
 		<!-- Join Requests (admin+) -->
 		{#if isAdmin}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 				<div class="flex items-center justify-between mb-4">
-					<h3 class="text-lg font-medium text-slate-900 dark:text-white">Join Requests</h3>
+					<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Join Requests</h3>
 					{#if pendingRequestsCount > 0}
-						<span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-full">
+						<span class="px-2 py-1 text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300 rounded-full">
 							{pendingRequestsCount} pending
 						</span>
 					{/if}
@@ -469,11 +470,11 @@
 
 		<!-- Billing (admin+) -->
 		{#if isAdmin}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6">
 				<div class="flex items-center justify-between">
 					<div>
-						<h3 class="text-lg font-medium text-slate-900 dark:text-white">Billing</h3>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Billing</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							Manage workspace subscription and billing
 						</p>
 					</div>
@@ -492,19 +493,19 @@
 
 		<!-- Role History (admin+) -->
 		{#if isAdmin}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700">
 				<button
 					onclick={toggleRoleHistory}
 					class="w-full p-6 flex items-center justify-between text-left"
 				>
 					<div>
-						<h3 class="text-lg font-medium text-slate-900 dark:text-white">Role History</h3>
-						<p class="text-sm text-slate-600 dark:text-slate-400">
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-white">Role History</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							View all role changes in this workspace
 						</p>
 					</div>
 					<svg
-						class="w-5 h-5 text-slate-400 transition-transform {roleHistoryExpanded ? 'rotate-180' : ''}"
+						class="w-5 h-5 text-neutral-400 transition-transform {roleHistoryExpanded ? 'rotate-180' : ''}"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -514,28 +515,28 @@
 				</button>
 
 				{#if roleHistoryExpanded}
-					<div class="px-6 pb-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+					<div class="px-6 pb-6 border-t border-neutral-200 dark:border-neutral-700 pt-4">
 						{#if isLoadingHistory}
 							<div class="py-4 text-center">
-								<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full mx-auto"></div>
+								<Spinner size="md" class="mx-auto" />
 							</div>
 						{:else if roleHistory.length === 0}
-							<p class="text-slate-500 text-sm py-2">No role changes recorded yet.</p>
+							<p class="text-neutral-500 text-sm py-2">No role changes recorded yet.</p>
 						{:else}
 							<ul class="space-y-2">
 								{#each roleHistory as change}
-									<li class="flex items-start justify-between gap-4 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+									<li class="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 dark:border-neutral-700/50 last:border-0">
 										<div>
-											<p class="text-sm text-slate-900 dark:text-white">
+											<p class="text-sm text-neutral-900 dark:text-white">
 												{formatRoleChange(change)}
 											</p>
 											{#if change.changed_by_email}
-												<p class="text-xs text-slate-500">
+												<p class="text-xs text-neutral-500">
 													by {change.changed_by_email}
 												</p>
 											{/if}
 										</div>
-										<span class="text-xs text-slate-400 whitespace-nowrap">
+										<span class="text-xs text-neutral-400 whitespace-nowrap">
 											{new Date(change.changed_at).toLocaleDateString()}
 										</span>
 									</li>
@@ -549,9 +550,9 @@
 
 		<!-- Danger Zone -->
 		{#if !isOwner}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-200 dark:border-red-900 p-6">
-				<h3 class="text-lg font-medium text-red-600 dark:text-red-400 mb-2">Danger Zone</h3>
-				<p class="text-slate-600 dark:text-slate-400 mb-4">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-error-200 dark:border-error-900 p-6">
+				<h3 class="text-lg font-medium text-error-600 dark:text-error-400 mb-2">Danger Zone</h3>
+				<p class="text-neutral-600 dark:text-neutral-400 mb-4">
 					Leave this workspace. You will lose access to all workspace data.
 				</p>
 
@@ -580,18 +581,18 @@
 <!-- Transfer Ownership Modal -->
 {#if showTransferModal && transferTarget}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
-			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl max-w-md w-full p-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 				Transfer Ownership
 			</h3>
 			<div class="space-y-4">
 				<Alert variant="warning">
 					You are about to transfer ownership of this workspace to <strong>{transferTarget.user_email || transferTarget.user_id}</strong>. This action cannot be undone.
 				</Alert>
-				<p class="text-sm text-slate-600 dark:text-slate-400">
+				<p class="text-sm text-neutral-600 dark:text-neutral-400">
 					After the transfer:
 				</p>
-				<ul class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside space-y-1">
+				<ul class="text-sm text-neutral-600 dark:text-neutral-400 list-disc list-inside space-y-1">
 					<li>You will become an Admin</li>
 					<li>The new owner will have full control</li>
 					<li>Only the new owner can transfer ownership again</li>

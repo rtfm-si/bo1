@@ -45,12 +45,12 @@
 	<meta name="description" content="Get help with Board of One - FAQs, tutorials, and documentation" />
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3 mb-2">
 			<HelpCircle class="w-8 h-8 text-brand-600 dark:text-brand-400" />
-			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Help Center</h1>
+			<h1 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Help Center</h1>
 		</div>
 		<p class="text-neutral-600 dark:text-neutral-400">
 			Find answers, tutorials, and documentation for Board of One
@@ -60,7 +60,7 @@
 	<!-- Search Bar -->
 	<div class="mb-8 relative">
 		<div class="relative max-w-xl">
-			<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+			<Search class="absolute left-3 top-1/2 -tranneutral-y-1/2 w-5 h-5 text-neutral-400" />
 			<input
 				type="text"
 				bind:value={searchQuery}

@@ -50,15 +50,15 @@ function calculateRangePositions(rangeMin: number, rangeMedian: number, rangeMax
 function getMarkerColor(status: string): string {
 	switch (status) {
 		case 'top_performer':
-			return 'bg-green-500';
+			return 'bg-success-500';
 		case 'above_average':
-			return 'bg-emerald-500';
+			return 'bg-success-500';
 		case 'average':
-			return 'bg-yellow-500';
+			return 'bg-warning-500';
 		case 'below_average':
-			return 'bg-red-500';
+			return 'bg-error-500';
 		default:
-			return 'bg-slate-400';
+			return 'bg-neutral-400';
 	}
 }
 
@@ -154,27 +154,27 @@ describe('BenchmarkRangeBar', () => {
 
 	describe('getMarkerColor', () => {
 		it('returns green for top_performer', () => {
-			expect(getMarkerColor('top_performer')).toBe('bg-green-500');
+			expect(getMarkerColor('top_performer')).toBe('bg-success-500');
 		});
 
 		it('returns emerald for above_average', () => {
-			expect(getMarkerColor('above_average')).toBe('bg-emerald-500');
+			expect(getMarkerColor('above_average')).toBe('bg-success-500');
 		});
 
 		it('returns yellow for average', () => {
-			expect(getMarkerColor('average')).toBe('bg-yellow-500');
+			expect(getMarkerColor('average')).toBe('bg-warning-500');
 		});
 
 		it('returns red for below_average', () => {
-			expect(getMarkerColor('below_average')).toBe('bg-red-500');
+			expect(getMarkerColor('below_average')).toBe('bg-error-500');
 		});
 
 		it('returns slate for no_data', () => {
-			expect(getMarkerColor('no_data')).toBe('bg-slate-400');
+			expect(getMarkerColor('no_data')).toBe('bg-neutral-400');
 		});
 
 		it('returns slate for unknown status', () => {
-			expect(getMarkerColor('unknown')).toBe('bg-slate-400');
+			expect(getMarkerColor('unknown')).toBe('bg-neutral-400');
 		});
 	});
 

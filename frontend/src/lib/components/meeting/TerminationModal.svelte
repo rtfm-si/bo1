@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { XCircle, AlertCircle, ArrowRight, Ban } from 'lucide-svelte';
-	import { Button } from '$lib/components/ui';
+	import { AlertCircle, ArrowRight, Ban } from 'lucide-svelte';
+	import { Button, Modal } from '$lib/components/ui';
 	import { apiClient } from '$lib/api/client';
 
 	interface Props {
@@ -79,112 +79,79 @@
 			onClose();
 		}
 	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			handleClose();
-		}
-	}
 </script>
 
-{#if open}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="termination-modal-title"
-		tabindex="-1"
-		onclick={(e) => e.target === e.currentTarget && handleClose()}
-		onkeydown={handleKeydown}
-	>
-		<div class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-			<!-- Header -->
-			<div class="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
-				<h2 id="termination-modal-title" class="text-xl font-semibold text-neutral-900 dark:text-white">End Meeting Early</h2>
+<Modal {open} title="End Meeting Early" size="md" onclose={handleClose} closable={!isSubmitting}>
+	<div class="space-y-6">
+		<!-- Options -->
+		<div class="space-y-3">
+			{#each terminationOptions as option (option.type)}
 				<button
 					type="button"
-					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-					onclick={handleClose}
+					class="w-full p-4 text-left rounded-lg border-2 transition-colors
+						{selectedType === option.type
+							? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+							: 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'}"
+					onclick={() => (selectedType = option.type)}
 					disabled={isSubmitting}
-					aria-label="Close"
 				>
-					<XCircle size={20} class="text-neutral-500" />
+					<div class="flex items-start gap-3">
+						<option.icon size={24} class={option.iconClass} />
+						<div>
+							<h3 class="font-medium text-neutral-900 dark:text-white">{option.title}</h3>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{option.description}</p>
+						</div>
+					</div>
 				</button>
-			</div>
-
-			<!-- Content -->
-			<div class="p-6 space-y-6">
-				<!-- Options -->
-				<div class="space-y-3">
-					{#each terminationOptions as option (option.type)}
-						<button
-							type="button"
-							class="w-full p-4 text-left rounded-lg border-2 transition-colors
-								{selectedType === option.type
-									? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-									: 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'}"
-							onclick={() => (selectedType = option.type)}
-							disabled={isSubmitting}
-						>
-							<div class="flex items-start gap-3">
-								<option.icon size={24} class={option.iconClass} />
-								<div>
-									<h3 class="font-medium text-neutral-900 dark:text-white">{option.title}</h3>
-									<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{option.description}</p>
-								</div>
-							</div>
-						</button>
-					{/each}
-				</div>
-
-				<!-- Reason input -->
-				{#if selectedType}
-					<div>
-						<label
-							for="termination-reason"
-							class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2"
-						>
-							{selectedType === 'blocker_identified' ? 'Describe the blocker (optional):' : 'Reason (optional):'}
-						</label>
-						<textarea
-							id="termination-reason"
-							bind:value={reason}
-							rows={3}
-							class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg
-								bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white
-								placeholder-neutral-400 dark:placeholder-neutral-500
-								focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-							placeholder={selectedType === 'blocker_identified'
-								? 'e.g., Missing critical market data for the European expansion analysis...'
-								: 'e.g., Timeline changed, no longer relevant...'}
-							disabled={isSubmitting}
-						></textarea>
-					</div>
-				{/if}
-
-				<!-- Error message -->
-				{#if error}
-					<div class="p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg">
-						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Footer -->
-			<div class="flex items-center justify-end gap-3 p-6 border-t border-neutral-200 dark:border-neutral-700">
-				<Button variant="secondary" size="md" onclick={handleClose} disabled={isSubmitting}>
-					Cancel
-				</Button>
-				<Button
-					variant={selectedType === 'user_cancelled' ? 'danger' : 'brand'}
-					size="md"
-					onclick={handleSubmit}
-					disabled={!selectedType || isSubmitting}
-				>
-					{isSubmitting ? 'Ending...' : 'End Meeting'}
-				</Button>
-			</div>
+			{/each}
 		</div>
+
+		<!-- Reason input -->
+		{#if selectedType}
+			<div>
+				<label
+					for="termination-reason"
+					class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2"
+				>
+					{selectedType === 'blocker_identified' ? 'Describe the blocker (optional):' : 'Reason (optional):'}
+				</label>
+				<textarea
+					id="termination-reason"
+					bind:value={reason}
+					rows={3}
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg
+						bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white
+						placeholder-neutral-400 dark:placeholder-neutral-500
+						focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+					placeholder={selectedType === 'blocker_identified'
+						? 'e.g., Missing critical market data for the European expansion analysis...'
+						: 'e.g., Timeline changed, no longer relevant...'}
+					disabled={isSubmitting}
+				></textarea>
+			</div>
+		{/if}
+
+		<!-- Error message -->
+		{#if error}
+			<div class="p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg">
+				<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
+			</div>
+		{/if}
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<div class="flex items-center justify-end gap-3">
+			<Button variant="secondary" size="md" onclick={handleClose} disabled={isSubmitting}>
+				Cancel
+			</Button>
+			<Button
+				variant={selectedType === 'user_cancelled' ? 'danger' : 'brand'}
+				size="md"
+				onclick={handleSubmit}
+				disabled={!selectedType || isSubmitting}
+			>
+				{isSubmitting ? 'Ending...' : 'End Meeting'}
+			</Button>
+		</div>
+	{/snippet}
+</Modal>

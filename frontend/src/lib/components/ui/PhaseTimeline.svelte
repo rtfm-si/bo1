@@ -43,22 +43,22 @@
 
 	function getPhaseClasses(status: string): string {
 		if (status === 'complete') {
-			return 'bg-green-500 text-white border-green-500';
+			return 'bg-success-500 text-white border-success-500';
 		}
 		if (status === 'current') {
-			return 'bg-blue-500 text-white border-blue-500 ring-4 ring-blue-200 dark:ring-blue-800';
+			return 'bg-info-500 text-white border-info-500 ring-4 ring-info-200 dark:ring-info-800';
 		}
-		return 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-600';
+		return 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 border-neutral-300 dark:border-neutral-600';
 	}
 
 	function getConnectorClasses(index: number): string {
-		if (!currentPhase) return 'bg-slate-300 dark:bg-slate-600';
+		if (!currentPhase) return 'bg-neutral-300 dark:bg-neutral-600';
 
 		const currentIndex = phases.findIndex((p) => p.id === currentPhase);
 		if (index < currentIndex) {
-			return 'bg-green-500';
+			return 'bg-success-500';
 		}
-		return 'bg-slate-300 dark:bg-slate-600';
+		return 'bg-neutral-300 dark:bg-neutral-600';
 	}
 </script>
 
@@ -79,7 +79,7 @@
 						<Icon size={24} class="text-current" />
 					{/if}
 				</div>
-				<span class="text-xs font-medium text-slate-700 dark:text-slate-300 text-center">
+				<span class="text-xs font-medium text-neutral-700 dark:text-neutral-300 text-center">
 					{phase.label}
 				</span>
 			</div>

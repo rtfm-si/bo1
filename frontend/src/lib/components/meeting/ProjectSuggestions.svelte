@@ -88,8 +88,8 @@
 
 	// Confidence indicator color
 	function getConfidenceColor(confidence: number): string {
-		if (confidence >= 0.8) return 'text-green-600 dark:text-green-400';
-		if (confidence >= 0.7) return 'text-yellow-600 dark:text-yellow-400';
+		if (confidence >= 0.8) return 'text-success-600 dark:text-success-400';
+		if (confidence >= 0.7) return 'text-warning-600 dark:text-warning-400';
 		return 'text-gray-600 dark:text-gray-400';
 	}
 </script>
@@ -140,7 +140,7 @@
 					{@const isCreated = createdProjects.has(suggestion.name)}
 					<div
 						class="rounded-lg border p-4 transition-colors {isCreated
-							? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/20'
+							? 'border-success-200 bg-success-50/50 dark:border-success-800 dark:bg-success-900/20'
 							: 'border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900/30'}"
 						transition:slide={{ duration: 200 }}
 					>
@@ -169,7 +169,7 @@
 							</div>
 
 							{#if createdProjects.has(suggestion.name)}
-								<div class="flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-green-700 dark:bg-green-900/50 dark:text-green-400">
+								<div class="flex items-center gap-1 rounded-full bg-success-100 px-2 py-1 text-success-700 dark:bg-success-900/50 dark:text-success-400">
 									<Check class="h-4 w-4" />
 									<span class="text-xs font-medium">Created</span>
 								</div>

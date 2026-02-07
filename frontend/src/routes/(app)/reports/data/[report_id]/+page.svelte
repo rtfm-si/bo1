@@ -128,12 +128,12 @@
 
 			<!-- Orphaned Report Warning -->
 			{#if isOrphaned}
-				<div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+				<div class="mb-6 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4">
 					<div class="flex items-start gap-3">
-						<AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+						<AlertTriangle class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
 						<div>
-							<h3 class="text-sm font-medium text-amber-800 dark:text-amber-200">Dataset Deleted</h3>
-							<p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+							<h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">Dataset Deleted</h3>
+							<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">
 								The original dataset for this report has been deleted. Charts and visualizations may not render correctly.
 							</p>
 						</div>

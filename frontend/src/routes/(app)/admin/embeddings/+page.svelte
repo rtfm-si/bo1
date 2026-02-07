@@ -3,6 +3,8 @@
 	import { Database, RefreshCw, Filter, Info } from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import {
 		adminApi,
 		type EmbeddingStatsResponse,
@@ -145,46 +147,16 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-						aria-label="Back to admin"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div class="flex items-center gap-3">
-						<Database class="w-6 h-6 text-brand-600 dark:text-brand-400" />
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							Embeddings Visualization
-						</h1>
-					</div>
-				</div>
-				<Button variant="secondary" size="sm" onclick={loadSample} disabled={loading}>
-					<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
-					Refresh
-				</Button>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Embeddings Visualization" icon={Database}>
+		{#snippet actions()}
+			<Button variant="secondary" size="sm" onclick={loadSample} disabled={loading}>
+				<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
+				Refresh
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 		{#if error}
 			<Alert variant="error" class="mb-6">{error}</Alert>
 		{/if}
@@ -204,7 +176,7 @@
 					class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 				>
 					<div class="text-sm text-neutral-500 dark:text-neutral-400">Contributions</div>
-					<div class="text-2xl font-semibold text-blue-600">
+					<div class="text-2xl font-semibold text-info-600">
 						{stats.by_type.contributions.toLocaleString()}
 					</div>
 				</div>
@@ -212,7 +184,7 @@
 					class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 				>
 					<div class="text-sm text-neutral-500 dark:text-neutral-400">Research Cache</div>
-					<div class="text-2xl font-semibold text-green-600">
+					<div class="text-2xl font-semibold text-success-600">
 						{stats.by_type.research_cache.toLocaleString()}
 					</div>
 				</div>
@@ -355,13 +327,8 @@
 					</svg>
 				</div>
 			{:else}
-				<div
-					class="h-[500px] flex items-center justify-center text-neutral-500 dark:text-neutral-400"
-				>
-					<div class="text-center">
-						<Info class="w-12 h-12 mx-auto mb-2 opacity-50" />
-						<p>No embeddings found</p>
-					</div>
+				<div class="h-[500px] flex items-center justify-center">
+					<EmptyState title="No embeddings found" icon={Info} />
 				</div>
 			{/if}
 		</div>

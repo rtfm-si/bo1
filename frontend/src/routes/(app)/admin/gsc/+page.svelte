@@ -10,6 +10,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui';
+	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import {
 		RefreshCw,
 		Search,
@@ -20,6 +21,7 @@
 		AlertCircle,
 		CheckCircle2
 	} from 'lucide-svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import {
 		adminApi,
 		type GSCOverviewResponse,
@@ -109,77 +111,41 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Header -->
-	<header
-		class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700"
-	>
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/admin"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to admin dashboard"
-					>
-						<svg
-							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 19l-7-7m0 0l7-7m-7 7h18"
-							/>
-						</svg>
-					</a>
-					<div>
-						<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">
-							Google Search Console
-						</h1>
-						<p class="text-sm text-neutral-500 dark:text-neutral-400">
-							Search performance metrics from GSC
-						</p>
-					</div>
-				</div>
-				<div class="flex items-center gap-2">
-					<Button
-						variant="secondary"
-						size="sm"
-						onclick={() => handleSync(true)}
-						disabled={isSyncing || !overview?.connected}
-					>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
-							Sync 90 Days
-						{/snippet}
-					</Button>
-					<Button
-						variant="secondary"
-						size="sm"
-						onclick={() => handleSync(false)}
-						disabled={isSyncing || !overview?.connected}
-					>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
-							Sync Recent
-						{/snippet}
-					</Button>
-					<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
-						{#snippet children()}
-							<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-							Refresh
-						{/snippet}
-					</Button>
-				</div>
-			</div>
-		</div>
-	</header>
+	<AdminPageHeader title="Google Search Console">
+		{#snippet actions()}
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => handleSync(true)}
+				disabled={isSyncing || !overview?.connected}
+			>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
+					Sync 90 Days
+				{/snippet}
+			</Button>
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => handleSync(false)}
+				disabled={isSyncing || !overview?.connected}
+			>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
+					Sync Recent
+				{/snippet}
+			</Button>
+			<Button variant="secondary" size="sm" onclick={loadData} disabled={isLoading}>
+				{#snippet children()}
+					<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
+					Refresh
+				{/snippet}
+			</Button>
+		{/snippet}
+	</AdminPageHeader>
 
 	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
 		<!-- Error State -->
 		{#if error}
 			<div
@@ -283,7 +249,7 @@
 						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4"
 					>
 						<div class="flex items-center gap-2 mb-2">
-							<Search class="w-5 h-5 text-blue-500" />
+							<Search class="w-5 h-5 text-info-500" />
 							<span class="text-sm text-neutral-500 dark:text-neutral-400">Impressions</span>
 						</div>
 						<div class="text-2xl font-bold text-neutral-900 dark:text-white">
@@ -295,7 +261,7 @@
 						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4"
 					>
 						<div class="flex items-center gap-2 mb-2">
-							<MousePointer class="w-5 h-5 text-amber-500" />
+							<MousePointer class="w-5 h-5 text-warning-500" />
 							<span class="text-sm text-neutral-500 dark:text-neutral-400">Clicks</span>
 						</div>
 						<div class="text-2xl font-bold text-neutral-900 dark:text-white">
@@ -366,9 +332,7 @@
 
 						<div class="overflow-x-auto">
 							{#if decisions.decisions.length === 0}
-								<div class="p-8 text-center text-neutral-500 dark:text-neutral-400">
-									No search data yet. Click "Sync" to fetch data from GSC.
-								</div>
+								<EmptyState title="No search data yet" description='Click "Sync" to fetch data from GSC.' icon={Search} />
 							{:else}
 								<table class="w-full">
 									<thead class="bg-neutral-50 dark:bg-neutral-900">
@@ -422,7 +386,7 @@
 														class="{decision.ctr >= 0.05
 															? 'text-success-600 dark:text-success-400'
 															: decision.ctr >= 0.02
-																? 'text-amber-600 dark:text-amber-400'
+																? 'text-warning-600 dark:text-warning-400'
 																: 'text-neutral-500'} font-medium"
 													>
 														{formatPercent(decision.ctr)}
@@ -433,7 +397,7 @@
 														class="{decision.position !== null && decision.position <= 10
 															? 'text-success-600 dark:text-success-400'
 															: decision.position !== null && decision.position <= 20
-																? 'text-amber-600 dark:text-amber-400'
+																? 'text-warning-600 dark:text-warning-400'
 																: 'text-neutral-500'} font-medium"
 													>
 														{formatPosition(decision.position)}
@@ -450,21 +414,7 @@
 			{/if}
 		{:else}
 			<!-- Empty State -->
-			<div
-				class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center"
-			>
-				<div
-					class="mx-auto w-12 h-12 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4"
-				>
-					<BarChart3 class="w-6 h-6 text-neutral-400" />
-				</div>
-				<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-					No GSC data available
-				</h3>
-				<p class="text-neutral-600 dark:text-neutral-400">
-					Connect GSC and sync data to see search performance.
-				</p>
-			</div>
+			<EmptyState title="No GSC data available" description="Connect GSC and sync data to see search performance." icon={BarChart3} />
 		{/if}
 	</main>
 </div>

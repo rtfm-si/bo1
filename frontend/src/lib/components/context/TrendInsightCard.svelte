@@ -86,9 +86,9 @@
 		<div class="flex items-start justify-between gap-3">
 			<div class="flex items-start gap-3 flex-1 min-w-0">
 				<div
-					class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0"
+					class="w-10 h-10 rounded-lg bg-success-100 dark:bg-success-900/30 flex items-center justify-center flex-shrink-0"
 				>
-					<TrendingUp class="h-5 w-5 text-green-600 dark:text-green-400" />
+					<TrendingUp class="h-5 w-5 text-success-600 dark:text-success-400" />
 				</div>
 				<div class="min-w-0 flex-1">
 					<h4 class="font-semibold text-neutral-900 dark:text-neutral-100 line-clamp-2">
@@ -125,7 +125,7 @@
 				{/if}
 				{#if onDelete}
 					<BoButton variant="ghost" size="sm" onclick={onDelete} title="Delete insight">
-						<Trash2 class="h-4 w-4 text-red-500" />
+						<Trash2 class="h-4 w-4 text-error-500" />
 					</BoButton>
 				{/if}
 			</div>
@@ -152,7 +152,7 @@
 		{#if insight.key_takeaway}
 			<div>
 				<div class="flex items-center gap-1.5 mb-2">
-					<Zap class="h-4 w-4 text-amber-500" />
+					<Zap class="h-4 w-4 text-warning-500" />
 					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
 						>Key Takeaway</span
 					>
@@ -182,7 +182,7 @@
 		{#if insight.actions.length > 0}
 			<div>
 				<div class="flex items-center gap-1.5 mb-2">
-					<AlertCircle class="h-4 w-4 text-blue-600 dark:text-blue-400" />
+					<AlertCircle class="h-4 w-4 text-info-600 dark:text-info-400" />
 					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
 						>Recommended Actions</span
 					>

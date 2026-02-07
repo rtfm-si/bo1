@@ -67,11 +67,11 @@
 	<meta name="description" content="Cross-dataset anomaly detection and comparison" />
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
 	<!-- Header -->
 	<div class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Multi-Dataset Analysis</h1>
+			<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Multi-Dataset Analysis</h1>
 			<p class="mt-1 text-neutral-600 dark:text-neutral-400">
 				Cross-dataset anomaly detection and comparison
 			</p>

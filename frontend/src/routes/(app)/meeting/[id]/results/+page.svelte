@@ -9,6 +9,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	const sessionId = $page.params.id;
 
@@ -20,7 +21,7 @@
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
 	<div class="text-center">
-		<div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+		<Spinner size="lg" class="mx-auto mb-4" />
 		<p class="text-neutral-600 dark:text-neutral-400">Redirecting to meeting...</p>
 	</div>
 </div>

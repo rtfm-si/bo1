@@ -1,9 +1,15 @@
 <script lang="ts">
-	import { ChevronDown, ChevronRight, Copy, Check, FileText } from 'lucide-svelte';
-	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
+	import { Copy, Check, FileText } from 'lucide-svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { Button } from '$lib/components/ui';
 	import SubProblemStatusBadge from './SubProblemStatusBadge.svelte';
 	import type { SubProblemResult } from './MeetingError.svelte';
+	import {
+		Accordion,
+		AccordionItem,
+		AccordionTrigger,
+		AccordionContent,
+	} from '$lib/components/ui/shadcn/accordion';
 
 	interface Props {
 		results: SubProblemResult[];
@@ -11,9 +17,6 @@
 	}
 
 	let { results, totalSubProblems = 0 }: Props = $props();
-
-	// Track expanded accordion items
-	let expandedItems = new SvelteSet<string>();
 
 	// Track copy states per item
 	let copiedStates = new SvelteMap<string, boolean>();
@@ -23,14 +26,6 @@
 	);
 
 	const total = $derived(totalSubProblems || results.length);
-
-	function toggleItem(id: string) {
-		if (expandedItems.has(id)) {
-			expandedItems.delete(id);
-		} else {
-			expandedItems.add(id);
-		}
-	}
 
 	async function copyToClipboard(id: string, text: string) {
 		try {
@@ -52,19 +47,19 @@
 	}
 </script>
 
-<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+<div class="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm overflow-hidden">
 	<!-- Header -->
-	<div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+	<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<div class="w-10 h-10 rounded-full bg-success-100 dark:bg-success-900/40 flex items-center justify-center">
 					<FileText size={20} class="text-success-600 dark:text-success-400" />
 				</div>
 				<div>
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
 						Partial Results Available
 					</h3>
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						{completedResults.length} of {total} focus areas completed
 					</p>
 				</div>
@@ -72,13 +67,13 @@
 
 			<!-- Progress indicator -->
 			<div class="flex items-center gap-2">
-				<div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+				<div class="w-24 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
 					<div
 						class="h-full bg-success-500 dark:bg-success-400 rounded-full transition-all duration-300"
 						style="width: {(completedResults.length / total) * 100}%"
 					></div>
 				</div>
-				<span class="text-sm font-medium text-slate-600 dark:text-slate-400">
+				<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">
 					{Math.round((completedResults.length / total) * 100)}%
 				</span>
 			</div>
@@ -86,63 +81,35 @@
 	</div>
 
 	<!-- Sub-problem Results Accordion -->
-	<div class="divide-y divide-slate-200 dark:divide-slate-700">
+	<Accordion type="multiple" class="divide-y divide-neutral-200 dark:divide-neutral-700">
 		{#each results as result (result.id)}
-			{@const isExpanded = expandedItems.has(result.id)}
-			{@const isCopied = copiedStates.get(result.id) || false}
 			{@const isComplete = result.status === 'complete' && result.synthesis}
+			{@const isCopied = copiedStates.get(result.id) || false}
 
-			<div class="group">
-				<!-- Accordion Header -->
-				<button
-					onclick={() => isComplete && toggleItem(result.id)}
-					class="w-full px-6 py-4 flex items-center justify-between text-left transition-colors
-						{isComplete
-							? 'hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer'
-							: 'cursor-default opacity-75'
-						}"
+			<AccordionItem value={result.id} class="border-b-0" disabled={!isComplete}>
+				<AccordionTrigger
+					class="px-6 py-4 hover:no-underline {isComplete
+						? 'hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
+						: 'opacity-75 cursor-default'}"
 					disabled={!isComplete}
-					aria-expanded={isExpanded}
-					aria-controls="content-{result.id}"
 				>
 					<div class="flex items-center gap-3 min-w-0 flex-1">
-						{#if isComplete}
-							<span class="text-slate-400 dark:text-slate-500 transition-transform {isExpanded ? 'rotate-0' : '-rotate-90'}">
-								<ChevronDown size={20} />
-							</span>
-						{:else}
-							<span class="text-slate-300 dark:text-slate-600">
-								<ChevronRight size={20} />
-							</span>
-						{/if}
-
 						<div class="min-w-0 flex-1">
-							<p class="font-medium text-slate-900 dark:text-white truncate">
+							<p class="font-medium text-neutral-900 dark:text-white truncate text-left">
 								{result.goal}
 							</p>
-							{#if isComplete && !isExpanded}
-								<p class="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
-									{truncateSynthesis(result.synthesis)}
-								</p>
-							{/if}
 						</div>
 					</div>
-
 					<div class="flex items-center gap-3 flex-shrink-0 ml-3">
 						<SubProblemStatusBadge status={result.status} />
 					</div>
-				</button>
-
-				<!-- Accordion Content -->
-				{#if isExpanded && isComplete}
-					<div
-						id="content-{result.id}"
-						class="px-6 pb-4 pt-0"
-					>
-						<div class="ml-8 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
+				</AccordionTrigger>
+				{#if isComplete}
+					<AccordionContent class="px-6">
+						<div class="ml-0 bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4">
 							<!-- Synthesis Content -->
 							<div class="prose prose-sm dark:prose-invert max-w-none">
-								<p class="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+								<p class="text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
 									{result.synthesis}
 								</p>
 							</div>
@@ -164,9 +131,9 @@
 								</Button>
 							</div>
 						</div>
-					</div>
+					</AccordionContent>
 				{/if}
-			</div>
+			</AccordionItem>
 		{/each}
-	</div>
+	</Accordion>
 </div>

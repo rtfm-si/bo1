@@ -39,9 +39,9 @@
 	<meta name="description" content="Chat with your AI advisor for business guidance" />
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-4rem)] flex flex-col">
+<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 h-[calc(100vh-4rem)] flex flex-col">
 	<div class="mb-6 flex-shrink-0">
-		<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Discuss</h1>
+		<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white">Discuss</h1>
 		<p class="mt-1 text-neutral-600 dark:text-neutral-400">
 			Chat with your AI advisor for strategic guidance and insights.
 		</p>

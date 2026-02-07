@@ -69,23 +69,23 @@
 </script>
 
 {#if history.length === 0}
-	<div class="text-xs text-slate-400 dark:text-slate-500 italic">No history yet</div>
+	<div class="text-xs text-neutral-400 dark:text-neutral-500 italic">No history yet</div>
 {:else if history.length === 1}
 	<!-- Single entry - just show as text -->
-	<div class="text-xs text-slate-500 dark:text-slate-400">
+	<div class="text-xs text-neutral-500 dark:text-neutral-400">
 		<span class="font-medium">{history[0].value}{unit === '%' ? '%' : ''}</span>
-		<span class="text-slate-400 dark:text-slate-500 ml-1">({formatDate(history[0].date)})</span>
+		<span class="text-neutral-400 dark:text-neutral-500 ml-1">({formatDate(history[0].date)})</span>
 	</div>
 {:else if history.length === 2}
 	<!-- Two entries - show as compact list -->
-	<div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+	<div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
 		{#each history as entry, i}
 			<span>
 				<span class="font-medium">{entry.value}{unit === '%' ? '%' : ''}</span>
-				<span class="text-slate-400 dark:text-slate-500">({formatDate(entry.date)})</span>
+				<span class="text-neutral-400 dark:text-neutral-500">({formatDate(entry.date)})</span>
 			</span>
 			{#if i < history.length - 1}
-				<span class="text-slate-300 dark:text-slate-600">→</span>
+				<span class="text-neutral-300 dark:text-neutral-600">→</span>
 			{/if}
 		{/each}
 	</div>
@@ -118,25 +118,25 @@
 
 		<!-- Trend indicator -->
 		{#if trend === 'up'}
-			<span class="text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-0.5">
+			<span class="text-success-600 dark:text-success-400 text-xs font-medium flex items-center gap-0.5">
 				<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
 				</svg>
 				Up
 			</span>
 		{:else if trend === 'down'}
-			<span class="text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-0.5">
+			<span class="text-error-600 dark:text-error-400 text-xs font-medium flex items-center gap-0.5">
 				<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
 				</svg>
 				Down
 			</span>
 		{:else}
-			<span class="text-slate-500 dark:text-slate-400 text-xs font-medium">Stable</span>
+			<span class="text-neutral-500 dark:text-neutral-400 text-xs font-medium">Stable</span>
 		{/if}
 
 		<!-- Count indicator -->
-		<span class="text-xs text-slate-400 dark:text-slate-500">
+		<span class="text-xs text-neutral-400 dark:text-neutral-500">
 			({history.length} check-ins)
 		</span>
 	</div>

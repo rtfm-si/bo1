@@ -37,9 +37,9 @@
 
 {#if session}
 	<div class="px-4 pb-3">
-		<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+		<div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
 			<div
-				class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+				class="h-full bg-gradient-to-r from-info-500 to-purple-500 transition-all duration-500"
 				style="width: {progress}%"
 			></div>
 		</div>

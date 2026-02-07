@@ -260,7 +260,7 @@ describe('ActivityHeatmap - Color Accessibility', () => {
 		const expectedLightColors = [
 			'bg-brand-600',
 			'bg-success-600',
-			'bg-amber-600',
+			'bg-warning-600',
 			'bg-purple-600'
 		];
 

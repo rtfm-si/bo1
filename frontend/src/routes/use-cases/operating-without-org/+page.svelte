@@ -143,7 +143,7 @@
 					</div>
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-700">
 						<h3 class="font-bold text-neutral-900 dark:text-neutral-100 mb-3 flex items-center gap-2">
-							<span class="text-red-500">✗</span> What you skip
+							<span class="text-error-500">✗</span> What you skip
 						</h3>
 						<ul class="space-y-2 text-neutral-600 dark:text-neutral-400 text-sm">
 							<li>Six-figure salaries</li>
@@ -189,40 +189,40 @@
 				<div class="grid md:grid-cols-2 gap-6">
 					<div class="space-y-4">
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">Higher revenue per employee</p>
 						</div>
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">Faster decision-making</p>
 						</div>
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">Less coordination overhead</p>
 						</div>
 					</div>
 					<div class="space-y-4">
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">More flexibility to pivot</p>
 						</div>
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">Better margins</p>
 						</div>
 						<div class="flex gap-3">
-							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600 dark:text-green-400"><polyline points="20 6 9 17 4 12"/></svg>
+							<div class="flex-shrink-0 w-6 h-6 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success-600 dark:text-success-400"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
 							<p class="text-neutral-700 dark:text-neutral-300">Less politics and process</p>
 						</div>

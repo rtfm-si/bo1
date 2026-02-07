@@ -80,10 +80,10 @@
 		aria-live="polite"
 	>
 		{#if rating === 1}
-			<ThumbsUp size={compact ? 14 : 16} class="text-green-500" aria-hidden="true" />
+			<ThumbsUp size={compact ? 14 : 16} class="text-success-500" aria-hidden="true" />
 			<span>Thanks for the positive feedback!</span>
 		{:else}
-			<ThumbsDown size={compact ? 14 : 16} class="text-red-500" aria-hidden="true" />
+			<ThumbsDown size={compact ? 14 : 16} class="text-error-500" aria-hidden="true" />
 			<span>Thanks for the feedback. We'll work on improving.</span>
 		{/if}
 	</div>
@@ -98,23 +98,23 @@
 			<button
 				onclick={() => submitRating(1)}
 				disabled={submitting}
-				class="p-2 rounded-full transition-colors hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
+				class="p-2 rounded-full transition-colors hover:bg-success-100 dark:hover:bg-success-900/30 focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
 				aria-label="Rate positively (thumbs up)"
 			>
 				<ThumbsUp
 					size={compact ? 18 : 22}
-					class="text-neutral-400 hover:text-green-500 transition-colors"
+					class="text-neutral-400 hover:text-success-500 transition-colors"
 				/>
 			</button>
 			<button
 				onclick={() => submitRating(-1)}
 				disabled={submitting}
-				class="p-2 rounded-full transition-colors hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
+				class="p-2 rounded-full transition-colors hover:bg-error-100 dark:hover:bg-error-900/30 focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
 				aria-label="Rate negatively (thumbs down)"
 			>
 				<ThumbsDown
 					size={compact ? 18 : 22}
-					class="text-neutral-400 hover:text-red-500 transition-colors"
+					class="text-neutral-400 hover:text-error-500 transition-colors"
 				/>
 			</button>
 		</div>

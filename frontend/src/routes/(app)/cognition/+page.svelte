@@ -103,7 +103,7 @@
 <div class="max-w-3xl mx-auto py-8 px-4">
 	{#if isLoading}
 		<!-- Loading state -->
-		<div class="flex items-center justify-center gap-3 text-slate-500 py-16">
+		<div class="flex items-center justify-center gap-3 text-neutral-500 py-16">
 			<svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
 				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
 				></circle>
@@ -118,9 +118,9 @@
 	{:else if error && !hasProfile}
 		<!-- Error state -->
 		<div
-			class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6"
+			class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl p-6"
 		>
-			<p class="text-red-700 dark:text-red-300">{error}</p>
+			<p class="text-error-700 dark:text-error-300">{error}</p>
 			<Button variant="secondary" onclick={loadProfile} class="mt-4">Retry</Button>
 		</div>
 	{:else if !hasProfile || showRetakeFlow}
@@ -131,10 +131,10 @@
 			>
 				<span class="text-3xl">🧠</span>
 			</div>
-			<h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+			<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
 				{showRetakeFlow ? 'Retake Your Assessment' : 'Discover Your Decision Style'}
 			</h1>
-			<p class="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+			<p class="text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
 				Answer 9 quick questions to help us personalize recommendations to how you think and decide.
 			</p>
 		</div>
@@ -147,16 +147,16 @@
 		<!-- Success state after completing assessment -->
 		<div class="text-center py-12">
 			<div
-				class="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6"
+				class="w-20 h-20 bg-success-100 dark:bg-success-900/30 rounded-full flex items-center justify-center mx-auto mb-6"
 			>
-				<svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="w-10 h-10 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 				</svg>
 			</div>
-			<h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-3">
+			<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-3">
 				Profile Updated!
 			</h2>
-			<p class="text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
+			<p class="text-neutral-600 dark:text-neutral-400 mb-8 max-w-md mx-auto">
 				Your cognitive profile has been saved. We'll use this to personalize your meeting recommendations.
 			</p>
 
@@ -166,13 +166,13 @@
 				>
 					<div class="flex items-start gap-4">
 						<div
-							class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0"
+							class="w-12 h-12 bg-white dark:bg-neutral-800 rounded-lg flex items-center justify-center flex-shrink-0"
 						>
 							<span class="text-2xl">🧠</span>
 						</div>
 						<div>
-							<h3 class="font-medium text-slate-900 dark:text-white mb-1">Your Decision Style</h3>
-							<p class="text-slate-700 dark:text-slate-300">{profile.cognitive_style_summary}</p>
+							<h3 class="font-medium text-neutral-900 dark:text-white mb-1">Your Decision Style</h3>
+							<p class="text-neutral-700 dark:text-neutral-300">{profile.cognitive_style_summary}</p>
 						</div>
 					</div>
 				</div>
@@ -191,10 +191,10 @@
 		<!-- Has profile - show summary -->
 		<div class="space-y-6">
 			<div class="text-center mb-8">
-				<h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
 					Your Cognitive Profile
 				</h1>
-				<p class="text-slate-600 dark:text-slate-400">
+				<p class="text-neutral-600 dark:text-neutral-400">
 					How you think and decide, used to personalize your recommendations
 				</p>
 			</div>
@@ -206,13 +206,13 @@
 				>
 					<div class="flex items-start gap-4">
 						<div
-							class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0"
+							class="w-12 h-12 bg-white dark:bg-neutral-800 rounded-lg flex items-center justify-center flex-shrink-0"
 						>
 							<span class="text-2xl">🧠</span>
 						</div>
 						<div>
-							<h3 class="font-medium text-slate-900 dark:text-white mb-1">Your Decision Style</h3>
-							<p class="text-slate-700 dark:text-slate-300">{profile.cognitive_style_summary}</p>
+							<h3 class="font-medium text-neutral-900 dark:text-white mb-1">Your Decision Style</h3>
+							<p class="text-neutral-700 dark:text-neutral-300">{profile.cognitive_style_summary}</p>
 						</div>
 					</div>
 				</div>
@@ -221,9 +221,9 @@
 			<!-- Blindspots Preview -->
 			{#if profile?.primary_blindspots && profile.primary_blindspots.length > 0}
 				<div
-					class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800"
+					class="bg-warning-50 dark:bg-warning-900/20 rounded-xl p-6 border border-warning-200 dark:border-warning-800"
 				>
-					<h3 class="font-medium text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+					<h3 class="font-medium text-warning-800 dark:text-warning-200 mb-3 flex items-center gap-2">
 						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
 								stroke-linecap="round"
@@ -234,7 +234,7 @@
 						</svg>
 						Blindspot Awareness
 					</h3>
-					<p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
+					<p class="text-sm text-warning-700 dark:text-warning-300 mb-3">
 						Areas where your natural tendencies may create blind spots. Click to discuss with your advisor.
 					</p>
 					<div class="space-y-2">
@@ -243,18 +243,18 @@
 							{@const count = discussionCounts[blindspotId] || 0}
 							<a
 								href={getBlindspotDiscussUrl(blindspot)}
-								class="block bg-white dark:bg-slate-800 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group"
+								class="block bg-white dark:bg-neutral-800 rounded-lg p-3 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors group"
 							>
 								<div class="flex items-center justify-between">
-									<span class="font-medium text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400">{blindspot.label}</span>
+									<span class="font-medium text-neutral-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400">{blindspot.label}</span>
 									<div class="flex items-center gap-2">
 										{#if count > 0}
-											<span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+											<span class="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
 												<MessageCircle class="w-3 h-3" />
 												{count}
 											</span>
 										{/if}
-										<svg class="w-4 h-4 text-slate-400 group-hover:text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<svg class="w-4 h-4 text-neutral-400 group-hover:text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 										</svg>
 									</div>

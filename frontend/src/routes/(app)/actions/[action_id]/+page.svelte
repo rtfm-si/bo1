@@ -450,7 +450,7 @@
 	const categoryConfig: Record<string, { label: string; color: string }> = {
 		implementation: { label: 'Implementation', color: 'text-brand-600 dark:text-brand-400' },
 		research: { label: 'Research', color: 'text-purple-600 dark:text-purple-400' },
-		decision: { label: 'Decision', color: 'text-amber-600 dark:text-amber-400' },
+		decision: { label: 'Decision', color: 'text-warning-600 dark:text-warning-400' },
 		communication: { label: 'Communication', color: 'text-teal-600 dark:text-teal-400' }
 	};
 
@@ -922,10 +922,10 @@
 						<div class="mb-5 px-2">
 							<div class="relative flex items-center justify-between">
 								<!-- Progress line background -->
-								<div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full"></div>
+								<div class="absolute left-0 right-0 top-1/2 -tranneutral-y-1/2 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full"></div>
 								<!-- Progress line fill -->
 								<div
-									class={`absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-full transition-all ${action.status === 'done' ? 'bg-success-500' : action.status === 'cancelled' ? 'bg-neutral-400' : 'bg-brand-500'}`}
+									class={`absolute left-0 top-1/2 -tranneutral-y-1/2 h-1 rounded-full transition-all ${action.status === 'done' ? 'bg-success-500' : action.status === 'cancelled' ? 'bg-neutral-400' : 'bg-brand-500'}`}
 									style="width: {action.status === 'done' ? '100%' : action.status === 'in_progress' ? '50%' : action.actual_start_date ? '25%' : '0%'}"
 								></div>
 								<!-- Steps -->
@@ -965,9 +965,9 @@
 						<div class="space-y-2">
 							<!-- Target Dates Row -->
 							{#if hasTargetDates}
-								<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
-									<Calendar class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-									<span class="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase w-16">Target</span>
+								<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-warning-50/50 dark:bg-warning-900/10 border border-warning-200/50 dark:border-warning-800/30">
+									<Calendar class="w-4 h-4 text-warning-600 dark:text-warning-400 flex-shrink-0" />
+									<span class="text-xs font-medium text-warning-700 dark:text-warning-300 uppercase w-16">Target</span>
 									<div class="flex-1 flex items-center gap-4 text-sm">
 										{#if action.target_start_date}
 											<span class="text-neutral-700 dark:text-neutral-300">{formatDate(action.target_start_date)}</span>
@@ -1372,12 +1372,12 @@
 								</div>
 							{/if}
 							{#if action.lessons_learned}
-								<div class="p-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
+								<div class="p-4 rounded-lg bg-warning-50/50 dark:bg-warning-900/10 border border-warning-200/50 dark:border-warning-800/30">
 									<div class="flex items-center gap-2 mb-2">
-										<Lightbulb class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-										<span class="text-sm font-medium text-amber-700 dark:text-amber-300">Lessons learned</span>
+										<Lightbulb class="w-4 h-4 text-warning-600 dark:text-warning-400" />
+										<span class="text-sm font-medium text-warning-700 dark:text-warning-300">Lessons learned</span>
 									</div>
-									<p class="text-sm text-amber-800 dark:text-amber-200 whitespace-pre-wrap">{action.lessons_learned}</p>
+									<p class="text-sm text-warning-800 dark:text-warning-200 whitespace-pre-wrap">{action.lessons_learned}</p>
 								</div>
 							{/if}
 						</div>

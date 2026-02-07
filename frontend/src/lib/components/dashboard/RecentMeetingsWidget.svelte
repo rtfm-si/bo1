@@ -74,9 +74,9 @@
 			case 'failed':
 			case 'killed':
 				return {
-					bg: 'bg-amber-50 dark:bg-amber-900/20',
-					dot: 'bg-amber-500',
-					text: 'text-amber-700 dark:text-amber-300'
+					bg: 'bg-warning-50 dark:bg-warning-900/20',
+					dot: 'bg-warning-500',
+					text: 'text-warning-700 dark:text-warning-300'
 				};
 			default:
 				return {
@@ -220,7 +220,7 @@
 
 				<a
 					href="/meeting/{session.id}"
-					class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors group {isFailed ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}"
+					class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors group {isFailed ? 'bg-warning-50/50 dark:bg-warning-900/10' : ''}"
 				>
 					<!-- Status indicator -->
 					<div class="flex-shrink-0">
@@ -250,7 +250,7 @@
 								{@const checkpoint = checkpointStates.get(session.id)}
 								{#if checkpoint && checkpoint.total_sub_problems && checkpoint.can_resume}
 									<span>·</span>
-									<span class="text-amber-600 dark:text-amber-400 font-medium">
+									<span class="text-warning-600 dark:text-warning-400 font-medium">
 										{checkpoint.completed_sub_problems}/{checkpoint.total_sub_problems} complete
 									</span>
 								{/if}

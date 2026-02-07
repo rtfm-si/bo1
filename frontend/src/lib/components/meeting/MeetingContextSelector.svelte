@@ -138,17 +138,17 @@
 	<button
 		type="button"
 		onclick={() => (isExpanded = !isExpanded)}
-		class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+		class="w-full flex items-center justify-between px-4 py-3 bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
 	>
 		<div class="flex items-center gap-3">
-			<div class="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded">
-				<Search class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+			<div class="p-1.5 bg-info-100 dark:bg-info-900/30 rounded">
+				<Search class="w-4 h-4 text-info-600 dark:text-info-400" />
 			</div>
 			<div class="text-left">
-				<p class="text-sm font-medium text-slate-900 dark:text-white">
+				<p class="text-sm font-medium text-neutral-900 dark:text-white">
 					Add Context (Optional)
 				</p>
-				<p class="text-xs text-slate-500 dark:text-slate-400">
+				<p class="text-xs text-neutral-500 dark:text-neutral-400">
 					{#if selectedItems.length === 0}
 						Attach past meetings, actions, or datasets for better recommendations
 					{:else}
@@ -158,7 +158,7 @@
 			</div>
 		</div>
 		<svg
-			class="w-5 h-5 text-slate-400 transition-transform {isExpanded ? 'rotate-180' : ''}"
+			class="w-5 h-5 text-neutral-400 transition-transform {isExpanded ? 'rotate-180' : ''}"
 			fill="none"
 			stroke="currentColor"
 			viewBox="0 0 24 24"
@@ -172,7 +172,7 @@
 		<div class="flex flex-wrap gap-2 mt-3">
 			{#each selectedItems as item (item.id)}
 				<span
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-info-100 dark:bg-info-900/30 text-info-800 dark:text-info-200 text-sm rounded-full"
 				>
 					{#if item.type === 'meeting'}
 						<Calendar class="w-3 h-3" />
@@ -185,7 +185,7 @@
 					<button
 						type="button"
 						onclick={() => removeItem(item)}
-						class="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full transition-colors"
+						class="p-0.5 hover:bg-info-200 dark:hover:bg-info-800 rounded-full transition-colors"
 						aria-label="Remove {item.title}"
 					>
 						<X class="w-3 h-3" />
@@ -198,10 +198,10 @@
 	<!-- Expanded search panel -->
 	{#if isExpanded}
 		<div
-			class="mt-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"
+			class="mt-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden"
 		>
 			<!-- Tabs -->
-			<div class="flex border-b border-slate-200 dark:border-slate-700">
+			<div class="flex border-b border-neutral-200 dark:border-neutral-700">
 				{#each tabConfig as tab}
 					{@const count = getItemCount(tab.id)}
 					{@const limit = LIMITS[tab.id]}
@@ -211,16 +211,16 @@
 						onclick={() => handleTabChange(tab.id)}
 						class="flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors
 							{activeTab === tab.id
-							? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 -mb-px bg-blue-50 dark:bg-blue-900/20'
-							: 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'}"
+							? 'text-info-600 dark:text-info-400 border-b-2 border-info-500 -mb-px bg-info-50 dark:bg-info-900/20'
+							: 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'}"
 					>
 						<Icon class="w-4 h-4" />
 						{tab.label}
 						{#if count > 0}
 							<span
 								class="px-1.5 py-0.5 text-xs rounded-full {count >= limit
-									? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-									: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'}"
+									? 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300'
+									: 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300'}"
 							>
 								{count}/{limit}
 							</span>
@@ -230,16 +230,16 @@
 			</div>
 
 			<!-- Search input -->
-			<div class="p-3 border-b border-slate-200 dark:border-slate-700">
+			<div class="p-3 border-b border-neutral-200 dark:border-neutral-700">
 				<div class="relative">
 					<Search
-						class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+						class="absolute left-3 top-1/2 -tranneutral-y-1/2 w-4 h-4 text-neutral-400"
 					/>
 					<input
 						type="text"
 						bind:value={searchQuery}
 						placeholder="Search {activeTab}s..."
-						class="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+						class="w-full pl-9 pr-4 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-info-500 focus:border-transparent"
 					/>
 				</div>
 			</div>
@@ -247,22 +247,22 @@
 			<!-- Results list -->
 			<div class="max-h-60 overflow-y-auto">
 				{#if isLoading}
-					<div class="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400">
+					<div class="flex items-center justify-center py-8 text-neutral-500 dark:text-neutral-400">
 						<Loader2 class="w-5 h-5 animate-spin mr-2" />
 						<span class="text-sm">Searching...</span>
 					</div>
 				{:else if suggestions.length === 0}
-					<div class="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+					<div class="py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
 						{searchQuery
 							? `No ${activeTab}s found for "${searchQuery}"`
 							: `No recent ${activeTab}s available`}
 					</div>
 				{:else if isAtLimit(activeTab)}
 					<div class="py-8 text-center">
-						<p class="text-sm text-amber-600 dark:text-amber-400">
+						<p class="text-sm text-warning-600 dark:text-warning-400">
 							Maximum {LIMITS[activeTab]} {activeTab}s reached
 						</p>
-						<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
 							Remove an item to add more
 						</p>
 					</div>
@@ -272,13 +272,13 @@
 							type="button"
 							onclick={() => selectItem(suggestion)}
 							disabled={isAtLimit(activeTab)}
-							class="w-full px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							class="w-full px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 						>
-							<div class="text-sm font-medium text-slate-900 dark:text-white truncate">
+							<div class="text-sm font-medium text-neutral-900 dark:text-white truncate">
 								{suggestion.title}
 							</div>
 							{#if suggestion.preview}
-								<div class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+								<div class="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
 									{suggestion.preview}
 								</div>
 							{/if}
@@ -289,7 +289,7 @@
 
 			<!-- Footer hint -->
 			<div
-				class="px-4 py-2 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
+				class="px-4 py-2 text-xs text-neutral-400 dark:text-neutral-500 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50"
 			>
 				Selected context will be provided to experts during deliberation
 			</div>

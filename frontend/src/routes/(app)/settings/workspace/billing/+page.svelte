@@ -12,6 +12,7 @@
 	import { currentWorkspace } from '$lib/stores/workspace';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 
 	// Get Stripe price IDs from environment
 	const STRIPE_PRICE_STARTER = env.PUBLIC_STRIPE_PRICE_STARTER || '';
@@ -132,16 +133,14 @@
 
 {#if !$currentWorkspace}
 	<div class="text-center py-12">
-		<p class="text-slate-500 dark:text-slate-400">No workspace selected</p>
+		<p class="text-neutral-500 dark:text-neutral-400">No workspace selected</p>
 		<Button variant="secondary" onclick={() => goto('/settings/workspace')} class="mt-4">
 			Go to Workspace Settings
 		</Button>
 	</div>
 {:else if isLoading}
 	<div class="flex items-center justify-center py-12">
-		<div
-			class="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full"
-		></div>
+		<Spinner size="lg" />
 	</div>
 {:else}
 	<div class="space-y-6">
@@ -159,22 +158,22 @@
 
 		<!-- Page Header -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
-			<h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">Workspace Billing</h2>
-			<p class="text-slate-600 dark:text-slate-400">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-2">Workspace Billing</h2>
+			<p class="text-neutral-600 dark:text-neutral-400">
 				Manage billing for <span class="font-medium">{billing?.workspace_name}</span>
 			</p>
 		</div>
 
 		<!-- Current Plan -->
 		<div
-			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+			class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 		>
 			<div class="flex items-start justify-between mb-6">
 				<div>
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-1">Current Plan</h3>
-					<p class="text-slate-600 dark:text-slate-400">
+					<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-1">Current Plan</h3>
+					<p class="text-neutral-600 dark:text-neutral-400">
 						Your workspace's subscription plan and limits
 					</p>
 				</div>
@@ -204,11 +203,11 @@
 
 			{#if tierInfo?.limits}
 				<div class="mt-4">
-					<p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Plan limits:</p>
+					<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Plan limits:</p>
 					<ul class="space-y-1">
-						<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+						<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
 							<svg
-								class="w-4 h-4 text-green-500"
+								class="w-4 h-4 text-success-500"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -225,9 +224,9 @@
 								: `${tierInfo.limits.meetings_monthly} meetings/month`}
 						</li>
 						{#if tierInfo.features.api_access}
-							<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+							<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
 								<svg
-									class="w-4 h-4 text-green-500"
+									class="w-4 h-4 text-success-500"
 									fill="none"
 									stroke="currentColor"
 									viewBox="0 0 24 24"
@@ -247,8 +246,8 @@
 			{/if}
 
 			{#if !billing?.can_manage_billing}
-				<div class="mt-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-					<p class="text-sm text-slate-600 dark:text-slate-400">
+				<div class="mt-4 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Contact your workspace admin to manage billing.
 					</p>
 				</div>
@@ -258,12 +257,12 @@
 		<!-- Upgrade Options (only show for non-pro and admins) -->
 		{#if billing?.can_manage_billing && billing?.tier !== 'pro' && upgradeTiers.length > 0}
 			<div
-				class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+				class="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-700 p-6"
 			>
-				<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
 					Upgrade Your Workspace
 				</h3>
-				<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+				<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
 					Unlock more features for your team with a workspace subscription.
 				</p>
 
@@ -273,11 +272,11 @@
 						<div
 							class="p-4 rounded-lg border {tier.highlight
 								? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10'
-								: 'border-slate-200 dark:border-slate-700'}"
+								: 'border-neutral-200 dark:border-neutral-700'}"
 						>
 							<div class="flex items-start justify-between mb-3">
 								<div>
-									<h4 class="font-semibold text-slate-900 dark:text-white">
+									<h4 class="font-semibold text-neutral-900 dark:text-white">
 										{tier.name}
 										{#if tier.highlight}
 											<span
@@ -287,20 +286,20 @@
 											</span>
 										{/if}
 									</h4>
-									<p class="text-sm text-slate-600 dark:text-slate-400">{tier.description}</p>
+									<p class="text-sm text-neutral-600 dark:text-neutral-400">{tier.description}</p>
 								</div>
 								<div class="text-right">
-									<span class="text-xl font-bold text-slate-900 dark:text-white"
+									<span class="text-xl font-bold text-neutral-900 dark:text-white"
 										>{tier.priceLabel}</span
 									>
-									<span class="text-sm text-slate-500 dark:text-slate-400">/{tier.period}</span>
+									<span class="text-sm text-neutral-500 dark:text-neutral-400">/{tier.period}</span>
 								</div>
 							</div>
 
 							<ul class="space-y-1 mb-4">
-								<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+								<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
 									<svg
-										class="w-4 h-4 text-green-500 flex-shrink-0"
+										class="w-4 h-4 text-success-500 flex-shrink-0"
 										fill="none"
 										stroke="currentColor"
 										viewBox="0 0 24 24"
@@ -317,9 +316,9 @@
 										: `${tier.limits.meetings_monthly} meetings/month`}
 								</li>
 								{#if tier.features.api_access}
-									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+									<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
 										<svg
-											class="w-4 h-4 text-green-500 flex-shrink-0"
+											class="w-4 h-4 text-success-500 flex-shrink-0"
 											fill="none"
 											stroke="currentColor"
 											viewBox="0 0 24 24"
@@ -335,9 +334,9 @@
 									</li>
 								{/if}
 								{#if tier.features.priority_support}
-									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+									<li class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
 										<svg
-											class="w-4 h-4 text-green-500 flex-shrink-0"
+											class="w-4 h-4 text-success-500 flex-shrink-0"
 											fill="none"
 											stroke="currentColor"
 											viewBox="0 0 24 24"
@@ -381,14 +380,14 @@
 		<!-- Billing Portal Access -->
 		{#if billing?.has_billing_account && billing?.can_manage_billing}
 			<div
-				class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6"
+				class="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 p-6"
 			>
 				<div class="flex items-center gap-4">
 					<div
-						class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center"
+						class="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center"
 					>
 						<svg
-							class="w-5 h-5 text-slate-600 dark:text-slate-400"
+							class="w-5 h-5 text-neutral-600 dark:text-neutral-400"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -402,10 +401,10 @@
 						</svg>
 					</div>
 					<div class="flex-1">
-						<h3 class="font-medium text-slate-700 dark:text-slate-300">
+						<h3 class="font-medium text-neutral-700 dark:text-neutral-300">
 							Payment Methods & Invoices
 						</h3>
-						<p class="text-sm text-slate-500 dark:text-slate-400">
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
 							Manage payment methods, view invoices, and update billing details
 						</p>
 					</div>
@@ -417,10 +416,10 @@
 		{/if}
 
 		<!-- Help Note -->
-		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+		<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-4">
 			<div class="flex gap-3">
 				<svg
-					class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+					class="w-5 h-5 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -432,9 +431,9 @@
 						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<div class="text-sm text-blue-900 dark:text-blue-200">
+				<div class="text-sm text-info-900 dark:text-info-200">
 					<p class="font-semibold mb-1">Workspace billing info</p>
-					<p class="text-blue-800 dark:text-blue-300">
+					<p class="text-info-800 dark:text-info-300">
 						All workspace members benefit from the workspace subscription tier. For billing
 						questions, contact us at
 						<a href="mailto:support@boardof.one" class="underline hover:no-underline"

@@ -135,7 +135,7 @@
 
 {#if loading}
 	<!-- Loading skeleton -->
-	<div class="mb-6 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl p-5 animate-pulse">
+	<div class="bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl p-5 animate-pulse">
 		<div class="flex items-center gap-4">
 			<div class="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700"></div>
 			<div class="flex-1 space-y-2">
@@ -146,7 +146,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="mb-6 border rounded-xl p-5 transition-all duration-200 {styles.banner}">
+	<div class="border rounded-xl p-5 transition-all duration-200 {styles.banner}">
 		<div class="flex flex-col sm:flex-row sm:items-center gap-4">
 			<!-- Icon -->
 			<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full {styles.icon}">

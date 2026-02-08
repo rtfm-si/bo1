@@ -231,6 +231,8 @@
 			};
 		}
 
+		let currentData: GanttResponse | null = null;
+
 		async function init() {
 			if (!params.data.actions.length) return;
 
@@ -296,18 +298,36 @@
 			});
 
 			injectStatusStyles();
+			currentData = params.data;
 
 			// Setup drag detection after Gantt initializes
 			if (cleanupListeners) cleanupListeners();
 			cleanupListeners = setupDragDetection();
+
+			// Scroll to today after render
+			requestAnimationFrame(() => {
+				ganttInstance?.scroll_current?.();
+			});
 		}
 
 		init();
 
 		return {
 			update(newParams) {
-				// Reinitialize when data changes
+				const viewModeChanged = params.viewMode !== newParams.viewMode;
+				const dataChanged = params.data !== newParams.data;
 				params = newParams;
+
+				// If only view mode changed, use change_view_mode instead of full reinit
+				if (viewModeChanged && !dataChanged && ganttInstance && currentData === params.data) {
+					ganttInstance.change_view_mode(params.viewMode);
+					requestAnimationFrame(() => {
+						ganttInstance?.scroll_current?.();
+					});
+					return;
+				}
+
+				// Full reinit for data changes
 				init();
 			},
 			destroy() {

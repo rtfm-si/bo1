@@ -224,6 +224,7 @@
 		onTaskClick?: (actionId: string) => void;
 	}> = (node, params) => {
 		let ganttInstance: any = null;
+		let currentData: GlobalGanttResponse | null = null;
 
 		async function init() {
 			if (!params.data.actions.length) return;
@@ -286,14 +287,33 @@
 					// Progress changes are handled via action status updates
 				}
 			});
+
+			currentData = params.data;
+
+			// Scroll to today after render
+			requestAnimationFrame(() => {
+				ganttInstance?.scroll_current?.();
+			});
 		}
 
 		init();
 
 		return {
 			update(newParams) {
-				// Reinitialize when data changes
+				const viewModeChanged = params.viewMode !== newParams.viewMode;
+				const dataChanged = params.data !== newParams.data;
 				params = newParams;
+
+				// If only view mode changed and we have an instance, use change_view_mode
+				if (viewModeChanged && !dataChanged && ganttInstance && currentData === params.data) {
+					ganttInstance.change_view_mode(params.viewMode);
+					requestAnimationFrame(() => {
+						ganttInstance?.scroll_current?.();
+					});
+					return;
+				}
+
+				// Full reinit for data changes
 				init();
 			},
 			destroy() {

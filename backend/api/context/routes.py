@@ -114,7 +114,6 @@ from backend.api.context.services import (
     CATEGORY_TO_FIELD_MAPPING,
     append_benchmark_history,
     context_data_to_model,
-    context_model_to_dict,
     enriched_data_to_dict,
     enriched_to_context_model,
     get_key_metrics_for_user,
@@ -282,7 +281,7 @@ async def update_context(
     existing_context = user_repository.get_context(user_id)
 
     # Convert to dict for save function
-    context_dict = context_model_to_dict(context)
+    context_dict = context.model_dump(exclude_unset=True)
 
     # Sanitize user-provided text values to prevent prompt injection
     context_dict = sanitize_context_values(context_dict)

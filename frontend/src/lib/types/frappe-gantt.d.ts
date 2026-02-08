@@ -30,7 +30,8 @@ declare module 'frappe-gantt' {
 
 	export default class Gantt {
 		constructor(element: HTMLElement, tasks: Task[], options?: GanttOptions);
-		change_view_mode(mode: 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year'): void;
+		change_view_mode(mode: 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year', maintain_pos?: boolean): void;
+		scroll_current(): void;
 		refresh(tasks: Task[]): void;
 	}
 }

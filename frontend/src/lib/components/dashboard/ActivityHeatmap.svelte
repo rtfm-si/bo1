@@ -91,16 +91,22 @@
 		start.setMonth(start.getMonth() - historyMonths);
 		start.setHours(0, 0, 0, 0);
 
-		// Future: last planned action + 7 days buffer, capped at historyMonths forward
+		// Future: at least 1 month, or last planned action + 7 days, capped at historyMonths forward
 		const lastPlanned = getLastPlannedDate(data, today);
 		const buffer = new Date(lastPlanned);
 		buffer.setDate(buffer.getDate() + 7);
+
+		const minFuture = new Date(today);
+		minFuture.setMonth(minFuture.getMonth() + 1);
 
 		// Cap at historyMonths from today
 		const maxFuture = new Date(today);
 		maxFuture.setMonth(maxFuture.getMonth() + historyMonths);
 
-		const end = new Date(Math.min(buffer.getTime(), maxFuture.getTime()));
+		const end = new Date(Math.min(
+			Math.max(minFuture.getTime(), buffer.getTime()),
+			maxFuture.getTime()
+		));
 		end.setHours(23, 59, 59, 999);
 
 		const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -255,7 +261,7 @@
 			const dominant = getDominantType(stat);
 			if (!dominant) return 'bg-neutral-50 dark:bg-neutral-900 opacity-30';
 			const color = ACTIVITY_COLORS[dominant];
-			return `${color.light}/30 ${color.dark}/30`;
+			return `${color.light} ${color.dark} opacity-30`;
 		}
 
 		// Future dates with no data - show subtle pattern
@@ -264,22 +270,22 @@
 		}
 
 		if (intensity === 0) {
-			return 'bg-neutral-200/60 dark:bg-neutral-700/60';
+			return 'bg-neutral-200 dark:bg-neutral-700';
 		}
 
 		const dominant = getDominantType(stat);
-		if (!dominant) return 'bg-neutral-200/60 dark:bg-neutral-700/60';
+		if (!dominant) return 'bg-neutral-200 dark:bg-neutral-700';
 
-		// Apply intensity via opacity classes
+		// Apply intensity via opacity utilities (Tailwind JIT can't detect dynamic /xx modifiers)
 		const color = ACTIVITY_COLORS[dominant];
 		if (intensity <= 0.25) {
-			return `${color.light}/40 ${color.dark}/40`;
+			return `${color.light} ${color.dark} opacity-40`;
 		}
 		if (intensity <= 0.5) {
-			return `${color.light}/60 ${color.dark}/60`;
+			return `${color.light} ${color.dark} opacity-60`;
 		}
 		if (intensity <= 0.75) {
-			return `${color.light}/80 ${color.dark}/80`;
+			return `${color.light} ${color.dark} opacity-80`;
 		}
 		return `${color.light} ${color.dark}`;
 	}
@@ -331,6 +337,11 @@
 	// Check if a date is in the future
 	function isFutureDate(date: Date): boolean {
 		return date > dateRange.today;
+	}
+
+	// Check if a week column contains today
+	function isCurrentWeek(week: { date: Date; stat: DailyActionStat | null }[]): boolean {
+		return week.some(cell => cell.date.toDateString() === dateRange.today.toDateString());
 	}
 
 	// Day labels (Monday first) - short for mobile
@@ -450,7 +461,7 @@
 		<h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Activity Heatmap</h3>
 		<div class="flex items-center gap-2">
 			<span class="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:inline">
-				{dateRange.hasPlannedActions ? `${historyMonths}mo + planned` : `${historyMonths}mo`}
+				{dateRange.hasPlannedActions ? `${historyMonths}mo + planned` : `${historyMonths}mo + 1mo`}
 			</span>
 			<ShareButton targetElement={heatmapContainer} stats={activityStats} compact={true} />
 		</div>
@@ -617,7 +628,7 @@
 						<!-- Heatmap cells - dynamic sizing -->
 						<div class="flex flex-1" style="gap: {cellSize.gap}px">
 							{#each gridData as week, weekIdx (weekIdx)}
-								<div class="flex flex-col" style="gap: {cellSize.gap}px">
+								<div class="flex flex-col {isCurrentWeek(week) ? 'ring-1 ring-brand-400/50 rounded' : ''}" style="gap: {cellSize.gap}px">
 									{#each week as cell, dayIdx (dayIdx)}
 										{@const inRange = isInRange(cell)}
 										{@const isFuture = isFutureDate(cell.date)}

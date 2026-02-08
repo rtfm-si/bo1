@@ -356,17 +356,28 @@
 		<!-- Failed meeting alert -->
 		<FailedMeetingAlert class="mb-6" />
 
-		<!-- Goal Banner + Cognitive Profile side by side -->
-		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-			<GoalBanner
-				class="self-start"
-				northStarGoal={contextData.data?.context?.north_star_goal}
-				strategicObjectives={contextData.data?.context?.strategic_objectives}
-				{objectivesProgress}
-				daysSinceChange={goalStaleness?.days_since_change}
-				shouldPromptReview={goalStaleness?.should_prompt ?? false}
-				onEditProgress={handleEditProgress}
-			/>
+		<!-- Goal/Focus Banner + Cognitive Profile side by side -->
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 [&>*]:h-full">
+			{#if contextData.data?.context?.north_star_goal}
+				<GoalBanner
+					class="self-start"
+					northStarGoal={contextData.data?.context?.north_star_goal}
+					strategicObjectives={contextData.data?.context?.strategic_objectives}
+					{objectivesProgress}
+					daysSinceChange={goalStaleness?.days_since_change}
+					shouldPromptReview={goalStaleness?.should_prompt ?? false}
+					onEditProgress={handleEditProgress}
+				/>
+			{:else}
+				<SmartFocusBanner
+					{focusState}
+					{overdueCount}
+					{dueTodayCount}
+					daysSinceGoalChange={goalStaleness?.days_since_change}
+					hasBusinessContext={!!(contextData.data?.context?.product_description || contextData.data?.context?.industry)}
+					loading={focusBannerLoading}
+				/>
+			{/if}
 			<CognitionWidget />
 		</div>
 
@@ -381,15 +392,19 @@
 			onClose={handleCloseProgressModal}
 		/>
 
-		<!-- Smart Focus Banner - Context-aware primary CTA -->
-		<SmartFocusBanner
-			{focusState}
-			{overdueCount}
-			{dueTodayCount}
-			daysSinceGoalChange={goalStaleness?.days_since_change}
-			hasBusinessContext={!!(contextData.data?.context?.product_description || contextData.data?.context?.industry)}
-			loading={focusBannerLoading}
-		/>
+		<!-- Smart Focus Banner below grid only when goal exists (shows overdue/due-today/ready) -->
+		{#if contextData.data?.context?.north_star_goal}
+			<div class="mb-6">
+				<SmartFocusBanner
+					{focusState}
+					{overdueCount}
+					{dueTodayCount}
+					daysSinceGoalChange={goalStaleness?.days_since_change}
+					hasBusinessContext={!!(contextData.data?.context?.product_description || contextData.data?.context?.industry)}
+					loading={focusBannerLoading}
+				/>
+			</div>
+		{/if}
 
 		<!-- Pending Reminders Panel -->
 		<div class="mb-8">

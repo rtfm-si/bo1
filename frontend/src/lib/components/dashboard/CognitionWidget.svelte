@@ -75,9 +75,9 @@
 					90 seconds to personalize recommendations
 				</p>
 			</div>
-			<svg class="w-5 h-5 text-purple-500 dark:text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-			</svg>
+			<span class="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-white/50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-white dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-600 transition-colors">
+				Start
+			</span>
 		</div>
 	</a>
 {:else}
@@ -95,9 +95,9 @@
 					<p class="font-medium text-neutral-900 dark:text-white text-sm truncate">
 						{profile?.cognitive_style_summary || 'Cognitive Profile'}
 					</p>
-					<svg class="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-					</svg>
+					<span class="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 bg-white/50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-white dark:hover:bg-brand-900/50 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
+						Update
+					</span>
 				</div>
 
 				{#if getDimensionHighlight()}

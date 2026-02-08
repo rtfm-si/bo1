@@ -13,11 +13,13 @@
 		userContext = null,
 		sessionCount = 0,
 		hasCognitionProfile = false,
+		settingsReviewed = false,
 		onDismiss,
 	}: {
 		userContext?: UserContext | null;
 		sessionCount?: number;
 		hasCognitionProfile?: boolean;
+		settingsReviewed?: boolean;
 		onDismiss: () => void;
 	} = $props();
 
@@ -49,7 +51,7 @@
 			title: 'Review your settings',
 			description: 'Customize notifications and preferences',
 			href: '/settings',
-			completed: !!userContext?.onboarding_completed,
+			completed: settingsReviewed,
 		},
 	]);
 

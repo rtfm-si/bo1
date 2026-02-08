@@ -86,6 +86,7 @@
 
 	// Onboarding state
 	let onboardingDismissed = $state(false);
+	const settingsReviewed = browser ? localStorage.getItem('bo1_settings_reviewed') === 'true' : false;
 
 	
 	// Show onboarding only for new users who haven't dismissed or completed it
@@ -230,6 +231,7 @@
 		sessionsData.fetch();
 		actionsData.fetch();
 		statsData.fetch();
+		cognitionData.fetch();
 
 		// Fetch context first to check if new user needs redirect
 		await contextData.fetch();
@@ -343,6 +345,7 @@
 				userContext={contextData.data?.context}
 				sessionCount={sessions.length}
 				hasCognitionProfile={!!cognitionData.data?.cognitive_style_summary}
+				settingsReviewed={settingsReviewed}
 				onDismiss={dismissOnboarding}
 			/>
 		{/if}
@@ -353,15 +356,19 @@
 		<!-- Failed meeting alert -->
 		<FailedMeetingAlert class="mb-6" />
 
-		<!-- Goal Banner - Primary visual element -->
-		<GoalBanner
-			northStarGoal={contextData.data?.context?.north_star_goal}
-			strategicObjectives={contextData.data?.context?.strategic_objectives}
-			{objectivesProgress}
-			daysSinceChange={goalStaleness?.days_since_change}
-			shouldPromptReview={goalStaleness?.should_prompt ?? false}
-			onEditProgress={handleEditProgress}
-		/>
+		<!-- Goal Banner + Cognitive Profile side by side -->
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+			<GoalBanner
+				class="self-start"
+				northStarGoal={contextData.data?.context?.north_star_goal}
+				strategicObjectives={contextData.data?.context?.strategic_objectives}
+				{objectivesProgress}
+				daysSinceChange={goalStaleness?.days_since_change}
+				shouldPromptReview={goalStaleness?.should_prompt ?? false}
+				onEditProgress={handleEditProgress}
+			/>
+			<CognitionWidget />
+		</div>
 
 		<!-- Objective Progress Modal -->
 		<ObjectiveProgressModal
@@ -373,11 +380,6 @@
 			onSave={handleSaveProgress}
 			onClose={handleCloseProgressModal}
 		/>
-
-		<!-- Cognitive Profile Widget -->
-		<div class="mb-6">
-			<CognitionWidget />
-		</div>
 
 		<!-- Smart Focus Banner - Context-aware primary CTA -->
 		<SmartFocusBanner
@@ -452,6 +454,7 @@
 			<WeeklyPlanView
 				actionsData={actionsData.data}
 				workingPattern={workingPatternData.data?.pattern.working_days ?? [1, 2, 3, 4, 5]}
+				onRefresh={() => actionsData.fetch()}
 			/>
 		</div>
 

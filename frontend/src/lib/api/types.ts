@@ -670,6 +670,16 @@ export interface TaskWithSessionContext extends TaskWithStatus {
 	suggested_completion_date?: string | null;
 	/** Last update timestamp */
 	updated_at?: string | null;
+	/** User-set planned start date (YYYY-MM-DD) */
+	target_start_date?: string | null;
+	/** User-set planned end date (YYYY-MM-DD) */
+	target_end_date?: string | null;
+	/** AI-estimated start date (YYYY-MM-DD) */
+	estimated_start_date?: string | null;
+	/** AI-estimated end date (YYYY-MM-DD) */
+	estimated_end_date?: string | null;
+	/** AI-estimated duration in days */
+	estimated_duration_days?: number | null;
 }
 
 /**

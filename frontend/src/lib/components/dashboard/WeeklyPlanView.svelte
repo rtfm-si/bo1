@@ -4,16 +4,23 @@
 	 * Rolling -2/+4 days view centered on today.
 	 * Color coded: overdue (red), busy (amber), normal, empty (grey).
 	 * Non-working days greyed out based on user's working pattern.
+	 * "Plan My Week" auto-distributes unscheduled actions across working days.
 	 */
 	import type { AllActionsResponse, TaskWithSessionContext } from '$lib/api/types';
+	import { apiClient } from '$lib/api/client';
 
 	interface Props {
 		actionsData: AllActionsResponse | null | undefined;
 		/** ISO weekdays (1=Mon, 7=Sun) when user works. Default: Mon-Fri */
 		workingPattern?: number[];
+		/** Callback to refresh actions data after planning */
+		onRefresh?: () => Promise<void>;
 	}
 
-	let { actionsData, workingPattern = [1, 2, 3, 4, 5] }: Props = $props();
+	let { actionsData, workingPattern = [1, 2, 3, 4, 5], onRefresh }: Props = $props();
+
+	const MAX_ACTIONS_PER_DAY = 3;
+	let isPlanning = $state(false);
 
 	// Check if a date is a working day based on user's pattern
 	function isWorkingDay(date: Date): boolean {
@@ -24,7 +31,6 @@
 	}
 
 	// Get rolling 7-day window: -2 past days + today + 4 future days
-	// Today is at index 2 for workload rebalancing focus
 	function getWeekDays(): Date[] {
 		const today = new Date();
 		today.setHours(0, 0, 0, 0);
@@ -41,7 +47,12 @@
 	const weekDays = $derived(getWeekDays());
 	const today = $derived(new Date());
 
-	// Count actions per day
+	// Get the scheduled date for a task (target_start_date takes priority)
+	function getScheduledDate(task: TaskWithSessionContext): string | null {
+		return task.target_start_date || task.estimated_start_date || null;
+	}
+
+	// Count actions per day using target_start_date || estimated_start_date
 	function countActionsForDay(date: Date): number {
 		if (!actionsData?.sessions) return 0;
 		const dateStr = formatDateKey(date);
@@ -49,8 +60,9 @@
 		for (const session of actionsData.sessions) {
 			for (const task of session.tasks as TaskWithSessionContext[]) {
 				if (task.status === 'todo' || task.status === 'in_progress') {
-					if (task.suggested_completion_date) {
-						const taskDate = task.suggested_completion_date.split('T')[0];
+					const scheduled = getScheduledDate(task);
+					if (scheduled) {
+						const taskDate = scheduled.split('T')[0];
 						if (taskDate === dateStr) {
 							count++;
 						}
@@ -92,7 +104,6 @@
 	}
 
 	// Get day status based on action count and date
-	// Simplified: 0=grey, 1-3=normal, 4+=busy, past+incomplete=overdue
 	function getDayStatus(date: Date, count: number): 'overdue' | 'busy' | 'normal' | 'empty' {
 		if (count === 0) return 'empty';
 		if (isPast(date) && count > 0) return 'overdue';
@@ -100,13 +111,12 @@
 		return 'normal';
 	}
 
-	// Get classes for day card - subtle backgrounds, non-working days greyed out
+	// Get classes for day card
 	function getDayClasses(date: Date, count: number): string {
 		const status = getDayStatus(date, count);
 		const nonWorking = !isWorkingDay(date);
 		const base = 'flex flex-col items-center p-2 sm:p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md';
 		const todayRing = isToday(date) ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-neutral-900' : '';
-		// Non-working days are greyed out (but still clickable in case user has actions on weekends)
 		const nonWorkingStyle = nonWorking ? 'opacity-40' : '';
 
 		switch (status) {
@@ -121,7 +131,7 @@
 		}
 	}
 
-	// Get badge classes for count - simpler, less colorful
+	// Get badge classes for count
 	function getBadgeClasses(status: 'overdue' | 'busy' | 'normal' | 'empty'): string {
 		switch (status) {
 			case 'overdue':
@@ -140,14 +150,66 @@
 		return `/actions?due_date=${formatDateKey(date)}`;
 	}
 
-	// Check if we have any actions to display
-	const hasActions = $derived(
-		actionsData?.sessions?.some(s =>
-			(s.tasks as TaskWithSessionContext[]).some(t =>
-				(t.status === 'todo' || t.status === 'in_progress') && t.suggested_completion_date
-			)
-		) ?? false
-	);
+	// All active tasks (todo + in_progress)
+	const allActiveTasks = $derived.by<TaskWithSessionContext[]>(() => {
+		if (!actionsData?.sessions) return [];
+		return actionsData.sessions.flatMap(s => s.tasks as TaskWithSessionContext[])
+			.filter(t => t.status === 'todo' || t.status === 'in_progress');
+	});
+
+	// Unscheduled actions: no target_start_date AND no estimated_start_date, sorted by priority
+	const unscheduledActions = $derived.by<TaskWithSessionContext[]>(() => {
+		const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+		return allActiveTasks
+			.filter(t => !t.target_start_date && !t.estimated_start_date)
+			.sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2));
+	});
+
+	// Plan My Week: distribute unscheduled actions across future working days
+	async function planMyWeek() {
+		if (isPlanning || unscheduledActions.length === 0) return;
+		isPlanning = true;
+
+		try {
+			// Get future working days from the 7-day window (today + future only)
+			const futureWorkingDays = weekDays.filter(d => !isPast(d) && isWorkingDay(d));
+			if (futureWorkingDays.length === 0) return;
+
+			// Calculate remaining capacity per day
+			const capacity = new Map<string, number>();
+			for (const day of futureWorkingDays) {
+				const key = formatDateKey(day);
+				const existing = countActionsForDay(day);
+				const remaining = MAX_ACTIONS_PER_DAY - existing;
+				if (remaining > 0) capacity.set(key, remaining);
+			}
+
+			// Distribute actions across days with available slots
+			const assignments: Array<{ id: string; date: string }> = [];
+			let actionIdx = 0;
+
+			for (const [dateKey, slots] of capacity) {
+				for (let s = 0; s < slots && actionIdx < unscheduledActions.length; s++) {
+					assignments.push({ id: unscheduledActions[actionIdx].id, date: dateKey });
+					actionIdx++;
+				}
+			}
+
+			// Fire all updates
+			await Promise.all(
+				assignments.map(({ id, date }) =>
+					apiClient.updateActionDates(id, { target_start_date: date })
+				)
+			);
+
+			// Refresh parent data
+			if (onRefresh) await onRefresh();
+		} catch (err) {
+			console.error('Failed to plan week:', err);
+		} finally {
+			isPlanning = false;
+		}
+	}
 </script>
 
 <div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
@@ -162,12 +224,37 @@
 				</div>
 				<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 ml-7">Plan and rebalance your actions</p>
 			</div>
-			<a
-				href="/actions"
-				class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-			>
-				View all actions
-			</a>
+			<div class="flex items-center gap-3">
+				{#if unscheduledActions.length > 0}
+					<button
+						onclick={planMyWeek}
+						disabled={isPlanning}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors
+							bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300
+							hover:bg-brand-100 dark:hover:bg-brand-900/30
+							disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{#if isPlanning}
+							<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+							</svg>
+							Planning...
+						{:else}
+							<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							Plan My Week ({unscheduledActions.length})
+						{/if}
+					</button>
+				{/if}
+				<a
+					href="/actions"
+					class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+				>
+					View all actions
+				</a>
+			</div>
 		</div>
 	</div>
 
@@ -179,7 +266,7 @@
 				<a
 					href={getDateFilterUrl(day)}
 					class={getDayClasses(day, count)}
-					title="{count} action{count !== 1 ? 's' : ''} due"
+					title="{count} action{count !== 1 ? 's' : ''} scheduled"
 				>
 					<!-- Day name or "Today" -->
 					<span class="text-xs font-medium {isToday(day) ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-neutral-500 dark:text-neutral-400'}">
@@ -204,7 +291,7 @@
 			{/each}
 		</div>
 
-		<!-- Legend - simplified -->
+		<!-- Legend -->
 		<div class="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
 			<span class="flex items-center gap-1.5">
 				<span class="w-2.5 h-2.5 rounded-full bg-error-500"></span>

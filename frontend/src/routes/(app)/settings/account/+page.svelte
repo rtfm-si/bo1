@@ -153,6 +153,8 @@
 
 	// Load preferences, working pattern, heatmap depth, and currency on mount
 	onMount(async () => {
+		localStorage.setItem('bo1_settings_reviewed', 'true');
+
 		// Load meeting preferences (includes currency)
 		try {
 			const prefs = await apiClient.getUserPreferences();

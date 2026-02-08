@@ -7,7 +7,9 @@
 	 */
 	import type { ObjectiveProgress } from '$lib/api/types';
 
-	interface Props {
+	import type { HTMLAttributes } from 'svelte/elements';
+
+	interface Props extends HTMLAttributes<HTMLDivElement> {
 		northStarGoal: string | null | undefined;
 		strategicObjectives: string[] | null | undefined;
 		/** Progress data keyed by objective index (as string) */
@@ -24,7 +26,9 @@
 		objectivesProgress = {},
 		daysSinceChange = null,
 		shouldPromptReview = false,
-		onEditProgress
+		onEditProgress,
+		class: className = '',
+		...restProps
 	}: Props = $props();
 
 	// Limit display to first 3 objectives
@@ -61,7 +65,7 @@
 
 {#if hasGoal}
 	<!-- Goal Banner with content -->
-	<div class="mb-6 bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-xl p-5 sm:p-6 {shouldPromptReview ? 'ring-2 ring-warning-300/50 dark:ring-warning-500/30' : ''}">
+	<div class="bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200 dark:border-brand-800 rounded-xl p-5 sm:p-6 {shouldPromptReview ? 'ring-2 ring-warning-300/50 dark:ring-warning-500/30' : ''} {className}" {...restProps}>
 		<div class="flex items-start gap-4">
 			<!-- Target icon - larger -->
 			<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 {shouldPromptReview ? 'animate-pulse' : ''}">

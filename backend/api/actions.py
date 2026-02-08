@@ -258,6 +258,19 @@ async def get_all_actions(
             "source_session_status": session_info.get("session_status"),
             "problem_statement": session_info.get("problem_statement", ""),
             "updated_at": updated_at.isoformat() if updated_at else None,
+            "target_start_date": action.get("target_start_date").isoformat()
+            if action.get("target_start_date")
+            else None,
+            "target_end_date": action.get("target_end_date").isoformat()
+            if action.get("target_end_date")
+            else None,
+            "estimated_start_date": action.get("estimated_start_date").isoformat()
+            if action.get("estimated_start_date")
+            else None,
+            "estimated_end_date": action.get("estimated_end_date").isoformat()
+            if action.get("estimated_end_date")
+            else None,
+            "estimated_duration_days": action.get("estimated_duration_days"),
         }
 
         all_actions_list.append(action_data)

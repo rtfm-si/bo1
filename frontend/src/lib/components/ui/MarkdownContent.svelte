@@ -25,6 +25,7 @@
 	 * These often appear in AI output and render as messy lines
 	 */
 	function cleanContent(text: string): string {
+		if (typeof text !== 'string') text = String(text ?? '');
 		return text
 			.split('\n')
 			.filter((line) => {
@@ -82,16 +83,34 @@
 	}
 
 	.markdown-content :global(h1),
-	.markdown-content :global(h2),
-	.markdown-content :global(h3),
-	.markdown-content :global(h4) {
+	.markdown-content :global(h2) {
 		margin-top: 1em;
 		margin-bottom: 0.5em;
 		font-weight: 600;
 	}
 
+	.markdown-content :global(h3) {
+		font-size: 0.9375rem;
+		margin-top: 0.75em;
+		margin-bottom: 0.375em;
+		font-weight: 600;
+	}
+
+	.markdown-content :global(h4) {
+		font-size: 0.875rem;
+		margin-top: 0.5em;
+		margin-bottom: 0.25em;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+		opacity: 0.7;
+	}
+
 	.markdown-content :global(h1:first-child),
-	.markdown-content :global(h2:first-child),
+	.markdown-content :global(h2:first-child) {
+		margin-top: 0;
+	}
+
 	.markdown-content :global(h3:first-child),
 	.markdown-content :global(h4:first-child) {
 		margin-top: 0;

@@ -819,7 +819,7 @@
 									<EventCardSkeleton />
 								{/each}
 							</div>
-						{:else if events.length === 0}
+						{:else if events.length === 0 && !isEventsLoaded}
 							<div
 								class="flex flex-col items-center justify-center h-full text-neutral-500 dark:text-neutral-400 p-4"
 							>
@@ -828,6 +828,12 @@
 									message={INITIAL_WAITING_MESSAGES[revealManager.initialWaitingMessageIndex]}
 									showDots
 								/>
+							</div>
+						{:else if events.length === 0 && isEventsLoaded}
+							<div
+								class="flex flex-col items-center justify-center h-full text-neutral-500 dark:text-neutral-400 p-4"
+							>
+								<p class="text-sm">No events found for this meeting.</p>
 							</div>
 						{:else if memoized.subProblemTabs.length > 1}
 							<!-- Tab-based navigation for multiple sub-problems -->

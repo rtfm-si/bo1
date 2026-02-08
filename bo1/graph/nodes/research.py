@@ -63,6 +63,19 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         logger, logging.INFO, session_id, "research_node: Starting", request_id=request_id
     )
 
+    # Warn if no search API keys configured
+    from bo1.config import get_settings
+
+    settings = get_settings()
+    if not settings.brave_api_key and not settings.tavily_api_key:
+        log_with_session(
+            logger,
+            logging.WARNING,
+            session_id,
+            "[RESEARCH] No search API keys configured (BRAVE_API_KEY / TAVILY_API_KEY). "
+            "Research will return placeholder results.",
+        )
+
     # PROACTIVE RESEARCH: Check for pending queries first
     pending_queries = research_state.get("pending_research_queries", [])
 

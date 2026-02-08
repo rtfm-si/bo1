@@ -96,6 +96,77 @@ class TestInitialRoundStateShape:
         assert "facilitator_guidance" in result
         assert "experts_per_round" in result
         assert "metrics" in result
+        assert "pending_research_queries" in result
+
+
+class TestInitialRoundResearchDetection:
+    """Test that initial_round_node calls _detect_research_needs and returns pending queries."""
+
+    @pytest.mark.asyncio
+    async def test_initial_round_returns_pending_research_queries(
+        self, sample_problem, sample_personas
+    ):
+        """initial_round_node should include pending_research_queries from _detect_research_needs."""
+        state = create_initial_state(
+            session_id="test-research-detect",
+            problem=sample_problem,
+            personas=sample_personas,
+            max_rounds=6,
+        )
+        state["contributions"] = []
+
+        fake_contributions = [
+            ContributionMessage(
+                persona_code="growth_hacker",
+                persona_name="Growth Strategist",
+                content="We should investigate European market size.",
+                thinking=None,
+                contribution_type=ContributionType.INITIAL,
+                round_number=1,
+                token_count=50,
+                cost=0.005,
+            ),
+        ]
+
+        expected_queries = [
+            {
+                "question": "What is the European SaaS market size?",
+                "priority": "HIGH",
+                "reason": "Expert gap",
+            },
+        ]
+
+        with (
+            patch(
+                "bo1.graph.nodes.rounds.nodes._generate_parallel_contributions",
+                new_callable=AsyncMock,
+                return_value=fake_contributions,
+            ),
+            patch(
+                "bo1.graph.nodes.rounds.nodes._apply_semantic_deduplication",
+                new_callable=AsyncMock,
+                side_effect=lambda c, **kw: c,
+            ),
+            patch(
+                "bo1.graph.nodes.rounds.nodes._check_contribution_quality",
+                new_callable=AsyncMock,
+                return_value=([], {}),
+            ),
+            patch(
+                "bo1.graph.nodes.rounds.nodes._summarize_round",
+                new_callable=AsyncMock,
+                return_value="summary",
+            ),
+            patch(
+                "bo1.graph.nodes.rounds.nodes._detect_research_needs",
+                new_callable=AsyncMock,
+                return_value=expected_queries,
+            ),
+        ):
+            result = await initial_round_node(state)
+
+        assert "pending_research_queries" in result
+        assert result["pending_research_queries"] == expected_queries
 
 
 class TestDoubleContributionGuard:
@@ -465,3 +536,6 @@ async def test_initial_round_full_execution(sample_problem, sample_personas):
     # Should have experts tracking
     assert "experts_per_round" in result
     assert len(result["experts_per_round"]) == 1
+
+    # Should have research detection
+    assert "pending_research_queries" in result

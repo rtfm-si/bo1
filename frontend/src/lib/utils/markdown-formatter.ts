@@ -88,6 +88,16 @@ export function extractMarkdownSection(text: string, sectionNames: string[]): st
  * @param synthesis - Full synthesis markdown text
  * @returns Object with all extracted sections
  */
+export interface ParsedAction {
+	title: string;
+	description: string;
+	rationale?: string;
+	priority?: string;
+	timeline?: string;
+	success_metrics?: string[];
+	risks?: string[];
+}
+
 export interface SynthesisSections {
 	bottomLine: string;
 	whyItMatters: string;
@@ -97,9 +107,85 @@ export interface SynthesisSections {
 	rationale: string;
 	recommendation: string;
 	executiveSummary: string;
+	recommendedActions?: ParsedAction[];
+	considerations?: string[];
+}
+
+/**
+ * Try to parse synthesis as JSON and map fields to SynthesisSections.
+ * Returns null if the text is not valid JSON.
+ */
+function parseJsonSynthesis(text: string): SynthesisSections | null {
+	const trimmed = text.trim();
+	if (!trimmed.startsWith('{')) return null;
+
+	let json: Record<string, unknown>;
+	try {
+		json = JSON.parse(trimmed);
+	} catch {
+		return null;
+	}
+
+	const str = (key: string): string => {
+		const v = json[key];
+		return typeof v === 'string' ? v : '';
+	};
+
+	// Map recommended_actions array
+	const rawActions = Array.isArray(json.recommended_actions) ? json.recommended_actions : [];
+	const recommendedActions: ParsedAction[] = rawActions.map((a: Record<string, unknown>) => ({
+		title: (a.action as string) || (a.title as string) || '',
+		description: (a.description as string) || (a.rationale as string) || '',
+		rationale: (a.rationale as string) || '',
+		priority: (a.priority as string) || 'medium',
+		timeline: (a.timeline as string) || '',
+		success_metrics: Array.isArray(a.success_metrics) ? a.success_metrics : [],
+		risks: Array.isArray(a.risks) ? a.risks : []
+	}));
+
+	// Map implementation_considerations
+	const rawConsiderations = Array.isArray(json.implementation_considerations)
+		? json.implementation_considerations
+		: [];
+	const considerations: string[] = rawConsiderations.map((c: unknown) =>
+		typeof c === 'string' ? c : typeof c === 'object' && c !== null ? (c as Record<string, string>).consideration || JSON.stringify(c) : String(c)
+	);
+
+	const bottomLine = str('unified_recommendation');
+	const executiveSummary = str('synthesis_summary') || bottomLine;
+	const whyItMatters = str('synthesis_summary');
+
+	// Build nextSteps from high-priority actions
+	const highActions = recommendedActions.filter((a) => a.priority === 'high' || a.priority === 'critical');
+	const nextSteps = highActions.length > 0
+		? highActions.map((a, i) => `${i + 1}. **${a.title}** — ${a.description}`).join('\n')
+		: recommendedActions.slice(0, 3).map((a, i) => `${i + 1}. **${a.title}** — ${a.description}`).join('\n');
+
+	// Build keyRisks from action risks
+	const allRisks = recommendedActions.flatMap((a) => a.risks || []);
+	const keyRisks = allRisks.length > 0
+		? allRisks.slice(0, 5).map((r) => `- ${r}`).join('\n')
+		: '';
+
+	return {
+		bottomLine,
+		whyItMatters,
+		nextSteps,
+		keyRisks,
+		confidence: '',
+		rationale: '',
+		recommendation: bottomLine,
+		executiveSummary,
+		recommendedActions,
+		considerations
+	};
 }
 
 export function parseSynthesisSections(synthesis: string): SynthesisSections {
+	// Try JSON parse first
+	const jsonResult = parseJsonSynthesis(synthesis);
+	if (jsonResult) return jsonResult;
+
 	const getSection = (names: string[]) => extractMarkdownSection(synthesis, names);
 
 	// Extract all sections (supports lean template and legacy format)

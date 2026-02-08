@@ -61,16 +61,23 @@ export interface ReportMetrics {
 export function extractExperts(events: SSEEvent[]): ExpertInfo[] {
 	const expertEvents = events.filter((e) => e.event_type === 'persona_selected');
 
-	return expertEvents.map((e) => {
-		const data = e.data as PersonaSelectedData;
-		return {
-			name: data.persona?.name || data.persona?.display_name || 'Expert',
-			displayName: data.persona?.display_name || data.persona?.name || 'Expert',
-			archetype: data.persona?.archetype || '',
-			expertise: data.persona?.domain_expertise || [],
-			rationale: data.rationale || ''
-		};
-	});
+	const seen = new Set<string>();
+	return expertEvents
+		.map((e) => {
+			const data = e.data as PersonaSelectedData;
+			return {
+				name: data.persona?.name || data.persona?.display_name || 'Expert',
+				displayName: data.persona?.display_name || data.persona?.name || 'Expert',
+				archetype: data.persona?.archetype || '',
+				expertise: data.persona?.domain_expertise || [],
+				rationale: data.rationale || ''
+			};
+		})
+		.filter((exp) => {
+			if (seen.has(exp.displayName)) return false;
+			seen.add(exp.displayName);
+			return true;
+		});
 }
 
 /**

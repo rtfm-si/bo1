@@ -198,6 +198,13 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     if summary:
         round_summaries.append(summary)
 
+    # Detect research needs from initial contributions
+    pending_research_queries = await _detect_research_needs(
+        contributions=filtered_contributions,
+        problem_context=problem_context,
+        metrics=metrics,
+    )
+
     # Log quality summary
     if quality_results:
         shallow_count = sum(1 for r in quality_results if r.is_shallow)
@@ -226,6 +233,7 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "sub_problem_index": problem_state.get("sub_problem_index", 0),
         "round_summaries": round_summaries,
         "facilitator_guidance": facilitator_guidance,
+        "pending_research_queries": pending_research_queries,
         "experts_per_round": [[c.persona_code for c in filtered_contributions]],
     }
 

@@ -224,13 +224,17 @@
 		return Math.max(subProblemIndexes.size, 1); // At least 1 topic
 	});
 
-	// Research performed = facilitator decisions to research
-	const researchPerformed = $derived(
-		events.filter(e =>
-			e.event_type === 'facilitator_decision' &&
-			(e.data as any).action === 'research'
-		).length
-	);
+	// Research performed = actual research_results events (includes proactive + facilitator-triggered + cached)
+	const researchPerformed = $derived.by(() => {
+		let count = 0;
+		for (const e of events) {
+			if (e.event_type === 'research_results') {
+				const results = (e.data as any).research_results;
+				count += Array.isArray(results) ? results.length : 0;
+			}
+		}
+		return count;
+	});
 
 	// Risks mitigated = contributions mentioning risk keywords
 	const risksMitigated = $derived.by(() => {

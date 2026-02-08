@@ -347,4 +347,184 @@ describe('pdf-report-generator', () => {
 			expect(mediumIndex).toBeLessThan(lowIndex);
 		});
 	});
+
+	describe('generateReportHTML - JSON synthesis', () => {
+		it('renders JSON synthesis as formatted sections', () => {
+			const jsonSynthesis = JSON.stringify({
+				unified_recommendation: 'Expand to the European market first.',
+				synthesis_summary: 'Analysis shows strong demand in European markets.',
+				recommended_actions: [
+					{
+						action: 'Conduct market research',
+						description: 'Research top 5 EU markets',
+						priority: 'high',
+						timeline: '2 weeks',
+						success_metrics: ['Report complete', 'Data validated']
+					}
+				],
+				implementation_considerations: [
+					'Regulatory compliance varies by country',
+					'Need local partnerships'
+				]
+			});
+
+			const eventsWithSynthesis: SSEEvent[] = [
+				...mockEvents,
+				{
+					event_type: 'synthesis_complete',
+					data: { synthesis: jsonSynthesis },
+					timestamp: '2024-01-15T10:30:00Z',
+					sequence: 10
+				} as any
+			];
+
+			const html = generateReportHTML({
+				session: mockSession,
+				events: eventsWithSynthesis,
+				sessionId: mockSession.id,
+				actions: []
+			});
+
+			// Should render the recommendation
+			expect(html).toContain('Expand to the European market first');
+			// Should render executive summary
+			expect(html).toContain('Analysis shows strong demand');
+			// Should render recommended actions table
+			expect(html).toContain('Conduct market research');
+			expect(html).toContain('Recommended Actions');
+			// Should render considerations
+			expect(html).toContain('Regulatory compliance varies by country');
+			expect(html).toContain('Implementation Considerations');
+			// Should NOT contain raw JSON
+			expect(html).not.toContain('"unified_recommendation"');
+		});
+
+		it('falls back actions from JSON synthesis when no API actions', () => {
+			const jsonSynthesis = JSON.stringify({
+				unified_recommendation: 'Go ahead.',
+				recommended_actions: [
+					{
+						action: 'First step',
+						description: 'Do the first thing',
+						priority: 'high',
+						timeline: '1 week'
+					}
+				]
+			});
+
+			const eventsWithSynthesis: SSEEvent[] = [
+				...mockEvents,
+				{
+					event_type: 'synthesis_complete',
+					data: { synthesis: jsonSynthesis },
+					timestamp: '2024-01-15T10:30:00Z',
+					sequence: 10
+				} as any
+			];
+
+			const html = generateReportHTML({
+				session: mockSession,
+				events: eventsWithSynthesis,
+				sessionId: mockSession.id,
+				actions: []
+			});
+
+			// Should render fallback actions from synthesis, not empty state
+			expect(html).toContain('First step');
+			expect(html).not.toContain('No actions were generated');
+		});
+	});
+
+	describe('generateReportHTML - expert deduplication', () => {
+		it('deduplicates experts by display name', () => {
+			const dupeEvents: SSEEvent[] = [
+				{
+					event_type: 'persona_selected',
+					data: {
+						persona: {
+							name: 'Dr. Smith',
+							display_name: 'Dr. Smith',
+							archetype: 'Researcher',
+							domain_expertise: ['AI']
+						}
+					},
+					timestamp: '2024-01-15T10:01:00Z',
+					sequence: 1
+				} as any,
+				{
+					event_type: 'persona_selected',
+					data: {
+						persona: {
+							name: 'Dr. Smith',
+							display_name: 'Dr. Smith',
+							archetype: 'Researcher',
+							domain_expertise: ['AI']
+						}
+					},
+					timestamp: '2024-01-15T10:02:00Z',
+					sequence: 2
+				} as any,
+				{
+					event_type: 'persona_selected',
+					data: {
+						persona: {
+							name: 'Jane Doe',
+							display_name: 'Jane Doe',
+							archetype: 'Engineer',
+							domain_expertise: ['Backend']
+						}
+					},
+					timestamp: '2024-01-15T10:03:00Z',
+					sequence: 3
+				} as any
+			];
+
+			const html = generateReportHTML({
+				session: mockSession,
+				events: dupeEvents,
+				sessionId: mockSession.id
+			});
+
+			// Count occurrences of "Dr. Smith" in the expert table section
+			const expertTableMatch = html.match(/expert-table[\s\S]*?<\/table>/);
+			const expertTable = expertTableMatch ? expertTableMatch[0] : '';
+			const smithCount = (expertTable.match(/Dr\. Smith/g) || []).length;
+			// Should appear once per row (name only), not twice
+			expect(smithCount).toBeLessThanOrEqual(2); // name + possible archetype ref
+			expect(html).toContain('Jane Doe');
+		});
+	});
+
+	describe('generateReportHTML - structure', () => {
+		it('renders inline SVG logo instead of B1 text', () => {
+			const html = generateReportHTML({
+				session: mockSession,
+				events: mockEvents,
+				sessionId: mockSession.id
+			});
+
+			expect(html).toContain('<svg');
+			expect(html).toContain('viewBox="0 0 264 264"');
+		});
+
+		it('uses Decision Report as page title', () => {
+			const html = generateReportHTML({
+				session: mockSession,
+				events: mockEvents,
+				sessionId: mockSession.id
+			});
+
+			expect(html).toContain('<title>Decision Report</title>');
+		});
+
+		it('renders expert panel as table', () => {
+			const html = generateReportHTML({
+				session: mockSession,
+				events: mockEvents,
+				sessionId: mockSession.id
+			});
+
+			expect(html).toContain('expert-table');
+		});
+	});
 });

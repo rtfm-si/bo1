@@ -411,6 +411,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         contribution_type=ContributionType.MODERATOR,
         round_number=phase_state.get("round_number", 1),
         thinking=None,
+        inline_summary=None,
         token_count=llm_response.token_usage.output_tokens if llm_response.token_usage else None,
         cost=llm_response.cost if hasattr(llm_response, "cost") else None,
     )

@@ -356,25 +356,20 @@ class ResponseParser:
         return False
 
     @staticmethod
-    def parse_persona_response(content: str) -> tuple[str | None, str]:
-        """Parse persona response to extract <thinking> and <contribution>.
+    def parse_persona_response(content: str) -> tuple[str | None, str, str | None]:
+        """Parse persona response to extract <thinking>, <contribution>, and <summary>.
 
         Args:
             content: Raw response content
 
         Returns:
-            Tuple of (thinking, contribution)
-
-        Example:
-            >>> content = "<thinking>Analysis...</thinking><contribution>My view is...</contribution>"
-            >>> thinking, contribution = ResponseParser.parse_persona_response(content)
-            >>> thinking
-            'Analysis...'
-            >>> contribution
-            'My view is...'
+            Tuple of (thinking, contribution, inline_summary)
         """
         # Use extract_xml_tag utility instead of manual parsing
         thinking = extract_xml_tag(content, "thinking")
+
+        # Extract <summary> before contribution to strip it from content
+        inline_summary = extract_xml_tag(content, "summary")
 
         # Extract <contribution> if present
         contribution = extract_xml_tag(content, "contribution")
@@ -386,7 +381,13 @@ class ResponseParser:
                 # No tags at all - use full content
                 contribution = content
 
-        return thinking, contribution
+        # Strip leaked <summary> tags from contribution text
+        if inline_summary and contribution:
+            contribution = re.sub(
+                r"<summary>[\s\S]*?</summary>", "", contribution, flags=re.IGNORECASE
+            ).strip()
+
+        return thinking, contribution, inline_summary
 
     @staticmethod
     def parse_recommendation_from_response(response_content: str, persona: Any) -> Recommendation:

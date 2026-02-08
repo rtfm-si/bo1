@@ -164,6 +164,9 @@ class ContributionMessage(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="When this was created")
     token_count: int | None = Field(None, description="Token count for this contribution")
     cost: float | None = Field(None, description="Cost in USD for generating this contribution")
+    inline_summary: str | None = Field(
+        None, description="Inline self-summary from <summary> tag (plain text, ~50 words)"
+    )
 
     # New fields aligned with DB schema
     id: int | None = Field(default=None, description="DB row ID (assigned by database)")
@@ -237,6 +240,7 @@ class ContributionMessage(BaseModel):
             token_count=row.get("tokens"),  # DB column is 'tokens', model is 'token_count'
             model=row.get("model"),
             embedding=row.get("embedding"),
+            inline_summary=row.get("inline_summary"),
             # contribution_type not in DB, default to RESPONSE for existing data
             contribution_type=ContributionType.RESPONSE,
             timestamp=row.get("created_at", datetime.now()),

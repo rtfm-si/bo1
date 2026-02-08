@@ -2111,10 +2111,12 @@ class EventCollector:
             persona_code = contrib.persona_code
             persona_name = contrib.persona_name
             content = contrib.content
+            inline_summary = getattr(contrib, "inline_summary", None)
         else:
             persona_code = contrib.get("persona_code", "")
             persona_name = contrib.get("persona_name", "")
             content = contrib.get("content", "")
+            inline_summary = contrib.get("inline_summary")
 
         logger.info(
             f"[CONTRIBUTION DEBUG] Processing contribution | "
@@ -2162,11 +2164,24 @@ class EventCollector:
         if summary is None:
             summary = await self.summarizer.summarize(content, persona_name)
 
+        # Override concise with inline_summary from expert LLM if available
+        if inline_summary and summary:
+            summary["concise"] = inline_summary
+        elif inline_summary and not summary:
+            summary = {
+                "concise": inline_summary,
+                "looking_for": "",
+                "value_added": "",
+                "concerns": [],
+                "questions": [],
+            }
+
         logger.info(
             f"[CONTRIBUTION DEBUG] Summary generation result | "
             f"persona_name={persona_name} | "
             f"summary_generated={'Yes' if summary else 'No'} | "
-            f"has_concise={bool(summary and summary.get('concise')) if summary else False}"
+            f"has_concise={bool(summary and summary.get('concise')) if summary else False} | "
+            f"has_inline_summary={'Yes' if inline_summary else 'No'}"
         )
 
         self.publisher.publish_event(

@@ -61,7 +61,7 @@
 			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
 			.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/gi, '')
 			.replace(/<[^>]+>/g, '')
-			.replace(/\n+/g, ' ')
+			.replace(/\n{3,}/g, '\n\n')
 			.trim();
 
 		// Try to end on a sentence boundary
@@ -124,7 +124,7 @@
 				</div>
 			{:else}
 			<!-- Full View: Structured breakdown -->
-			<div class="space-y-3">
+			<div class="space-y-3 divide-y divide-neutral-100 dark:divide-neutral-700/50">
 				<!-- Looking For -->
 				{#if event.data.summary.looking_for}
 					<div>
@@ -189,7 +189,7 @@
 
 				<!-- Show full content if summary is incomplete -->
 				{#if !event.data.summary.looking_for && !event.data.summary.value_added}
-					<div class="mt-3 prose prose-sm dark:prose-invert max-w-none">
+					<div class="mt-3 prose prose-sm dark:prose-invert max-w-none prose-headings:text-base prose-headings:font-semibold">
 						<MarkdownContent content={event.data.content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim()} />
 					</div>
 				{/if}
@@ -202,7 +202,7 @@
 				<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-2">
 					Full Response
 				</p>
-				<div class="prose prose-sm dark:prose-invert max-w-none">
+				<div class="prose prose-sm dark:prose-invert max-w-none prose-headings:text-base prose-headings:font-semibold">
 					<MarkdownContent content={event.data.content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim()} />
 				</div>
 			</div>

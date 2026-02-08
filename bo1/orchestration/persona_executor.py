@@ -145,8 +145,10 @@ class PersonaExecutor:
         token_usage = llm_response_temp.token_usage
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        # Parse response (extract <thinking> and <contribution>)
-        thinking, contribution = ResponseParser.parse_persona_response(response_text)
+        # Parse response (extract <thinking>, <contribution>, and <summary>)
+        thinking, contribution, inline_summary = ResponseParser.parse_persona_response(
+            response_text
+        )
 
         # Strip any leaked prompt artifacts from the contribution
         contribution = strip_prompt_artifacts(contribution)
@@ -250,6 +252,7 @@ class PersonaExecutor:
             persona_name=persona_profile.display_name,
             content=contribution,
             thinking=thinking,
+            inline_summary=inline_summary,
             contribution_type=contribution_type,
             round_number=round_number,
             token_count=token_usage.total_tokens,
@@ -340,7 +343,7 @@ class PersonaExecutor:
         original_token_usage.output_tokens += retry_response.token_usage.output_tokens
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        thinking, contribution = ResponseParser.parse_persona_response(response_text)
+        thinking, contribution, _ = ResponseParser.parse_persona_response(response_text)
 
         logger.info(f"Retry response from {persona_profile.display_name}: {contribution[:100]}...")
 
@@ -411,7 +414,7 @@ class PersonaExecutor:
         original_token_usage.output_tokens += retry_response.token_usage.output_tokens
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        thinking, contribution = ResponseParser.parse_persona_response(response_text)
+        thinking, contribution, _ = ResponseParser.parse_persona_response(response_text)
 
         # Accept second attempt regardless (no infinite loops)
         logger.info(

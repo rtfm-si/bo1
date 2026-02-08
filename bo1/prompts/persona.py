@@ -212,6 +212,10 @@ If the problem context includes "User Insights" from previous meetings, these re
 [End with one specific recommendation]
 </contribution>
 
+<summary>
+(1-2 plain-text sentences capturing your key position and recommendation. No markdown. Max 50 words.)
+</summary>
+
 Remember: This is round {round_number}. Focus on {phase_instruction.split("</debate_phase>")[0].split(">")[-1]} thinking.
 """
 

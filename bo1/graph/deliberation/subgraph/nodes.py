@@ -294,7 +294,7 @@ Your expertise: {", ".join(expert.domain_expertise)}
 {phase_instructions.get(current_phase, "")}{targeted_guidance}
 
 Respond with your analysis and recommendations. Be specific and actionable.
-Use <thinking> tags for private reasoning, then wrap your response in <contribution> tags."""
+Use <thinking> tags for private reasoning, then wrap your response in <contribution> tags, followed by a <summary> tag with 1-2 plain-text sentences (no markdown, max 50 words) capturing your key position."""
 
             broker = PromptBroker()
             request = PromptRequest(
@@ -312,8 +312,10 @@ Use <thinking> tags for private reasoning, then wrap your response in <contribut
             response = await broker.call(request)
             raw_content = "<thinking>" + response.content
 
-            # Parse thinking from contribution content
-            thinking_text, contribution_text = ResponseParser.parse_persona_response(raw_content)
+            # Parse thinking, contribution, and inline summary
+            thinking_text, contribution_text, summary_text = ResponseParser.parse_persona_response(
+                raw_content
+            )
             contribution_text = strip_prompt_artifacts(contribution_text)
 
             # Create contribution
@@ -322,6 +324,7 @@ Use <thinking> tags for private reasoning, then wrap your response in <contribut
                 persona_name=expert.display_name,
                 content=contribution_text,
                 thinking=thinking_text,
+                inline_summary=summary_text,
                 contribution_type=ContributionType.INITIAL
                 if round_number == 1
                 else ContributionType.RESPONSE,

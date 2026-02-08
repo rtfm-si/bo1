@@ -42,7 +42,16 @@
 	}
 
 	// Parse markdown to HTML and sanitize to prevent XSS
-	const html = $derived(DOMPurify.sanitize(marked.parse(cleanContent(content)) as string));
+	const html = $derived.by(() => {
+		try {
+			const cleaned = cleanContent(typeof content === 'string' ? content : String(content ?? ''));
+			return DOMPurify.sanitize(marked.parse(cleaned) as string);
+		} catch {
+			// Fallback: render as escaped text if marked fails
+			const safe = typeof content === 'string' ? content : String(content ?? '');
+			return DOMPurify.sanitize(safe);
+		}
+	});
 </script>
 
 <div

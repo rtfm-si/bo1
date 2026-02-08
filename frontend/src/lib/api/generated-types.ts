@@ -9814,6 +9814,29 @@ export interface paths {
         patch: operations["update_asset_api_v1_seo_assets__asset_id__patch"];
         trace?: never;
     };
+    "/api/v1/seo/discover-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Trends
+         * @description Discover trending topics relevant to user's business context.
+         *
+         *     Lightweight Haiku call — does not consume monthly quota.
+         *     Returns 6 suggestions with keywords for further analysis.
+         */
+        post: operations["discover_trends_api_v1_seo_discover_trends_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seo/history": {
         parameters: {
             query?: never;
@@ -20778,6 +20801,18 @@ export interface components {
              * @description Competitor website
              */
             url?: string | null;
+        };
+        /**
+         * DiscoverTrendsResponse
+         * @description Response from trend discovery.
+         */
+        DiscoverTrendsResponse: {
+            /** Context Used */
+            context_used?: {
+                [key: string]: string | null;
+            };
+            /** Suggestions */
+            suggestions?: components["schemas"]["TrendSuggestion"][];
         };
         /**
          * DismissBusinessMetricSuggestionRequest
@@ -33594,6 +33629,37 @@ export interface components {
              * @description Value column
              */
             value_field: string;
+        };
+        /**
+         * TrendSuggestion
+         * @description A single discovered trend suggestion.
+         */
+        TrendSuggestion: {
+            /**
+             * Description
+             * @description Why this trend matters
+             */
+            description: string;
+            /**
+             * Relevance To Business
+             * @description How it relates to the user's business
+             */
+            relevance_to_business: string;
+            /**
+             * Suggested Keywords
+             * @description Keywords to analyze
+             */
+            suggested_keywords?: string[];
+            /**
+             * Title
+             * @description Trend topic title
+             */
+            title: string;
+            /**
+             * Trend Signal
+             * @description rising | emerging | seasonal
+             */
+            trend_signal: string;
         };
         /**
          * TrendThreat
@@ -57378,6 +57444,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_trends_api_v1_seo_discover_trends_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverTrendsResponse"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

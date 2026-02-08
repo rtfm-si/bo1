@@ -13857,6 +13857,34 @@
         "title": "DetectedCompetitor",
         "type": "object"
       },
+      "DiscoverTrendsResponse": {
+        "description": "Response from trend discovery.",
+        "properties": {
+          "context_used": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Context Used",
+            "type": "object"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/TrendSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "title": "DiscoverTrendsResponse",
+        "type": "object"
+      },
       "DismissBusinessMetricSuggestionRequest": {
         "description": "Request to dismiss a business metric suggestion.",
         "properties": {
@@ -33280,6 +33308,47 @@
           "value_field"
         ],
         "title": "TrendSpec",
+        "type": "object"
+      },
+      "TrendSuggestion": {
+        "description": "A single discovered trend suggestion.",
+        "properties": {
+          "description": {
+            "description": "Why this trend matters",
+            "title": "Description",
+            "type": "string"
+          },
+          "relevance_to_business": {
+            "description": "How it relates to the user's business",
+            "title": "Relevance To Business",
+            "type": "string"
+          },
+          "suggested_keywords": {
+            "description": "Keywords to analyze",
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested Keywords",
+            "type": "array"
+          },
+          "title": {
+            "description": "Trend topic title",
+            "title": "Title",
+            "type": "string"
+          },
+          "trend_signal": {
+            "description": "rising | emerging | seasonal",
+            "title": "Trend Signal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "trend_signal",
+          "relevance_to_business"
+        ],
+        "title": "TrendSuggestion",
         "type": "object"
       },
       "TrendThreat": {
@@ -68988,6 +69057,48 @@
           }
         },
         "summary": "Update Asset",
+        "tags": [
+          "seo",
+          "seo"
+        ]
+      }
+    },
+    "/api/v1/seo/discover-trends": {
+      "post": {
+        "description": "Discover trending topics relevant to user's business context.\n\nLightweight Haiku call \u2014 does not consume monthly quota.\nReturns 6 suggestions with keywords for further analysis.",
+        "operationId": "discover_trends_api_v1_seo_discover_trends_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverTrendsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Discover Trends",
         "tags": [
           "seo",
           "seo"

@@ -200,6 +200,7 @@ import type {
 	SeoTopicListResponse,
 	SeoTopicsAutogenerateResponse,
 	AnalyzeTopicsResponse,
+	DiscoverTrendsResponse,
 	// SEO Blog Article types
 	SeoBlogArticle,
 	SeoBlogArticleUpdate,
@@ -4159,6 +4160,13 @@ export class ApiClient {
 			words,
 			skip_validation: skipValidation
 		});
+	}
+
+	/**
+	 * Discover trending topics relevant to user's business context
+	 */
+	async discoverTrends(): Promise<DiscoverTrendsResponse> {
+		return this.post<DiscoverTrendsResponse>('/api/v1/seo/discover-trends', {});
 	}
 
 	// ============================================================================

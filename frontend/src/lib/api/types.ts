@@ -1804,6 +1804,25 @@ export interface AnalyzeTopicsResponse {
 	analyzed_words: string[];
 }
 
+/**
+ * A single discovered trend suggestion
+ */
+export interface TrendSuggestion {
+	title: string;
+	description: string;
+	suggested_keywords: string[];
+	trend_signal: 'rising' | 'emerging' | 'seasonal';
+	relevance_to_business: string;
+}
+
+/**
+ * Response from discover-trends endpoint
+ */
+export interface DiscoverTrendsResponse {
+	suggestions: TrendSuggestion[];
+	context_used: Record<string, string | null>;
+}
+
 // =============================================================================
 // Marketing Assets Types
 // =============================================================================

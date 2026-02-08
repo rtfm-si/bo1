@@ -13,7 +13,8 @@
 		SeoTrendOpportunity,
 		SeoTopic,
 		SeoBlogArticle,
-		TopicSuggestion
+		TopicSuggestion,
+		TrendSuggestion
 	} from '$lib/api/types';
 	import BoCard from '$lib/components/ui/BoCard.svelte';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
@@ -56,6 +57,13 @@
 
 	// Autogenerate state
 	let autogeneratingTopics = $state(false);
+
+	// Discover trends state
+	let discoverLoading = $state(false);
+	let discoveredTrends = $state<TrendSuggestion[]>([]);
+	let discoverError = $state<string | null>(null);
+	let addingDiscoveredTrend = $state<string | null>(null);
+
 	let articles = $state<SeoBlogArticle[]>([]);
 	let articlesLoading = $state(true);
 	let articlesRemaining = $state<number>(-1);
@@ -430,6 +438,66 @@
 		topicSuggestions = [];
 	}
 
+	async function discoverTrends() {
+		discoverLoading = true;
+		discoverError = null;
+		discoveredTrends = [];
+		try {
+			const response = await apiClient.discoverTrends();
+			discoveredTrends = response.suggestions;
+			if (discoveredTrends.length > 0) {
+				toast.success(`Discovered ${discoveredTrends.length} trending topics`);
+			} else {
+				toast.info('No trends found — try adding more business context');
+			}
+		} catch (err: unknown) {
+			console.error('Failed to discover trends:', err);
+			if (err instanceof ApiClientError && err.status === 422) {
+				discoverError = 'no_context';
+			} else if (err && typeof err === 'object' && 'message' in err) {
+				discoverError = (err as { message: string }).message;
+			} else {
+				discoverError = 'Failed to discover trends. Please try again.';
+			}
+		} finally {
+			discoverLoading = false;
+		}
+	}
+
+	function useForAnalysis(trend: TrendSuggestion) {
+		keywords = trend.suggested_keywords.join(', ');
+		discoveredTrends = [];
+		toast.success(`Keywords loaded — scroll down to analyze "${trend.title}"`);
+	}
+
+	async function addDiscoveredTrendToTopics(trend: TrendSuggestion) {
+		addingDiscoveredTrend = trend.title;
+		try {
+			const newTopic = await apiClient.createSeoTopic({
+				keyword: trend.title,
+				notes: trend.description
+			});
+			topics = [newTopic, ...topics];
+			toast.success(`Added "${trend.title}" to topics`);
+		} catch (err) {
+			console.error('Failed to add trend as topic:', err);
+			toast.error('Failed to add topic');
+		} finally {
+			addingDiscoveredTrend = null;
+		}
+	}
+
+	function getTrendSignalBadgeVariant(signal: string): 'success' | 'warning' | 'neutral' {
+		switch (signal) {
+			case 'rising':
+				return 'success';
+			case 'emerging':
+				return 'warning';
+			default:
+				return 'neutral';
+		}
+	}
+
 	function getCompetitorPresenceBadgeVariant(
 		presence: string
 	): 'error' | 'warning' | 'success' | 'neutral' {
@@ -518,7 +586,140 @@
 	<!-- Tab Content -->
 	<div class="space-y-6">
 		{#if activeTab === 'research'}
-			<!-- Research Tab: Form + Results -->
+			<!-- Research Tab: Discover + Analyze -->
+
+			<!-- Discover Trends Card -->
+			<BoCard>
+				{#snippet header()}
+					<div class="flex items-center justify-between">
+						<div>
+							<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+								Discover Trends
+							</h2>
+							<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+								AI-suggested trending topics based on your business context
+							</p>
+						</div>
+						<BoButton
+							variant="brand"
+							size="sm"
+							onclick={discoverTrends}
+							loading={discoverLoading}
+							disabled={discoverLoading || !hasIndustry}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							{discoverLoading ? 'Discovering...' : 'Discover Trends'}
+						</BoButton>
+					</div>
+				{/snippet}
+
+				{#if !hasIndustry && contextLoaded}
+					<Alert variant="info">
+						<div class="flex items-center justify-between gap-4">
+							<span class="text-sm">Set your industry in business context to enable trend discovery.</span>
+							<a
+								href="/context/overview"
+								class="flex-shrink-0 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+							>
+								Set Up Context
+							</a>
+						</div>
+					</Alert>
+				{:else if discoverLoading}
+					<div class="space-y-3">
+						<ShimmerSkeleton type="text" />
+						<ShimmerSkeleton type="text" />
+						<ShimmerSkeleton type="text" />
+					</div>
+				{:else if discoverError === 'no_context'}
+					<Alert variant="warning">
+						<div class="flex items-center justify-between gap-4">
+							<span class="text-sm">Please set your industry in business context first.</span>
+							<a
+								href="/context/overview"
+								class="flex-shrink-0 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+							>
+								Set Up Context
+							</a>
+						</div>
+					</Alert>
+				{:else if discoverError}
+					<Alert variant="error">{discoverError}</Alert>
+				{:else if discoveredTrends.length > 0}
+					<div class="space-y-3">
+						{#each discoveredTrends as trend (trend.title)}
+							<div class="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+								<div class="flex items-start justify-between gap-3">
+									<div class="flex-1 min-w-0">
+										<div class="flex items-center gap-2 flex-wrap">
+											<span class="font-medium text-neutral-900 dark:text-white">
+												{trend.title}
+											</span>
+											<Badge variant={getTrendSignalBadgeVariant(trend.trend_signal)}>
+												{trend.trend_signal}
+											</Badge>
+										</div>
+										<p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+											{trend.description}
+										</p>
+										<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-500 italic">
+											{trend.relevance_to_business}
+										</p>
+										{#if trend.suggested_keywords.length > 0}
+											<div class="mt-2 flex flex-wrap gap-1">
+												{#each trend.suggested_keywords as kw}
+													<span class="px-2 py-0.5 text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 rounded">
+														{kw}
+													</span>
+												{/each}
+											</div>
+										{/if}
+									</div>
+									<div class="flex flex-col gap-1 flex-shrink-0">
+										<BoButton
+											variant="outline"
+											size="sm"
+											onclick={() => useForAnalysis(trend)}
+										>
+											Analyze
+										</BoButton>
+										{#if isTopicAdded(trend.title)}
+											<Badge variant="neutral">Added</Badge>
+										{:else}
+											<BoButton
+												variant="ghost"
+												size="sm"
+												onclick={() => addDiscoveredTrendToTopics(trend)}
+												loading={addingDiscoveredTrend === trend.title}
+												disabled={addingDiscoveredTrend !== null}
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+												</svg>
+												Add to Topics
+											</BoButton>
+										{/if}
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<div class="text-center py-6">
+						<div class="mx-auto h-10 w-10 text-neutral-400 dark:text-neutral-600 mb-3">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+						</div>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
+							Click "Discover Trends" to find trending topics for your business
+						</p>
+					</div>
+				{/if}
+			</BoCard>
+
 			<!-- Input Form -->
 			<BoCard>
 				{#snippet header()}

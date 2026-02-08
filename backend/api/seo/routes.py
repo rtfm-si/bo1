@@ -254,6 +254,23 @@ class AnalyzeTopicsResponse(BaseModel):
     analyzed_words: list[str] = Field(..., description="Words that were analyzed")
 
 
+class TrendSuggestion(BaseModel):
+    """A single discovered trend suggestion."""
+
+    title: str = Field(..., description="Trend topic title")
+    description: str = Field(..., description="Why this trend matters")
+    suggested_keywords: list[str] = Field(default_factory=list, description="Keywords to analyze")
+    trend_signal: str = Field(..., description="rising | emerging | seasonal")
+    relevance_to_business: str = Field(..., description="How it relates to the user's business")
+
+
+class DiscoverTrendsResponse(BaseModel):
+    """Response from trend discovery."""
+
+    suggestions: list[TrendSuggestion] = Field(default_factory=list)
+    context_used: dict[str, str | None] = Field(default_factory=dict)
+
+
 class SeoTopic(BaseModel):
     """An SEO topic for blog generation."""
 
@@ -440,6 +457,91 @@ async def _perform_trend_analysis(
         industry=industry,
         sources=sources,
     )
+
+
+DISCOVER_TRENDS_PROMPT = """You are a market trend analyst. Based on the business context below, suggest 6 trending topics relevant to this business that would be worth analyzing for SEO and content strategy.
+
+Business Context:
+{context_block}
+
+For each suggestion, provide:
+- title: A concise trend topic (3-8 words)
+- description: Why this trend matters for this business (1-2 sentences)
+- suggested_keywords: 2-4 keywords to research this trend
+- trend_signal: one of "rising", "emerging", or "seasonal"
+- relevance_to_business: How this specifically connects to the business (1 sentence)
+
+IMPORTANT: Respond with ONLY valid JSON matching this schema:
+{{
+    "suggestions": [
+        {{
+            "title": "string",
+            "description": "string",
+            "suggested_keywords": ["kw1", "kw2"],
+            "trend_signal": "rising",
+            "relevance_to_business": "string"
+        }}
+    ]
+}}
+
+Return exactly 6 suggestions. Focus on current, actionable trends."""
+
+
+async def _discover_trends_via_llm(
+    context: dict[str, str | None],
+) -> list[TrendSuggestion]:
+    """Discover trending topics using business context via Haiku."""
+    from bo1.llm.client import ClaudeClient
+    from bo1.llm.response_parser import extract_json_from_response
+
+    # Build context block from available fields
+    parts = []
+    field_labels = {
+        "industry": "Industry",
+        "product_description": "Product/Service",
+        "target_market": "Target Market",
+        "competitors": "Competitors",
+        "brand_positioning": "Brand Positioning",
+        "main_value_proposition": "Value Proposition",
+        "north_star_goal": "Strategic Goal",
+        "strategic_objectives": "Strategic Objectives",
+        "trend_summary": "Recent Market Trends",
+    }
+    for key, label in field_labels.items():
+        val = context.get(key)
+        if val:
+            parts.append(f"{label}: {val}")
+
+    context_block = "\n".join(parts) if parts else "No context provided"
+
+    prompt = DISCOVER_TRENDS_PROMPT.format(context_block=context_block)
+
+    client = ClaudeClient()
+    response, usage = await client.call(
+        model="haiku",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=2048,
+        prefill="{",
+    )
+
+    logger.info(
+        f"Discover trends LLM call: {usage.total_tokens} tokens, ${usage.calculate_cost('haiku'):.4f}"
+    )
+
+    data = extract_json_from_response(response)
+    suggestions = []
+    for item in data.get("suggestions", []):
+        suggestions.append(
+            TrendSuggestion(
+                title=item.get("title", "Untitled"),
+                description=item.get("description", ""),
+                suggested_keywords=item.get("suggested_keywords", []),
+                trend_signal=item.get("trend_signal", "emerging"),
+                relevance_to_business=item.get("relevance_to_business", ""),
+            )
+        )
+    return suggestions
 
 
 async def _validate_topic_with_web_research(
@@ -638,6 +740,80 @@ async def analyze_trends(
         results=results,
         created_at=datetime.now(UTC),
         remaining_analyses=remaining,
+    )
+
+
+@router.post(
+    "/discover-trends",
+    response_model=DiscoverTrendsResponse,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
+@handle_api_errors("discover trends")
+@limiter.limit(SEO_ANALYZE_RATE_LIMIT)
+async def discover_trends(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> DiscoverTrendsResponse:
+    """Discover trending topics relevant to user's business context.
+
+    Lightweight Haiku call — does not consume monthly quota.
+    Returns 6 suggestions with keywords for further analysis.
+    """
+    user_id = extract_user_id(user)
+    tier = get_user_tier(user_id)
+
+    if not has_seo_access(user_id, tier):
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            "SEO tools are not available on your plan.",
+            status=403,
+        )
+
+    # Load business context
+    context: dict[str, str | None] = {}
+    with db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT industry, product_description, target_market,
+                       competitors, brand_positioning, main_value_proposition,
+                       north_star_goal, strategic_objectives
+                FROM user_context WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                for key in [
+                    "industry",
+                    "product_description",
+                    "target_market",
+                    "competitors",
+                    "brand_positioning",
+                    "main_value_proposition",
+                    "north_star_goal",
+                    "strategic_objectives",
+                ]:
+                    val = row.get(key)
+                    if isinstance(val, list):
+                        context[key] = ", ".join(str(v) for v in val)
+                    elif val is not None:
+                        context[key] = str(val)
+
+    if not context.get("industry"):
+        raise http_error(
+            ErrorCode.API_VALIDATION,
+            "Please set your industry in business context first.",
+            status=422,
+        )
+
+    logger.info(f"Discovering trends for user {user_id[:8]}... context_keys={list(context.keys())}")
+
+    suggestions = await _discover_trends_via_llm(context)
+
+    return DiscoverTrendsResponse(
+        suggestions=suggestions,
+        context_used={k: v[:50] + "..." if v and len(v) > 50 else v for k, v in context.items()},
     )
 
 

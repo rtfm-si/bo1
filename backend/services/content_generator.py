@@ -1,14 +1,17 @@
 """AI-powered blog content generation service.
 
 Uses Claude (Haiku for cost efficiency) to generate SEO-optimized blog posts
-from topics and keywords.
+from topics and keywords, grounded with Brave + Tavily web research.
 """
 
 import json
 import logging
 from dataclasses import dataclass
+from typing import Any
 
-from bo1.config import resolve_model_alias
+import httpx
+
+from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response_parser import extract_json_from_response
@@ -18,13 +21,131 @@ logger = logging.getLogger(__name__)
 # Use Haiku for cost efficiency
 MODEL = "haiku"
 
-BLOG_GENERATION_PROMPT = """You are an expert SEO content writer specializing in business technology and decision-making.
 
-Generate a high-quality blog post based on the provided topic and keywords.
+async def _brave_search_topic(queries: list[str]) -> list[dict[str, Any]]:
+    """Run Brave searches for blog content research."""
+    settings = get_settings()
+    api_key = settings.brave_api_key
+
+    if not api_key:
+        logger.warning("BRAVE_API_KEY not set - skipping Brave research")
+        return []
+
+    results: list[dict[str, Any]] = []
+    async with httpx.AsyncClient() as client:
+        for query in queries:
+            try:
+                response = await client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    headers={"X-Subscription-Token": api_key},
+                    params={"q": query, "count": 5},
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                for r in data.get("web", {}).get("results", []):
+                    results.append(
+                        {
+                            "title": r.get("title", ""),
+                            "snippet": r.get("description", ""),
+                            "url": r.get("url", ""),
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Brave research failed for '{query[:50]}': {e}")
+    return results
+
+
+async def _tavily_search_topic(query: str) -> list[dict[str, Any]]:
+    """Run a single Tavily deep search for blog content research."""
+    settings = get_settings()
+    api_key = settings.tavily_api_key
+
+    if not api_key:
+        logger.warning("TAVILY_API_KEY not set - skipping Tavily research")
+        return []
+
+    results: list[dict[str, Any]] = []
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": api_key,
+                    "query": query,
+                    "search_depth": "advanced",
+                    "include_answer": True,
+                    "include_raw_content": False,
+                    "max_results": 5,
+                },
+                timeout=15.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("answer"):
+                results.append(
+                    {
+                        "title": query,
+                        "snippet": data["answer"],
+                        "url": "",
+                    }
+                )
+
+            for r in data.get("results", []):
+                results.append(
+                    {
+                        "title": r.get("title", ""),
+                        "snippet": r.get("content", ""),
+                        "url": r.get("url", ""),
+                    }
+                )
+    except Exception as e:
+        logger.warning(f"Tavily research failed for '{query[:50]}': {e}")
+    return results
+
+
+async def _research_topic(topic: str, keywords: list[str] | None = None) -> str:
+    """Research a topic via Brave + Tavily before generating content.
+
+    Returns formatted research context string, or empty string if no results.
+    """
+    keyword_str = keywords[0] if keywords else ""
+
+    # 2 Brave queries + 1 Tavily query
+    brave_queries = [topic]
+    if keyword_str:
+        brave_queries.append(f"{topic} {keyword_str}")
+
+    brave_results = await _brave_search_topic(brave_queries)
+    tavily_results = await _tavily_search_topic(f"{topic} trends data")
+
+    all_results = brave_results + tavily_results
+    if not all_results:
+        return ""
+
+    # Cap at 20 results, format as context
+    lines = []
+    for r in all_results[:20]:
+        snippet = r["snippet"][:300] if r["snippet"] else ""
+        url = r.get("url", "")
+        source_ref = f" ({url})" if url else ""
+        lines.append(f"- {r['title']}{source_ref}\n  {snippet}")
+
+    research_text = "\n\n".join(lines)
+    logger.info(f"Researched topic '{topic[:50]}': {len(all_results)} results")
+    return research_text
+
+
+BLOG_GENERATION_PROMPT = """You are an expert SEO content writer for Board of One (Bo1), an AI-powered tool that helps founders make strategic decisions through multi-agent expert deliberation.
+
+Bo1's expertise: multi-agent decision making, data analytics for founders, AI-powered productivity.
+
+Generate a high-quality blog post based on the provided topic, keywords, and research.
 
 Topic: {topic}
 Target Keywords: {keywords}
-
+{research_section}
 Requirements:
 1. Write in a professional but engaging tone
 2. Include the target keywords naturally (aim for 1-2% keyword density)
@@ -34,8 +155,10 @@ Requirements:
    - Wrong: "## My Heading Paragraph text continues on same line..."
 4. Include a compelling introduction that hooks the reader
 5. Provide actionable insights and practical takeaways
-6. End with a conclusion that summarizes key points
-7. Target length: 1000-1500 words
+6. Reference real data, trends, or sources from the research section when available
+7. Where relevant, mention how AI-powered deliberation tools help founders make better decisions
+8. End with a conclusion that summarizes key points
+9. Target length: 1000-1500 words
 
 Output your response as JSON with the following structure:
 {{
@@ -77,11 +200,20 @@ async def generate_blog_post(
     """
     keywords_str = ", ".join(keywords) if keywords else "business decisions, AI, productivity"
 
+    # Research the topic before generating
+    research_context = await _research_topic(topic, keywords)
+    research_section = ""
+    if research_context:
+        research_section = (
+            f"\nWeb Research (reference real data/sources from this):\n{research_context}\n"
+        )
+
     client = ClaudeClient()
 
     prompt = BLOG_GENERATION_PROMPT.format(
         topic=topic,
         keywords=keywords_str,
+        research_section=research_section,
     )
 
     max_retries = 1

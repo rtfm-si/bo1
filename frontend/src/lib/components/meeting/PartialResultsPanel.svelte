@@ -3,7 +3,7 @@
 	import { SvelteMap } from 'svelte/reactivity';
 	import { Button } from '$lib/components/ui';
 	import SubProblemStatusBadge from './SubProblemStatusBadge.svelte';
-	import type { SubProblemResult } from './MeetingError.svelte';
+	import type { SubProblemResult } from './meeting-error.types';
 	import {
 		Accordion,
 		AccordionItem,

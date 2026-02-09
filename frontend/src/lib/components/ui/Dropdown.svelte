@@ -1,10 +1,5 @@
 <script module lang="ts">
-	// Types
-	export interface DropdownItem {
-		value: string;
-		label: string;
-		icon?: string;
-	}
+	export type { DropdownItem } from './dropdown.types';
 </script>
 
 <script lang="ts">
@@ -14,6 +9,7 @@
 	 */
 
 	import { clickOutside } from '$lib/utils/clickOutside';
+	import type { DropdownItem } from './dropdown.types';
 
 	// Props
 	interface Props {

@@ -30,11 +30,14 @@ from backend.api.models import (
     FeaturedDecisionsResponse,
     FeaturedOrderRequest,
     SEOBackfillResponse,
+    TopicBankListResponse,
+    TopicBankResponse,
 )
 from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode
 from bo1.state.repositories.decision_repository import decision_repository
+from bo1.state.repositories.topic_bank_repository import topic_bank_repository
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -247,6 +250,160 @@ async def get_categories(
     ]
 
     return CategoriesResponse(categories=all_categories)
+
+
+# =========================================================================
+# Topic Bank Routes
+# =========================================================================
+
+
+def _topic_to_response(t: dict) -> TopicBankResponse:
+    """Convert topic dict to response model."""
+    return TopicBankResponse(
+        id=str(t["id"]),
+        title=t["title"],
+        description=t["description"],
+        category=t["category"],
+        keywords=t.get("keywords") or [],
+        seo_score=t.get("seo_score", 0.0),
+        reasoning=t["reasoning"],
+        bo1_alignment=t["bo1_alignment"],
+        source=t.get("source", "llm-generated"),
+        status=t["status"],
+        researched_at=t.get("researched_at"),
+        used_at=t.get("used_at"),
+    )
+
+
+@router.post(
+    "/research-topics",
+    response_model=TopicBankListResponse,
+    summary="Research decision topics",
+    description="Run Brave+Tavily research to discover high-intent decision topics.",
+    responses={
+        200: {"description": "Topics researched and banked"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("research decision topics")
+async def research_topics(
+    request: Request,
+    max_topics: int = Query(10, ge=1, le=25, description="Max topics to research"),
+    _admin: str = Depends(require_admin_any),
+) -> TopicBankListResponse:
+    """Trigger topic research and bank results."""
+    from backend.services.decision_topic_researcher import research_decision_topics
+
+    topics = await research_decision_topics(max_topics=max_topics)
+    logger.info(f"Admin: Researched {len(topics)} decision topics")
+
+    return TopicBankListResponse(
+        topics=[_topic_to_response(t) for t in topics],
+        total=len(topics),
+    )
+
+
+@router.get(
+    "/topic-bank",
+    response_model=TopicBankListResponse,
+    summary="List banked topics",
+    description="List banked decision topics, sorted by SEO score.",
+    responses={
+        200: {"description": "Topics retrieved"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("list topic bank")
+async def list_topic_bank(
+    request: Request,
+    category: str | None = Query(None, description="Filter by category"),
+    limit: int = Query(50, ge=1, le=100, description="Max results"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    _admin: str = Depends(require_admin_any),
+) -> TopicBankListResponse:
+    """List banked topics sorted by SEO score."""
+    topics = topic_bank_repository.list_banked(category=category, limit=limit, offset=offset)
+    total = topic_bank_repository.count_banked(category=category)
+
+    return TopicBankListResponse(
+        topics=[_topic_to_response(t) for t in topics],
+        total=total,
+    )
+
+
+@router.delete(
+    "/topic-bank/{topic_id}",
+    summary="Dismiss banked topic",
+    description="Dismiss or delete a banked topic.",
+    responses={
+        200: {"description": "Topic dismissed"},
+        404: {"description": "Topic not found", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("dismiss topic")
+async def dismiss_topic(
+    request: Request,
+    topic_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> dict:
+    """Dismiss a banked topic."""
+    dismissed = topic_bank_repository.dismiss(topic_id)
+
+    if not dismissed:
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"Topic {topic_id} not found or not banked", status=404
+        )
+
+    logger.info(f"Admin: Dismissed topic {topic_id}")
+    return {"success": True, "message": f"Topic {topic_id} dismissed"}
+
+
+@router.post(
+    "/topic-bank/{topic_id}/use",
+    response_model=DecisionResponse,
+    summary="Use topic as draft decision",
+    description="Create a draft decision pre-filled from a banked topic.",
+    responses={
+        200: {"description": "Draft decision created"},
+        404: {"description": "Topic not found", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+    },
+)
+@limiter.limit(ADMIN_RATE_LIMIT)
+@handle_api_errors("use topic as draft")
+async def use_topic_as_draft(
+    request: Request,
+    topic_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> DecisionResponse:
+    """Create a draft decision from a banked topic."""
+    topic = topic_bank_repository.mark_used(topic_id)
+
+    if not topic:
+        raise http_error(
+            ErrorCode.API_NOT_FOUND, f"Topic {topic_id} not found or not banked", status=404
+        )
+
+    # Create draft decision pre-filled from topic
+    decision = decision_repository.create(
+        title=topic["title"],
+        category=topic["category"],
+        founder_context={"situation": topic["description"]},
+        meta_description=topic["reasoning"],
+        seo_keywords=topic.get("keywords") or [],
+    )
+
+    logger.info(f"Admin: Created draft from topic '{topic['title']}' (decision={decision['id']})")
+
+    return _decision_to_response(decision)
 
 
 @router.get(

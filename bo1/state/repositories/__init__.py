@@ -53,6 +53,10 @@ from bo1.state.repositories.template_repository import (
     template_repository,
 )
 from bo1.state.repositories.terms_repository import TermsRepository, terms_repository
+from bo1.state.repositories.topic_bank_repository import (
+    TopicBankRepository,
+    topic_bank_repository,
+)
 from bo1.state.repositories.user_repository import UserRepository, user_repository
 
 __all__ = [
@@ -79,4 +83,6 @@ __all__ = [
     "terms_repository",
     "AuthProviderRepository",
     "auth_provider_repository",
+    "TopicBankRepository",
+    "topic_bank_repository",
 ]

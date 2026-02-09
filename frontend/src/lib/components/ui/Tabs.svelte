@@ -1,10 +1,5 @@
 <script module lang="ts">
-	// Types
-	export interface Tab {
-		id: string;
-		label: string;
-		icon?: string;
-	}
+	export type { Tab } from './tabs.types';
 </script>
 
 <script lang="ts">
@@ -14,6 +9,7 @@
 	 */
 
 	import type { Snippet } from 'svelte';
+	import type { Tab } from './tabs.types';
 
 	// Props
 	interface Props {

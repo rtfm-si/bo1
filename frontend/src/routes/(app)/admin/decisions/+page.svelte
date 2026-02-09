@@ -15,17 +15,20 @@
 		Edit,
 		ExternalLink,
 		Star,
-		LayoutGrid
+		LayoutGrid,
+		Search
 	} from 'lucide-svelte';
 	import {
 		adminApi,
 		type Decision,
+		type BankedTopic,
 		type DecisionCategory,
 		DECISION_CATEGORIES
 	} from '$lib/api/admin';
 	import DecisionEditorModal from '$lib/components/admin/DecisionEditorModal.svelte';
 	import DecisionGenerateModal from '$lib/components/admin/DecisionGenerateModal.svelte';
 	import FeaturedDecisionsModal from '$lib/components/admin/FeaturedDecisionsModal.svelte';
+	import TopicBankPanel from '$lib/components/admin/TopicBankPanel.svelte';
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
@@ -46,6 +49,12 @@
 	let deleteConfirm = $state<Decision | null>(null);
 	let isDeleting = $state(false);
 	let togglingFeatured = $state<string | null>(null);
+
+	// Topic Bank
+	let bankedTopics = $state<BankedTopic[]>([]);
+	let showTopicBank = $state(false);
+	let isResearching = $state(false);
+	let topicBankTotal = $state(0);
 
 	const filteredDecisions = $derived(() => {
 		let result = decisions;
@@ -196,8 +205,57 @@
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
 
+	async function loadTopicBank() {
+		try {
+			const response = await adminApi.listTopicBank();
+			bankedTopics = response.topics;
+			topicBankTotal = response.total;
+			if (response.total > 0) showTopicBank = true;
+		} catch (err) {
+			// Silently ignore - topic bank is optional
+		}
+	}
+
+	async function researchTopics() {
+		isResearching = true;
+		error = null;
+		try {
+			const response = await adminApi.researchDecisionTopics();
+			bankedTopics = response.topics;
+			topicBankTotal = response.total;
+			showTopicBank = true;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to research topics';
+		} finally {
+			isResearching = false;
+		}
+	}
+
+	async function dismissTopic(id: string) {
+		try {
+			await adminApi.dismissTopic(id);
+			bankedTopics = bankedTopics.filter((t) => t.id !== id);
+			topicBankTotal--;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to dismiss topic';
+		}
+	}
+
+	async function useTopicAsDraft(id: string) {
+		try {
+			const decision = await adminApi.useTopicAsDraft(id);
+			decisions = [decision, ...decisions];
+			total++;
+			bankedTopics = bankedTopics.filter((t) => t.id !== id);
+			topicBankTotal--;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to create draft from topic';
+		}
+	}
+
 	onMount(() => {
 		loadDecisions();
+		loadTopicBank();
 	});
 </script>
 
@@ -220,6 +278,10 @@
 			<Button variant="outline" size="sm" onclick={() => (showFeaturedModal = true)}>
 				<LayoutGrid class="w-4 h-4 mr-1.5" />
 				Manage Featured
+			</Button>
+			<Button variant="outline" size="sm" onclick={researchTopics} disabled={isResearching}>
+				<Search class="w-4 h-4 mr-1.5 {isResearching ? 'animate-pulse' : ''}" />
+				{isResearching ? 'Researching...' : 'Research Topics'}
 			</Button>
 			<Button variant="outline" size="sm" onclick={() => (showGenerateModal = true)}>
 				<Sparkles class="w-4 h-4 mr-1.5" />
@@ -267,6 +329,29 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Topic Bank Panel -->
+	{#if showTopicBank && bankedTopics.length > 0}
+		<div class="bg-brand-50/50 dark:bg-brand-900/10 border-b border-brand-200 dark:border-brand-800">
+			<div class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4">
+				<div class="flex items-center justify-between mb-3">
+					<h3 class="text-sm font-medium text-neutral-900 dark:text-white">
+						Topic Bank
+						<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+							{topicBankTotal}
+						</span>
+					</h3>
+					<button
+						class="text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
+						onclick={() => (showTopicBank = false)}
+					>
+						Hide
+					</button>
+				</div>
+				<TopicBankPanel topics={bankedTopics} ondismiss={dismissTopic} onuse={useTopicAsDraft} />
+			</div>
+		</div>
+	{/if}
 
 	<!-- Content -->
 	<main class="mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">

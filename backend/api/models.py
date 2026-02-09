@@ -4444,13 +4444,42 @@ class DecisionGenerateRequest(BaseModel):
         return v
 
 
+# ============================================================================
+# Decision Topic Bank Models
+# ============================================================================
+
+
+class TopicBankResponse(BaseModel):
+    """Response model for a banked decision topic."""
+
+    id: str = Field(..., description="Topic UUID")
+    title: str = Field(..., description="Decision-framed title")
+    description: str = Field(..., description="2-3 sentence dilemma summary")
+    category: str = Field(..., description="Decision category")
+    keywords: list[str] = Field(default_factory=list, description="SEO target keywords")
+    seo_score: float = Field(..., description="0-1 search intent signal")
+    reasoning: str = Field(..., description="Why this topic should be considered")
+    bo1_alignment: str = Field(..., description="How Bo1 features solve this")
+    source: str = Field(..., description="Research source")
+    status: str = Field(..., description="banked|used|dismissed")
+    researched_at: datetime | None = Field(None, description="When topic was researched")
+    used_at: datetime | None = Field(None, description="When topic was used as draft")
+
+
+class TopicBankListResponse(BaseModel):
+    """Response model for topic bank listing."""
+
+    topics: list[TopicBankResponse] = Field(..., description="Banked topics")
+    total: int = Field(..., description="Total count")
+
+
 class TopicProposalResponse(BaseModel):
     """Response model for a proposed blog topic."""
 
     title: str = Field(..., description="Proposed topic title")
     rationale: str = Field(..., description="Why this topic is suggested")
     suggested_keywords: list[str] = Field(..., description="SEO keywords")
-    source: str = Field(..., description="Source: chatgpt-seo-seed, positioning-gap, llm-generated")
+    source: str = Field(..., description="Source: web-research, llm-generated")
 
 
 class TopicProposalsResponse(BaseModel):

@@ -10,15 +10,7 @@
 		type ErrorMessage
 	} from '$lib/utils/apiErrorMessages';
 
-	/**
-	 * SubProblemResult from session state for partial success display
-	 */
-	export interface SubProblemResult {
-		id: string;
-		goal: string;
-		synthesis: string;
-		status: 'complete' | 'in_progress' | 'failed' | 'pending';
-	}
+	import type { SubProblemResult } from './meeting-error.types';
 
 	interface Props {
 		errorType: string;

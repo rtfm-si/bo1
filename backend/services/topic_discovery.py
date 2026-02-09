@@ -1,19 +1,23 @@
 """Topic discovery service for blog content generation.
 
 Finds relevant topics for blog posts based on:
-- Business context focus areas
-- Industry trends
-- Competitor gaps
+- Web research (Brave + Tavily)
+- Bo1 positioning pillars
+- LLM scoring of search results
 """
 
 import json
 import logging
 import os
 from dataclasses import dataclass
+from typing import Any
 
+import httpx
 from anthropic import RateLimitError
 
+from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.client import ClaudeClient
+from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response_parser import extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -345,7 +349,7 @@ def filter_topics(
 
 
 # =============================================================================
-# Topic Proposer (SEO-driven suggestions based on positioning gaps)
+# Topic Proposer (research-backed blog topic proposals)
 # =============================================================================
 
 
@@ -356,137 +360,179 @@ class TopicProposal:
     title: str
     rationale: str
     suggested_keywords: list[str]
-    source: str  # "chatgpt-seo-seed", "positioning-gap", "llm-generated"
+    source: str  # "web-research", "llm-generated"
 
 
-# Seed topics from SEO analysis (chatgpt-seo.md)
-SEO_SEED_TOPICS = [
-    TopicProposal(
-        title="Most managers don't decide—they prepare decisions",
-        rationale="Core positioning theme about compressing management work",
-        suggested_keywords=["management decisions", "decision preparation", "founder management"],
-        source="chatgpt-seo-seed",
-    ),
-    TopicProposal(
-        title="Decision logs beat memory",
-        rationale="Aligns with 'management operating system' positioning",
-        suggested_keywords=[
-            "decision log template",
-            "startup decision tracking",
-            "decision documentation",
-        ],
-        source="chatgpt-seo-seed",
-    ),
-    TopicProposal(
-        title="The coordination tax and how to delete it",
-        rationale="Homepage mentions coordination, needs deep-dive content",
-        suggested_keywords=["startup coordination", "reduce meetings", "coordination overhead"],
-        source="chatgpt-seo-seed",
-    ),
-    TopicProposal(
-        title="How to run a 'board meeting' alone",
-        rationale="Direct product positioning - solo founder advisory board",
-        suggested_keywords=[
-            "solo founder board",
-            "advisory board alternative",
-            "founder decision making",
-        ],
-        source="chatgpt-seo-seed",
-    ),
+# Blog-specific search queries for web research
+BLOG_BRAVE_QUERIES = [
+    # Multi-agent decision making
+    "AI multi-agent decision making for business leaders",
+    "consensus-based AI tools strategic decisions",
+    "multi-agent deliberation frameworks startups",
+    # Data analytics for founders
+    "data-driven decision making solo founders",
+    "startup analytics tools founder productivity",
+    "business intelligence small teams AI",
+    # SEO content + broader founder topics
+    "AI content generation SEO strategy",
+    "solo founder scaling decisions hiring vs automation",
+    "startup founder common strategic mistakes",
 ]
 
-# Positioning keywords to check against
-POSITIONING_KEYWORDS = [
-    "compress management work",
-    "management operating system",
-    "delay management hires",
-    "founder bottleneck",
-    "coordination tax",
-    "solo founder",
-    "expert perspectives",
-    "strategic decisions",
+BLOG_TAVILY_QUERIES = [
+    "trending AI decision-making tools for startup founders",
+    "emerging trends multi-agent AI systems business applications",
 ]
 
-TOPIC_PROPOSAL_PROMPT = """You are an SEO content strategist for Board of One, a tool that helps solo founders make strategic decisions through AI-powered expert deliberation.
 
-Positioning keywords:
-{positioning_keywords}
+async def _brave_search(queries: list[str]) -> list[dict[str, Any]]:
+    """Run Brave searches and collect raw results."""
+    settings = get_settings()
+    api_key = settings.brave_api_key
 
-Existing blog posts:
+    if not api_key:
+        logger.warning("BRAVE_API_KEY not set - skipping Brave search")
+        return []
+
+    results: list[dict[str, Any]] = []
+    async with httpx.AsyncClient() as client:
+        for query in queries:
+            try:
+                response = await client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    headers={"X-Subscription-Token": api_key},
+                    params={"q": query, "count": 5},
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                for r in data.get("web", {}).get("results", []):
+                    results.append(
+                        {
+                            "title": r.get("title", ""),
+                            "snippet": r.get("description", ""),
+                            "url": r.get("url", ""),
+                            "source": "brave",
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Brave search failed for '{query[:50]}': {e}")
+
+    logger.info(f"Blog Brave: collected {len(results)} results from {len(queries)} queries")
+    return results
+
+
+async def _tavily_search(queries: list[str]) -> list[dict[str, Any]]:
+    """Run Tavily deep searches and collect raw results."""
+    settings = get_settings()
+    api_key = settings.tavily_api_key
+
+    if not api_key:
+        logger.warning("TAVILY_API_KEY not set - skipping Tavily search")
+        return []
+
+    results: list[dict[str, Any]] = []
+    async with httpx.AsyncClient() as client:
+        for query in queries:
+            try:
+                response = await client.post(
+                    "https://api.tavily.com/search",
+                    json={
+                        "api_key": api_key,
+                        "query": query,
+                        "search_depth": "advanced",
+                        "include_answer": True,
+                        "include_raw_content": False,
+                        "max_results": 5,
+                    },
+                    timeout=15.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if data.get("answer"):
+                    results.append(
+                        {
+                            "title": query,
+                            "snippet": data["answer"],
+                            "url": "",
+                            "source": "tavily",
+                        }
+                    )
+
+                for r in data.get("results", []):
+                    results.append(
+                        {
+                            "title": r.get("title", ""),
+                            "snippet": r.get("content", ""),
+                            "url": r.get("url", ""),
+                            "source": "tavily",
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Tavily search failed for '{query[:50]}': {e}")
+
+    logger.info(f"Blog Tavily: collected {len(results)} results from {len(queries)} queries")
+    return results
+
+
+TOPIC_PROPOSAL_PROMPT = """You are an SEO content strategist for Board of One (Bo1), an AI tool that helps founders make strategic decisions through multi-agent expert deliberation.
+
+Bo1's 3 expertise pillars:
+1. **Multi-agent decision making** — AI personas debate decisions from finance, ops, strategy angles
+2. **Data analytics for founders** — data-driven insights that replace expensive advisory hires
+3. **SEO content & founder productivity** — thought leadership for solo founders scaling without big teams
+
+## Task
+Analyze the web research below and propose {count} blog topics that:
+- Are backed by evidence from the search results (reference real trends, data, or articles)
+- Target high-intent keywords founders would actually search
+- Position Bo1 as the expert in multi-agent AI decision-making
+- Are NOT duplicates of existing posts listed below
+
+## Existing blog posts (skip these):
 {existing_posts}
 
-Seed topics already suggested:
-{seed_topics}
-
-Generate {count} NEW blog topic proposals that:
-1. Align with our positioning (compress management work, delay management hires, etc.)
-2. Are NOT already covered by existing posts
-3. Are NOT duplicates of seed topics
-4. Target high-intent keywords founders would search
-5. Establish thought leadership in solo founder decision-making
+## Web Research Results
+{search_results}
 
 Output as JSON:
 {{
     "topics": [
         {{
-            "title": "Topic title (compelling, SEO-friendly)",
-            "rationale": "Why this topic aligns with positioning and fills a gap",
+            "title": "Compelling, SEO-friendly topic title",
+            "rationale": "Why this topic matters and what search evidence supports it",
             "suggested_keywords": ["keyword1", "keyword2", "keyword3"],
-            "source": "llm-generated"
+            "source": "web-research"
         }}
     ]
 }}"""
 
 
-async def propose_topics(
+async def _llm_only_propose(
     existing_titles: list[str],
-    count: int = 5,
+    count: int,
 ) -> list[TopicProposal]:
-    """Propose new blog topics based on positioning gaps.
+    """Fallback: propose topics without web research (LLM-only).
 
-    Combines:
-    1. Seed topics from SEO analysis
-    2. LLM-generated topics based on positioning
-
-    Args:
-        existing_titles: Titles of existing blog posts
-        count: Number of topics to propose
-
-    Returns:
-        List of TopicProposal objects
+    Used when Brave/Tavily API keys are missing or searches fail.
     """
-    proposals: list[TopicProposal] = []
-
-    # Add seed topics not yet written
-    existing_lower = [t.lower() for t in existing_titles]
-    for seed in SEO_SEED_TOPICS:
-        # Check if seed topic or similar already exists
-        seed_words = set(seed.title.lower().split())
-        is_covered = False
-        for existing in existing_lower:
-            existing_words = set(existing.split())
-            # If more than half the words match, consider it covered
-            if len(seed_words & existing_words) > len(seed_words) / 2:
-                is_covered = True
-                break
-        if not is_covered:
-            proposals.append(seed)
-
-    # If we already have enough, return early
-    if len(proposals) >= count:
-        return proposals[:count]
-
-    # Generate additional topics via LLM
-    remaining = count - len(proposals)
-
     client = ClaudeClient()
 
-    prompt = TOPIC_PROPOSAL_PROMPT.format(
-        positioning_keywords=", ".join(POSITIONING_KEYWORDS),
-        existing_posts="\n".join(f"- {t}" for t in existing_titles) if existing_titles else "None",
-        seed_topics="\n".join(f"- {p.title}" for p in SEO_SEED_TOPICS),
-        count=remaining,
-    )
+    prompt = f"""You are an SEO content strategist for Board of One (Bo1), an AI tool that helps founders make strategic decisions through multi-agent expert deliberation.
+
+Bo1's 3 expertise pillars:
+1. Multi-agent decision making — AI personas debate decisions from finance, ops, strategy angles
+2. Data analytics for founders — data-driven insights replacing expensive advisory hires
+3. SEO content & founder productivity — thought leadership for solo founders scaling without big teams
+
+Existing blog posts (skip these):
+{chr(10).join(f"- {t}" for t in existing_titles) if existing_titles else "None"}
+
+Generate {count} blog topic proposals that position Bo1 as an expert.
+
+Output as JSON:
+{{"topics": [{{"title": "...", "rationale": "...", "suggested_keywords": ["..."], "source": "llm-generated"}}]}}"""
 
     try:
         response, usage = await client.call(
@@ -496,23 +542,103 @@ async def propose_topics(
             max_tokens=2048,
             prefill="{",
         )
-
         data = extract_json_from_response(response)
-
+        proposals = []
         for item in data.get("topics", []):
             proposals.append(
                 TopicProposal(
                     title=item["title"],
                     rationale=item["rationale"],
                     suggested_keywords=item.get("suggested_keywords", []),
-                    source=item.get("source", "llm-generated"),
+                    source="llm-generated",
+                )
+            )
+        logger.info(f"LLM-only proposed {len(proposals)} topics (tokens: {usage.total_tokens})")
+        return proposals[:count]
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.warning(f"LLM-only topic proposal failed: {e}")
+        return []
+
+
+async def propose_topics(
+    existing_titles: list[str],
+    count: int = 5,
+) -> list[TopicProposal]:
+    """Propose new blog topics backed by web research.
+
+    Flow:
+    1. Brave + Tavily searches for trending content
+    2. Haiku scores and proposes topics from results
+    3. Falls back to LLM-only if search APIs unavailable
+
+    Args:
+        existing_titles: Titles of existing blog posts
+        count: Number of topics to propose
+
+    Returns:
+        List of TopicProposal objects
+    """
+    # 1. Run web research
+    brave_results = await _brave_search(BLOG_BRAVE_QUERIES)
+    tavily_results = await _tavily_search(BLOG_TAVILY_QUERIES)
+    all_results = brave_results + tavily_results
+
+    # Fallback to LLM-only if no search results
+    if not all_results:
+        logger.info("No search results - falling back to LLM-only proposals")
+        return await _llm_only_propose(existing_titles, count)
+
+    # 2. Format results for LLM scoring (cap at 40)
+    search_text = "\n\n".join(
+        f"[{r['source']}] {r['title']}\n{r['snippet'][:300]}" for r in all_results[:40]
+    )
+
+    prompt = TOPIC_PROPOSAL_PROMPT.format(
+        count=count,
+        existing_posts="\n".join(f"- {t}" for t in existing_titles) if existing_titles else "None",
+        search_results=search_text,
+    )
+
+    # 3. Call Haiku for scoring
+    client = ClaudeClient()
+    try:
+        with CostTracker.track_call(
+            provider="anthropic",
+            operation_type="completion",
+            model_name=resolve_model_alias(MODEL),
+            prompt_type="blog_topic_proposal",
+            cost_category="internal_seo",
+        ) as cost_record:
+            response, usage = await client.call(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                max_tokens=2048,
+                prefill="{",
+            )
+            cost_record.input_tokens = usage.input_tokens
+            cost_record.output_tokens = usage.output_tokens
+            cost_record.cache_creation_tokens = usage.cache_creation_tokens or 0
+            cost_record.cache_read_tokens = usage.cache_read_tokens or 0
+
+        data = extract_json_from_response(response)
+
+        proposals = []
+        for item in data.get("topics", []):
+            proposals.append(
+                TopicProposal(
+                    title=item["title"],
+                    rationale=item["rationale"],
+                    suggested_keywords=item.get("suggested_keywords", []),
+                    source=item.get("source", "web-research"),
                 )
             )
 
-        logger.info(f"Proposed {len(proposals)} topics (tokens: {usage.total_tokens})")
+        logger.info(
+            f"Proposed {len(proposals)} research-backed topics (tokens: {usage.total_tokens})"
+        )
+        return proposals[:count]
 
     except (json.JSONDecodeError, KeyError) as e:
-        logger.warning(f"Failed to generate additional topic proposals: {e}")
-        # Return what we have from seeds
-
-    return proposals[:count]
+        logger.warning(f"Research-backed proposal failed: {e} - falling back to LLM-only")
+        return await _llm_only_propose(existing_titles, count)

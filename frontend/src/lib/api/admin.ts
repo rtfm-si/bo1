@@ -1426,6 +1426,47 @@ class AdminApiClient {
 	}
 
 	// =========================================================================
+	// Decision Topic Bank
+	// =========================================================================
+
+	async researchDecisionTopics(maxTopics: number = 10): Promise<TopicBankListResponse> {
+		return this.fetch<TopicBankListResponse>(
+			`/api/admin/decisions/research-topics?max_topics=${maxTopics}`,
+			{ method: 'POST' }
+		);
+	}
+
+	async listTopicBank(params?: {
+		category?: DecisionCategory;
+		limit?: number;
+		offset?: number;
+	}): Promise<TopicBankListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.category) searchParams.set('category', params.category);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<TopicBankListResponse>(
+			`/api/admin/decisions/topic-bank${query ? `?${query}` : ''}`
+		);
+	}
+
+	async dismissTopic(id: string): Promise<{ success: boolean; message: string }> {
+		return this.fetch<{ success: boolean; message: string }>(
+			`/api/admin/decisions/topic-bank/${id}`,
+			{ method: 'DELETE' }
+		);
+	}
+
+	async useTopicAsDraft(id: string): Promise<Decision> {
+		return this.fetch<Decision>(
+			`/api/admin/decisions/topic-bank/${id}/use`,
+			{ method: 'POST' }
+		);
+	}
+
+	// =========================================================================
 	// Blog Topic Proposer
 	// =========================================================================
 
@@ -2504,7 +2545,31 @@ export interface TopicProposal {
 	title: string;
 	rationale: string;
 	suggested_keywords: string[];
-	source: 'chatgpt-seo-seed' | 'positioning-gap' | 'llm-generated';
+	source: 'web-research' | 'llm-generated';
+}
+
+// =============================================================================
+// Decision Topic Bank Types
+// =============================================================================
+
+export interface BankedTopic {
+	id: string;
+	title: string;
+	description: string;
+	category: DecisionCategory;
+	keywords: string[];
+	seo_score: number;
+	reasoning: string;
+	bo1_alignment: string;
+	source: string;
+	status: 'banked' | 'used' | 'dismissed';
+	researched_at: string | null;
+	used_at: string | null;
+}
+
+export interface TopicBankListResponse {
+	topics: BankedTopic[];
+	total: number;
 }
 
 export interface TopicProposalsResponse {

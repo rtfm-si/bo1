@@ -53,6 +53,6 @@ export { default as PanelCard } from './PanelCard.svelte';
 export { default as RatingPrompt } from './RatingPrompt.svelte';
 
 // Type exports for TypeScript consumers
-export type { DropdownItem } from './Dropdown.svelte';
-export type { Tab } from './Tabs.svelte';
-export type { Persona } from './ContributionCard.svelte';
+export type { DropdownItem } from './dropdown.types';
+export type { Tab } from './tabs.types';
+export type { Persona } from './contribution-card.types';

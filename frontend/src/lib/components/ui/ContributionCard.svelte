@@ -1,10 +1,5 @@
 <script module lang="ts">
-	// Types
-	export interface Persona {
-		name: string;
-		code: string;
-		expertise: string;
-	}
+	export type { Persona } from './contribution-card.types';
 </script>
 
 <script lang="ts">
@@ -16,6 +11,7 @@
 	import Avatar from './Avatar.svelte';
 	import Badge from './Badge.svelte';
 	import type { Snippet } from 'svelte';
+	import type { Persona } from './contribution-card.types';
 
 	// Props
 	interface Props {

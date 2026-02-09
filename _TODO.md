@@ -33,10 +33,6 @@ google search content thing
 
 check codebase for hardcoded / magic numbers
 
-fix warnings
+we need to have use cases, decision and blog posts for testing ideas and zero revenue
 
-why do some meeting actions look different to others?
-we seem to display
-
-use playwright to screen grab the meeting output at various stages
-or slash command?
+update 6 decisions to use latest decision output

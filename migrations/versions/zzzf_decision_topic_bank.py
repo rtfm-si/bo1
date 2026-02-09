@@ -34,6 +34,7 @@ VALID_STATUSES = ["banked", "used", "dismissed"]
 
 
 def upgrade() -> None:
+    """Create decision_topic_bank table."""
     op.create_table(
         "decision_topic_bank",
         sa.Column(
@@ -78,6 +79,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop decision_topic_bank table."""
     op.drop_index("ix_topic_bank_seo_score", table_name="decision_topic_bank")
     op.drop_index("ix_topic_bank_category", table_name="decision_topic_bank")
     op.drop_index("ix_topic_bank_status", table_name="decision_topic_bank")

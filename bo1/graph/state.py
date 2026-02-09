@@ -106,6 +106,7 @@ class ContextState(TypedDict, total=False):
     user_context_choice: str | None  # "continue" | "provide_more" | "end"
     limited_context_mode: bool
     best_effort_prompt_injected: bool
+    clarification_count: int  # Number of clarification requests made (capped at 2)
 
 
 class ControlState(TypedDict, total=False):
@@ -376,6 +377,9 @@ class DeliberationGraphState(TypedDict, total=False):
     # USER-SELECTED CONTEXT (Meeting Context Selector)
     context_ids: dict[str, list[str]] | None  # {meetings: [...], actions: [...], datasets: [...]}
 
+    # CLARIFICATION TRACKING (cap repeated requests)
+    clarification_count: int  # Number of clarification requests made (capped at 2)
+
     # USER PREFERENCES (Clarification Toggle)
     skip_clarification: bool  # User preference to skip pre-meeting clarifying questions
 
@@ -497,6 +501,8 @@ def create_initial_state(
         data_analysis_results=[],  # Results from data analysis during deliberation
         # USER-SELECTED CONTEXT
         context_ids=context_ids,  # User-selected meetings/actions/datasets
+        # CLARIFICATION TRACKING
+        clarification_count=0,  # Start with no clarification requests
         # USER PREFERENCES
         skip_clarification=skip_clarification,  # Skip pre-meeting clarifying questions
         # EARLY TERMINATION
@@ -644,6 +650,7 @@ def get_context_state(state: DeliberationGraphState) -> ContextState:
         user_context_choice=state.get("user_context_choice"),
         limited_context_mode=state.get("limited_context_mode", False),
         best_effort_prompt_injected=state.get("best_effort_prompt_injected", False),
+        clarification_count=state.get("clarification_count", 0),
     )
 
 

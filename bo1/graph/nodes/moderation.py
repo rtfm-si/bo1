@@ -123,6 +123,27 @@ def _validate_and_override_decision(
             decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
             decision.reasoning = "ERROR RECOVERY: Skipping research due to missing query"
 
+    # --- Excessive clarification prevention ---
+    if decision.action == "clarify":
+        clarification_count = state.get("clarification_count", 0)
+        if clarification_count >= 2:
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"Facilitator requested clarify but clarification_count={clarification_count} >= 2. "
+                "Overriding to continue.",
+                request_id=request_id,
+            )
+            contributions = get_discussion_state(state).get("contributions", [])
+            next_speaker = _select_least_speaking_persona(personas, contributions)
+            decision = FacilitatorDecision(
+                action="continue",
+                reasoning="Overridden: Maximum clarification requests reached. Work with available information.",
+                next_speaker=next_speaker,
+                speaker_prompt="Work with the information available. Address any remaining uncertainties in your analysis.",
+            )
+
     # --- Premature voting prevention ---
     min_rounds = ModerationConfig.MIN_ROUNDS_BEFORE_VOTING
     if decision.action == "vote" and round_number < min_rounds:
@@ -301,8 +322,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "sub_problem_index": sub_problem_index,  # CRITICAL: Always preserve sub_problem_index (Issue #3 fix)
     }
 
-    # If clarify action, set pending_clarification for clarification_node
+    # If clarify action, set pending_clarification and increment count
     if decision.action == "clarify":
+        state_updates["clarification_count"] = state.get("clarification_count", 0) + 1
         state_updates["pending_clarification"] = {
             "question": decision.clarification_question or decision.reasoning,
             "reason": decision.clarification_reason or "Facilitator requested clarification",

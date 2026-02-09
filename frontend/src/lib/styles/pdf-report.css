@@ -2,7 +2,7 @@
  * PDF Report Styles — McKinsey-style consulting report
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Georgia&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
 	--brand-teal: #00C3D0;
@@ -74,8 +74,8 @@ body {
 }
 
 .decision-question {
-	font-family: Georgia, 'Times New Roman', serif;
-	font-size: 20px;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+	font-size: 16px;
 	font-weight: 600;
 	color: var(--text-primary);
 	line-height: 1.35;
@@ -132,7 +132,7 @@ body {
 }
 
 .exec-summary-label {
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	font-size: 10px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -175,14 +175,14 @@ body {
 }
 
 .section-number {
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	font-size: 14px;
 	font-weight: 700;
 	color: var(--brand-teal-dark);
 }
 
 .section-title {
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	font-size: 14px;
 	font-weight: 700;
 	text-transform: uppercase;
@@ -295,7 +295,7 @@ body {
 .recommendation-content h2,
 .recommendation-content h3,
 .recommendation-content h4 {
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	margin: 14px 0 8px 0;
 	color: var(--text-primary);
 }
@@ -338,7 +338,7 @@ body {
 .analysis-content h2,
 .analysis-content h3,
 .analysis-content h4 {
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	margin: 12px 0 6px 0;
 	color: var(--text-primary);
 }

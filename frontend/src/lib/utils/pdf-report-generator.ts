@@ -226,6 +226,17 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 /**
+ * Truncate text for cover display — cut at last complete sentence within limit
+ */
+function truncateForCover(text: string, maxLength: number): string {
+	if (!text || text.length <= maxLength) return text;
+	const sub = text.substring(0, maxLength);
+	const lastSentence = Math.max(sub.lastIndexOf('.'), sub.lastIndexOf('?'), sub.lastIndexOf('!'));
+	if (lastSentence > maxLength * 0.4) return text.substring(0, lastSentence + 1);
+	return sub.trim() + '...';
+}
+
+/**
  * Format progress value for display
  */
 function formatProgress(value: number | null | undefined, type: string | null | undefined): string {
@@ -523,7 +534,7 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 				<span class="report-type">Decision Report</span>
 			</div>
 
-			<h1 class="decision-question">${session.problem?.statement || 'Strategic Decision Analysis'}</h1>
+			<h1 class="decision-question">${truncateForCover(session.problem?.statement || 'Strategic Decision Analysis', 200)}</h1>
 			<p class="report-meta">Strategic Decision Analysis &middot; ${reportDate}</p>
 
 			<!-- Metrics inline on cover -->

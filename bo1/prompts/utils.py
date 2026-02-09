@@ -71,6 +71,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
             "max_tokens": TokenBudgets.for_phase("initial"),
             "directive": "Provide your complete perspective on this problem. Consider all angles and share your full analysis.",
             "tone": "exploratory",
+            "word_budget": 200,
         }
     elif progress <= 0.4:  # Early rounds (2-4 of 10)
         # Divergent thinking: Explore alternatives
@@ -81,6 +82,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
             "max_tokens": TokenBudgets.for_phase("early"),
             "directive": "Explore different angles and perspectives. What concerns, risks, or alternatives haven't been discussed yet?",
             "tone": "divergent",
+            "word_budget": 175,
         }
     elif progress <= 0.7:  # Middle rounds (5-7 of 10)
         # Analysis phase: Evidence and reasoning
@@ -91,6 +93,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
             "max_tokens": TokenBudgets.for_phase("middle"),
             "directive": "Build on the discussion with evidence and analysis. Address gaps, uncertainties, or claims that need verification.",
             "tone": "analytical",
+            "word_budget": 150,
         }
     else:  # Late rounds (8+ of 10)
         # Convergent thinking: Move toward consensus
@@ -101,4 +104,5 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
             "max_tokens": TokenBudgets.for_phase("late"),
             "directive": "Work toward consensus. Acknowledge tradeoffs, find common ground, and help the group move toward a decision.",
             "tone": "convergent",
+            "word_budget": 100,
         }

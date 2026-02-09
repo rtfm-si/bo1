@@ -2176,6 +2176,19 @@ class EventCollector:
                 "questions": [],
             }
 
+        # Fallback: if summary exists but concise is empty, extract first sentence from content
+        if summary and not summary.get("concise") and content:
+            import re
+
+            # Split on sentence-ending punctuation followed by space or end-of-string
+            # This avoids breaking on abbreviations like "Dr.", "U.S.", "e.g."
+            sentences = re.split(r"(?<=[.!?])\s+", content.strip())
+            first_sentence = sentences[0].strip() if sentences else content[:100].strip()
+            words = first_sentence.split()
+            if len(words) > 50:
+                first_sentence = " ".join(words[:50]) + "."
+            summary["concise"] = first_sentence
+
         logger.info(
             f"[CONTRIBUTION DEBUG] Summary generation result | "
             f"persona_name={persona_name} | "

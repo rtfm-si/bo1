@@ -479,6 +479,7 @@ class FacilitatorAgent(BaseAgent):
             last_speakers=last_speakers if last_speakers else None,
             metrics=metrics,
             round_number=round_number,
+            clarification_count=state.get("clarification_count", 0),
         )
 
         # Build user message

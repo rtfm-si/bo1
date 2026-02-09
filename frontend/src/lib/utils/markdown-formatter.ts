@@ -112,6 +112,34 @@ export interface SynthesisSections {
 }
 
 /**
+ * Extract a JSON object substring from text that may have trailing markdown.
+ * Uses delimiter detection and brace-counting fallback.
+ */
+function extractJsonSubstring(text: string): string | null {
+	// Try splitting on markdown horizontal rule delimiter
+	const delimiterIdx = text.indexOf('\n\n---');
+	if (delimiterIdx > 0) {
+		const candidate = text.substring(0, delimiterIdx).trim();
+		if (candidate.startsWith('{') && candidate.endsWith('}')) return candidate;
+	}
+
+	// Brace-counting fallback: find matching closing brace
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (escape) { escape = false; continue; }
+		if (ch === '\\' && inString) { escape = true; continue; }
+		if (ch === '"') { inString = !inString; continue; }
+		if (inString) continue;
+		if (ch === '{') depth++;
+		else if (ch === '}') { depth--; if (depth === 0) return text.substring(0, i + 1); }
+	}
+	return null;
+}
+
+/**
  * Try to parse synthesis as JSON and map fields to SynthesisSections.
  * Returns null if the text is not valid JSON.
  */
@@ -123,7 +151,15 @@ function parseJsonSynthesis(text: string): SynthesisSections | null {
 	try {
 		json = JSON.parse(trimmed);
 	} catch {
-		return null;
+		// Synthesis may have markdown footer appended: {JSON}\n\n---\n\n## ...
+		// Try extracting JSON substring before the footer
+		const jsonStr = extractJsonSubstring(trimmed);
+		if (!jsonStr) return null;
+		try {
+			json = JSON.parse(jsonStr);
+		} catch {
+			return null;
+		}
 	}
 
 	const str = (key: string): string => {

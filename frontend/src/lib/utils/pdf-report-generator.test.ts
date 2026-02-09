@@ -435,6 +435,106 @@ describe('pdf-report-generator', () => {
 		});
 	});
 
+	describe('generateReportHTML - JSON with markdown footer', () => {
+		it('parses JSON synthesis that has trailing markdown footer', () => {
+			const jsonObj = {
+				unified_recommendation: 'Use a hybrid approach.',
+				synthesis_summary: 'The board recommends a phased rollout.',
+				recommended_actions: [
+					{
+						action: 'Phase 1 pilot',
+						description: 'Run a 3-month pilot in one region',
+						priority: 'high',
+						timeline: '3 months'
+					}
+				]
+			};
+			// Simulate LLM output: JSON followed by markdown delimiter and summary
+			const synthesisWithFooter =
+				JSON.stringify(jsonObj) +
+				'\n\n---\n\n## Deliberation Summary\n\nThe board discussed various approaches...';
+
+			const eventsWithSynthesis: SSEEvent[] = [
+				...mockEvents,
+				{
+					event_type: 'synthesis_complete',
+					data: { synthesis: synthesisWithFooter },
+					timestamp: '2024-01-15T10:30:00Z',
+					sequence: 10
+				} as any
+			];
+
+			const html = generateReportHTML({
+				session: mockSession,
+				events: eventsWithSynthesis,
+				sessionId: mockSession.id,
+				actions: []
+			});
+
+			// Should parse JSON and render structured sections
+			expect(html).toContain('Use a hybrid approach');
+			expect(html).toContain('Phase 1 pilot');
+			expect(html).toContain('Recommended Actions');
+			// Should NOT dump raw JSON
+			expect(html).not.toContain('"unified_recommendation"');
+		});
+
+		it('parses JSON synthesis with no trailing delimiter via brace counting', () => {
+			const jsonObj = {
+				unified_recommendation: 'Go with option B.',
+				synthesis_summary: 'Option B is more cost-effective.',
+				recommended_actions: []
+			};
+			// JSON followed by extra text without --- delimiter
+			const synthesisWithTrailingText =
+				JSON.stringify(jsonObj) + '\n\nSome extra commentary from the LLM.';
+
+			const eventsWithSynthesis: SSEEvent[] = [
+				...mockEvents,
+				{
+					event_type: 'synthesis_complete',
+					data: { synthesis: synthesisWithTrailingText },
+					timestamp: '2024-01-15T10:30:00Z',
+					sequence: 10
+				} as any
+			];
+
+			const html = generateReportHTML({
+				session: mockSession,
+				events: eventsWithSynthesis,
+				sessionId: mockSession.id,
+				actions: []
+			});
+
+			// Should extract JSON via brace counting and render
+			expect(html).toContain('Go with option B');
+			expect(html).toContain('Option B is more cost-effective');
+			expect(html).not.toContain('"unified_recommendation"');
+		});
+	});
+
+	describe('generateReportHTML - cover truncation', () => {
+		it('truncates long problem statements on cover', () => {
+			const longStatement =
+				'Should we invest in building a comprehensive machine learning platform that integrates with our existing data infrastructure and provides real-time predictions for all business units across the organization while maintaining compliance with international data privacy regulations?';
+			const html = generateReportHTML({
+				session: {
+					...mockSession,
+					problem: { statement: longStatement }
+				},
+				events: mockEvents,
+				sessionId: mockSession.id
+			});
+
+			// Should not contain full statement (>200 chars)
+			expect(html).not.toContain(longStatement);
+			// Should contain truncated version within h1
+			const h1Match = html.match(/<h1 class="decision-question">([\s\S]*?)<\/h1>/);
+			expect(h1Match).toBeTruthy();
+			expect(h1Match![1].length).toBeLessThanOrEqual(210); // some tolerance
+		});
+	});
+
 	describe('generateReportHTML - expert deduplication', () => {
 		it('deduplicates experts by display name', () => {
 			const dupeEvents: SSEEvent[] = [

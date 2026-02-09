@@ -144,6 +144,8 @@ Use when discussion needs information only the user can provide:
 Do NOT use for information experts could research or infer.
 Do NOT overuse - only for genuinely blocking information gaps.
 
+{clarification_limit}
+
 - Question: [Specific question for the user]
 - Reason: [Why this information is needed to proceed]
 
@@ -178,6 +180,7 @@ def compose_facilitator_prompt(
     last_speakers: list[str] | None = None,
     metrics: Any | None = None,
     round_number: int = 1,
+    clarification_count: int = 0,
 ) -> str:
     """Compose facilitator decision prompt with rotation guidance and quality metrics.
 
@@ -189,6 +192,7 @@ def compose_facilitator_prompt(
         last_speakers: List of last N speakers (most recent first)
         metrics: DeliberationMetrics object with quality scores
         round_number: Current round number
+        clarification_count: Number of clarification requests already made
 
     Returns:
         Complete facilitator prompt with rotation guidance and metrics context
@@ -287,6 +291,15 @@ ROTATION GUIDELINES:
 
         metrics_context = "\n".join(metrics_lines)
 
+    # Build clarification limit guidance
+    remaining = max(0, 2 - clarification_count)
+    if remaining == 0:
+        clarification_limit = "⚠️ CLARIFICATION LIMIT REACHED (2/2 used). Do NOT select this option. Work with available information."
+    else:
+        clarification_limit = (
+            f"Clarifications used: {clarification_count}/2 ({remaining} remaining)."
+        )
+
     return FACILITATOR_SYSTEM_TEMPLATE.format(
         current_phase=current_phase,
         discussion_history=discussion_history,
@@ -294,4 +307,5 @@ ROTATION GUIDELINES:
         rotation_guidance=rotation_guidance,
         metrics_context=metrics_context,
         security_protocol=SECURITY_PROTOCOL,
+        clarification_limit=clarification_limit,
     )

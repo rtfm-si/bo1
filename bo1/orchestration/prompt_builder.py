@@ -260,6 +260,7 @@ class PromptBuilder:
             speaker_prompt=expert_memory or round_config["directive"],
             round_number=round_number + 1,  # +1 for 1-indexed rounds
             business_context=business_context,
+            word_budget=round_config.get("word_budget", 200),
         )
 
         return system_prompt, user_message

@@ -73,6 +73,7 @@ def compose_persona_contribution_prompt(
     speaker_prompt: str,
     round_number: int,
     business_context: dict[str, Any] | None = None,
+    word_budget: int = 200,
 ) -> tuple[str, str]:
     """Compose prompt for persona contribution with critical thinking emphasis.
 
@@ -86,6 +87,7 @@ def compose_persona_contribution_prompt(
         speaker_prompt: Specific focus for this contribution
         round_number: Current round number (1-indexed)
         business_context: Optional business context for style adaptation
+        word_budget: Maximum word count for the contribution (default 200)
 
     Returns:
         Tuple of (system_prompt, user_message) for the LLM
@@ -205,15 +207,14 @@ If the problem context includes "User Insights" from previous meetings, these re
 </thinking>
 
 <contribution>
-(Public statement - 1-2 paragraphs max)
-
-[Reference a specific previous contribution]
-[Your key insight with clear reasoning]
-[End with one specific recommendation]
+(STRICT LIMIT: {word_budget} words maximum. Be concise and direct.)
+1. **Position** (1-2 sentences): State agreement/disagreement with reason
+2. **Evidence** (1-2 sentences): Key insight with supporting reasoning
+3. **Recommendation** (1 sentence): One specific, actionable recommendation
 </contribution>
 
 <summary>
-(1-2 plain-text sentences capturing your key position and recommendation. No markdown. Max 50 words.)
+REQUIRED: 1-2 plain-text sentences capturing your key position and recommendation. This is displayed directly to the user. No markdown. Max 50 words.
 </summary>
 
 Remember: This is round {round_number}. Focus on {phase_instruction.split("</debate_phase>")[0].split(">")[-1]} thinking.
@@ -443,6 +444,7 @@ def compose_persona_prompt_hierarchical(
     max_rounds = GraphConfig.MAX_ROUNDS_DEFAULT
     phase_config = get_round_phase_config(round_number, max_rounds)
     phase_directive = phase_config["directive"]
+    word_budget = phase_config.get("word_budget", 200)
 
     # Compose full prompt (inject shared role protocol after persona identity)
     return f"""{persona_system_role}
@@ -466,11 +468,17 @@ You are in Round {round_number} of the deliberation.
 
 {phase_directive}
 
-Your contribution should:
-- Build on what has been discussed (reference specific points from summaries or recent contributions)
-- Add new insights or perspectives
-- Address gaps or questions raised by other participants
-- Stay focused on the problem statement
+Structure your response as:
+<contribution>
+(STRICT LIMIT: {word_budget} words maximum. Be concise and direct.)
+1. **Position** (1-2 sentences): State agreement/disagreement with reason
+2. **Evidence** (1-2 sentences): Key insight with supporting reasoning
+3. **Recommendation** (1 sentence): One specific, actionable recommendation
+</contribution>
+
+<summary>
+REQUIRED: 1-2 plain-text sentences capturing your key position and recommendation. This is displayed directly to the user. No markdown. Max 50 words.
+</summary>
 </task>
 
 {_build_prompt_protocols(include_communication=True, include_security=False)}

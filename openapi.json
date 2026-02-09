@@ -32493,6 +32493,127 @@
         "title": "TopUsersCostResponse",
         "type": "object"
       },
+      "TopicBankListResponse": {
+        "description": "Response model for topic bank listing.",
+        "properties": {
+          "topics": {
+            "description": "Banked topics",
+            "items": {
+              "$ref": "#/components/schemas/TopicBankResponse"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "topics",
+          "total"
+        ],
+        "title": "TopicBankListResponse",
+        "type": "object"
+      },
+      "TopicBankResponse": {
+        "description": "Response model for a banked decision topic.",
+        "properties": {
+          "bo1_alignment": {
+            "description": "How Bo1 features solve this",
+            "title": "Bo1 Alignment",
+            "type": "string"
+          },
+          "category": {
+            "description": "Decision category",
+            "title": "Category",
+            "type": "string"
+          },
+          "description": {
+            "description": "2-3 sentence dilemma summary",
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "description": "Topic UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "keywords": {
+            "description": "SEO target keywords",
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "reasoning": {
+            "description": "Why this topic should be considered",
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "researched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When topic was researched",
+            "title": "Researched At"
+          },
+          "seo_score": {
+            "description": "0-1 search intent signal",
+            "title": "Seo Score",
+            "type": "number"
+          },
+          "source": {
+            "description": "Research source",
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "description": "banked|used|dismissed",
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "description": "Decision-framed title",
+            "title": "Title",
+            "type": "string"
+          },
+          "used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When topic was used as draft",
+            "title": "Used At"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "category",
+          "seo_score",
+          "reasoning",
+          "bo1_alignment",
+          "source",
+          "status"
+        ],
+        "title": "TopicBankResponse",
+        "type": "object"
+      },
       "TopicDiscoveryResponse": {
         "description": "Response for topic discovery endpoint.",
         "properties": {
@@ -32532,7 +32653,7 @@
             "type": "string"
           },
           "source": {
-            "description": "Source: chatgpt-seo-seed, positioning-gap, llm-generated",
+            "description": "Source: web-research, llm-generated",
             "title": "Source",
             "type": "string"
           },
@@ -42480,6 +42601,401 @@
           }
         },
         "summary": "Generate decision",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/research-topics": {
+      "post": {
+        "description": "Run Brave+Tavily research to discover high-intent decision topics.",
+        "operationId": "research_topics_api_admin_decisions_research_topics_post",
+        "parameters": [
+          {
+            "description": "Max topics to research",
+            "in": "query",
+            "name": "max_topics",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Max topics to research",
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Max Topics",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicBankListResponse"
+                }
+              }
+            },
+            "description": "Topics researched and banked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Research decision topics",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/topic-bank": {
+      "get": {
+        "description": "List banked decision topics, sorted by SEO score.",
+        "operationId": "list_topic_bank_api_admin_decisions_topic_bank_get",
+        "parameters": [
+          {
+            "description": "Filter by category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by category",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Max results",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination offset",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicBankListResponse"
+                }
+              }
+            },
+            "description": "Topics retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List banked topics",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/topic-bank/{topic_id}": {
+      "delete": {
+        "description": "Dismiss or delete a banked topic.",
+        "operationId": "dismiss_topic_api_admin_decisions_topic_bank__topic_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "title": "Topic Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dismiss Topic Api Admin Decisions Topic Bank  Topic Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Topic dismissed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Topic not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dismiss banked topic",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Decisions"
+        ]
+      }
+    },
+    "/api/admin/decisions/topic-bank/{topic_id}/use": {
+      "post": {
+        "description": "Create a draft decision pre-filled from a banked topic.",
+        "operationId": "use_topic_as_draft_api_admin_decisions_topic_bank__topic_id__use_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "title": "Topic Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Draft decision created"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Admin authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Topic not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Use topic as draft decision",
         "tags": [
           "admin",
           "admin",

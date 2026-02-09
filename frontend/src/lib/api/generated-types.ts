@@ -1275,6 +1275,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/decisions/research-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Research decision topics
+         * @description Run Brave+Tavily research to discover high-intent decision topics.
+         */
+        post: operations["research_topics_api_admin_decisions_research_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/topic-bank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List banked topics
+         * @description List banked decision topics, sorted by SEO score.
+         */
+        get: operations["list_topic_bank_api_admin_decisions_topic_bank_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/topic-bank/{topic_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Dismiss banked topic
+         * @description Dismiss or delete a banked topic.
+         */
+        delete: operations["dismiss_topic_api_admin_decisions_topic_bank__topic_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decisions/topic-bank/{topic_id}/use": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Use topic as draft decision
+         * @description Create a draft decision pre-filled from a banked topic.
+         */
+        post: operations["use_topic_as_draft_api_admin_decisions_topic_bank__topic_id__use_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/decisions/{decision_id}": {
         parameters: {
             query?: never;
@@ -33128,6 +33208,88 @@ export interface components {
             users: components["schemas"]["UserCostPeriodItem"][];
         };
         /**
+         * TopicBankListResponse
+         * @description Response model for topic bank listing.
+         */
+        TopicBankListResponse: {
+            /**
+             * Topics
+             * @description Banked topics
+             */
+            topics: components["schemas"]["TopicBankResponse"][];
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
+         * TopicBankResponse
+         * @description Response model for a banked decision topic.
+         */
+        TopicBankResponse: {
+            /**
+             * Bo1 Alignment
+             * @description How Bo1 features solve this
+             */
+            bo1_alignment: string;
+            /**
+             * Category
+             * @description Decision category
+             */
+            category: string;
+            /**
+             * Description
+             * @description 2-3 sentence dilemma summary
+             */
+            description: string;
+            /**
+             * Id
+             * @description Topic UUID
+             */
+            id: string;
+            /**
+             * Keywords
+             * @description SEO target keywords
+             */
+            keywords?: string[];
+            /**
+             * Reasoning
+             * @description Why this topic should be considered
+             */
+            reasoning: string;
+            /**
+             * Researched At
+             * @description When topic was researched
+             */
+            researched_at?: string | null;
+            /**
+             * Seo Score
+             * @description 0-1 search intent signal
+             */
+            seo_score: number;
+            /**
+             * Source
+             * @description Research source
+             */
+            source: string;
+            /**
+             * Status
+             * @description banked|used|dismissed
+             */
+            status: string;
+            /**
+             * Title
+             * @description Decision-framed title
+             */
+            title: string;
+            /**
+             * Used At
+             * @description When topic was used as draft
+             */
+            used_at?: string | null;
+        };
+        /**
          * TopicDiscoveryResponse
          * @description Response for topic discovery endpoint.
          */
@@ -33155,7 +33317,7 @@ export interface components {
             rationale: string;
             /**
              * Source
-             * @description Source: chatgpt-seo-seed, positioning-gap, llm-generated
+             * @description Source: web-research, llm-generated
              */
             source: string;
             /**
@@ -39267,6 +39429,244 @@ export interface operations {
             };
             /** @description Admin authentication required */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    research_topics_api_admin_decisions_research_topics_post: {
+        parameters: {
+            query?: {
+                /** @description Max topics to research */
+                max_topics?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topics researched and banked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicBankListResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    list_topic_bank_api_admin_decisions_topic_bank_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by category */
+                category?: string | null;
+                /** @description Max results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topics retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicBankListResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    dismiss_topic_api_admin_decisions_topic_bank__topic_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                topic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topic dismissed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Topic not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+        };
+    };
+    use_topic_as_draft_api_admin_decisions_topic_bank__topic_id__use_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path: {
+                topic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Draft decision created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Admin authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Topic not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

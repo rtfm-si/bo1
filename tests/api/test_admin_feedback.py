@@ -23,18 +23,20 @@ def mock_admin_override():
 
 
 @pytest.fixture
-def app():
-    """Create test app with feedback router and admin auth override."""
+def client():
+    """Create test client with admin auth override and disabled rate limiter."""
+    from backend.api.middleware.rate_limit import limiter
+
+    original_enabled = limiter.enabled
+    limiter.enabled = False
+
     app = FastAPI()
     app.dependency_overrides[require_admin_any] = mock_admin_override
     app.include_router(router, prefix="/api/admin")
-    return app
 
+    yield TestClient(app)
 
-@pytest.fixture
-def client(app):
-    """Create test client."""
-    return TestClient(app)
+    limiter.enabled = original_enabled
 
 
 @pytest.fixture

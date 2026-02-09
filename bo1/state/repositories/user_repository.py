@@ -381,6 +381,7 @@ class UserRepository(BaseRepository):
             "trend_insights",
             "action_metric_triggers",
             "trend_summary",
+            "strategic_objectives_progress",
         }
 
         values = []

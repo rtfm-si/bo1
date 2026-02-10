@@ -46,6 +46,7 @@ const EVENT_TYPES = [
 	'all_subproblems_complete',
 	'meta_synthesis_started',
 	'meta_synthesis_complete',
+	'options_extracted',
 	'phase_cost_breakdown',
 	'complete',
 	'error',
@@ -54,6 +55,12 @@ const EVENT_TYPES = [
 	'working_status',
 	'meeting_terminating',
 	'meeting_terminated',
+	'constraint_updated',
+	'research_results',
+	'context_insufficient',
+	'facilitator_decision',
+	'interjection_response',
+	'interjection_complete',
 ];
 
 // Events that clear the working status

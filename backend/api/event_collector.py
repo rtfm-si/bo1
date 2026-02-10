@@ -1350,8 +1350,21 @@ class EventCollector:
         # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")
 
+        # Emit options_extracted event for Decision Gate
+        extracted_options = output.get("extracted_options", [])
+        if extracted_options:
+            self.publisher.publish_event(
+                session_id,
+                "options_extracted",
+                {
+                    "options": extracted_options,
+                    "options_count": len(extracted_options),
+                    "dissenting_views": output.get("dissenting_views", []),
+                },
+            )
+
         # Save meta-synthesis to PostgreSQL for long-term storage
-        synthesis_text = output.get("meta_synthesis")
+        synthesis_text = output.get("synthesis")
         if synthesis_text:
             try:
                 self.session_repo.save_synthesis(session_id, synthesis_text)

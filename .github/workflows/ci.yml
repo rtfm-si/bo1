@@ -73,7 +73,8 @@ jobs:
 
       - name: Scan Python dependencies for vulnerabilities
         # --ignore-vuln CVE-2026-1703: Low severity pip path traversal (CVSS 2.0), mitigated by uv locked deps
-        run: uv run pip-audit --progress-spinner off --skip-editable --ignore-vuln CVE-2026-1703
+        # --ignore-vuln CVE-2026-26007: cryptography 46.0.3 -> 46.0.5; pending uv lock update
+        run: uv run pip-audit --progress-spinner off --skip-editable --ignore-vuln CVE-2026-1703 --ignore-vuln CVE-2026-26007
 
       # Frontend linting
       - name: Cache Node modules

@@ -24,10 +24,16 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """Create test client."""
+    """Create test client with auth enforced (no E2E bypass)."""
     from backend.api.main import app
+    from backend.api.middleware.auth import get_current_user
 
-    return TestClient(app, raise_server_exceptions=False)
+    async def _require_real_auth():
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    app.dependency_overrides[get_current_user] = _require_real_auth
+    yield TestClient(app, raise_server_exceptions=False)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

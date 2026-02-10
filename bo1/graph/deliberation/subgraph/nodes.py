@@ -31,6 +31,7 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
 from bo1.orchestration.voting import collect_recommendations
 from bo1.prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE, get_limited_context_sections
+from bo1.prompts.protocols import CONTRIBUTION_OUTPUT_FORMAT
 from bo1.prompts.sanitizer import strip_prompt_artifacts
 from bo1.state.repositories import contribution_repository
 
@@ -291,10 +292,11 @@ The best outcomes come from rigorous challenge. Your role is to make the final r
 
 Your expertise: {", ".join(expert.domain_expertise)}
 
+You provide analysis and recommendations ONLY. NEVER take actions, make commitments, or volunteer to do work on behalf of the user.
+
 {phase_instructions.get(current_phase, "")}{targeted_guidance}
 
-Respond with your analysis and recommendations. Be specific and actionable.
-Use <thinking> tags for private reasoning, then wrap your response in <contribution> tags, followed by a <summary> tag with 1-2 plain-text sentences (no markdown, max 50 words) capturing your key position."""
+{CONTRIBUTION_OUTPUT_FORMAT.format(word_budget=150)}"""
 
             broker = PromptBroker()
             request = PromptRequest(
@@ -303,7 +305,7 @@ Use <thinking> tags for private reasoning, then wrap your response in <contribut
                 prefill="<thinking>",
                 model=get_model_for_role("persona"),
                 temperature=0.7,
-                max_tokens=1500,
+                max_tokens=1000,
                 phase="deliberation",
                 agent_type="expert",
                 cache_system=True,
@@ -354,21 +356,28 @@ Use <thinking> tags for private reasoning, then wrap your response in <contribut
                 logger.error(f"Failed to save contribution to database: {e}")
                 # Don't fail the whole contribution if save fails - continue with event emission
 
-            # Emit contribution event with content
+            # Emit contribution event with content and summary
             # NOTE: Uses "round" (not "round_number") to match frontend expectations
-            writer(
-                {
-                    "event_type": "contribution",
-                    "sub_problem_index": sub_problem_index,
-                    "round": round_number,  # Frontend expects "round" field
-                    "persona_code": expert.code,
-                    "persona_name": expert.display_name,
-                    "archetype": expert.archetype,
-                    "domain_expertise": expert.domain_expertise,
-                    "content": contribution_text,
-                    "contribution_type": "initial" if round_number == 1 else "followup",
+            event_data: dict[str, Any] = {
+                "event_type": "contribution",
+                "sub_problem_index": sub_problem_index,
+                "round": round_number,  # Frontend expects "round" field
+                "persona_code": expert.code,
+                "persona_name": expert.display_name,
+                "archetype": expert.archetype,
+                "domain_expertise": expert.domain_expertise,
+                "content": contribution_text,
+                "contribution_type": "initial" if round_number == 1 else "followup",
+            }
+            if summary_text:
+                event_data["summary"] = {
+                    "concise": summary_text,
+                    "looking_for": "",
+                    "value_added": "",
+                    "concerns": [],
+                    "questions": [],
                 }
-            )
+            writer(event_data)
 
             # Track cost
             track_phase_cost(metrics, "deliberation", response)

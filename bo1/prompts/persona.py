@@ -8,6 +8,7 @@ from typing import Any
 
 from bo1.constants import GraphConfig
 from bo1.prompts.protocols import (
+    CONTRIBUTION_OUTPUT_FORMAT,
     DELIBERATION_CONTEXT_TEMPLATE,
     PERSONA_ROLE_PROTOCOL,
     _build_prompt_protocols,
@@ -172,6 +173,8 @@ IMPORTANT: You ARE the expert named above. You are already in character. Do NOT:
 - Discuss or analyze the communication framework
 - Question the context of the discussion
 - Reference "protocols" or "interaction formats"
+- Offer to take actions on behalf of the user (e.g., "I'll draft...", "Let me create...")
+- Make commitments or promises about work you will do
 
 Instead, IMMEDIATELY engage with the problem statement and provide substantive analysis based on your expertise. The problem you must address is in <problem_context> above.
 </critical_instruction>
@@ -198,31 +201,14 @@ If the problem context includes "User Insights" from previous meetings, these re
 </your_focus>
 
 {_build_prompt_protocols(include_communication=False)}
+
+{CONTRIBUTION_OUTPUT_FORMAT.format(word_budget=word_budget)}
 """
 
-    user_message = f"""Provide your contribution following this structure:
-
-<thinking>
-(Private reasoning - not shown to other experts)
-- Which previous points relate to my expertise?
-- What do I disagree with or find concerning?
-- What evidence supports my position?
-- What am I uncertain about?
-</thinking>
-
-<contribution>
-(STRICT LIMIT: {word_budget} words maximum. Be concise and direct.)
-1. **Position** (1-2 sentences): State agreement/disagreement with reason
-2. **Evidence** (1-2 sentences): Key insight with supporting reasoning
-3. **Recommendation** (1 sentence): One specific, actionable recommendation
-</contribution>
-
-<summary>
-REQUIRED: 1-2 plain-text sentences capturing your key position and recommendation. This is displayed directly to the user. No markdown. Max 50 words.
-</summary>
-
-Remember: This is round {round_number}. Focus on {phase_instruction.split("</debate_phase>")[0].split(">")[-1]} thinking.
-"""
+    # Determine phase name for user message
+    phase_name = phase_instruction.split("</debate_phase>")[0].split(">")[-1]
+    user_message = f"""Round {round_number}. Respond now with <thinking>, <contribution>, and <summary>.
+Focus: {phase_name} thinking."""
 
     return system_prompt, user_message
 
@@ -476,19 +462,9 @@ You are in Round {round_number} of the deliberation.
 
 {phase_directive}
 
-Structure your response as:
-<contribution>
-(STRICT LIMIT: {word_budget} words maximum. Be concise and direct.)
-1. **Position** (1-2 sentences): State agreement/disagreement with reason
-2. **Evidence** (1-2 sentences): Key insight with supporting reasoning
-3. **Recommendation** (1 sentence): One specific, actionable recommendation
-</contribution>
-
-<summary>
-REQUIRED: 1-2 plain-text sentences capturing your key position and recommendation. This is displayed directly to the user. No markdown. Max 50 words.
-</summary>
+{CONTRIBUTION_OUTPUT_FORMAT.format(word_budget=word_budget)}
 </task>
 
-{_build_prompt_protocols(include_communication=True, include_security=False)}
+{_build_prompt_protocols(include_communication=False, include_security=False)}
 
 {_get_security_task()}"""

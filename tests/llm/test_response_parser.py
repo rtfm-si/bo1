@@ -6,6 +6,7 @@ import pytest
 
 from bo1.constants import TokenLimits
 from bo1.llm.response_parser import (
+    ACTION_TAKING_PATTERNS,
     CHALLENGE_INDICATOR_PATTERNS,
     GENERIC_AGREEMENT_PATTERNS,
     CitationValidationResult,
@@ -707,3 +708,51 @@ class TestChallengeIndicatorPatterns:
         text = "I'm not convinced by this analysis."
         pattern = CHALLENGE_INDICATOR_PATTERNS[11]
         assert re.search(pattern, text.lower()) is not None
+
+
+class TestActionTakingDetection:
+    """Test action-taking language detection for expert boundary enforcement."""
+
+    def test_detects_ill_draft(self):
+        """Detect 'I'll draft' pattern."""
+        assert ResponseParser.has_action_taking_language(
+            "I'll draft the Terms of Service by end of week.", "Legal Expert"
+        )
+
+    def test_detects_i_will_create(self):
+        """Detect 'I will create' pattern."""
+        assert ResponseParser.has_action_taking_language(
+            "I will create a comprehensive marketing plan.", "Marketing Expert"
+        )
+
+    def test_detects_let_me_prepare(self):
+        """Detect 'Let me prepare' pattern."""
+        assert ResponseParser.has_action_taking_language(
+            "Let me prepare a detailed financial model for you.", "Finance Expert"
+        )
+
+    def test_detects_on_your_behalf(self):
+        """Detect 'on your behalf' pattern."""
+        assert ResponseParser.has_action_taking_language(
+            "I can handle the negotiations on your behalf.", "Strategy Expert"
+        )
+
+    def test_allows_recommendation_language(self):
+        """Normal recommendation language should not trigger."""
+        assert not ResponseParser.has_action_taking_language(
+            "I recommend focusing on unit economics before scaling. "
+            "The CAC-to-LTV ratio suggests a 3-month payback period.",
+            "Growth Expert",
+        )
+
+    def test_allows_analysis_language(self):
+        """Analytical language should not trigger."""
+        assert not ResponseParser.has_action_taking_language(
+            "Based on industry benchmarks, the proposed timeline is aggressive. "
+            "Consider extending Phase 1 by two weeks.",
+            "PM Expert",
+        )
+
+    def test_pattern_count(self):
+        """Verify expected number of patterns."""
+        assert len(ACTION_TAKING_PATTERNS) == 4

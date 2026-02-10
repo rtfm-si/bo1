@@ -155,6 +155,9 @@ class PersonaExecutor:
         # Sanitize LLM output before re-injection into subsequent prompts
         contribution = sanitize_user_input(contribution, context="llm_output")
 
+        # Action-taking language detection (observability, non-blocking)
+        ResponseParser.has_action_taking_language(contribution, persona_profile.display_name)
+
         # Challenge phase validation (rounds 3-4, 1-indexed)
         # Convert 0-indexed to 1-indexed for validation
         round_number_1indexed = round_number + 1

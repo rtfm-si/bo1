@@ -65,6 +65,14 @@ GENERIC_AGREEMENT_PATTERNS = [
     r"\b\w+\s+makes?\s+(?:an?\s+)?(?:excellent|great|valid)\s+point",  # "X makes an excellent point"
 ]
 
+# Patterns indicating expert is taking actions on behalf of the user
+ACTION_TAKING_PATTERNS = [
+    r"\bi(?:'ll| will) (?:draft|create|prepare|write|build|set up|develop|implement|send|deliver)",
+    r"\blet me (?:draft|create|prepare|write|build|set up|put together|send)",
+    r"\bi(?:'ll| will) (?:get|have|complete) (?:this|that|it)",
+    r"\bon (?:your|the user'?s?) behalf",
+]
+
 # Patterns indicating active challenge/critique (substantive engagement)
 CHALLENGE_INDICATOR_PATTERNS = [
     r"\bi\s+disagree",  # "I disagree"
@@ -388,6 +396,29 @@ class ResponseParser:
             ).strip()
 
         return thinking, contribution, inline_summary
+
+    @staticmethod
+    def has_action_taking_language(content: str, persona_name: str = "") -> bool:
+        """Check if contribution contains language where the expert takes actions on behalf of the user.
+
+        This is observability-only (logs a warning), not blocking.
+
+        Args:
+            content: The contribution text to check
+            persona_name: Name of the persona (for logging)
+
+        Returns:
+            True if action-taking language detected
+        """
+        content_lower = content.lower()
+        for pattern in ACTION_TAKING_PATTERNS:
+            if re.search(pattern, content_lower):
+                logger.warning(
+                    f"[ACTION_BOUNDARY] {persona_name or 'Unknown'} used action-taking language: "
+                    f"matched pattern '{pattern}' in: {content[:150]}..."
+                )
+                return True
+        return False
 
     @staticmethod
     def parse_recommendation_from_response(response_content: str, persona: Any) -> Recommendation:

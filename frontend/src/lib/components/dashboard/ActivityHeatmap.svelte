@@ -16,9 +16,11 @@
 
 	let { data, workingDays = [1, 2, 3, 4, 5], historyMonths = 3 }: Props = $props();
 
-	// Fixed cell dimensions (no dynamic sizing)
-	const CELL_PX = 14;
 	const GAP_PX = 3;
+	const DAY_LABEL_W = 32;
+
+	// Dynamic cell size based on container width
+	let containerWidth = $state(0);
 
 	function isWorkingDay(jsWeekday: number): boolean {
 		const isoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
@@ -208,6 +210,13 @@
 
 	const weekCount = $derived.by(() => Math.ceil(dateRange.days / 7) + 1);
 
+	const dynamicCellPx = $derived.by(() => {
+		if (!containerWidth || !weekCount) return 14;
+		const available = containerWidth - DAY_LABEL_W - GAP_PX;
+		const raw = (available - (weekCount - 1) * GAP_PX) / weekCount;
+		return Math.min(20, Math.max(14, Math.floor(raw)));
+	});
+
 	const gridData = $derived.by(() => {
 		const { start, end } = dateRange;
 		const statMap = new Map<string, DailyActionStat>();
@@ -351,44 +360,43 @@
 </script>
 
 <div class="w-full space-y-3">
-	<!-- Header with share button only -->
-	<div class="flex items-center justify-end">
+	<!-- Sparkline trend + share button -->
+	<div class="flex items-center justify-between">
+		{#if sparklineData.length >= 7}
+			<div class="flex items-center gap-2">
+				<svg viewBox="0 0 100 20" class="w-16 h-4 flex-shrink-0">
+					<path
+						d={sparklinePath}
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="text-brand-500 dark:text-brand-400"
+					/>
+				</svg>
+				<div class="flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-400">
+					{#if trendDirection === 'up'}
+						<svg class="w-3 h-3 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+						</svg>
+						<span>Up</span>
+					{:else if trendDirection === 'down'}
+						<svg class="w-3 h-3 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+						</svg>
+						<span>Down</span>
+					{:else}
+						<svg class="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" />
+						</svg>
+						<span>Steady</span>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div></div>
+		{/if}
 		<ShareButton targetElement={heatmapContainer} stats={activityStats} compact={true} />
 	</div>
-
-	<!-- Sparkline trend summary -->
-	{#if sparklineData.length >= 7}
-		<div class="flex items-center gap-3 px-3 py-2 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
-			<svg viewBox="0 0 100 20" class="w-24 h-5 flex-shrink-0">
-				<path
-					d={sparklinePath}
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					class="text-brand-500 dark:text-brand-400"
-				/>
-			</svg>
-			<div class="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-				{#if trendDirection === 'up'}
-					<svg class="w-3.5 h-3.5 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-					</svg>
-					<span>Trending up</span>
-				{:else if trendDirection === 'down'}
-					<svg class="w-3.5 h-3.5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-					</svg>
-					<span>Trending down</span>
-				{:else}
-					<svg class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" />
-					</svg>
-					<span>Steady</span>
-				{/if}
-				<span class="text-neutral-400 dark:text-neutral-500">7-day avg</span>
-			</div>
-		</div>
-	{/if}
 
 	<!-- Heatmap grid - horizontal scroll with fixed cell size -->
 	<div class="relative">
@@ -398,62 +406,60 @@
 					No activity data available
 				</div>
 			{:else}
-				<div class="overflow-x-auto scrollbar-thin" bind:this={scrollContainer}>
-					<div style="min-width: max-content">
-						<!-- Month labels -->
-						<div class="relative mb-1.5 h-4" style="margin-left: {32 + GAP_PX}px">
-							{#each monthLabelsWithPositions as label (label.weekIdx)}
-								<div
-									style="position: absolute; left: {label.weekIdx * (CELL_PX + GAP_PX)}px"
-									class="text-xs font-medium text-neutral-600 dark:text-neutral-400"
-								>
-									{label.month}
-								</div>
-							{/each}
+				<div bind:this={scrollContainer} bind:clientWidth={containerWidth}>
+				<!-- Month labels -->
+				<div class="relative mb-1.5 h-4" style="margin-left: {DAY_LABEL_W + GAP_PX}px">
+					{#each monthLabelsWithPositions as label (label.weekIdx)}
+						<div
+							style="position: absolute; left: {label.weekIdx * (dynamicCellPx + GAP_PX)}px"
+							class="text-xs font-medium text-neutral-600 dark:text-neutral-400"
+						>
+							{label.month}
 						</div>
+					{/each}
+				</div>
 
-						<!-- Day labels and heatmap -->
-						<div class="flex" style="gap: {GAP_PX}px">
-							<!-- Day labels -->
-							<div class="flex flex-col" style="gap: {GAP_PX}px">
-								{#each dayLabels as day (day)}
+				<!-- Day labels and heatmap -->
+				<div class="flex" style="gap: {GAP_PX}px">
+					<!-- Day labels -->
+					<div class="flex flex-col" style="gap: {GAP_PX}px">
+						{#each dayLabels as day (day)}
+							<div
+								class="w-8 text-xs font-medium text-neutral-600 dark:text-neutral-400 flex items-center"
+								style="height: {dynamicCellPx}px"
+							>
+								{day}
+							</div>
+						{/each}
+					</div>
+
+					<!-- Heatmap cells -->
+					<div class="flex" style="gap: {GAP_PX}px">
+						{#each gridData as week, weekIdx (weekIdx)}
+							<div
+								class="flex flex-col {isCurrentWeek(week) ? 'ring-1 ring-brand-400/50 rounded' : ''}"
+								style="gap: {GAP_PX}px"
+								data-current-week={isCurrentWeek(week) ? '' : undefined}
+							>
+								{#each week as cell, dayIdx (dayIdx)}
+									{@const inRange = isInRange(cell)}
+									{@const isFuture = isFutureDate(cell.date)}
+									{@const isNonWorking = !isWorkingDay(cell.date.getDay())}
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="w-8 text-xs font-medium text-neutral-600 dark:text-neutral-400 flex items-center"
-										style="height: {CELL_PX}px"
-									>
-										{day}
-									</div>
+										class:opacity-20={!inRange}
+										class="rounded-sm cursor-pointer transition-opacity hover:opacity-80 {getColor(cell.stat, isFuture, isNonWorking)}"
+										style="width: {dynamicCellPx}px; height: {dynamicCellPx}px"
+										onmouseenter={(e) => inRange && onCellEnter(e, cell, isFuture)}
+										onmouseleave={onCellLeave}
+										onclick={() => inRange && onCellClick(cell)}
+									></div>
 								{/each}
 							</div>
-
-							<!-- Heatmap cells -->
-							<div class="flex" style="gap: {GAP_PX}px">
-								{#each gridData as week, weekIdx (weekIdx)}
-									<div
-										class="flex flex-col {isCurrentWeek(week) ? 'ring-1 ring-brand-400/50 rounded' : ''}"
-										style="gap: {GAP_PX}px"
-										data-current-week={isCurrentWeek(week) ? '' : undefined}
-									>
-										{#each week as cell, dayIdx (dayIdx)}
-											{@const inRange = isInRange(cell)}
-											{@const isFuture = isFutureDate(cell.date)}
-											{@const isNonWorking = !isWorkingDay(cell.date.getDay())}
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<div
-												class:opacity-20={!inRange}
-												class="rounded-sm cursor-pointer transition-opacity hover:opacity-80 {getColor(cell.stat, isFuture, isNonWorking)}"
-												style="width: {CELL_PX}px; height: {CELL_PX}px"
-												onmouseenter={(e) => inRange && onCellEnter(e, cell, isFuture)}
-												onmouseleave={onCellLeave}
-												onclick={() => inRange && onCellClick(cell)}
-											></div>
-										{/each}
-									</div>
-								{/each}
-							</div>
-						</div>
+						{/each}
 					</div>
 				</div>
+			</div>
 			{/if}
 		</div>
 	</div>

@@ -32,6 +32,10 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (meta-synthesis JSON action plan, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
+    from bo1.models.problem import Constraint
+    from bo1.models.recommendations import Recommendation
+    from bo1.orchestration.option_extraction import extract_options
+    from bo1.orchestration.voting import aggregate_recommendations_ai
     from bo1.prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
 
     _start_time = time.perf_counter()
@@ -251,10 +255,59 @@ Always verify recommendations using licensed legal/financial professionals for y
         f"(cost: ${response.cost_total:.4f}, total: ${metrics.total_cost:.4f})"
     )
 
+    # Extract decision options from all sub-problem recommendations
+    all_recommendations: list[Recommendation] = []
+    for result in sub_problem_results:
+        for vote in result.votes:
+            if isinstance(vote, dict):
+                try:
+                    all_recommendations.append(Recommendation.model_validate(vote))
+                except Exception:
+                    logger.debug(f"Skipping vote missing required fields: {list(vote.keys())}")
+
+    constraints_raw = get_problem_attr(problem, "constraints", [])
+    normalized_constraints = [
+        Constraint(**c) if isinstance(c, dict) else c for c in constraints_raw
+    ]
+
+    extracted_options: list[dict[str, Any]] = []
+    dissenting_views: list[str] = []
+
+    if all_recommendations:
+        try:
+            options = await extract_options(all_recommendations, normalized_constraints, broker)
+            extracted_options = [opt.model_dump() for opt in options]
+            log_with_session(
+                logger,
+                logging.INFO,
+                session_id,
+                f"meta_synthesize_node: Extracted {len(extracted_options)} decision options",
+            )
+        except Exception as e:
+            logger.warning(f"Option extraction in meta-synthesis failed: {e}")
+
+        try:
+            aggregation, agg_response = await aggregate_recommendations_ai(
+                all_recommendations,
+                "\n\n".join(formatted_results),
+                broker,
+            )
+            dissenting_views = aggregation.dissenting_views
+            # Additive: don't overwrite main meta-synthesis cost
+            metrics.phase_costs["meta_synthesis"] = (
+                metrics.phase_costs.get("meta_synthesis", 0.0) + agg_response.cost_total
+            )
+            metrics.total_cost += agg_response.cost_total
+            metrics.total_tokens += agg_response.total_tokens
+        except Exception as e:
+            logger.warning(f"Recommendation aggregation in meta-synthesis failed: {e}")
+
     # Return state updates
     emit_node_duration("meta_synthesize_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "synthesis": meta_synthesis_final,
+        "extracted_options": extracted_options,
+        "dissenting_views": dissenting_views,
         "phase": DeliberationPhase.COMPLETE,
         "metrics": metrics,
         "current_node": "meta_synthesis",

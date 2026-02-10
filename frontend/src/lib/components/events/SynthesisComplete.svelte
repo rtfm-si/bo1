@@ -9,12 +9,28 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import { parseSynthesisXML, isXMLFormatted, isMarkdownFormatted, type SynthesisSection, type MetaSynthesisAction } from '$lib/utils/xml-parser';
 	import { getPriorityConfig } from '$lib/utils/priority';
+	import { onMount } from 'svelte';
 
 	interface Props {
 		event: SynthesisCompleteEvent | MetaSynthesisCompleteEvent;
 	}
 
 	let { event }: Props = $props();
+
+	// Track whether DecisionGate exists in DOM (may mount after this component)
+	let decisionGateVisible = $state(false);
+	onMount(() => {
+		// Check immediately and poll briefly for late-mounting DecisionGate
+		const check = () => !!document.getElementById('decision-gate');
+		decisionGateVisible = check();
+		if (!decisionGateVisible) {
+			const timer = setInterval(() => {
+				decisionGateVisible = check();
+				if (decisionGateVisible) clearInterval(timer);
+			}, 500);
+			return () => clearInterval(timer);
+		}
+	});
 
 	const isMeta = $derived(event.event_type === 'meta_synthesis_complete');
 	// Always try to parse - supports JSON, XML (<tag>), and Markdown (## Header) formats
@@ -360,17 +376,19 @@
 		<ActionableTasks sessionId={event.session_id ?? ''} subProblemIndex={event.event_type === 'synthesis_complete' ? event.data.sub_problem_index : undefined} />
 	{/if}
 
-	<!-- Decision Gate CTA -->
-	<div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
-		<button
-			type="button"
-			class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm transition-colors"
-			onclick={() => {
-				const gate = document.getElementById('decision-gate');
-				if (gate) gate.scrollIntoView({ behavior: 'smooth' });
-			}}
-		>
-			Make Your Decision
-		</button>
-	</div>
+	<!-- Decision Gate CTA — only show when DecisionGate is in the DOM -->
+	{#if decisionGateVisible}
+		<div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+			<button
+				type="button"
+				class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm transition-colors"
+				onclick={() => {
+					const gate = document.getElementById('decision-gate');
+					if (gate) gate.scrollIntoView({ behavior: 'smooth' });
+				}}
+			>
+				Make Your Decision
+			</button>
+		</div>
+	{/if}
 </div>

@@ -79,6 +79,7 @@ def create_deliberation_graph(
         synthesize_node,
         vote_node,
     )
+    from bo1.graph.nodes.interjection import interjection_response_node
     from bo1.graph.routers.facilitator import (
         route_after_identify_gaps,
         route_clarification,
@@ -124,6 +125,10 @@ def create_deliberation_graph(
     workflow.add_node(
         "data_analysis", wrap_node_with_timing("data_analysis", data_analysis_node)
     )  # Dataset analysis during deliberation
+    workflow.add_node(
+        "interjection_response",
+        wrap_node_with_timing("interjection_response", interjection_response_node),
+    )  # User interjection handling
     workflow.add_node(
         "check_convergence", wrap_node_with_timing("check_convergence", check_convergence_node)
     )  # Day 24
@@ -207,6 +212,7 @@ def create_deliberation_graph(
             "research": "research",  # Mid-meeting automated research (RESTORED)
             "data_analysis": "data_analysis",  # Dataset analysis during deliberation
             "clarification": "clarification",  # Request clarification from user
+            "interjection_response": "interjection_response",  # User raised hand
             "END": END,
         },
     )
@@ -220,6 +226,9 @@ def create_deliberation_graph(
             "END": END,
         },
     )
+
+    # interjection_response -> facilitator_decide (return to normal loop)
+    workflow.add_edge("interjection_response", "facilitator_decide")
 
     # research -> parallel_round (continue deliberation with research results)
     workflow.add_edge("research", "parallel_round")

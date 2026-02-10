@@ -26,7 +26,9 @@ from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
-FacilitatorAction = Literal["continue", "vote", "research", "moderator", "clarify", "analyze_data"]
+FacilitatorAction = Literal[
+    "continue", "vote", "research", "moderator", "clarify", "analyze_data", "interjection_response"
+]
 
 # Valid action values as a set for validation
 VALID_FACILITATOR_ACTIONS: set[str] = {
@@ -36,6 +38,7 @@ VALID_FACILITATOR_ACTIONS: set[str] = {
     "moderator",
     "clarify",
     "analyze_data",
+    "interjection_response",
 }
 
 
@@ -452,6 +455,14 @@ class FacilitatorAgent(BaseAgent):
         phase = state.get("phase", "discussion")
         phase_objectives = self._get_phase_objectives(phase, round_number, max_rounds)
 
+        # Constraint-change awareness: if interjection is a constraint update, note it
+        user_interjection = state.get("user_interjection") or ""
+        if user_interjection.startswith("[CONSTRAINT_UPDATE]"):
+            phase_objectives += (
+                "\n\nIMPORTANT: Constraints have changed mid-meeting. "
+                "Ask experts to re-evaluate their positions against the updated constraints."
+            )
+
         # Compute contribution statistics for rotation guidance
         contribution_counts: dict[str, int] = {}
         last_speakers: list[str] = []
@@ -470,6 +481,23 @@ class FacilitatorAgent(BaseAgent):
         # Get metrics from state for data-driven decisions
         metrics = state.get("metrics")
 
+        # Extract constraints for facilitator prompt
+        from bo1.prompts.constraints import format_constraints_for_prompt
+        from bo1.utils.checkpoint_helpers import get_problem_attr
+
+        problem = state.get("problem")
+        constraints_text = ""
+        if problem:
+            from bo1.models.problem import Constraint as ConstraintModel
+
+            raw_constraints = get_problem_attr(problem, "constraints", [])
+            if raw_constraints:
+                parsed_constraints = [
+                    ConstraintModel.model_validate(c) if isinstance(c, dict) else c
+                    for c in raw_constraints
+                ]
+                constraints_text = format_constraints_for_prompt(parsed_constraints)
+
         # Compose facilitator prompt with rotation guidance and metrics
         system_prompt = compose_facilitator_prompt(
             current_phase=phase,
@@ -480,6 +508,7 @@ class FacilitatorAgent(BaseAgent):
             metrics=metrics,
             round_number=round_number,
             clarification_count=state.get("clarification_count", 0),
+            constraints_text=constraints_text,
         )
 
         # Build user message

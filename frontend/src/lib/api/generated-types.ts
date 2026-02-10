@@ -4957,6 +4957,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activities/by-date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get activities for a specific date
+         * @description Returns individual activity items for a given date, used by heatmap tooltips.
+         */
+        get: operations["get_activities_by_date_api_v1_activities_by_date_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/ratings/metrics": {
         parameters: {
             query?: never;
@@ -10304,6 +10324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/constraints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update constraints during deliberation
+         * @description Add, modify, or remove constraints during an active meeting.
+         */
+        post: operations["update_constraints_api_v1_sessions__session_id__constraints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/context-choice": {
         parameters: {
             query?: never;
@@ -10358,6 +10398,54 @@ export interface paths {
          * @description Create a project from a suggestion and assign actions
          */
         post: operations["create_suggested_project_api_v1_sessions__session_id__create_suggested_project_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision for session
+         * @description Get the user decision for a session.
+         */
+        get: operations["get_decision_api_v1_sessions__session_id__decision_get"];
+        put?: never;
+        /**
+         * Submit or update decision
+         * @description Upsert a user decision for a session.
+         */
+        post: operations["submit_decision_api_v1_sessions__session_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/decision/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision outcome
+         * @description Get the outcome for a session's decision.
+         */
+        get: operations["get_outcome_api_v1_sessions__session_id__decision_outcome_get"];
+        put?: never;
+        /**
+         * Submit or update decision outcome
+         * @description Upsert a decision outcome for a session's decision.
+         */
+        post: operations["submit_outcome_api_v1_sessions__session_id__decision_outcome_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11482,6 +11570,46 @@ export interface paths {
          *         If `has_history` is false, trends will show as "insufficient_data".
          */
         get: operations["get_value_metrics_api_v1_user_value_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/decision-patterns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decision-making patterns
+         * @description Compute aggregated decision-making patterns for the current user.
+         */
+        get: operations["get_decision_patterns_api_v1_users_me_decision_patterns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/pending-followups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get decisions pending outcome recording
+         * @description Get decisions older than 30 days that don't have outcomes yet.
+         */
+        get: operations["get_pending_followups_api_v1_users_me_pending_followups_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13448,6 +13576,42 @@ export interface components {
             sessions: components["schemas"]["ActiveSessionInfo"][];
         };
         /**
+         * ActivityItem
+         * @description Individual activity item for a given date.
+         */
+        ActivityItem: {
+            /**
+             * Id
+             * @description Item ID
+             */
+            id: string;
+            /**
+             * Subtitle
+             * @description Optional subtitle (e.g. session problem statement)
+             */
+            subtitle?: string | null;
+            /**
+             * Timestamp
+             * @description ISO timestamp
+             */
+            timestamp?: string | null;
+            /**
+             * Title
+             * @description Activity title/description
+             */
+            title: string;
+            /**
+             * Type
+             * @description Activity type (session, action_completed, action_started, mentor_session, planned_start, planned_due)
+             */
+            type: string;
+            /**
+             * Url
+             * @description Link to detail page
+             */
+            url?: string | null;
+        };
+        /**
          * AddDatasetsRequest
          * @description Request to add datasets to a folder.
          */
@@ -14737,6 +14901,21 @@ export interface components {
              * @description Total number of whitelisted emails
              */
             total_count: number;
+        };
+        /**
+         * BiasFlag
+         * @description A detected decision-making bias.
+         */
+        BiasFlag: {
+            /**
+             * Bias Type
+             * @description e.g., overconfidence, matrix_aversion
+             */
+            bias_type: string;
+            /** Description */
+            description: string;
+            /** Severity */
+            severity: string;
         };
         /**
          * BillingConfigResponse
@@ -17209,6 +17388,21 @@ export interface components {
             timestamp: string;
         };
         /**
+         * ConfidenceCalibration
+         * @description Confidence vs actual outcome calibration.
+         */
+        ConfidenceCalibration: {
+            /** Avg Confidence */
+            avg_confidence?: number | null;
+            /** Success Rate */
+            success_rate?: number | null;
+            /**
+             * Total With Outcomes
+             * @default 0
+             */
+            total_with_outcomes: number;
+        };
+        /**
          * ConfidenceLevel
          * @description Confidence level for insights.
          * @enum {string}
@@ -17396,6 +17590,58 @@ export interface components {
              * @description UUID of T&C version being accepted
              */
             terms_version_id: string;
+        };
+        /**
+         * ConstraintAccuracy
+         * @description Constraint alignment accuracy across decisions.
+         */
+        ConstraintAccuracy: {
+            /**
+             * Tensions Chosen
+             * @default 0
+             */
+            tensions_chosen: number;
+            /**
+             * Tensions Successful
+             * @default 0
+             */
+            tensions_successful: number;
+            /**
+             * Total With Constraints
+             * @default 0
+             */
+            total_with_constraints: number;
+            /**
+             * Violations Chosen
+             * @default 0
+             */
+            violations_chosen: number;
+            /**
+             * Violations Successful
+             * @default 0
+             */
+            violations_successful: number;
+        };
+        /**
+         * ConstraintInput
+         * @description Input model for a single constraint.
+         */
+        ConstraintInput: {
+            /**
+             * Description
+             * @description Constraint description
+             */
+            description: string;
+            /**
+             * Type
+             * @description Constraint type (budget/time/resource/regulatory/technical/ethical/other)
+             */
+            type: string;
+            /**
+             * Value
+             * @description Optional constraint value (e.g., dollar amount, date)
+             */
+            value?: unknown | null;
         };
         /**
          * ContextChoiceRequest
@@ -18103,11 +18349,13 @@ export interface components {
             /**
              * Model
              * @description Model name
+             * @default unknown
              */
             model: string;
             /**
              * Provider
              * @description LLM provider
+             * @default unknown
              */
             provider: string;
             /**
@@ -18481,6 +18729,18 @@ export interface components {
              * @description Hidden honeypot field - should always be empty
              */
             _hp_url?: string | null;
+            /**
+             * Constraints
+             * @description Optional constraints for the deliberation (max 10)
+             * @example [
+             *       {
+             *         "description": "Total budget must not exceed $500K",
+             *         "type": "budget",
+             *         "value": 500000
+             *       }
+             *     ]
+             */
+            constraints?: components["schemas"]["ConstraintInput"][] | null;
             /**
              * Context Ids
              * @description Optional context to inject: {meetings: [...ids], actions: [...ids], datasets: [...ids]}
@@ -20172,6 +20432,27 @@ export interface components {
             name?: string | null;
         };
         /**
+         * DateActivitiesResponse
+         * @description Response model for activities on a specific date.
+         */
+        DateActivitiesResponse: {
+            /**
+             * Activities
+             * @description Activities on this date
+             */
+            activities: components["schemas"]["ActivityItem"][];
+            /**
+             * Date
+             * @description Date (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Total
+             * @description Total number of activities
+             */
+            total: number;
+        };
+        /**
          * DecisionCreate
          * @description Request model for creating a published decision.
          */
@@ -20262,6 +20543,81 @@ export interface components {
              * @description Total count
              */
             total: number;
+        };
+        /**
+         * DecisionOutcomeCreate
+         * @description Request model for creating/updating a decision outcome.
+         */
+        DecisionOutcomeCreate: {
+            /** Lessons Learned */
+            lessons_learned?: string | null;
+            /** Outcome Notes */
+            outcome_notes?: string | null;
+            /** Outcome Status */
+            outcome_status: string;
+            /** Surprise Factor */
+            surprise_factor?: number | null;
+            /** What Would Change */
+            what_would_change?: string | null;
+        };
+        /**
+         * DecisionOutcomeResponse
+         * @description Response model for a decision outcome.
+         */
+        DecisionOutcomeResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decision Id */
+            decision_id: string;
+            /** Id */
+            id: string;
+            /** Lessons Learned */
+            lessons_learned: string | null;
+            /** Outcome Notes */
+            outcome_notes: string | null;
+            /** Outcome Status */
+            outcome_status: string;
+            /** Surprise Factor */
+            surprise_factor: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Id */
+            user_id: string;
+            /** What Would Change */
+            what_would_change: string | null;
+        };
+        /**
+         * DecisionPatternsResponse
+         * @description Aggregated decision-making patterns for a user.
+         */
+        DecisionPatternsResponse: {
+            /** Avg Surprise Factor */
+            avg_surprise_factor?: number | null;
+            /** Bias Flags */
+            bias_flags?: components["schemas"]["BiasFlag"][];
+            confidence_calibration: components["schemas"]["ConfidenceCalibration"];
+            constraint_accuracy?: components["schemas"]["ConstraintAccuracy"] | null;
+            /** Has Enough Data */
+            has_enough_data: boolean;
+            /** Matrix Usage Pct */
+            matrix_usage_pct?: number | null;
+            /** Monthly Trends */
+            monthly_trends?: components["schemas"]["MonthlyTrend"][];
+            /**
+             * Outcome Breakdown
+             * @description Counts by outcome_status: successful, partially_successful, etc.
+             */
+            outcome_breakdown?: {
+                [key: string]: number;
+            };
+            /** Total Decisions */
+            total_decisions: number;
         };
         /**
          * DecisionPublicResponse
@@ -26381,6 +26737,22 @@ export interface components {
             total_requests: number;
         };
         /**
+         * MonthlyTrend
+         * @description Per-month decision statistics.
+         */
+        MonthlyTrend: {
+            /** Avg Confidence */
+            avg_confidence?: number | null;
+            /** Month */
+            month: string;
+            /** Outcomes Recorded */
+            outcomes_recorded: number;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Total Decisions */
+            total_decisions: number;
+        };
+        /**
          * MultiConsentRequest
          * @description Request model for recording multiple policy consents at once.
          */
@@ -27411,6 +27783,25 @@ export interface components {
              * @description User's current value
              */
             user_value?: number | null;
+        };
+        /**
+         * PendingFollowupResponse
+         * @description Response model for a pending follow-up nudge.
+         */
+        PendingFollowupResponse: {
+            /** Chosen Option Label */
+            chosen_option_label: string;
+            /** Days Ago */
+            days_ago: number;
+            /**
+             * Decision Date
+             * Format: date-time
+             */
+            decision_date: string;
+            /** Decision Id */
+            decision_id: string;
+            /** Session Id */
+            session_id: string;
         };
         /**
          * PendingUpdatesResponse
@@ -34192,6 +34583,19 @@ export interface components {
             description: string;
         };
         /**
+         * UpdateConstraintsRequest
+         * @description Request model for updating constraints mid-meeting.
+         */
+        UpdateConstraintsRequest: {
+            /**
+             * Constraints
+             * @description Updated constraints list
+             */
+            constraints: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
          * UpdateConversationLabelRequest
          * @description Request model for updating conversation label.
          */
@@ -34616,6 +35020,72 @@ export interface components {
              * User Id
              * @description User identifier
              */
+            user_id: string;
+        };
+        /**
+         * UserDecisionCreate
+         * @description Request model for creating/updating a user decision.
+         */
+        UserDecisionCreate: {
+            /**
+             * Chosen Option Description
+             * @default
+             */
+            chosen_option_description: string;
+            /** Chosen Option Id */
+            chosen_option_id: string;
+            /** Chosen Option Label */
+            chosen_option_label: string;
+            /**
+             * Decision Source
+             * @default direct
+             */
+            decision_source: string;
+            /** Matrix Snapshot */
+            matrix_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Rationale */
+            rationale?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * UserDecisionResponse
+         * @description Response model for a user decision.
+         */
+        UserDecisionResponse: {
+            /** Chosen Option Description */
+            chosen_option_description: string;
+            /** Chosen Option Id */
+            chosen_option_id: string;
+            /** Chosen Option Label */
+            chosen_option_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decision Source */
+            decision_source: string;
+            /** Id */
+            id: string;
+            /** Matrix Snapshot */
+            matrix_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Rationale */
+            rationale: {
+                [key: string]: unknown;
+            } | null;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Id */
             user_id: string;
         };
         /**
@@ -48450,6 +48920,47 @@ export interface operations {
             };
         };
     };
+    get_activities_by_date_api_v1_activities_by_date_get: {
+        parameters: {
+            query: {
+                /** @description Date in YYYY-MM-DD format */
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activities retrieved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DateActivitiesResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_rating_metrics_api_v1_admin_ratings_metrics_get: {
         parameters: {
             query?: {
@@ -58886,6 +59397,79 @@ export interface operations {
             };
         };
     };
+    update_constraints_api_v1_sessions__session_id__constraints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateConstraintsRequest"];
+            };
+        };
+        responses: {
+            /** @description Constraints updated */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
+                };
+            };
+        };
+    };
     submit_context_choice_api_v1_sessions__session_id__context_choice_post: {
         parameters: {
             query?: never;
@@ -59053,6 +59637,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_decision_api_v1_sessions__session_id__decision_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDecisionResponse"];
+                };
+            };
+            /** @description No decision found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_decision_api_v1_sessions__session_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Decision saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDecisionResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_outcome_api_v1_sessions__session_id__decision_outcome_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Outcome found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionOutcomeResponse"];
+                };
+            };
+            /** @description No outcome found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_outcome_api_v1_sessions__session_id__decision_outcome_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionOutcomeCreate"];
+            };
+        };
+        responses: {
+            /** @description Outcome saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionOutcomeResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -61640,6 +62410,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValueMetricsResponse"];
+                };
+            };
+        };
+    };
+    get_decision_patterns_api_v1_users_me_decision_patterns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionPatternsResponse"];
+                };
+            };
+        };
+    };
+    get_pending_followups_api_v1_users_me_pending_followups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingFollowupResponse"][];
                 };
             };
         };

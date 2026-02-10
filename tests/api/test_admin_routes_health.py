@@ -14,8 +14,6 @@ They require a running database with the schema initialized.
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from backend.api.admin import router as admin_router
 from backend.api.middleware.admin import require_admin_any
@@ -35,11 +33,14 @@ def mock_get_current_user():
 @pytest.fixture
 def app():
     """Create test app with all admin routes and mocked auth."""
-    app = FastAPI()
+    from backend.api.middleware import rate_limit as rl_mod
 
-    # Set up rate limiter with memory storage for tests
-    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
-    app.state.limiter = limiter
+    # Disable the module-level limiter so decorators skip Redis entirely
+    original_enabled = rl_mod.limiter.enabled
+    rl_mod.limiter.enabled = False
+
+    app = FastAPI()
+    app.state.limiter = rl_mod.limiter
 
     # Mock admin auth - let DB and Redis work normally
     app.dependency_overrides[require_admin_any] = mock_admin_override
@@ -48,7 +49,9 @@ def app():
     # Include the full admin router
     app.include_router(admin_router, prefix="/api")
 
-    return app
+    yield app
+
+    rl_mod.limiter.enabled = original_enabled
 
 
 @pytest.fixture

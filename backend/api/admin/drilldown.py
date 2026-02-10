@@ -191,8 +191,8 @@ async def get_costs_drilldown(
             id=row["id"],
             user_id=row["user_id"] or "unknown",
             email=row["email"],
-            provider=row["provider"],
-            model=row["model_name"],
+            provider=row["provider"] or "unknown",
+            model=row["model_name"] or "unknown",
             amount_usd=float(row["total_cost"]) if row["total_cost"] else 0.0,
             created_at=_to_iso(row["created_at"]),
         )

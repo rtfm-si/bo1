@@ -82,6 +82,7 @@ export type SSEEventType =
 	| 'voting_started'
 	| 'persona_vote'
 	| 'voting_complete'
+	| 'options_extracted'
 	| 'synthesis_started'
 	| 'synthesis_complete'
 	| 'meta_synthesis_started'
@@ -111,6 +112,8 @@ export type SSEEventType =
 	| 'user_interjection_raised'
 	| 'interjection_response'
 	| 'interjection_complete'
+	// Constraints
+	| 'constraint_updated'
 	// State transitions (progress visualization)
 	| 'state_transition';
 
@@ -470,6 +473,33 @@ export interface VotingCompletePayload {
 }
 
 /**
+ * Option card extracted from recommendations (Decision Gate)
+ */
+export interface OptionCard {
+	id: string;
+	label: string;
+	description: string;
+	supporting_personas: string[];
+	confidence_range: [number, number];
+	conditions: string[];
+	tradeoffs: string[];
+	risk_summary: string;
+	criteria_scores: Record<string, number> | null;
+	constraint_alignment: Record<string, string> | null;
+}
+
+/**
+ * Options extracted from recommendations (Decision Gate)
+ * Emitted: After vote node extracts decision options
+ */
+export interface OptionsExtractedPayload {
+	options: OptionCard[];
+	options_count: number;
+	dissenting_views: string[];
+	sub_problem_index: number;
+}
+
+/**
  * Synthesis started
  * Emitted: When synthesis phase begins
  */
@@ -715,6 +745,18 @@ export interface InterjectionCompletePayload {
 }
 
 /**
+ * Constraint updated mid-meeting
+ * Emitted: When user updates constraints during deliberation
+ */
+export interface ConstraintUpdatedPayload {
+	session_id: string;
+	constraints: Array<{ type: string; description: string; value?: unknown }>;
+	action: string;
+	changed_constraint?: string;
+	timestamp: string;
+}
+
+/**
  * Model fallback notification
  * Emitted: When the primary LLM model is overloaded and a fallback model is used
  */
@@ -761,6 +803,7 @@ export interface SSEEventMap {
 	voting_started: VotingStartedPayload;
 	persona_vote: PersonaVotePayload;
 	voting_complete: VotingCompletePayload;
+	options_extracted: OptionsExtractedPayload;
 	// Synthesis
 	synthesis_started: SynthesisStartedPayload;
 	synthesis_complete: SynthesisCompletePayload;
@@ -785,6 +828,8 @@ export interface SSEEventMap {
 	user_interjection_raised: UserInterjectionRaisedPayload;
 	interjection_response: InterjectionResponsePayload;
 	interjection_complete: InterjectionCompletePayload;
+	// Constraints
+	constraint_updated: ConstraintUpdatedPayload;
 	// State transitions
 	state_transition: StateTransitionPayload;
 	// Infrastructure
@@ -1061,6 +1106,10 @@ export function isClarificationAnsweredEvent(event: SSEEvent): event is SSEEvent
 /**
  * Type guard for synthesis_complete events
  */
+export function isOptionsExtractedEvent(event: SSEEvent): event is SSEEvent<'options_extracted'> {
+	return event.event_type === 'options_extracted';
+}
+
 export function isSynthesisCompleteEvent(event: SSEEvent): event is SSEEvent<'synthesis_complete'> {
 	return event.event_type === 'synthesis_complete';
 }

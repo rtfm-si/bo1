@@ -35,9 +35,17 @@ def client(test_app):
 @pytest.fixture
 def unauthenticated_client():
     """Create test client without auth bypass (for auth tests)."""
-    from backend.api.main import app
+    from fastapi import HTTPException
 
-    return TestClient(app)
+    from backend.api.main import app
+    from backend.api.middleware.auth import get_current_user
+
+    async def _reject():
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    app.dependency_overrides[get_current_user] = _reject
+    yield TestClient(app)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

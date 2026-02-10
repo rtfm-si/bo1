@@ -244,6 +244,8 @@ import type {
 	// Heatmap History Depth types
 	HeatmapHistoryDepthResponse,
 	HeatmapHistoryDepthUpdate,
+	// Activities by Date types
+	DateActivitiesResponse,
 	// Recent Research types
 	RecentResearchResponse,
 	// Research Embeddings types
@@ -281,7 +283,14 @@ import type {
 	FeaturedDecisionsResponse,
 	// GSC Integration types
 	GSCStatusResponse,
-	GSCSitesResponse
+	GSCSitesResponse,
+	// User Decision types (Decision Gate)
+	UserDecisionResponse,
+	// Decision Outcome types (Outcome Tracking)
+	DecisionOutcomeResponse,
+	PendingFollowupResponse,
+	// Decision Patterns types (Pattern Detection Dashboard)
+	DecisionPatternsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -1166,6 +1175,21 @@ export class ApiClient {
 	 */
 	async raiseHand(sessionId: string, message: string): Promise<ControlResponse> {
 		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/raise-hand`, { message });
+	}
+
+	/**
+	 * Update constraints during an active meeting.
+	 *
+	 * @param sessionId - Session identifier
+	 * @param constraints - Updated constraints list
+	 */
+	async updateConstraints(
+		sessionId: string,
+		constraints: Array<{ type: string; description: string; value?: unknown }>
+	): Promise<ControlResponse> {
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/constraints`, {
+			constraints
+		});
 	}
 
 	// ==========================================================================
@@ -4541,6 +4565,17 @@ export class ApiClient {
 	}
 
 	// =========================================================================
+	// Activities by Date (Heatmap Tooltip)
+	// =========================================================================
+
+	/**
+	 * Get activities for a specific date (heatmap tooltip detail)
+	 */
+	async getActivitiesByDate(date: string): Promise<DateActivitiesResponse> {
+		return this.fetch<DateActivitiesResponse>(`/api/v1/activities/by-date?date=${date}`);
+	}
+
+	// =========================================================================
 	// Recent Research (Dashboard Widget)
 	// =========================================================================
 
@@ -4618,6 +4653,99 @@ export class ApiClient {
 	 */
 	async disconnectGSC(): Promise<{ success: boolean }> {
 		return this.delete<{ success: boolean }>('/api/v1/integrations/search-console/disconnect');
+	}
+
+	// =========================================================================
+	// User Decisions (Decision Gate)
+	// =========================================================================
+
+	/**
+	 * Submit or update a decision for a session
+	 */
+	async submitDecision(
+		sessionId: string,
+		data: {
+			chosen_option_id: string;
+			chosen_option_label: string;
+			chosen_option_description?: string;
+			rationale?: Record<string, unknown> | null;
+			matrix_snapshot?: Record<string, unknown> | null;
+			decision_source?: 'direct' | 'matrix';
+		}
+	): Promise<UserDecisionResponse> {
+		return this.post<UserDecisionResponse>(
+			`/api/v1/sessions/${sessionId}/decision`,
+			data
+		);
+	}
+
+	/**
+	 * Get decision for a session (returns null if none)
+	 */
+	async getDecision(sessionId: string): Promise<UserDecisionResponse | null> {
+		try {
+			return await this.fetch<UserDecisionResponse>(
+				`/api/v1/sessions/${sessionId}/decision`
+			);
+		} catch (e: unknown) {
+			if (e && typeof e === 'object' && 'status' in e && (e as { status: number }).status === 404) {
+				return null;
+			}
+			throw e;
+		}
+	}
+
+	// =========================================================================
+	// Decision Outcomes (Outcome Tracking)
+	// =========================================================================
+
+	/**
+	 * Submit or update a decision outcome
+	 */
+	async submitDecisionOutcome(
+		sessionId: string,
+		data: {
+			outcome_status: string;
+			outcome_notes?: string | null;
+			surprise_factor?: number | null;
+			lessons_learned?: string | null;
+			what_would_change?: string | null;
+		}
+	): Promise<DecisionOutcomeResponse> {
+		return this.post<DecisionOutcomeResponse>(
+			`/api/v1/sessions/${sessionId}/decision/outcome`,
+			data
+		);
+	}
+
+	/**
+	 * Get decision outcome for a session (returns null if none)
+	 */
+	async getDecisionOutcome(sessionId: string): Promise<DecisionOutcomeResponse | null> {
+		try {
+			return await this.fetch<DecisionOutcomeResponse>(
+				`/api/v1/sessions/${sessionId}/decision/outcome`
+			);
+		} catch (e: unknown) {
+			if (e && typeof e === 'object' && 'status' in e && (e as { status: number }).status === 404) {
+				return null;
+			}
+			throw e;
+		}
+	}
+
+	/**
+	 * Get pending follow-ups (decisions without outcomes older than 30 days)
+	 */
+	async getPendingFollowups(): Promise<PendingFollowupResponse[]> {
+		return this.fetch<PendingFollowupResponse[]>('/api/v1/users/me/pending-followups');
+	}
+
+	/**
+	 * Get decision-making patterns for current user
+	 */
+	async getDecisionPatterns(): Promise<DecisionPatternsResponse> {
+		return this.fetch<DecisionPatternsResponse>('/api/v1/users/me/decision-patterns');
 	}
 }
 

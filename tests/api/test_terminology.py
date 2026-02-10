@@ -39,6 +39,10 @@ LEGACY_EXCEPTIONS = frozenset(
         "expert_perspectives",
         "related_decision_ids",
         "decision_ids",  # FeaturedOrderRequest - admin reorder endpoint
+        "decision_source",  # UserDecision domain model — decision gate choice, not UI terminology
+        "decision_id",  # DecisionOutcome/PendingFollowup FK — domain model, not UI terminology
+        "decision_date",  # PendingFollowup — domain timestamp, not UI terminology
+        "total_decisions",  # DecisionPatterns — aggregate count, not UI terminology
     }
 )
 

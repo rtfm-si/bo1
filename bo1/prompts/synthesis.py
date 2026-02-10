@@ -163,6 +163,8 @@ Generate a comprehensive synthesis report for the user.
 {problem_statement}
 </problem_statement>
 
+{constraints_section}
+
 <evolution_of_thinking>
 This section shows how the deliberation evolved across rounds (summarized):
 
@@ -231,6 +233,13 @@ Perspectives that disagreed and their reasoning (if any)
 <implementation_considerations>
 Practical next steps and conditions for success identified by the board
 </implementation_considerations>
+
+<constraint_analysis>
+If constraints were provided, evaluate the recommendation against EACH constraint:
+- For each constraint: PASS / TENSION / VIOLATION with a brief explanation
+- If no constraints were provided, write "No constraints specified."
+Skip this section entirely if no constraints are present.
+</constraint_analysis>
 
 <confidence_assessment>
 Overall confidence level with justification. Express confidence using descriptive terms:

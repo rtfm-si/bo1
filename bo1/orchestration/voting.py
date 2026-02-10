@@ -41,6 +41,25 @@ async def collect_recommendations(
     # Build discussion history once (voting style includes problem statement)
     discussion_history = format_discussion_history(state, style="voting")
 
+    # Extract constraints for recommendation prompt
+    from bo1.prompts.constraints import format_constraints_for_prompt
+    from bo1.utils.checkpoint_helpers import get_problem_attr
+
+    problem = state.get("problem")
+    constraints_text = ""
+    if problem:
+        from bo1.models.problem import Constraint as ConstraintModel
+
+        raw_constraints = get_problem_attr(problem, "constraints", [])
+        if raw_constraints:
+            parsed_constraints = [
+                ConstraintModel.model_validate(c) if isinstance(c, dict) else c
+                for c in raw_constraints
+            ]
+            constraints_text = format_constraints_for_prompt(parsed_constraints)
+    if constraints_text:
+        constraints_text += "\n\nEvaluate your recommendation against each constraint above."
+
     # Create recommendation tasks for all personas
     async def _collect_single_recommendation(
         persona: Any,
@@ -52,6 +71,7 @@ async def collect_recommendations(
         # Persona identity in user message (not cached, but tiny)
         recommendation_system = RECOMMENDATION_SYSTEM_PROMPT.format(
             discussion_history=discussion_history,
+            constraints_section=constraints_text,
         )
 
         # User message includes persona identity (variable per persona)

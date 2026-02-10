@@ -38,7 +38,8 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (votes, recommendations, metrics)
     """
     from bo1.llm.broker import PromptBroker
-    from bo1.orchestration.voting import collect_recommendations
+    from bo1.orchestration.option_extraction import extract_options
+    from bo1.orchestration.voting import aggregate_recommendations_ai, collect_recommendations
 
     _start_time = time.perf_counter()
 
@@ -83,12 +84,39 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
         for r in recommendations
     ]
 
+    # Aggregate recommendations to extract dissenting views
+    dissenting_views: list[str] = []
+    try:
+        from bo1.state.discussion_formatter import format_discussion_history
+
+        discussion_context = format_discussion_history(state)
+        aggregation, agg_response = await aggregate_recommendations_ai(
+            recommendations, discussion_context, broker
+        )
+        dissenting_views = aggregation.dissenting_views
+        track_aggregated_cost(metrics, "voting", [agg_response])
+    except Exception as e:
+        logger.warning(f"Recommendation aggregation failed: {e}")
+
+    # Extract decision options from recommendations (Decision Gate)
+    problem = problem_state.get("problem")
+    constraints = problem.constraints if problem and hasattr(problem, "constraints") else []
+    try:
+        options = await extract_options(recommendations, constraints, broker)
+        extracted_options = [opt.model_dump() for opt in options]
+        dlog.info("Options extracted", options=len(extracted_options))
+    except Exception as e:
+        logger.warning(f"Option extraction failed: {e}")
+        extracted_options = []
+
     # Return state updates
     # Keep "votes" key for backward compatibility during migration
     emit_node_duration("vote_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "votes": recommendations_dicts,
         "recommendations": recommendations_dicts,
+        "extracted_options": extracted_options,
+        "dissenting_views": dissenting_views,
         "phase": DeliberationPhase.VOTING,
         "metrics": metrics,
         "current_node": "vote",

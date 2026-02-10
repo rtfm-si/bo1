@@ -75,6 +75,8 @@ class DiscussionState(TypedDict, total=False):
     round_summaries: list[str]
     votes: list[dict[str, Any]]
     synthesis: str | None
+    extracted_options: list[dict[str, Any]]
+    dissenting_views: list[str]
 
 
 class ResearchState(TypedDict, total=False):
@@ -314,6 +316,8 @@ class DeliberationGraphState(TypedDict, total=False):
     # Final outputs
     votes: list[dict[str, Any]]  # Vote objects
     synthesis: str | None
+    extracted_options: list[dict[str, Any]]  # Decision Gate option cards
+    dissenting_views: list[str]  # Minority perspectives from aggregation
 
     # Multi-sub-problem tracking (Day 36.5)
     sub_problem_results: list[SubProblemResult]
@@ -468,6 +472,8 @@ def create_initial_state(
         current_node="start",
         votes=[],
         synthesis=None,
+        extracted_options=[],
+        dissenting_views=[],
         sub_problem_results=[],
         sub_problem_index=0,
         collect_context=collect_context,
@@ -616,6 +622,8 @@ def get_discussion_state(state: DeliberationGraphState) -> DiscussionState:
         round_summaries=state.get("round_summaries", []),
         votes=state.get("votes", []),
         synthesis=state.get("synthesis"),
+        extracted_options=state.get("extracted_options", []),
+        dissenting_views=state.get("dissenting_views", []),
     )
 
 

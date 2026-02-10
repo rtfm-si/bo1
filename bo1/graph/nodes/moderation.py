@@ -18,6 +18,7 @@ from bo1.graph.quality.semantic_dedup import check_research_query_novelty
 from bo1.graph.state import (
     DeliberationGraphState,
     ResearchState,
+    get_control_state,
     get_core_state,
     get_discussion_state,
     get_participant_state,
@@ -215,6 +216,27 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "facilitator_decide_node: Making facilitator decision",
         request_id=request_id,
     )
+
+    # INTERJECTION CHECK: Highest priority — answer user questions before any other action
+    control_state = get_control_state(state)
+    if control_state.get("needs_interjection_response", False):
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            "facilitator_decide_node: User interjection detected, routing to interjection_response",
+        )
+        interjection_decision = FacilitatorDecision(
+            action="interjection_response",
+            reasoning="User raised hand — routing to expert responses",
+        )
+        return {
+            "facilitator_decision": asdict(interjection_decision),
+            "round_number": phase_state.get("round_number", 1),
+            "phase": DeliberationPhase.DISCUSSION,
+            "current_node": "facilitator_decide",
+            "sub_problem_index": problem_state.get("sub_problem_index", 0),
+        }
 
     # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
     # If queries exist, automatically trigger research node without facilitator decision

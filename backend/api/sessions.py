@@ -346,6 +346,11 @@ async def create_session(
         if session_request.problem_context:
             merged_context.update(session_request.problem_context)
 
+        # Serialize constraints for storage
+        constraints_data = None
+        if session_request.constraints:
+            constraints_data = [c.model_dump() for c in session_request.constraints]
+
         # Create initial metadata
         now = datetime.now(UTC)
         metadata = {
@@ -357,6 +362,7 @@ async def create_session(
             "problem_statement": sanitized_problem,
             "problem_context": merged_context,
             "context_ids": validated_context_ids,  # User-selected context references
+            "constraints": constraints_data,
         }
 
         # Save metadata to Redis (for live state and fast lookup)

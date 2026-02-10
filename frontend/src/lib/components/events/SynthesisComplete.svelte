@@ -359,4 +359,18 @@
 		<!-- Fallback: Use API-based ActionableTasks for non-JSON synthesis -->
 		<ActionableTasks sessionId={event.session_id ?? ''} subProblemIndex={event.event_type === 'synthesis_complete' ? event.data.sub_problem_index : undefined} />
 	{/if}
+
+	<!-- Decision Gate CTA -->
+	<div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+		<button
+			type="button"
+			class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm transition-colors"
+			onclick={() => {
+				const gate = document.getElementById('decision-gate');
+				if (gate) gate.scrollIntoView({ behavior: 'smooth' });
+			}}
+		>
+			Make Your Decision
+		</button>
+	</div>
 </div>

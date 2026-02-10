@@ -35,6 +35,8 @@ Current phase: {current_phase}
 {phase_objectives}
 </phase_objectives>
 
+{constraints_section}
+
 <phase_awareness>
 DELIBERATION PHASES:
 - Rounds 1-2: EXPLORATION - Surface diverse perspectives, encourage divergent thinking
@@ -181,6 +183,7 @@ def compose_facilitator_prompt(
     metrics: Any | None = None,
     round_number: int = 1,
     clarification_count: int = 0,
+    constraints_text: str = "",
 ) -> str:
     """Compose facilitator decision prompt with rotation guidance and quality metrics.
 
@@ -308,4 +311,5 @@ ROTATION GUIDELINES:
         metrics_context=metrics_context,
         security_protocol=SECURITY_PROTOCOL,
         clarification_limit=clarification_limit,
+        constraints_section=constraints_text,
     )

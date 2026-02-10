@@ -1268,6 +1268,22 @@ class EventCollector:
         self.session_repo.update_phase(session_id, "voting")
         await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
 
+        # Emit options_extracted event for Decision Gate
+        extracted_options = output.get("extracted_options", [])
+        if extracted_options:
+            self.publisher.publish_event(
+                session_id,
+                "options_extracted",
+                {
+                    "options": extracted_options,
+                    "options_count": len(extracted_options),
+                    "dissenting_views": output.get("dissenting_views", []),
+                    "sub_problem_index": _get_sub_problem_index_safe(
+                        output, "_handle_voting:options_extracted"
+                    ),
+                },
+            )
+
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
         # Update phase in database for dashboard display

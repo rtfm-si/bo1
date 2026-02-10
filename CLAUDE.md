@@ -19,6 +19,7 @@ ssh for prod: ssh root@139.59.201.65
 - recommendations NOT votes: collect_recommendations()
 - db_session() always; Docker hostnames not localhost
 - Frontend: $env/dynamic/public not import.meta.env
+- ZERO TOLERANCE ON LINT/TYPE ERRORS: When linting or type-checking reveals errors — even pre-existing ones — fix them all. You wrote 100% of this codebase; there is no "someone else's problem." Never skip errors with "pre-existing" or "not mine." If `ruff check` or `svelte-check` reports N errors, the PR should leave it at 0.
   </critical_rules>
 
 <efficiency_rules>

@@ -489,3 +489,27 @@ body {
 .animate-typing-dot {
 	animation: typing-dot 1.4s infinite ease-in-out;
 }
+
+/* ============================================================================
+   Thin Scrollbar for Heatmap
+   ============================================================================ */
+
+.scrollbar-thin::-webkit-scrollbar {
+	height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+	@apply bg-neutral-100 dark:bg-neutral-800 rounded;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+	@apply bg-neutral-300 dark:bg-neutral-600 rounded;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+	@apply bg-neutral-400 dark:bg-neutral-500;
+}
+
+.scrollbar-thin {
+	scrollbar-width: thin;
+}

@@ -248,25 +248,38 @@ class TestSpacesConfigurationError:
 
     def test_missing_access_key_raises_error(self, mock_boto3_client):
         """Test missing access key raises SpacesConfigurationError."""
-        # Directly pass empty values to bypass settings defaults
-        with pytest.raises(SpacesConfigurationError) as exc:
-            SpacesClient(
-                access_key="",
-                secret_key="secret",  # noqa: S106
-                bucket="bucket",
-            )
-        assert "DO_SPACES_KEY" in exc.value.missing_fields
-        assert exc.value.operation == "init"
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = ""
+            mock_settings.return_value.do_spaces_secret = "secret"
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = "bucket"
+            mock_settings.return_value.do_spaces_endpoint_url = ""
+
+            with pytest.raises(SpacesConfigurationError) as exc:
+                SpacesClient(
+                    access_key="",
+                    secret_key="secret",  # noqa: S106
+                    bucket="bucket",
+                )
+            assert "DO_SPACES_KEY" in exc.value.missing_fields
+            assert exc.value.operation == "init"
 
     def test_missing_secret_key_raises_error(self, mock_boto3_client):
         """Test missing secret key raises SpacesConfigurationError."""
-        with pytest.raises(SpacesConfigurationError) as exc:
-            SpacesClient(
-                access_key="key",
-                secret_key="",  # noqa: S106
-                bucket="bucket",
-            )
-        assert "DO_SPACES_SECRET" in exc.value.missing_fields
+        with patch("backend.services.spaces.get_settings") as mock_settings:
+            mock_settings.return_value.do_spaces_key = "key"
+            mock_settings.return_value.do_spaces_secret = ""
+            mock_settings.return_value.do_spaces_region = "lon1"
+            mock_settings.return_value.do_spaces_bucket = "bucket"
+            mock_settings.return_value.do_spaces_endpoint_url = ""
+
+            with pytest.raises(SpacesConfigurationError) as exc:
+                SpacesClient(
+                    access_key="key",
+                    secret_key="",  # noqa: S106
+                    bucket="bucket",
+                )
+            assert "DO_SPACES_SECRET" in exc.value.missing_fields
 
     def test_missing_bucket_raises_error(self, mock_boto3_client):
         """Test missing bucket raises SpacesConfigurationError."""

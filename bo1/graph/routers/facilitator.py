@@ -23,6 +23,7 @@ def route_facilitator_decision(
     "moderator_intervene",
     "clarification",
     "data_analysis",
+    "interjection_response",
     "END",
 ]:
     """Route based on facilitator's decision.
@@ -59,6 +60,8 @@ def route_facilitator_decision(
         return "clarification"
     elif action == "analyze_data":
         return "data_analysis"
+    elif action == "interjection_response":
+        return "interjection_response"
     else:
         log_error(
             logger,

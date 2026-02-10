@@ -21,6 +21,7 @@
 	import DailyActivities from '$lib/components/dashboard/DailyActivities.svelte';
 	import RecentMeetingsWidget from '$lib/components/dashboard/RecentMeetingsWidget.svelte';
 	import CognitionWidget from '$lib/components/dashboard/CognitionWidget.svelte';
+	import DecisionPatternsWidget from '$lib/components/dashboard/DecisionPatternsWidget.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
@@ -381,6 +382,11 @@
 			<CognitionWidget />
 		</div>
 
+		<!-- Decision Patterns Widget -->
+		<div class="mb-6">
+			<DecisionPatternsWidget />
+		</div>
+
 		<!-- Objective Progress Modal -->
 		<ObjectiveProgressModal
 			bind:open={progressModalOpen}
@@ -425,28 +431,12 @@
 			</div>
 		{:else if statsData.data?.daily && statsData.data.daily.length > 0}
 			<div class="mb-8">
-				<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
-						<svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-						</svg>
-						Completion Trends
-					</h2>
-					<div class="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
-						<span class="flex items-center gap-1">
-							<span class="font-semibold text-success-600 dark:text-success-400">{statsData.data.totals.completed}</span>
-							<span class="hidden sm:inline">done</span>
-						</span>
-						<span class="flex items-center gap-1">
-							<span class="font-semibold text-warning-600 dark:text-warning-400">{statsData.data.totals.in_progress}</span>
-							<span class="hidden sm:inline">active</span>
-						</span>
-						<span class="flex items-center gap-1">
-							<span class="font-semibold text-neutral-600 dark:text-neutral-300">{statsData.data.totals.todo}</span>
-							<span class="hidden sm:inline">todo</span>
-						</span>
-					</div>
-				</div>
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2 mb-3">
+					<svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+					</svg>
+					Activity Heatmap
+				</h2>
 
 				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-3 sm:p-4 relative z-0">
 					{#if statsData.isLoading}

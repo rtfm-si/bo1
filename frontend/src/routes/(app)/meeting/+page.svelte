@@ -12,6 +12,7 @@
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { toast } from '$lib/stores/toast';
+	import { FollowupBanner } from '$lib/components/meeting';
 
 	let isLoading = $state(true);
 	let sessions = $state<SessionResponse[]>([]);
@@ -99,6 +100,9 @@
 				</Button>
 			</a>
 		</div>
+
+		<!-- Follow-up nudge for old decisions without outcomes -->
+		<FollowupBanner />
 
 		{#if isLoading}
 			<div class="space-y-4">

@@ -1873,6 +1873,69 @@
         "title": "ActiveSessionsResponse",
         "type": "object"
       },
+      "ActivityItem": {
+        "description": "Individual activity item for a given date.",
+        "properties": {
+          "id": {
+            "description": "Item ID",
+            "title": "Id",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional subtitle (e.g. session problem statement)",
+            "title": "Subtitle"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO timestamp",
+            "title": "Timestamp"
+          },
+          "title": {
+            "description": "Activity title/description",
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "description": "Activity type (session, action_completed, action_started, mentor_session, planned_start, planned_due)",
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to detail page",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title"
+        ],
+        "title": "ActivityItem",
+        "type": "object"
+      },
       "AddDatasetsRequest": {
         "description": "Request to add datasets to a folder.",
         "properties": {
@@ -3662,6 +3725,32 @@
           "emails"
         ],
         "title": "BetaWhitelistResponse",
+        "type": "object"
+      },
+      "BiasFlag": {
+        "description": "A detected decision-making bias.",
+        "properties": {
+          "bias_type": {
+            "description": "e.g., overconfidence, matrix_aversion",
+            "title": "Bias Type",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "severity": {
+            "pattern": "^(high|medium|low)$",
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bias_type",
+          "description",
+          "severity"
+        ],
+        "title": "BiasFlag",
         "type": "object"
       },
       "BillingConfigResponse": {
@@ -8015,6 +8104,40 @@
         "title": "ComponentHealthResponse",
         "type": "object"
       },
+      "ConfidenceCalibration": {
+        "description": "Confidence vs actual outcome calibration.",
+        "properties": {
+          "avg_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Confidence"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "total_with_outcomes": {
+            "default": 0,
+            "title": "Total With Outcomes",
+            "type": "integer"
+          }
+        },
+        "title": "ConfidenceCalibration",
+        "type": "object"
+      },
       "ConfidenceLevel": {
         "description": "Confidence level for insights.",
         "enum": [
@@ -8257,6 +8380,71 @@
           "terms_version_id"
         ],
         "title": "ConsentRequest",
+        "type": "object"
+      },
+      "ConstraintAccuracy": {
+        "description": "Constraint alignment accuracy across decisions.",
+        "properties": {
+          "tensions_chosen": {
+            "default": 0,
+            "title": "Tensions Chosen",
+            "type": "integer"
+          },
+          "tensions_successful": {
+            "default": 0,
+            "title": "Tensions Successful",
+            "type": "integer"
+          },
+          "total_with_constraints": {
+            "default": 0,
+            "title": "Total With Constraints",
+            "type": "integer"
+          },
+          "violations_chosen": {
+            "default": 0,
+            "title": "Violations Chosen",
+            "type": "integer"
+          },
+          "violations_successful": {
+            "default": 0,
+            "title": "Violations Successful",
+            "type": "integer"
+          }
+        },
+        "title": "ConstraintAccuracy",
+        "type": "object"
+      },
+      "ConstraintInput": {
+        "description": "Input model for a single constraint.",
+        "properties": {
+          "description": {
+            "description": "Constraint description",
+            "maxLength": 500,
+            "minLength": 5,
+            "title": "Description",
+            "type": "string"
+          },
+          "type": {
+            "description": "Constraint type (budget/time/resource/regulatory/technical/ethical/other)",
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional constraint value (e.g., dollar amount, date)",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "type",
+          "description"
+        ],
+        "title": "ConstraintInput",
         "type": "object"
       },
       "ContextChoiceRequest": {
@@ -9190,11 +9378,13 @@
             "type": "integer"
           },
           "model": {
+            "default": "unknown",
             "description": "Model name",
             "title": "Model",
             "type": "string"
           },
           "provider": {
+            "default": "unknown",
             "description": "LLM provider",
             "title": "Provider",
             "type": "string"
@@ -9208,8 +9398,6 @@
         "required": [
           "id",
           "user_id",
-          "provider",
-          "model",
           "amount_usd",
           "created_at"
         ],
@@ -9788,6 +9976,30 @@
             "description": "Hidden honeypot field - should always be empty",
             "hidden": true,
             "title": "Hp Url"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ConstraintInput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional constraints for the deliberation (max 10)",
+            "examples": [
+              [
+                {
+                  "description": "Total budget must not exceed $500K",
+                  "type": "budget",
+                  "value": 500000
+                }
+              ]
+            ],
+            "title": "Constraints"
           },
           "context_ids": {
             "anyOf": [
@@ -12572,6 +12784,36 @@
         "title": "DatasetUpdate",
         "type": "object"
       },
+      "DateActivitiesResponse": {
+        "description": "Response model for activities on a specific date.",
+        "properties": {
+          "activities": {
+            "description": "Activities on this date",
+            "items": {
+              "$ref": "#/components/schemas/ActivityItem"
+            },
+            "title": "Activities",
+            "type": "array"
+          },
+          "date": {
+            "description": "Date (YYYY-MM-DD)",
+            "title": "Date",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total number of activities",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "activities",
+          "total"
+        ],
+        "title": "DateActivitiesResponse",
+        "type": "object"
+      },
       "DecisionCreate": {
         "description": "Request model for creating a published decision.",
         "properties": {
@@ -12758,6 +13000,237 @@
           "total"
         ],
         "title": "DecisionListResponse",
+        "type": "object"
+      },
+      "DecisionOutcomeCreate": {
+        "description": "Request model for creating/updating a decision outcome.",
+        "properties": {
+          "lessons_learned": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessons Learned"
+          },
+          "outcome_notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Notes"
+          },
+          "outcome_status": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Outcome Status",
+            "type": "string"
+          },
+          "surprise_factor": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surprise Factor"
+          },
+          "what_would_change": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "What Would Change"
+          }
+        },
+        "required": [
+          "outcome_status"
+        ],
+        "title": "DecisionOutcomeCreate",
+        "type": "object"
+      },
+      "DecisionOutcomeResponse": {
+        "description": "Response model for a decision outcome.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lessons_learned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessons Learned"
+          },
+          "outcome_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Notes"
+          },
+          "outcome_status": {
+            "title": "Outcome Status",
+            "type": "string"
+          },
+          "surprise_factor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surprise Factor"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "what_would_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "What Would Change"
+          }
+        },
+        "required": [
+          "id",
+          "decision_id",
+          "user_id",
+          "outcome_status",
+          "outcome_notes",
+          "surprise_factor",
+          "lessons_learned",
+          "what_would_change",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DecisionOutcomeResponse",
+        "type": "object"
+      },
+      "DecisionPatternsResponse": {
+        "description": "Aggregated decision-making patterns for a user.",
+        "properties": {
+          "avg_surprise_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Surprise Factor"
+          },
+          "bias_flags": {
+            "items": {
+              "$ref": "#/components/schemas/BiasFlag"
+            },
+            "title": "Bias Flags",
+            "type": "array"
+          },
+          "confidence_calibration": {
+            "$ref": "#/components/schemas/ConfidenceCalibration"
+          },
+          "constraint_accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConstraintAccuracy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_enough_data": {
+            "title": "Has Enough Data",
+            "type": "boolean"
+          },
+          "matrix_usage_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matrix Usage Pct"
+          },
+          "monthly_trends": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyTrend"
+            },
+            "title": "Monthly Trends",
+            "type": "array"
+          },
+          "outcome_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Counts by outcome_status: successful, partially_successful, etc.",
+            "title": "Outcome Breakdown",
+            "type": "object"
+          },
+          "total_decisions": {
+            "title": "Total Decisions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "has_enough_data",
+          "total_decisions",
+          "confidence_calibration"
+        ],
+        "title": "DecisionPatternsResponse",
         "type": "object"
       },
       "DecisionPublicResponse": {
@@ -22499,6 +22972,52 @@
         "title": "ModelImpactResponse",
         "type": "object"
       },
+      "MonthlyTrend": {
+        "description": "Per-month decision statistics.",
+        "properties": {
+          "avg_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Confidence"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "outcomes_recorded": {
+            "title": "Outcomes Recorded",
+            "type": "integer"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "total_decisions": {
+            "title": "Total Decisions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "total_decisions",
+          "outcomes_recorded"
+        ],
+        "title": "MonthlyTrend",
+        "type": "object"
+      },
       "MultiConsentRequest": {
         "description": "Request model for recording multiple policy consents at once.",
         "properties": {
@@ -24154,6 +24673,41 @@
           "sample_count"
         ],
         "title": "PeerMetric",
+        "type": "object"
+      },
+      "PendingFollowupResponse": {
+        "description": "Response model for a pending follow-up nudge.",
+        "properties": {
+          "chosen_option_label": {
+            "title": "Chosen Option Label",
+            "type": "string"
+          },
+          "days_ago": {
+            "title": "Days Ago",
+            "type": "integer"
+          },
+          "decision_date": {
+            "format": "date-time",
+            "title": "Decision Date",
+            "type": "string"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision_id",
+          "session_id",
+          "chosen_option_label",
+          "decision_date",
+          "days_ago"
+        ],
+        "title": "PendingFollowupResponse",
         "type": "object"
       },
       "PendingUpdatesResponse": {
@@ -33980,6 +34534,26 @@
         "title": "UpdateColumnDescriptionRequest",
         "type": "object"
       },
+      "UpdateConstraintsRequest": {
+        "description": "Request model for updating constraints mid-meeting.",
+        "properties": {
+          "constraints": {
+            "description": "Updated constraints list",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 10,
+            "title": "Constraints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "constraints"
+        ],
+        "title": "UpdateConstraintsRequest",
+        "type": "object"
+      },
       "UpdateConversationLabelRequest": {
         "description": "Request model for updating conversation label.",
         "properties": {
@@ -34740,6 +35314,147 @@
           "session_count"
         ],
         "title": "UserCostPeriodItem",
+        "type": "object"
+      },
+      "UserDecisionCreate": {
+        "description": "Request model for creating/updating a user decision.",
+        "properties": {
+          "chosen_option_description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Chosen Option Description",
+            "type": "string"
+          },
+          "chosen_option_id": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Chosen Option Id",
+            "type": "string"
+          },
+          "chosen_option_label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Chosen Option Label",
+            "type": "string"
+          },
+          "decision_source": {
+            "default": "direct",
+            "pattern": "^(direct|matrix)$",
+            "title": "Decision Source",
+            "type": "string"
+          },
+          "matrix_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matrix Snapshot"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          }
+        },
+        "required": [
+          "chosen_option_id",
+          "chosen_option_label"
+        ],
+        "title": "UserDecisionCreate",
+        "type": "object"
+      },
+      "UserDecisionResponse": {
+        "description": "Response model for a user decision.",
+        "properties": {
+          "chosen_option_description": {
+            "title": "Chosen Option Description",
+            "type": "string"
+          },
+          "chosen_option_id": {
+            "title": "Chosen Option Id",
+            "type": "string"
+          },
+          "chosen_option_label": {
+            "title": "Chosen Option Label",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision_source": {
+            "title": "Decision Source",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "matrix_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matrix Snapshot"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "user_id",
+          "chosen_option_id",
+          "chosen_option_label",
+          "chosen_option_description",
+          "rationale",
+          "matrix_snapshot",
+          "decision_source",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserDecisionResponse",
         "type": "object"
       },
       "UserDrillDownItem": {
@@ -56172,6 +56887,67 @@
         ]
       }
     },
+    "/api/v1/activities/by-date": {
+      "get": {
+        "description": "Returns individual activity items for a given date, used by heatmap tooltips.",
+        "operationId": "get_activities_by_date_api_v1_activities_by_date_get",
+        "parameters": [
+          {
+            "description": "Date in YYYY-MM-DD format",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "description": "Date in YYYY-MM-DD format",
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DateActivitiesResponse"
+                }
+              }
+            },
+            "description": "Activities retrieved"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not authenticated"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "summary": "Get activities for a specific date",
+        "tags": [
+          "activities"
+        ]
+      }
+    },
     "/api/v1/admin/ratings/metrics": {
       "get": {
         "description": "Get aggregated rating metrics (admin only).",
@@ -71072,6 +71848,109 @@
         ]
       }
     },
+    "/api/v1/sessions/{session_id}/constraints": {
+      "post": {
+        "description": "Add, modify, or remove constraints during an active meeting.",
+        "operationId": "update_constraints_api_v1_sessions__session_id__constraints_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConstraintsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            },
+            "description": "Constraints updated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
+          }
+        },
+        "summary": "Update constraints during deliberation",
+        "tags": [
+          "deliberation-control",
+          "deliberation-control"
+        ]
+      }
+    },
     "/api/v1/sessions/{session_id}/context-choice": {
       "post": {
         "description": "Submit user's choice when experts indicate they need more context.",
@@ -71308,6 +72187,284 @@
         "tags": [
           "sessions",
           "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/decision": {
+      "get": {
+        "description": "Get the user decision for a session.",
+        "operationId": "get_decision_api_v1_sessions__session_id__decision_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDecisionResponse"
+                }
+              }
+            },
+            "description": "Decision found"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No decision found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "summary": "Get decision for session",
+        "tags": [
+          "user-decisions",
+          "decisions"
+        ]
+      },
+      "post": {
+        "description": "Upsert a user decision for a session.",
+        "operationId": "submit_decision_api_v1_sessions__session_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDecisionResponse"
+                }
+              }
+            },
+            "description": "Decision saved"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
+        "summary": "Submit or update decision",
+        "tags": [
+          "user-decisions",
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/decision/outcome": {
+      "get": {
+        "description": "Get the outcome for a session's decision.",
+        "operationId": "get_outcome_api_v1_sessions__session_id__decision_outcome_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOutcomeResponse"
+                }
+              }
+            },
+            "description": "Outcome found"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No outcome found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "summary": "Get decision outcome",
+        "tags": [
+          "decision-outcomes",
+          "decision-outcomes"
+        ]
+      },
+      "post": {
+        "description": "Upsert a decision outcome for a session's decision.",
+        "operationId": "submit_outcome_api_v1_sessions__session_id__decision_outcome_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionOutcomeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOutcomeResponse"
+                }
+              }
+            },
+            "description": "Outcome saved"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                }
+              }
+            },
+            "description": "Not found - the requested resource does not exist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          },
+          {
+            "csrfToken": []
+          }
+        ],
+        "summary": "Submit or update decision outcome",
+        "tags": [
+          "decision-outcomes",
+          "decision-outcomes"
         ]
       }
     },
@@ -74609,6 +75766,61 @@
         "tags": [
           "user",
           "user"
+        ]
+      }
+    },
+    "/api/v1/users/me/decision-patterns": {
+      "get": {
+        "description": "Compute aggregated decision-making patterns for the current user.",
+        "operationId": "get_decision_patterns_api_v1_users_me_decision_patterns_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionPatternsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get decision-making patterns",
+        "tags": [
+          "decision-patterns",
+          "decision-patterns"
+        ]
+      }
+    },
+    "/api/v1/users/me/pending-followups": {
+      "get": {
+        "description": "Get decisions older than 30 days that don't have outcomes yet.",
+        "operationId": "get_pending_followups_api_v1_users_me_pending_followups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PendingFollowupResponse"
+                  },
+                  "title": "Response Get Pending Followups Api V1 Users Me Pending Followups Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "summary": "Get decisions pending outcome recording",
+        "tags": [
+          "decision-outcomes",
+          "decision-outcomes"
         ]
       }
     },

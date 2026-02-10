@@ -35,7 +35,11 @@
 		MeetingSocialShare,
 		MeetingError,
 		RaiseHandButton,
+		ConstraintEditor,
 	} from '$lib/components/meeting';
+	import DecisionGate from '$lib/components/meeting/DecisionGate.svelte';
+	import GroupthinkWarning from '$lib/components/meeting/GroupthinkWarning.svelte';
+	import DeadlockResolution from '$lib/components/meeting/DeadlockResolution.svelte';
 	import { activeMeeting } from '$lib/stores/meeting';
 	import type { MeetingSummaryData } from '$lib/utils/canvas-export';
 	import type { ContextInsufficientEvent } from '$lib/api/sse-events';
@@ -125,6 +129,7 @@
 	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
 	let shareModalOpen = $state(false);
 	let isEventsLoaded = $state(false);
+	let premortemText = $state('');
 
 	// Track pending interjections ("raise hand")
 	const hasPendingInterjection = $derived(
@@ -1066,6 +1071,28 @@
 												{/if}
 											</div>
 										{/if}
+
+										<!-- Groupthink / Deadlock warnings -->
+										{#if session?.status === 'completed' && eventState.isGroupthinkRisk && eventState.votingConsensusData}
+											<GroupthinkWarning avgConfidence={eventState.votingConsensusData.avg_confidence} onpremortem={(t) => (premortemText = t)} />
+										{/if}
+										{#if session?.status === 'completed' && eventState.isDeadlocked && eventState.hasExtractedOptions}
+											<DeadlockResolution
+												options={eventState.extractedOptions}
+												{sessionId}
+												problemStatement={session?.problem?.statement ?? ''}
+											/>
+										{/if}
+
+										<!-- Decision Gate -->
+										{#if session?.status === 'completed' && eventState.hasExtractedOptions}
+											<DecisionGate
+												{sessionId}
+												options={eventState.extractedOptions}
+												dissenting_views={eventState.dissentingViews}
+												{premortemText}
+											/>
+										{/if}
 									</div>
 								{/if}
 							</div>
@@ -1123,6 +1150,28 @@
 												/>
 											{/if}
 										</div>
+									{/if}
+
+									<!-- Groupthink / Deadlock warnings -->
+									{#if session?.status === 'completed' && eventState.isGroupthinkRisk && eventState.votingConsensusData}
+										<GroupthinkWarning avgConfidence={eventState.votingConsensusData.avg_confidence} onpremortem={(t) => (premortemText = t)} />
+									{/if}
+									{#if session?.status === 'completed' && eventState.isDeadlocked && eventState.hasExtractedOptions}
+										<DeadlockResolution
+											options={eventState.extractedOptions}
+											{sessionId}
+											problemStatement={session?.problem?.statement ?? ''}
+										/>
+									{/if}
+
+									<!-- Decision Gate -->
+									{#if session?.status === 'completed' && eventState.hasExtractedOptions}
+										<DecisionGate
+											{sessionId}
+											options={eventState.extractedOptions}
+											dissenting_views={eventState.dissentingViews}
+											{premortemText}
+										/>
 									{/if}
 								</div>
 							{/if}
@@ -1215,6 +1264,15 @@
 			<span>Questions Need Your Answer</span>
 		</button>
 	{/if}
+
+	<!-- Constraint Editor (floating, above raise hand button) -->
+	<div class="fixed bottom-20 right-6 z-40">
+		<ConstraintEditor
+			{sessionId}
+			sessionStatus={session?.status ?? ''}
+			constraints={eventState.activeConstraints}
+		/>
+	</div>
 
 	<!-- Raise Hand Button (floating) for user interjections during active meetings -->
 	<RaiseHandButton

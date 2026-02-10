@@ -32,6 +32,8 @@ The deliberation is concluding. Review the full discussion and provide your fina
 {discussion_history}
 </full_discussion>
 
+{constraints_section}
+
 IMPORTANT: You MUST respond using the following XML structure. DO NOT use markdown headings or other formats.
 
 Your response will start with <thinking> (which is prefilled for you), and you must continue with the rest of the XML structure:

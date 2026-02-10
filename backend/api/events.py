@@ -1243,3 +1243,32 @@ def interjection_complete_event(
             "timestamp": datetime.now(UTC).isoformat(),
         },
     )
+
+
+def constraint_updated_event(
+    session_id: str,
+    constraints: list[dict[str, Any]],
+    action: str,
+    changed_constraint: str | None = None,
+) -> str:
+    """Create SSE event when constraints are updated mid-meeting.
+
+    Args:
+        session_id: Session identifier
+        constraints: Updated full list of constraints
+        action: What changed (added/removed/modified)
+        changed_constraint: Description of the changed constraint
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "constraint_updated",
+        {
+            "session_id": session_id,
+            "constraints": constraints,
+            "action": action,
+            "changed_constraint": changed_constraint,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )

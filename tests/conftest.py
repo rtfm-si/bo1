@@ -24,6 +24,20 @@ os.environ.setdefault("REDIS_PORT", "6379")
 os.environ.setdefault("DATABASE_URL", "postgresql://bo1:bo1_dev_password@localhost:5432/boardofone")
 
 
+@pytest.fixture(autouse=True)
+def _disable_rate_limiter():
+    """Disable Redis-backed rate limiter for all tests to avoid auth errors."""
+    try:
+        from backend.api.middleware.rate_limit import limiter
+
+        original = limiter.enabled
+        limiter.enabled = False
+        yield
+        limiter.enabled = original
+    except ImportError:
+        yield
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers."""
     config.addinivalue_line(

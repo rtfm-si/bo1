@@ -716,6 +716,7 @@ TASK_MODEL_DEFAULTS: dict[str, str] = {
     "meta_synthesis": "fast",  # Controlled by use_fast_for_synthesis flag
     "voting": "core",  # Recommendation collection (Sonnet for quality)
     "recommendation": "fast",  # Recommendation aggregation
+    "option_extraction": "fast",  # Option clustering for Decision Gate
     # Quality and security
     "quality_check": "fast",  # Simple quality assessment
     "prompt_injection_check": "fast",  # Security audit

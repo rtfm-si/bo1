@@ -3,8 +3,8 @@
  * Extracts key events and conditions from the event stream
  */
 
-import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload, DecompositionCompletePayload } from '$lib/api/sse-events';
-import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isClarificationAnsweredEvent, isPersonaSelectedEvent, isDecompositionEvent } from '$lib/api/sse-events';
+import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload, DecompositionCompletePayload, OptionsExtractedPayload, VotingCompletePayload, OptionCard } from '$lib/api/sse-events';
+import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isClarificationAnsweredEvent, isPersonaSelectedEvent, isDecompositionEvent, isOptionsExtractedEvent, isVotingCompleteEvent } from '$lib/api/sse-events';
 import type { SubProblemResult } from '$lib/components/meeting';
 
 export interface EventDerivedStateConfig {
@@ -227,6 +227,34 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		});
 	});
 
+	// Decision Gate: extracted options from voting phase
+	const extractedOptions = $derived.by((): OptionCard[] => {
+		const events = getEvents();
+		const optionsEvent = events.find(isOptionsExtractedEvent);
+		if (!optionsEvent) return [];
+		return (optionsEvent.data as OptionsExtractedPayload).options ?? [];
+	});
+
+	const hasExtractedOptions = $derived(extractedOptions.length > 0);
+
+	// Decision Gate: dissenting views from voting aggregation
+	const dissentingViews = $derived.by((): string[] => {
+		const events = getEvents();
+		const optionsEvent = events.find(isOptionsExtractedEvent);
+		if (!optionsEvent) return [];
+		return (optionsEvent.data as OptionsExtractedPayload).dissenting_views ?? [];
+	});
+
+	// Active constraints (from constraint_updated SSE events)
+	const activeConstraints = $derived.by((): Array<{ type: string; description: string; value?: unknown }> => {
+		const events = getEvents();
+		const constraintEvents = events.filter((e) => e.event_type === 'constraint_updated');
+		if (constraintEvents.length === 0) return [];
+		// Use the latest constraint_updated event
+		const latest = constraintEvents[constraintEvents.length - 1];
+		return (latest.data as { constraints: Array<{ type: string; description: string; value?: unknown }> }).constraints ?? [];
+	});
+
 	// Total sub-problems count from decomposition
 	const totalSubProblemsCount = $derived.by(() => {
 		const events = getEvents();
@@ -234,6 +262,33 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		if (!decomposition) return 0;
 		const data = decomposition.data as DecompositionCompletePayload;
 		return data.sub_problems?.length || 0;
+	});
+
+	// Voting consensus data (reused by groupthink + deadlock)
+	const votingConsensusData = $derived.by((): VotingCompletePayload | null => {
+		const events = getEvents();
+		const votingEvent = events.find(isVotingCompleteEvent);
+		if (!votingEvent) return null;
+		return votingEvent.data as VotingCompletePayload;
+	});
+
+	// Groupthink risk: strong consensus + high confidence + no dissent
+	const isGroupthinkRisk = $derived.by(() => {
+		if (!votingConsensusData) return false;
+		return (
+			votingConsensusData.consensus_level === 'strong' &&
+			votingConsensusData.avg_confidence >= 0.85 &&
+			dissentingViews.length === 0
+		);
+	});
+
+	// Deadlock: weak or unknown consensus
+	const isDeadlocked = $derived.by(() => {
+		if (!votingConsensusData) return false;
+		return (
+			votingConsensusData.consensus_level === 'weak' ||
+			votingConsensusData.consensus_level === 'unknown'
+		);
 	});
 
 	return {
@@ -282,6 +337,27 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		},
 		get totalSubProblemsCount() {
 			return totalSubProblemsCount;
+		},
+		get extractedOptions() {
+			return extractedOptions;
+		},
+		get hasExtractedOptions() {
+			return hasExtractedOptions;
+		},
+		get dissentingViews() {
+			return dissentingViews;
+		},
+		get activeConstraints() {
+			return activeConstraints;
+		},
+		get votingConsensusData() {
+			return votingConsensusData;
+		},
+		get isGroupthinkRisk() {
+			return isGroupthinkRisk;
+		},
+		get isDeadlocked() {
+			return isDeadlocked;
 		},
 	};
 }

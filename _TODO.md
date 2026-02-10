@@ -36,3 +36,5 @@ check codebase for hardcoded / magic numbers
 we need to have use cases, decision and blog posts for testing ideas and zero revenue
 
 update 6 decisions to use latest decision output
+
+check for legacy compatability. no live customers, so simplify and remove legacy fallbacks

@@ -28,6 +28,14 @@ export { default as MeetingSocialShare } from './MeetingSocialShare.svelte';
 export { default as RaiseHandButton } from './RaiseHandButton.svelte';
 export { default as PartialResultsPanel } from './PartialResultsPanel.svelte';
 export { default as SubProblemStatusBadge } from './SubProblemStatusBadge.svelte';
+export { default as DecisionGate } from './DecisionGate.svelte';
+export { default as OptionComparisonCard } from './OptionComparisonCard.svelte';
+export { default as RationaleCapture } from './RationaleCapture.svelte';
+export { default as DecisionMatrix } from './DecisionMatrix.svelte';
+export { default as ConstraintEditor } from './ConstraintEditor.svelte';
+export { default as OutcomeCapture } from './OutcomeCapture.svelte';
+export { default as DecisionChain } from './DecisionChain.svelte';
+export { default as FollowupBanner } from './FollowupBanner.svelte';
 
 // Re-export types
 export type { SubProblemResult } from './meeting-error.types';

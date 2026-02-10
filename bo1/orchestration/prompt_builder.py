@@ -20,6 +20,7 @@ from bo1.prompts import (
     compose_persona_prompt_hierarchical,
     get_round_phase_config,
 )
+from bo1.prompts.constraints import format_constraints_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,22 @@ class PromptBuilder:
         # Extract business context for style adaptation
         business_context = state.get("business_context")
 
+        # Extract constraints from problem for prompt injection
+        constraints_text = ""
+        problem = state.get("problem")
+        if problem:
+            from bo1.models.problem import Constraint
+            from bo1.utils.checkpoint_helpers import get_problem_attr
+
+            raw_constraints = get_problem_attr(problem, "constraints", [])
+            if raw_constraints:
+                # Handle dict (checkpoint restore) vs Pydantic
+                constraints = [
+                    Constraint.model_validate(c) if isinstance(c, dict) else c
+                    for c in raw_constraints
+                ]
+                constraints_text = format_constraints_for_prompt(constraints)
+
         if round_summaries and round_number > 1:
             # Use hierarchical prompts (summaries + recent contributions)
             system_prompt, user_message = PromptBuilder._build_hierarchical_prompt(
@@ -125,6 +142,7 @@ class PromptBuilder:
                 previous_contributions=previous_contributions,
                 expert_memory=expert_memory,
                 round_config=round_config,
+                constraints_text=constraints_text,
             )
         else:
             # Use regular prompts (no summaries yet or early rounds)
@@ -136,6 +154,7 @@ class PromptBuilder:
                 round_number=round_number,
                 round_config=round_config,
                 business_context=business_context,
+                constraints_text=constraints_text,
             )
 
         # Inject best effort prompt if context is limited and user chose to continue
@@ -159,6 +178,7 @@ class PromptBuilder:
         previous_contributions: list[ContributionMessage] | None,
         expert_memory: str | None,
         round_config: dict[str, Any],
+        constraints_text: str = "",
     ) -> tuple[str, str]:
         """Build hierarchical prompt with round summaries and critical thinking protocol.
 
@@ -195,6 +215,7 @@ class PromptBuilder:
             current_round_contributions=prev_round_contribs,  # Recent full contributions
             round_number=round_number + 1,  # +1 for 1-indexed display
             current_phase="discussion",
+            constraints_text=constraints_text,
         )
 
         # Add critical thinking protocol
@@ -224,6 +245,7 @@ class PromptBuilder:
         round_number: int,
         round_config: dict[str, Any],
         business_context: dict[str, Any] | None = None,
+        constraints_text: str = "",
     ) -> tuple[str, str]:
         """Build regular prompt for early rounds or when no summaries available.
 
@@ -261,6 +283,7 @@ class PromptBuilder:
             round_number=round_number + 1,  # +1 for 1-indexed rounds
             business_context=business_context,
             word_budget=round_config.get("word_budget", 200),
+            constraints_text=constraints_text,
         )
 
         return system_prompt, user_message

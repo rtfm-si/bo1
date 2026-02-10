@@ -2314,6 +2314,25 @@ export interface HeatmapHistoryDepthUpdate {
 }
 
 // =============================================================================
+// Activities by Date (Heatmap Tooltip)
+// =============================================================================
+
+export interface ActivityItem {
+	id: string;
+	type: string;
+	title: string;
+	subtitle?: string | null;
+	url?: string | null;
+	timestamp?: string | null;
+}
+
+export interface DateActivitiesResponse {
+	date: string;
+	activities: ActivityItem[];
+	total: number;
+}
+
+// =============================================================================
 // Recent Research (Dashboard Widget)
 // =============================================================================
 
@@ -3202,6 +3221,84 @@ export interface DatasetFixResponse {
 	reanalysis_required: boolean;
 	message: string;
 	stats: Record<string, unknown>;
+}
+
+// ---- User Decision Types (Decision Gate) ----
+export interface UserDecisionResponse {
+	id: string;
+	session_id: string;
+	user_id: string;
+	chosen_option_id: string;
+	chosen_option_label: string;
+	chosen_option_description: string;
+	rationale: Record<string, unknown> | null;
+	matrix_snapshot: Record<string, unknown> | null;
+	decision_source: string;
+	created_at: string;
+	updated_at: string;
+}
+
+// ---- Decision Outcome Types (Outcome Tracking) ----
+export interface DecisionOutcomeResponse {
+	id: string;
+	decision_id: string;
+	user_id: string;
+	outcome_status: string;
+	outcome_notes: string | null;
+	surprise_factor: number | null;
+	lessons_learned: string | null;
+	what_would_change: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface PendingFollowupResponse {
+	decision_id: string;
+	session_id: string;
+	chosen_option_label: string;
+	decision_date: string;
+	days_ago: number;
+}
+
+// ---- Decision Patterns Types (Pattern Detection Dashboard) ----
+export interface BiasFlag {
+	bias_type: string;
+	description: string;
+	severity: 'high' | 'medium' | 'low';
+}
+
+export interface ConfidenceCalibration {
+	avg_confidence: number | null;
+	success_rate: number | null;
+	total_with_outcomes: number;
+}
+
+export interface ConstraintAccuracy {
+	total_with_constraints: number;
+	violations_chosen: number;
+	violations_successful: number;
+	tensions_chosen: number;
+	tensions_successful: number;
+}
+
+export interface MonthlyTrend {
+	month: string;
+	total_decisions: number;
+	outcomes_recorded: number;
+	success_rate: number | null;
+	avg_confidence: number | null;
+}
+
+export interface DecisionPatternsResponse {
+	has_enough_data: boolean;
+	total_decisions: number;
+	confidence_calibration: ConfidenceCalibration;
+	outcome_breakdown: Record<string, number>;
+	matrix_usage_pct: number | null;
+	avg_surprise_factor: number | null;
+	bias_flags: BiasFlag[];
+	constraint_accuracy: ConstraintAccuracy | null;
+	monthly_trends: MonthlyTrend[];
 }
 
 // ---- GSC Integration Types ----

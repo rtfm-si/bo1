@@ -46,6 +46,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 from backend.api import (  # noqa: E402
     actions,
+    activities_by_date,
     admin,
     advisor,
     analysis,
@@ -61,6 +62,8 @@ from backend.api import (  # noqa: E402
     control,
     csp_reports,
     datasets,
+    decision_outcomes,
+    decision_patterns,
     decisions,
     e2e_auth,
     email,
@@ -82,6 +85,7 @@ from backend.api import (  # noqa: E402
     templates,
     terms,
     user,
+    user_decisions,
     waitlist,
     workspaces,
 )
@@ -610,6 +614,7 @@ app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(share.router, prefix="/api", tags=["share"])
 app.include_router(actions.router, prefix="/api", tags=["actions"])
+app.include_router(activities_by_date.router, prefix="/api", tags=["activities"])
 app.include_router(tags.router, prefix="/api", tags=["tags"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api", tags=["context"])
@@ -645,6 +650,9 @@ app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
 app.include_router(decisions.router, prefix="/api", tags=["decisions"])
+app.include_router(user_decisions.router, prefix="/api", tags=["user-decisions"])
+app.include_router(decision_outcomes.router, prefix="/api", tags=["decision-outcomes"])
+app.include_router(decision_patterns.router, prefix="/api", tags=["decision-patterns"])
 app.include_router(seo.router, prefix="/api", tags=["seo"])
 app.include_router(peer_benchmarks.router, prefix="/api", tags=["peer-benchmarks"])
 app.include_router(research_sharing.router, prefix="/api", tags=["research-sharing"])

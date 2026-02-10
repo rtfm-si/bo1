@@ -619,10 +619,26 @@ async def start_deliberation(
             else str(problem_context)
         )
 
+        # Parse constraints from metadata
+        constraints_data = metadata.get("constraints") or []
+        constraints_list = []
+        if constraints_data:
+            from bo1.models.problem import Constraint, ConstraintType
+
+            for c in constraints_data:
+                constraints_list.append(
+                    Constraint(
+                        type=ConstraintType(c["type"]),
+                        description=c["description"],
+                        value=c.get("value"),
+                    )
+                )
+
         problem = Problem(
             title=problem_statement[:100] if len(problem_statement) > 100 else problem_statement,
             description=problem_statement,
             context=context_str,
+            constraints=constraints_list,
         )
 
         # Load personas (for MVP, we'll use a default set)
@@ -2172,6 +2188,139 @@ async def raise_hand(
         action="raise_hand",
         status="success",
         message="Interjection submitted. Experts will acknowledge your question.",
+    )
+
+
+class UpdateConstraintsRequest(BaseModel):
+    """Request model for updating constraints mid-meeting."""
+
+    constraints: list[dict[str, Any]] = Field(
+        ...,
+        description="Updated constraints list",
+        max_length=10,
+    )
+
+
+@router.post(
+    "/{session_id}/constraints",
+    response_model=ControlResponse,
+    status_code=202,
+    summary="Update constraints during deliberation",
+    description="Add, modify, or remove constraints during an active meeting.",
+    responses={
+        202: {"description": "Constraints updated"},
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+        500: ERROR_500_RESPONSE,
+    },
+)
+@limiter.limit(CONTROL_RATE_LIMIT)
+@handle_api_errors("update constraints")
+async def update_constraints(
+    request: Request,
+    session_id: str,
+    body: UpdateConstraintsRequest,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Update constraints during an active deliberation.
+
+    Updates problem.constraints in the checkpoint and triggers an interjection
+    so experts re-evaluate against the new constraints.
+    """
+    from bo1.models.problem import Constraint, ConstraintType
+
+    session_id = validate_session_id(session_id)
+    user_id, metadata = session_data
+
+    status = metadata.get("status")
+    if status != "running":
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            f"Cannot update constraints: session is not running (status: {status})",
+        )
+
+    # Validate and parse constraints
+    parsed_constraints = []
+    for c in body.constraints:
+        try:
+            parsed_constraints.append(
+                Constraint(
+                    type=ConstraintType(c.get("type", "other")),
+                    description=c.get("description", ""),
+                    value=c.get("value"),
+                )
+            )
+        except (ValueError, KeyError) as e:
+            raise http_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Invalid constraint: {e}",
+                status=400,
+            ) from e
+
+    # Load checkpoint state
+    state = await load_state_from_checkpoint(session_id)
+    if not state:
+        raise http_error(
+            ErrorCode.API_SESSION_ERROR,
+            "Failed to load session state from checkpoint",
+            status=500,
+        )
+
+    # Update problem.constraints in state
+    problem = state.get("problem")
+    if problem:
+        if isinstance(problem, dict):
+            problem["constraints"] = [c.model_dump() for c in parsed_constraints]
+        else:
+            problem.constraints = parsed_constraints
+        state["problem"] = problem
+
+    # Trigger interjection so experts acknowledge constraint change
+    constraint_summary = "; ".join(c.description[:60] for c in parsed_constraints)
+    state["user_interjection"] = f"[CONSTRAINT_UPDATE] Updated constraints: {constraint_summary}"
+    state["needs_interjection_response"] = True
+    state["interjection_responses"] = []
+
+    # Save checkpoint
+    saved = await save_state_to_checkpoint(session_id, state)
+    if not saved:
+        raise http_error(
+            ErrorCode.API_SESSION_ERROR,
+            "Failed to save constraint update to session state",
+            status=500,
+        )
+
+    # Also update metadata for session recovery
+    metadata["constraints"] = [c.model_dump() for c in parsed_constraints]
+    redis_manager.save_metadata(session_id, metadata)
+
+    # Emit SSE event
+    from backend.api.dependencies import get_event_publisher
+
+    publisher = get_event_publisher()
+    await publisher.publish(
+        session_id,
+        {
+            "event_type": "constraint_updated",
+            "data": {
+                "constraints": [c.model_dump() for c in parsed_constraints],
+                "action": "updated",
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        },
+    )
+
+    logger.info(
+        f"Constraints updated in session {session_id}: {len(parsed_constraints)} constraints"
+    )
+
+    return ControlResponse(
+        session_id=session_id,
+        action="update_constraints",
+        status="success",
+        message=f"Constraints updated ({len(parsed_constraints)} constraints). Experts will re-evaluate.",
     )
 
 

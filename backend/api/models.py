@@ -13,6 +13,51 @@ from pydantic import BaseModel, Field, field_validator
 
 from backend.api.utils.honeypot import HoneypotMixin
 
+# Valid constraint types (mirrors bo1.models.problem.ConstraintType)
+VALID_CONSTRAINT_TYPES = {
+    "budget",
+    "time",
+    "resource",
+    "regulatory",
+    "technical",
+    "ethical",
+    "other",
+}
+
+
+class ConstraintInput(BaseModel):
+    """Input model for a single constraint."""
+
+    type: str = Field(
+        ..., description="Constraint type (budget/time/resource/regulatory/technical/ethical/other)"
+    )
+    description: str = Field(
+        ..., min_length=5, max_length=500, description="Constraint description"
+    )
+    value: Any | None = Field(
+        None, description="Optional constraint value (e.g., dollar amount, date)"
+    )
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate constraint type is allowed."""
+        v = v.strip().lower()
+        if v not in VALID_CONSTRAINT_TYPES:
+            raise ValueError(
+                f"Invalid constraint type: {v}. Must be one of: {', '.join(sorted(VALID_CONSTRAINT_TYPES))}"
+            )
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v: str) -> str:
+        """Sanitize constraint description."""
+        v = v.strip()
+        if re.search(r"<script[^>]*>", v, re.IGNORECASE):
+            raise ValueError("Constraint description cannot contain script tags")
+        return v
+
 
 class CreateSessionRequest(HoneypotMixin):
     """Request model for creating a new deliberation session.
@@ -56,6 +101,29 @@ class CreateSessionRequest(HoneypotMixin):
         None,
         description="Optional template UUID to track which template was used to create this session",
     )
+    constraints: list[ConstraintInput] | None = Field(
+        None,
+        description="Optional constraints for the deliberation (max 10)",
+        examples=[
+            [
+                {
+                    "type": "budget",
+                    "description": "Total budget must not exceed $500K",
+                    "value": 500000,
+                }
+            ]
+        ],
+    )
+
+    @field_validator("constraints")
+    @classmethod
+    def validate_constraints(cls, v: list[ConstraintInput] | None) -> list[ConstraintInput] | None:
+        """Validate constraint list length."""
+        if v is None:
+            return v
+        if len(v) > 10:
+            raise ValueError("Maximum 10 constraints allowed")
+        return v
 
     model_config = {
         "json_schema_extra": {
@@ -2140,6 +2208,35 @@ class ActionStatsResponse(BaseModel):
 
     daily: list[DailyActionStat] = Field(..., description="Daily stats")
     totals: ActionStatsTotals = Field(..., description="Total counts")
+
+
+# =============================================================================
+# Activities by Date (Heatmap Tooltip)
+# =============================================================================
+
+
+class ActivityItem(BaseModel):
+    """Individual activity item for a given date."""
+
+    id: str = Field(..., description="Item ID")
+    type: str = Field(
+        ...,
+        description="Activity type (session, action_completed, action_started, mentor_session, planned_start, planned_due)",
+    )
+    title: str = Field(..., description="Activity title/description")
+    subtitle: str | None = Field(
+        None, description="Optional subtitle (e.g. session problem statement)"
+    )
+    url: str | None = Field(None, description="Link to detail page")
+    timestamp: str | None = Field(None, description="ISO timestamp")
+
+
+class DateActivitiesResponse(BaseModel):
+    """Response model for activities on a specific date."""
+
+    date: str = Field(..., description="Date (YYYY-MM-DD)")
+    activities: list[ActivityItem] = Field(..., description="Activities on this date")
+    total: int = Field(..., description="Total number of activities")
 
 
 # =============================================================================
@@ -5405,3 +5502,144 @@ class DatasetFixResponse(BaseModel):
     stats: dict[str, Any] = Field(
         default_factory=dict, description="Detailed statistics from cleaning operation"
     )
+
+
+# =============================================================================
+# User Decision (Decision Gate)
+# =============================================================================
+
+
+class UserDecisionCreate(BaseModel):
+    """Request model for creating/updating a user decision."""
+
+    chosen_option_id: str = Field(..., min_length=1, max_length=50)
+    chosen_option_label: str = Field(..., min_length=1, max_length=200)
+    chosen_option_description: str = Field(default="", max_length=2000)
+    rationale: dict[str, Any] | None = Field(default=None)
+    matrix_snapshot: dict[str, Any] | None = Field(default=None)
+    decision_source: str = Field(default="direct", pattern="^(direct|matrix)$")
+
+
+class UserDecisionResponse(BaseModel):
+    """Response model for a user decision."""
+
+    id: str
+    session_id: str
+    user_id: str
+    chosen_option_id: str
+    chosen_option_label: str
+    chosen_option_description: str
+    rationale: dict[str, Any] | None
+    matrix_snapshot: dict[str, Any] | None
+    decision_source: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---- Decision Outcome Models (Outcome Tracking) ----
+
+VALID_OUTCOME_STATUSES = {"successful", "partially_successful", "unsuccessful", "too_early"}
+
+
+class DecisionOutcomeCreate(BaseModel):
+    """Request model for creating/updating a decision outcome."""
+
+    outcome_status: str = Field(..., min_length=1, max_length=30)
+    outcome_notes: str | None = Field(default=None, max_length=5000)
+    surprise_factor: int | None = Field(default=None, ge=1, le=5)
+    lessons_learned: str | None = Field(default=None, max_length=5000)
+    what_would_change: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("outcome_status")
+    @classmethod
+    def validate_outcome_status(cls, v: str) -> str:
+        """Validate outcome status is allowed."""
+        v = v.strip().lower()
+        if v not in VALID_OUTCOME_STATUSES:
+            raise ValueError(
+                f"Invalid outcome status: {v}. Must be one of: {', '.join(sorted(VALID_OUTCOME_STATUSES))}"
+            )
+        return v
+
+
+class DecisionOutcomeResponse(BaseModel):
+    """Response model for a decision outcome."""
+
+    id: str
+    decision_id: str
+    user_id: str
+    outcome_status: str
+    outcome_notes: str | None
+    surprise_factor: int | None
+    lessons_learned: str | None
+    what_would_change: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PendingFollowupResponse(BaseModel):
+    """Response model for a pending follow-up nudge."""
+
+    decision_id: str
+    session_id: str
+    chosen_option_label: str
+    decision_date: datetime
+    days_ago: int
+
+
+# =============================================================================
+# Decision Patterns (Pattern Detection Dashboard)
+# =============================================================================
+
+
+class BiasFlag(BaseModel):
+    """A detected decision-making bias."""
+
+    bias_type: str = Field(..., description="e.g., overconfidence, matrix_aversion")
+    description: str
+    severity: str = Field(..., pattern="^(high|medium|low)$")
+
+
+class ConfidenceCalibration(BaseModel):
+    """Confidence vs actual outcome calibration."""
+
+    avg_confidence: float | None = None
+    success_rate: float | None = None
+    total_with_outcomes: int = 0
+
+
+class ConstraintAccuracy(BaseModel):
+    """Constraint alignment accuracy across decisions."""
+
+    total_with_constraints: int = 0
+    violations_chosen: int = 0
+    violations_successful: int = 0
+    tensions_chosen: int = 0
+    tensions_successful: int = 0
+
+
+class MonthlyTrend(BaseModel):
+    """Per-month decision statistics."""
+
+    month: str
+    total_decisions: int
+    outcomes_recorded: int
+    success_rate: float | None = None
+    avg_confidence: float | None = None
+
+
+class DecisionPatternsResponse(BaseModel):
+    """Aggregated decision-making patterns for a user."""
+
+    has_enough_data: bool
+    total_decisions: int
+    confidence_calibration: ConfidenceCalibration
+    outcome_breakdown: dict[str, int] = Field(
+        default_factory=dict,
+        description="Counts by outcome_status: successful, partially_successful, etc.",
+    )
+    matrix_usage_pct: float | None = None
+    avg_surprise_factor: float | None = None
+    bias_flags: list[BiasFlag] = Field(default_factory=list)
+    constraint_accuracy: ConstraintAccuracy | None = None
+    monthly_trends: list[MonthlyTrend] = Field(default_factory=list)

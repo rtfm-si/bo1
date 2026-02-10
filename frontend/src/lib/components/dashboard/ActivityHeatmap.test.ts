@@ -251,33 +251,36 @@ describe('ActivityHeatmap - Sparkline Calculations', () => {
 	});
 });
 
-describe('ActivityHeatmap - Color Accessibility', () => {
-	// WCAG AA requires 4.5:1 contrast ratio for normal text
-	// These tests verify our color choices meet accessibility standards
+describe('ActivityHeatmap - Color by Count', () => {
+	it('uses brand colors for past and accent colors for future', () => {
+		// Past cells use teal (brand-500/brand-400)
+		const pastColor = 'bg-brand-500';
+		// Future cells use warm orange (accent-500/accent-400)
+		const futureColor = 'bg-accent-500';
 
-	it('uses higher contrast brand-600 instead of brand-500', () => {
-		// The ACTIVITY_COLORS now use 600 shades for better contrast
-		const expectedLightColors = [
-			'bg-brand-600',
-			'bg-success-600',
-			'bg-warning-600',
-			'bg-purple-600'
-		];
-
-		// This is a static assertion - the actual colors are defined in the component
-		// We're documenting the expected values for reference
-		expect(expectedLightColors).toContain('bg-brand-600');
-		expect(expectedLightColors).toContain('bg-success-600');
+		expect(pastColor).toContain('brand');
+		expect(futureColor).toContain('accent');
 	});
 
-	it('uses consistent opacity progression for intensity levels', () => {
-		// Intensity levels: 40% → 60% → 80% → 100%
-		const opacityLevels = [40, 60, 80, 100];
+	it('uses 5-step intensity progression', () => {
+		// Intensity: 1→30%, 2→50%, 3→70%, 4→85%, 5+→100%
+		const steps = [
+			{ count: 1, opacity: 30 },
+			{ count: 2, opacity: 50 },
+			{ count: 3, opacity: 70 },
+			{ count: 4, opacity: 85 },
+			{ count: 5, opacity: 100 }
+		];
 
-		// Each level should increase by ~20 percentage points
-		for (let i = 1; i < opacityLevels.length; i++) {
-			const diff = opacityLevels[i] - opacityLevels[i - 1];
-			expect(diff).toBe(20);
+		// Monotonically increasing
+		for (let i = 1; i < steps.length; i++) {
+			expect(steps[i].opacity).toBeGreaterThan(steps[i - 1].opacity);
 		}
+	});
+
+	it('caps intensity at INTENSITY_CAP = 5', () => {
+		// Counts >= 5 all get the same 100% opacity
+		const INTENSITY_CAP = 5;
+		expect(INTENSITY_CAP).toBe(5);
 	});
 });

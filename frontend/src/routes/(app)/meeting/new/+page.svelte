@@ -9,7 +9,7 @@
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
-	import { AlertTriangle, X, Clock } from 'lucide-svelte';
+	import { AlertTriangle, X, Clock, Plus, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import type { Dataset, StaleInsight, SessionContextIds, MeetingCapStatus, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 	import { toast } from '$lib/stores/toast';
 
@@ -35,6 +35,19 @@
 	let loadingCapStatus = $state(false);
 	// Honeypot state
 	let honeypotValues = $state<HoneypotFieldsType>({});
+	// Constraints state
+	let showConstraints = $state(false);
+	let constraintItems = $state<Array<{ type: string; description: string; value: string }>>([]);
+
+	const CONSTRAINT_TYPES = ['budget', 'time', 'resource', 'regulatory', 'technical', 'ethical', 'other'] as const;
+
+	function addConstraint() {
+		constraintItems = [...constraintItems, { type: 'other', description: '', value: '' }];
+	}
+
+	function removeConstraint(index: number) {
+		constraintItems = constraintItems.filter((_, i) => i !== index);
+	}
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -43,10 +56,17 @@
 			}
 		});
 
-		// Pre-fill from URL query param (from welcome page or demo questions)
+		// Pre-fill from URL query param (from welcome page, demo questions, or deadlock follow-up)
 		const prefillQuestion = $page.url.searchParams.get('q');
 		if (prefillQuestion) {
 			problemStatement = prefillQuestion;
+		}
+
+		// Handle follow-up from deadlock resolution
+		const followupSessionId = $page.url.searchParams.get('followup');
+		if (followupSessionId) {
+			// Could pre-select the original session as context in the future
+			console.log(`[NewMeeting] Follow-up from session: ${followupSessionId}`);
 		}
 
 		// Pre-select project if project_id is in URL (from project detail page)
@@ -131,11 +151,21 @@
 				(selectedContext.actions?.length ?? 0) > 0 ||
 				(selectedContext.datasets?.length ?? 0) > 0;
 
-			// Create session with optional dataset and context
+			// Build constraints if any valid
+			const validConstraints = constraintItems
+				.filter(c => c.description.trim().length >= 5)
+				.map(c => ({
+					type: c.type,
+					description: c.description.trim(),
+					value: c.value.trim() || undefined
+				}));
+
+			// Create session with optional dataset, context, and constraints
 			const sessionData = await apiClient.createSession({
 				problem_statement: problemStatement.trim(),
 				dataset_id: selectedDatasetId || undefined,
 				context_ids: hasContext ? (selectedContext as Record<string, string[]>) : undefined,
+				constraints: validConstraints.length > 0 ? validConstraints : undefined,
 				...honeypotValues
 			});
 
@@ -372,6 +402,71 @@
 
 				<!-- Context Selector -->
 				<MeetingContextSelector onContextChange={handleContextChange} />
+
+				<!-- Constraints (collapsible) -->
+				<div>
+					<button
+						type="button"
+						class="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"
+						onclick={() => { showConstraints = !showConstraints; if (showConstraints && constraintItems.length === 0) addConstraint(); }}
+					>
+						{#if showConstraints}
+							<ChevronUp class="w-4 h-4" />
+						{:else}
+							<ChevronDown class="w-4 h-4" />
+						{/if}
+						Add Constraints (Optional)
+					</button>
+
+					{#if showConstraints}
+						<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-2 mb-3">
+							Set boundaries for the deliberation — budget limits, deadlines, regulatory requirements, etc.
+						</p>
+						<div class="space-y-2">
+							{#each constraintItems as constraint, i (i)}
+								<div class="flex gap-2 items-start">
+									<select
+										bind:value={constraint.type}
+										class="w-28 flex-shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-2 py-2 text-sm"
+									>
+										{#each CONSTRAINT_TYPES as t (t)}
+											<option value={t}>{t}</option>
+										{/each}
+									</select>
+									<input
+										type="text"
+										bind:value={constraint.description}
+										placeholder="e.g., Total budget must not exceed $500K"
+										class="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+									/>
+									<input
+										type="text"
+										bind:value={constraint.value}
+										placeholder="Value"
+										class="w-24 flex-shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+									/>
+									<button
+										type="button"
+										class="flex-shrink-0 p-2 text-neutral-400 hover:text-error-500"
+										onclick={() => removeConstraint(i)}
+									>
+										<X class="w-4 h-4" />
+									</button>
+								</div>
+							{/each}
+						</div>
+						{#if constraintItems.length < 10}
+							<button
+								type="button"
+								class="mt-2 inline-flex items-center gap-1 text-sm text-info-600 dark:text-info-400 hover:text-info-700 dark:hover:text-info-300"
+								onclick={addConstraint}
+							>
+								<Plus class="w-4 h-4" />
+								Add another constraint
+							</button>
+						{/if}
+					{/if}
+				</div>
 
 				<!-- Project Selector -->
 				<div>

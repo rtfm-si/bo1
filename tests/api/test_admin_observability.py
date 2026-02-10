@@ -46,7 +46,11 @@ class TestObservabilityLinks:
         """Test getting links when only some URLs are configured."""
         reset_settings()
         monkeypatch.setenv("GRAFANA_URL", "https://grafana.example.com")
-        # Leave Prometheus, Sentry, and UptimeRobot unconfigured
+        # Set to empty to override .env values (pydantic-settings reads .env directly)
+        monkeypatch.setenv("PROMETHEUS_URL", "")
+        monkeypatch.setenv("SENTRY_URL", "")
+        monkeypatch.setenv("UPTIMEROBOT_STATUS_URL", "")
+        reset_settings()
 
         links = get_observability_links()
 

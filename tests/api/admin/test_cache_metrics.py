@@ -64,7 +64,16 @@ def mock_cache_metrics():
 @pytest.fixture
 def unauthenticated_client():
     """Create test client without admin auth override."""
-    return TestClient(app)
+    from fastapi import HTTPException
+
+    from backend.api.middleware.auth import get_current_user
+
+    async def _reject():
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    app.dependency_overrides[get_current_user] = _reject
+    yield TestClient(app)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 class TestGetResearchCacheMetrics:

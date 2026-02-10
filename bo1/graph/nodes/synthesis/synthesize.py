@@ -127,6 +127,19 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     if limited_context_mode:
         logger.info("synthesize_node: Limited context mode active - including assumptions section")
 
+    # Extract constraints for synthesis prompt
+    from bo1.prompts.constraints import format_constraints_for_prompt
+
+    constraints_text = ""
+    raw_constraints = get_problem_attr(problem, "constraints", [])
+    if raw_constraints:
+        from bo1.models.problem import Constraint as ConstraintModel
+
+        parsed_constraints = [
+            ConstraintModel.model_validate(c) if isinstance(c, dict) else c for c in raw_constraints
+        ]
+        constraints_text = format_constraints_for_prompt(parsed_constraints)
+
     # Compose synthesis prompt using hierarchical template
     synthesis_prompt = SYNTHESIS_HIERARCHICAL_TEMPLATE.format(
         problem_statement=get_problem_attr(problem, "description", ""),
@@ -135,6 +148,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         votes="\n".join(votes_text),
         limited_context_section=prompt_section,
         limited_context_output_section=output_section,
+        constraints_section=constraints_text,
     )
 
     logger.info(

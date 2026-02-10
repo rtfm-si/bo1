@@ -74,6 +74,7 @@ def compose_persona_contribution_prompt(
     round_number: int,
     business_context: dict[str, Any] | None = None,
     word_budget: int = 200,
+    constraints_text: str = "",
 ) -> tuple[str, str]:
     """Compose prompt for persona contribution with critical thinking emphasis.
 
@@ -177,6 +178,8 @@ Instead, IMMEDIATELY engage with the problem statement and provide substantive a
 <problem_context>
 {safe_problem_statement}
 </problem_context>
+
+{constraints_text}
 
 <insight_awareness>
 If the problem context includes "User Insights" from previous meetings, these represent the user's established understanding of their business. When referencing these insights:
@@ -372,6 +375,7 @@ def compose_persona_prompt_hierarchical(
     current_round_contributions: list[dict[str, str]],
     round_number: int,
     current_phase: str = "discussion",
+    constraints_text: str = "",
 ) -> str:
     """Compose persona prompt with hierarchical context management.
 
@@ -454,6 +458,8 @@ def compose_persona_prompt_hierarchical(
 <problem_statement>
 {problem_statement}
 </problem_statement>
+
+{constraints_text}
 
 <participants>
 {participant_list}

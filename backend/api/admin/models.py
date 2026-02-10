@@ -1154,8 +1154,8 @@ class CostDrillDownItem(BaseModel):
     id: int = Field(..., description="Cost record ID")
     user_id: str = Field(..., description="User identifier")
     email: str | None = Field(None, description="User email")
-    provider: str = Field(..., description="LLM provider")
-    model: str = Field(..., description="Model name")
+    provider: str = Field("unknown", description="LLM provider")
+    model: str = Field("unknown", description="Model name")
     amount_usd: float = Field(..., description="Cost in USD")
     created_at: str = Field(..., description="When cost was recorded (ISO 8601)")
 

@@ -196,6 +196,7 @@ def compose_facilitator_prompt(
         metrics: DeliberationMetrics object with quality scores
         round_number: Current round number
         clarification_count: Number of clarification requests already made
+        constraints_text: User-defined constraints injected into prompt
 
     Returns:
         Complete facilitator prompt with rotation guidance and metrics context

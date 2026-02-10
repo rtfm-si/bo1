@@ -89,6 +89,7 @@ def compose_persona_contribution_prompt(
         round_number: Current round number (1-indexed)
         business_context: Optional business context for style adaptation
         word_budget: Maximum word count for the contribution (default 200)
+        constraints_text: User-defined constraints injected into prompt
 
     Returns:
         Tuple of (system_prompt, user_message) for the LLM
@@ -396,6 +397,7 @@ def compose_persona_prompt_hierarchical(
         current_round_contributions: Full contributions from Round N-1
         round_number: Current round number (N)
         current_phase: Current deliberation phase
+        constraints_text: User-defined constraints injected into prompt
 
     Returns:
         Composed system prompt with hierarchical context

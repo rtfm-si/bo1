@@ -192,6 +192,7 @@ class PromptBuilder:
             previous_contributions: Recent contributions for context
             expert_memory: Cross-sub-problem memory
             round_config: Round configuration (phase, temperature, etc.)
+            constraints_text: User-defined constraints injected into prompt
 
         Returns:
             Tuple of (system_prompt, user_message)
@@ -257,6 +258,7 @@ class PromptBuilder:
             round_number: Current round (0-indexed)
             round_config: Round configuration (phase, temperature, etc.)
             business_context: Optional business context for style adaptation
+            constraints_text: User-defined constraints injected into prompt
 
         Returns:
             Tuple of (system_prompt, user_message)

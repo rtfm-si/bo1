@@ -250,7 +250,7 @@ class TestSpacesConfigurationError:
         """Test missing access key raises SpacesConfigurationError."""
         with patch("backend.services.spaces.get_settings") as mock_settings:
             mock_settings.return_value.do_spaces_key = ""
-            mock_settings.return_value.do_spaces_secret = "secret"
+            mock_settings.return_value.do_spaces_secret = "secret"  # noqa: S105
             mock_settings.return_value.do_spaces_region = "lon1"
             mock_settings.return_value.do_spaces_bucket = "bucket"
             mock_settings.return_value.do_spaces_endpoint_url = ""

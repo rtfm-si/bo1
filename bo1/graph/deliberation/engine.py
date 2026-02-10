@@ -204,6 +204,7 @@ async def _generate_synthesis(
         votes="\n".join(votes_text),
         limited_context_section=prompt_section,
         limited_context_output_section=output_section,
+        constraints_section="",
     )
 
     broker = PromptBroker()

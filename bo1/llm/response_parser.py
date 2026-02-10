@@ -73,6 +73,15 @@ ACTION_TAKING_PATTERNS = [
     r"\bon (?:your|the user'?s?) behalf",
 ]
 
+# Patterns indicating expert is asking the user for input (user cannot respond during deliberation)
+USER_INPUT_SOLICITATION_PATTERNS = [
+    r"\b(?:state|share|tell (?:me|us)|provide|specify|clarify) your\b",
+    r"\b(?:what(?:'s| is| are) your)\b",
+    r"\b(?:could|can|would) you (?:share|provide|clarify|tell|specify|confirm)\b",
+    r"\b(?:please (?:share|provide|clarify|tell|specify|confirm))\b",
+    r"\bthen i(?:'ll| will) (?:provide|give|share|create|draft)\b",
+]
+
 # Patterns indicating active challenge/critique (substantive engagement)
 CHALLENGE_INDICATOR_PATTERNS = [
     r"\bi\s+disagree",  # "I disagree"
@@ -399,7 +408,7 @@ class ResponseParser:
 
     @staticmethod
     def has_action_taking_language(content: str, persona_name: str = "") -> bool:
-        """Check if contribution contains language where the expert takes actions on behalf of the user.
+        """Check if contribution contains language where the expert takes actions or solicits user input.
 
         This is observability-only (logs a warning), not blocking.
 
@@ -408,17 +417,27 @@ class ResponseParser:
             persona_name: Name of the persona (for logging)
 
         Returns:
-            True if action-taking language detected
+            True if action-taking or input-soliciting language detected
         """
         content_lower = content.lower()
+        detected = False
         for pattern in ACTION_TAKING_PATTERNS:
             if re.search(pattern, content_lower):
                 logger.warning(
                     f"[ACTION_BOUNDARY] {persona_name or 'Unknown'} used action-taking language: "
                     f"matched pattern '{pattern}' in: {content[:150]}..."
                 )
-                return True
-        return False
+                detected = True
+                break
+        for pattern in USER_INPUT_SOLICITATION_PATTERNS:
+            if re.search(pattern, content_lower):
+                logger.warning(
+                    f"[INPUT_SOLICITATION] {persona_name or 'Unknown'} asked user for input: "
+                    f"matched pattern '{pattern}' in: {content[:150]}..."
+                )
+                detected = True
+                break
+        return detected
 
     @staticmethod
     def parse_recommendation_from_response(response_content: str, persona: Any) -> Recommendation:

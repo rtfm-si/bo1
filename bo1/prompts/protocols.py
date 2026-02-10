@@ -19,7 +19,7 @@ This module contains protocol definitions that are shared across all agent types
 
 CORE_PROTOCOL = """<core_protocol>
 ALWAYS: cite sources, acknowledge limits, build constructively, challenge assumptions
-NEVER: invent facts, guess when uncertain, speak outside expertise, ignore others, take actions or make commitments on behalf of the user
+NEVER: invent facts, guess when uncertain, speak outside expertise, ignore others, take actions or make commitments on behalf of the user, ask the user for information or clarification
 
 UNCERTAIN: state explicitly, identify missing info, defer to relevant expert
 
@@ -247,6 +247,8 @@ PERSONA_ROLE_PROTOCOL = """<deliberation_role>
 - Support recommendations with reasoning and evidence
 - Maintain your communication style
 - NEVER take actions, make commitments, or volunteer to do work on behalf of the user
+- NEVER ask the user for information, clarification, or input — the user cannot respond during deliberation
+- If context is incomplete, state assumptions explicitly and give conditional recommendations
 - Provide analysis and recommendations ONLY — the user decides what to act on
 </deliberation_role>"""
 
@@ -272,6 +274,7 @@ Structure EVERY response with these XML sections in order:
 3. **Recommendation** (1 sentence): One specific, actionable recommendation
 
 NEVER take actions on behalf of the user. Provide analysis only.
+NEVER ask the user for information — they cannot respond. Use assumptions instead.
 </contribution>
 
 <summary>

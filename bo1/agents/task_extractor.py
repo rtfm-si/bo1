@@ -52,6 +52,10 @@ class ExtractedTask(BaseModel):
         default=None,
         description="Parsed timeline in business days (auto-calculated from timeline)",
     )
+    # Parent action mapping (for hierarchical extraction)
+    parent_action_title: str | None = Field(
+        default=None, description="Exact title of parent strategic action this task belongs to"
+    )
     # Legacy field for backwards compatibility
     suggested_completion_date: str | None = Field(
         default=None, description="ISO date or relative (e.g., 'Week 1') - use timeline instead"
@@ -74,6 +78,8 @@ async def extract_tasks_from_synthesis(
     sub_problem_index: int | None = None,
     total_sub_problems: int = 1,
     other_sub_problem_goals: list[str] | None = None,
+    parent_action_titles: str = "N/A",
+    previously_extracted_tasks: str = "None yet",
 ) -> TaskExtractionResult:
     """Extract actionable tasks from synthesis using Claude.
 
@@ -84,6 +90,8 @@ async def extract_tasks_from_synthesis(
         sub_problem_index: Index of this sub-problem (for cross-sp dependencies)
         total_sub_problems: Total number of sub-problems in session
         other_sub_problem_goals: Goals of other sub-problems for context
+        parent_action_titles: Numbered list of parent strategic action titles for hierarchy
+        previously_extracted_tasks: Formatted list of already-extracted task titles for dedup
 
     Returns:
         TaskExtractionResult with extracted tasks
@@ -110,6 +118,8 @@ async def extract_tasks_from_synthesis(
         sub_problem_index=sp_index_str,
         total_sub_problems=total_sub_problems,
         other_sub_problem_goals=other_goals_str,
+        parent_action_titles=parent_action_titles,
+        previously_extracted_tasks=previously_extracted_tasks,
     )
 
     # Use haiku for fast, cheap structured extraction (like summarizer)
@@ -211,6 +221,8 @@ def sync_extract_tasks_from_synthesis(
     total_sub_problems: int = 1,
     other_sub_problem_goals: list[str] | None = None,
     timeout_seconds: float = 60.0,
+    parent_action_titles: str = "N/A",
+    previously_extracted_tasks: str = "None yet",
 ) -> TaskExtractionResult:
     """Synchronous version of extract_tasks_from_synthesis.
 
@@ -224,6 +236,8 @@ def sync_extract_tasks_from_synthesis(
         total_sub_problems: Total number of sub-problems in session
         other_sub_problem_goals: Goals of other sub-problems for context
         timeout_seconds: Timeout for LLM API call (default 60s)
+        parent_action_titles: Numbered list of parent strategic action titles for hierarchy
+        previously_extracted_tasks: Formatted list of already-extracted task titles for dedup
 
     Returns:
         TaskExtractionResult with extracted tasks
@@ -250,6 +264,8 @@ def sync_extract_tasks_from_synthesis(
         sub_problem_index=sp_index_str,
         total_sub_problems=total_sub_problems,
         other_sub_problem_goals=other_goals_str,
+        parent_action_titles=parent_action_titles,
+        previously_extracted_tasks=previously_extracted_tasks,
     )
 
     # Use haiku for fast, cheap structured extraction (like summarizer)

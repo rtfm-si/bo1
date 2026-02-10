@@ -28,6 +28,7 @@
 	import { Button } from '$lib/components/ui';
 	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
 	import KanbanBoard from '$lib/components/actions/KanbanBoard.svelte';
+	import StrategicActionCard from '$lib/components/actions/StrategicActionCard.svelte';
 	import { getDueDateStatus } from '$lib/utils/due-dates';
 	import { toast } from '$lib/stores/toast';
 
@@ -47,8 +48,8 @@
 
 	type DueDateFilterOption = 'all' | 'overdue' | 'due-today' | 'due-soon' | 'no-date';
 
-	// View mode state (kanban or gantt)
-	let viewMode = $state<'kanban' | 'gantt'>('kanban');
+	// View mode state (kanban, gantt, or strategic)
+	let viewMode = $state<'kanban' | 'gantt' | 'strategic'>('kanban');
 	let ganttViewMode = $state<'Day' | 'Week' | 'Month'>('Week');
 
 	// Loading states
@@ -169,6 +170,39 @@
 		}
 
 		return tasks;
+	});
+
+	// Hierarchical grouping: parents, children, orphans
+	const strategicGrouping = $derived.by(() => {
+		const all = allTasks;
+		const parents = all
+			.filter((t) => t.is_strategic)
+			.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+		const childMap = new Map<string, TaskWithSessionContext[]>();
+		const orphans: TaskWithSessionContext[] = [];
+		for (const t of all) {
+			if (t.is_strategic) continue;
+			if (t.parent_action_id) {
+				const existing = childMap.get(t.parent_action_id);
+				if (existing) {
+					existing.push(t);
+				} else {
+					childMap.set(t.parent_action_id, [t]);
+				}
+			} else {
+				orphans.push(t);
+			}
+		}
+		return { parents, childMap, orphans };
+	});
+
+	const hasStrategicActions = $derived(strategicGrouping.parents.length > 0);
+
+	// Auto-select strategic view when strategic actions exist (first load)
+	$effect(() => {
+		if (hasStrategicActions && viewMode === 'kanban') {
+			viewMode = 'strategic';
+		}
 	});
 
 	// Filter tasks by status
@@ -361,6 +395,17 @@
 						</select>
 					{/if}
 					<div class="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
+						{#if hasStrategicActions}
+							<button
+								onclick={() => viewMode = 'strategic'}
+								class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {viewMode === 'strategic' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+							>
+								<svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+								</svg>
+								Strategic
+							</button>
+						{/if}
 						<button
 							onclick={() => viewMode = 'kanban'}
 							class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {viewMode === 'kanban' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
@@ -726,6 +771,36 @@
 							{/snippet}
 						</Button>
 					</a>
+				{/if}
+			</div>
+		{:else if viewMode === 'strategic'}
+			<!-- Strategic Hierarchical View -->
+			<div class="space-y-4">
+				{#each strategicGrouping.parents as parent (parent.id)}
+					<StrategicActionCard
+						action={parent}
+						children={strategicGrouping.childMap.get(parent.id) ?? []}
+						onStatusChange={handleKanbanStatusChange}
+						onTaskClick={handleTaskClick}
+					/>
+				{/each}
+
+				<!-- Orphan tasks (no parent) -->
+				{#if strategicGrouping.orphans.length > 0}
+					<div class="mt-8">
+						<h3 class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-3 uppercase tracking-wide">
+							Other Tasks
+						</h3>
+						<KanbanBoard
+							tasks={strategicGrouping.orphans}
+							onStatusChange={handleKanbanStatusChange}
+							onDelete={handleDelete}
+							onTaskClick={handleTaskClick}
+							loading={isKanbanLoading}
+							showMeetingContext={true}
+							columns={kanbanColumns}
+						/>
+					</div>
 				{/if}
 			</div>
 		{:else if viewMode === 'gantt'}

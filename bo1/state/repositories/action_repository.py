@@ -148,7 +148,8 @@ class ActionRepository(BaseRepository):
                    replan_session_id, replan_requested_at, replanning_reason,
                    cancellation_reason, cancelled_at,
                    confidence, source_section, sub_problem_index,
-                   sort_order, created_at, updated_at, deleted_at
+                   sort_order, parent_action_id, is_strategic,
+                   created_at, updated_at, deleted_at
             FROM actions
             WHERE id = %s
             """,
@@ -216,7 +217,8 @@ class ActionRepository(BaseRepository):
                    a.replan_session_id, a.replan_requested_at, a.replanning_reason,
                    a.cancellation_reason, a.cancelled_at,
                    a.confidence, a.source_section, a.sub_problem_index,
-                   a.sort_order, a.created_at, a.updated_at
+                   a.sort_order, a.parent_action_id, a.is_strategic,
+                   a.created_at, a.updated_at
             FROM actions a
             {"INNER JOIN matched_actions ma ON a.id = ma.action_id" if tag_ids else ""}
             LEFT JOIN sessions s ON a.source_session_id = s.id
@@ -280,7 +282,8 @@ class ActionRepository(BaseRepository):
                    replan_session_id, replan_requested_at, replanning_reason,
                    cancellation_reason, cancelled_at,
                    confidence, source_section, sub_problem_index,
-                   sort_order, created_at, updated_at
+                   sort_order, parent_action_id, is_strategic,
+                   created_at, updated_at
             FROM actions
             WHERE source_session_id = %s
         """

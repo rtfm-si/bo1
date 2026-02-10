@@ -271,6 +271,11 @@ async def get_all_actions(
             if action.get("estimated_end_date")
             else None,
             "estimated_duration_days": action.get("estimated_duration_days"),
+            "parent_action_id": str(action["parent_action_id"])
+            if action.get("parent_action_id")
+            else None,
+            "is_strategic": action.get("is_strategic", False),
+            "sort_order": action.get("sort_order", 0),
         }
 
         all_actions_list.append(action_data)

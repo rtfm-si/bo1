@@ -765,6 +765,7 @@ class SessionRepository(BaseRepository):
         extraction_confidence: float,
         synthesis_sections_analyzed: list[str],
         user_id: str | None = None,
+        parent_actions: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Save extracted tasks to actions table and session_tasks metadata.
 
@@ -775,6 +776,7 @@ class SessionRepository(BaseRepository):
             extraction_confidence: Confidence score (0.0-1.0)
             synthesis_sections_analyzed: List of analyzed sections
             user_id: User identifier (optional)
+            parent_actions: Strategic parent actions from meta-synthesis (optional)
 
         Returns:
             Saved task record with metadata
@@ -817,6 +819,48 @@ class SessionRepository(BaseRepository):
                 )
                 result = cur.fetchone()
 
+                # Insert parent strategic actions first and build title->id map
+                parent_title_to_id: dict[str, str] = {}
+                if parent_actions:
+                    for idx, pa in enumerate(parent_actions):
+                        cur.execute(
+                            """
+                            INSERT INTO actions (
+                                user_id, source_session_id, title, description,
+                                what_and_how, success_criteria, kill_criteria,
+                                status, priority, category,
+                                timeline, confidence, source_section,
+                                sort_order, is_strategic
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true)
+                            ON CONFLICT DO NOTHING
+                            RETURNING id
+                            """,
+                            (
+                                user_id,
+                                session_id,
+                                pa.get("title", ""),
+                                pa.get("description", ""),
+                                pa.get("what_and_how", []),
+                                pa.get("success_criteria", []),
+                                pa.get("kill_criteria", []),
+                                "todo",
+                                pa.get("priority", "medium"),
+                                pa.get("category", "implementation"),
+                                pa.get("timeline"),
+                                pa.get("confidence", 0.95),
+                                pa.get("source_section", "meta_synthesis"),
+                                idx,
+                            ),
+                        )
+                        pa_row = cur.fetchone()
+                        if pa_row:
+                            parent_title_to_id[pa["title"].lower()] = str(pa_row["id"])
+                    logger.info(
+                        f"Inserted {len(parent_title_to_id)} parent strategic actions "
+                        f"for session {session_id}"
+                    )
+
                 # Save each task to actions table and track task_id -> action_id mapping
                 # Key format: "sp{index}_{task_id}" for cross-sp lookups
                 task_id_to_action_id: dict[str, str] = {}
@@ -830,6 +874,12 @@ class SessionRepository(BaseRepository):
                 for idx, task in enumerate(tasks):
                     sp_index = task.get("sub_problem_index")
 
+                    # Resolve parent_action_id from parent_action_title
+                    parent_action_id = None
+                    pat = task.get("parent_action_title")
+                    if pat and parent_title_to_id:
+                        parent_action_id = parent_title_to_id.get(pat.lower())
+
                     cur.execute(
                         """
                         INSERT INTO actions (
@@ -838,9 +888,9 @@ class SessionRepository(BaseRepository):
                             status, priority, category,
                             timeline, estimated_duration_days,
                             confidence, source_section, sub_problem_index,
-                            sort_order
+                            sort_order, parent_action_id
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
                         RETURNING id
                         """,
@@ -861,6 +911,7 @@ class SessionRepository(BaseRepository):
                             task.get("source_section"),
                             sp_index,
                             idx,  # Use array index as sort_order
+                            parent_action_id,
                         ),
                     )
                     action_row = cur.fetchone()

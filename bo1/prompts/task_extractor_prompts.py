@@ -67,6 +67,14 @@ WHEN UNCERTAIN:
    - Reference tasks from OTHER sub-problems using format "sp{index}_task_{n}" (e.g., "sp0_task_2" for task 2 from sub-problem 0)
    - Include external dependencies (e.g., "Access to customer contact list")
 </extraction_rules>
+
+<deduplication_rules>
+1. Extract ONLY tasks unique to THIS sub-problem's specific domain
+2. If another sub-problem's goal covers a topic, do NOT extract tasks for that topic
+3. When previously extracted tasks are listed, NEVER produce a task with the same or similar intent
+4. Each task must belong to exactly ONE parent strategic action — assign it to the most relevant parent
+5. Extract 3-5 high-impact tasks maximum per sub-problem — quality over quantity
+</deduplication_rules>
 """
     + OVERFLOW_SAFE_INSTRUCTIONS
     + """
@@ -96,7 +104,8 @@ Output ONLY valid JSON matching this schema:
       "priority": "high|medium|low",
       "category": "implementation|research|decision|communication",
       "source_section": "implementation_considerations",
-      "confidence": 0.9
+      "confidence": 0.9,
+      "parent_action_title": "Title of most relevant parent strategic action or null"
     }
   ],
   "total_tasks": 1,
@@ -198,6 +207,17 @@ Sub-problem index: {sub_problem_index}
 Total sub-problems: {total_sub_problems}
 Other sub-problem goals: {other_sub_problem_goals}
 </sub_problem_context>
+
+<parent_strategic_actions>
+For each task, set parent_action_title to the EXACT title of the most relevant parent action below.
+If no parent action is relevant, set parent_action_title to null.
+{parent_action_titles}
+</parent_strategic_actions>
+
+<previously_extracted_tasks>
+Tasks already extracted from other sub-problems (DO NOT duplicate or closely rephrase these):
+{previously_extracted_tasks}
+</previously_extracted_tasks>
 
 <task>
 Extract discrete, actionable tasks from this synthesis. Focus on:

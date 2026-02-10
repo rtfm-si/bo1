@@ -136,6 +136,10 @@ class Action(BaseModel):
         None, description="Original action ID when created via replan"
     )
 
+    # Hierarchy (from zzzi migration)
+    parent_action_id: str | None = Field(None, description="Parent strategic action UUID")
+    is_strategic: bool = Field(False, description="True for meta-synthesis strategic actions")
+
     # Soft delete (from b2 migration)
     deleted_at: datetime | None = Field(None, description="Soft delete timestamp (NULL = active)")
 
@@ -236,6 +240,9 @@ class Action(BaseModel):
             # Close/replan (z4)
             closure_reason=row.get("closure_reason"),
             replanned_from_id=normalize_uuid(row.get("replanned_from_id")),
+            # Hierarchy
+            parent_action_id=normalize_uuid(row.get("parent_action_id")),
+            is_strategic=row.get("is_strategic", False),
             # Soft delete
             deleted_at=row.get("deleted_at"),
             # Post-mortem

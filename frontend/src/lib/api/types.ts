@@ -680,6 +680,14 @@ export interface TaskWithSessionContext extends TaskWithStatus {
 	estimated_end_date?: string | null;
 	/** AI-estimated duration in days */
 	estimated_duration_days?: number | null;
+	/** Parent strategic action UUID (null for top-level or orphan tasks) */
+	parent_action_id?: string | null;
+	/** True for meta-synthesis strategic actions */
+	is_strategic?: boolean;
+	/** Sort order within status column */
+	sort_order?: number;
+	/** Client-side grouped children (populated in actions page) */
+	children?: TaskWithSessionContext[];
 }
 
 /**

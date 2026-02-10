@@ -316,6 +316,30 @@ class SessionManager:
                             f"[{session_id}] Failed to track cognitive metrics: {cog_err}"
                         )
 
+                # Auto-extract actions in background thread (fire-and-forget)
+                if completed_user_id:
+                    import threading
+
+                    redis_mgr = self.redis_manager
+
+                    def _auto_extract(sid: str, uid: str) -> None:
+                        try:
+                            from backend.api.sessions import _extract_actions_for_session
+
+                            _extract_actions_for_session(sid, uid, redis_mgr)
+                            logger.info(f"[{sid}] Auto-extracted actions on completion")
+                        except Exception as extract_err:
+                            logger.warning(
+                                f"[{sid}] Auto-extraction failed "
+                                f"(user can trigger manually): {extract_err}"
+                            )
+
+                    threading.Thread(
+                        target=_auto_extract,
+                        args=(session_id, completed_user_id),
+                        daemon=True,
+                    ).start()
+
                 return result
             except asyncio.CancelledError:
                 logger.info(f"[{session_id}] Graph execution was cancelled")

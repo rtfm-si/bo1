@@ -38,3 +38,9 @@ we need to have use cases, decision and blog posts for testing ideas and zero re
 update 6 decisions to use latest decision output
 
 check for legacy compatability. no live customers, so simplify and remove legacy fallbacks
+
+when we click through activity calendar, we can access meetings and actions etc that have been 'deleted'. i think we shouldmt show deleted items in activity heatmap, or if we do, we dont allow them to be selected / viewed?
+
+users can ask for help breaking a task down
+
+users can chat about their problem before starting a mneeting

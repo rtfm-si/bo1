@@ -1477,6 +1477,166 @@ async def terminate_session(
         )
 
 
+def _extract_actions_for_session(
+    session_id: str,
+    user_id: str,
+    redis_manager: RedisManager,
+) -> dict[str, Any] | None:
+    """Extract actions from synthesis events (used by auto-extract and endpoint).
+
+    Returns result dict or None if tasks already exist.
+    Raises on failure.
+    """
+    import json as json_mod
+
+    # Skip if already extracted
+    db_tasks = session_repository.get_tasks(session_id)
+    if db_tasks and db_tasks.get("total_tasks", 0) > 0:
+        logger.info(f"[{session_id}] Tasks already extracted, skipping auto-extract")
+        return None
+
+    # Collect synthesis events from Redis or PostgreSQL
+    events_key = f"events_history:{session_id}"
+    redis_events = redis_manager.redis.lrange(events_key, 0, -1) if redis_manager.redis else []
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not configured")
+
+    synthesis_events: list[tuple[str, int | None]] = []
+    if redis_events:
+        for event_json in redis_events:
+            event = json_mod.loads(event_json)
+            et = event.get("event_type")
+            ed = event.get("data", {})
+            if et == "synthesis_complete" and ed.get("synthesis"):
+                synthesis_events.append((ed["synthesis"], ed.get("sub_problem_index")))
+            elif et == "meta_synthesis_complete" and ed.get("synthesis"):
+                synthesis_events.append((ed["synthesis"], None))
+    else:
+        pg_events = session_repository.get_events(session_id)
+        for event in pg_events:
+            et = event.get("event_type")
+            full_data = event.get("data", {})
+            ed = full_data.get("data", {}) if isinstance(full_data, dict) else {}
+            if et == "synthesis_complete" and ed.get("synthesis"):
+                synthesis_events.append((ed["synthesis"], ed.get("sub_problem_index")))
+            elif et == "meta_synthesis_complete" and ed.get("synthesis"):
+                synthesis_events.append((ed["synthesis"], None))
+
+    if not synthesis_events:
+        return None
+
+    # Parse parent actions from meta-synthesis
+    parent_actions: list[dict[str, Any]] = []
+    for synthesis, sp_idx in synthesis_events:
+        if sp_idx is not None:
+            continue
+        try:
+            json_end = synthesis.find("\n\n---")
+            json_start = synthesis.find("{")
+            if json_start >= 0:
+                json_str = synthesis[json_start : json_end if json_end > json_start else None]
+                action_plan = json_mod.loads(json_str)
+                for i, ra in enumerate(action_plan.get("recommended_actions", [])):
+                    parent_actions.append(
+                        {
+                            "title": ra.get("title", ""),
+                            "description": ra.get("description", ""),
+                            "priority": ra.get("priority", "medium"),
+                            "timeline": ra.get("timeline"),
+                            "success_criteria": ra.get("success_metrics", []),
+                            "kill_criteria": ra.get("risks", []),
+                            "is_strategic": True,
+                            "sort_order": i,
+                            "source_section": "meta_synthesis",
+                            "confidence": 0.95,
+                            "category": "implementation",
+                        }
+                    )
+        except Exception as e:
+            logger.debug(f"Failed to parse meta-synthesis JSON: {e}")
+
+    parent_titles = (
+        "\n".join(f"{i + 1}. {p['title']}" for i, p in enumerate(parent_actions))
+        if parent_actions
+        else "N/A"
+    )
+
+    # Build sub-problem context
+    sub_problem_syntheses = [(s, idx) for s, idx in synthesis_events if idx is not None]
+    total_sub_problems = len(sub_problem_syntheses)
+
+    sub_problem_goals: dict[int, str] = {}
+    for event_json in redis_events or []:
+        try:
+            event = (
+                json_mod.loads(event_json) if isinstance(event_json, (str, bytes)) else event_json
+            )
+            if event.get("event_type") == "decomposition_complete":
+                for idx, sp in enumerate(event.get("data", {}).get("sub_problems", [])):
+                    sub_problem_goals[idx] = sp.get("goal", f"Sub-problem {idx + 1}")
+                break
+        except Exception as e:
+            logger.debug(f"Failed to parse event for goals: {e}")
+            continue
+
+    # Extract tasks from sub-problem syntheses only (sequential for dedup context)
+    all_tasks: list[dict[str, Any]] = []
+    all_sections: list[str] = []
+    total_conf = 0.0
+    previously_extracted: list[str] = []
+
+    for synthesis, sub_problem_index in synthesis_events:
+        if sub_problem_index is None:
+            continue
+        other_goals = [
+            f"[sp{idx}] {goal}"
+            for idx, goal in sub_problem_goals.items()
+            if idx != sub_problem_index
+        ]
+        prev_tasks_str = (
+            "\n".join(f"- {t}" for t in previously_extracted)
+            if previously_extracted
+            else "None yet"
+        )
+        try:
+            result = sync_extract_tasks_from_synthesis(
+                synthesis=synthesis,
+                session_id=session_id,
+                anthropic_api_key=api_key,
+                sub_problem_index=sub_problem_index,
+                total_sub_problems=total_sub_problems,
+                other_sub_problem_goals=other_goals,
+                timeout_seconds=60.0,
+                parent_action_titles=parent_titles,
+                previously_extracted_tasks=prev_tasks_str,
+            )
+            for task in result.tasks:
+                td = task.model_dump() if hasattr(task, "model_dump") else task
+                td["sub_problem_index"] = sub_problem_index
+                all_tasks.append(td)
+                previously_extracted.append(td.get("title", ""))
+            all_sections.extend(result.synthesis_sections_analyzed)
+            total_conf += result.extraction_confidence
+        except Exception as e:
+            logger.warning(f"[{session_id}] Extraction failed for sp{sub_problem_index}: {e}")
+
+    successful = len(sub_problem_syntheses)
+    avg_conf = total_conf / successful if successful > 0 else 0.0
+
+    session_repository.save_tasks(
+        session_id=session_id,
+        tasks=all_tasks,
+        total_tasks=len(all_tasks) + len(parent_actions),
+        extraction_confidence=avg_conf,
+        synthesis_sections_analyzed=list(set(all_sections)),
+        user_id=user_id,
+        parent_actions=parent_actions,
+    )
+    return {"total_tasks": len(all_tasks) + len(parent_actions)}
+
+
 @router.post(
     "/{session_id}/extract-tasks",
     summary="Extract actionable tasks from synthesis",
@@ -1645,14 +1805,66 @@ async def extract_tasks(
                     logger.debug(f"Failed to parse event JSON: {e}")
                     continue
 
+            # Step 4a: Parse meta-synthesis JSON for parent strategic actions
+            parent_actions: list[dict[str, Any]] = []
+            for synthesis, sp_idx in synthesis_events:
+                if sp_idx is not None:
+                    continue  # Only process meta-synthesis
+                try:
+                    import json as json_parse
+
+                    # Meta-synthesis JSON is delimited by \n\n---
+                    json_end = synthesis.find("\n\n---")
+                    json_start = synthesis.find("{")
+                    if json_start >= 0:
+                        json_str = synthesis[
+                            json_start : json_end if json_end > json_start else None
+                        ]
+                        action_plan = json_parse.loads(json_str)
+                        for i, ra in enumerate(action_plan.get("recommended_actions", [])):
+                            parent_actions.append(
+                                {
+                                    "title": ra.get("title", ""),
+                                    "description": ra.get("description", ""),
+                                    "priority": ra.get("priority", "medium"),
+                                    "timeline": ra.get("timeline"),
+                                    "success_criteria": ra.get("success_metrics", []),
+                                    "kill_criteria": ra.get("risks", []),
+                                    "is_strategic": True,
+                                    "sort_order": i,
+                                    "source_section": "meta_synthesis",
+                                    "confidence": 0.95,
+                                    "category": "implementation",
+                                }
+                            )
+                        logger.info(
+                            f"Parsed {len(parent_actions)} strategic actions from meta-synthesis "
+                            f"for session {session_id}"
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to parse parent actions from meta-synthesis: {e}")
+
+            # Build parent titles string for sub-problem extraction
+            parent_titles = (
+                "\n".join(f"{i + 1}. {p['title']}" for i, p in enumerate(parent_actions))
+                if parent_actions
+                else "N/A"
+            )
+
             # Extract tasks from each synthesis and tag with sub_problem_index
+            # Sequential extraction: pass previously extracted titles for dedup
             all_tasks: list[dict[str, Any]] = []
             all_sections_analyzed: list[str] = []
             total_confidence_sum = 0.0
             tasks_by_sp: dict[int | None, int] = {}  # Track task count per sub-problem
             extraction_errors: list[str] = []  # Track failed extractions
+            previously_extracted: list[str] = []
 
             for synthesis, sub_problem_index in synthesis_events:
+                # Step 4b: Skip meta-synthesis — parents already parsed from JSON
+                if sub_problem_index is None:
+                    tasks_by_sp[None] = len(parent_actions)
+                    continue
                 logger.info(
                     f"Extracting tasks from synthesis (sub_problem_index={sub_problem_index}) "
                     f"for session {session_id}"
@@ -1665,6 +1877,12 @@ async def extract_tasks(
                     if idx != sub_problem_index
                 ]
 
+                prev_tasks_str = (
+                    "\n".join(f"- {t}" for t in previously_extracted)
+                    if previously_extracted
+                    else "None yet"
+                )
+
                 try:
                     result = sync_extract_tasks_from_synthesis(
                         synthesis=synthesis,
@@ -1674,6 +1892,8 @@ async def extract_tasks(
                         total_sub_problems=total_sub_problems,
                         other_sub_problem_goals=other_goals,
                         timeout_seconds=60.0,  # 60s timeout per extraction
+                        parent_action_titles=parent_titles,
+                        previously_extracted_tasks=prev_tasks_str,
                     )
 
                     # Tag each task with its sub_problem_index
@@ -1682,6 +1902,7 @@ async def extract_tasks(
                         task_dict = task.model_dump() if hasattr(task, "model_dump") else task
                         task_dict["sub_problem_index"] = sub_problem_index
                         all_tasks.append(task_dict)
+                        previously_extracted.append(task_dict.get("title", ""))
                         task_count += 1
 
                     # Track task count per sub-problem for validation
@@ -1739,9 +1960,13 @@ async def extract_tasks(
                 )
 
             # Prepare result dictionary (include warnings for partial failures)
+            # Include parent actions as tasks for the response
+            all_tasks_with_parents = [
+                {**p, "sub_problem_index": None} for p in parent_actions
+            ] + all_tasks
             result_dict: dict[str, Any] = {
-                "tasks": all_tasks,
-                "total_tasks": len(all_tasks),
+                "tasks": all_tasks_with_parents,
+                "total_tasks": len(all_tasks_with_parents),
                 "extraction_confidence": avg_confidence,
                 "synthesis_sections_analyzed": list(set(all_sections_analyzed)),
             }
@@ -1753,9 +1978,10 @@ async def extract_tasks(
                 session_repository.save_tasks(
                     session_id=session_id,
                     tasks=all_tasks,
-                    total_tasks=len(all_tasks),
+                    total_tasks=len(all_tasks) + len(parent_actions),
                     extraction_confidence=avg_confidence,
                     synthesis_sections_analyzed=list(set(all_sections_analyzed)),
+                    parent_actions=parent_actions,
                 )
                 logger.info(f"Saved extracted tasks to PostgreSQL for session {session_id}")
             except Exception as e:

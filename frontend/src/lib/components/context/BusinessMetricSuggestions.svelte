@@ -11,6 +11,7 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// Props
 	interface Props {
 		onapplied?: (event: { metricKey: string; value: number }) => void;
@@ -120,14 +121,6 @@
 		return `${Math.round(confidence * 100)}%`;
 	}
 
-	function formatDate(dateStr: string | null | undefined): string {
-		if (!dateStr) return '';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 
 	function truncateQuestion(question: string, maxLen: number = 50): string {
 		if (question.length <= maxLen) return question;

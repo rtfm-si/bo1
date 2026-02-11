@@ -9,6 +9,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { InvitationResponse } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		data: {
 			invitation: InvitationResponse | null;
@@ -32,16 +33,6 @@
 	let actionResult = $state<'accepted' | 'declined' | null>(null);
 	let actionError = $state<string | null>(null);
 
-	// Format date for display
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString(undefined, {
-			weekday: 'long',
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
 
 	// Check if invitation is expired
 	const isExpired = $derived.by(() => {

@@ -16666,20 +16666,11 @@ export interface components {
          * ClarificationRequest
          * @description Request model for clarification answers.
          *
-         *     Supports both single answer (legacy) and multiple answers (new).
-         *
          *     Attributes:
-         *         answer: Single answer to clarification question (legacy, optional)
-         *         answers: Dict of question->answer pairs (new, optional)
+         *         answers: Dict of question->answer pairs
          *         skip: Whether to skip all questions without answering
          */
         ClarificationRequest: {
-            /**
-             * Answer
-             * @description Single answer to clarification question (legacy)
-             * @example Our current churn rate is 3.5% monthly
-             */
-            answer?: string | null;
             /**
              * Answers
              * @description Dict of question->answer pairs for multiple questions (max 5000 chars per answer)
@@ -31319,6 +31310,11 @@ export interface components {
              */
             event_type: "voting_complete";
             /**
+             * Recommendations Count
+             * @description Number of recommendations collected
+             */
+            recommendations_count: number;
+            /**
              * Session Id
              * @description Session identifier
              */
@@ -31334,11 +31330,6 @@ export interface components {
              * @description ISO 8601 timestamp
              */
             timestamp?: string;
-            /**
-             * Votes Count
-             * @description Number of votes cast
-             */
-            votes_count: number;
         } & {
             [key: string]: unknown;
         };

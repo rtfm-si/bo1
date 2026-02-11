@@ -219,7 +219,7 @@ class VotingCompleteEvent(BaseEvent):
     """Emitted when voting completes."""
 
     event_type: Literal["voting_complete"] = "voting_complete"
-    votes_count: int = Field(..., ge=0, description="Number of votes cast")
+    recommendations_count: int = Field(..., ge=0, description="Number of recommendations collected")
     consensus_level: Literal["strong", "moderate", "weak"] = Field(
         ..., description="Level of consensus"
     )

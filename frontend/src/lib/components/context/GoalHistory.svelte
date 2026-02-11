@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface GoalEntry {
 		goal_text: string;
 		changed_at: string;
@@ -34,14 +35,6 @@
 		}
 	});
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
 
 	function formatRelativeTime(dateStr: string): string {
 		const date = new Date(dateStr);

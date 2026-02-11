@@ -21,6 +21,7 @@ from backend.api.middleware.workspace_auth import (
     WorkspaceAccessChecker,
     WorkspacePermissionChecker,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
@@ -90,7 +91,7 @@ async def send_invitation(
         HTTPException: 403 if trying to invite with higher role
         HTTPException: 409 if duplicate invitation or already a member
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
     logger.info(f"Sending invitation to {request.email} for workspace {workspace_id}")
 
     # Prevent admins from inviting owners
@@ -181,7 +182,7 @@ async def revoke_invitation(
     success = invitation_service.revoke_invitation(
         invitation_id=invitation_id,
         workspace_id=workspace_id,
-        actor_id=user["user_id"],
+        actor_id=extract_user_id(user),
     )
     if not success:
         raise http_error(
@@ -279,7 +280,7 @@ async def accept_invitation(
         HTTPException: 404 if invitation not found
         HTTPException: 410 if invitation expired
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     user_email = user.get("email", "")
 
     try:

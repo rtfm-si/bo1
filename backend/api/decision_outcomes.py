@@ -19,6 +19,7 @@ from backend.api.models import (
     ErrorResponse,
     PendingFollowupResponse,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.api.utils.responses import ERROR_400_RESPONSE, ERROR_404_RESPONSE
@@ -29,6 +30,11 @@ from bo1.state.repositories.user_decision_repository import user_decision_reposi
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["decision-outcomes"])
+
+
+def _decision_not_found() -> HTTPException:
+    return HTTPException(status_code=404, detail="No decision found for this session")
+
 
 # Session-scoped routes
 session_router = APIRouter(prefix="/v1/sessions/{session_id}/decision/outcome")
@@ -61,7 +67,7 @@ async def submit_outcome(
     # Verify session has a decision
     decision = user_decision_repository.get_by_session(session_id, user_id)
     if not decision:
-        raise HTTPException(status_code=404, detail="No decision found for this session")
+        raise _decision_not_found()
 
     outcome = decision_outcome_repository.upsert(
         decision_id=decision.id,
@@ -100,7 +106,7 @@ async def get_outcome(
 
     decision = user_decision_repository.get_by_session(session_id, user_id)
     if not decision:
-        raise HTTPException(status_code=404, detail="No decision found for this session")
+        raise _decision_not_found()
 
     outcome = decision_outcome_repository.get_by_decision(decision.id, user_id)
     if not outcome:
@@ -126,7 +132,7 @@ async def get_pending_followups(
     user: dict = Depends(get_current_user),
 ) -> list[PendingFollowupResponse]:
     """Get decisions older than 30 days that don't have outcomes yet."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     rows = decision_outcome_repository.list_pending_followups(user_id, age_days=30)
     return [PendingFollowupResponse(**r) for r in rows]
 

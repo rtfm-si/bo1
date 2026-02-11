@@ -452,30 +452,6 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 		}
 	}
 
-	// Fallback: Try unified_recommendation for meta-synthesis (maps to recommendation)
-	if (!sections.recommendation) {
-		const unifiedRec = extractXMLSection(cleanedContent, 'unified_recommendation');
-		if (unifiedRec) {
-			sections.recommendation = unifiedRec;
-		}
-	}
-
-	// Fallback: Try unified_action_plan for meta-synthesis (maps to implementation_considerations)
-	if (!sections.implementation_considerations) {
-		const actionPlan = extractXMLSection(cleanedContent, 'unified_action_plan');
-		if (actionPlan) {
-			sections.implementation_considerations = actionPlan;
-		}
-	}
-
-	// Fallback: Try integrated_risk_assessment for meta-synthesis (maps to risks_and_mitigations)
-	if (!sections.risks_and_mitigations) {
-		const riskAssessment = extractXMLSection(cleanedContent, 'integrated_risk_assessment');
-		if (riskAssessment) {
-			sections.risks_and_mitigations = riskAssessment;
-		}
-	}
-
 	// If no XML sections found, try markdown parsing
 	if (Object.keys(sections).length === 0 && isMarkdownFormatted(cleanedContent)) {
 		sections = parseMarkdownSections(cleanedContent);

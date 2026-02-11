@@ -443,8 +443,12 @@ class TestManagedCompetitorAPI:
         )
 
         with (
-            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
-            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.add_managed_competitor"
+            ) as mock_add,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.get_context"
+            ) as mock_context,
         ):
             mock_add.return_value = {
                 "name": "TestCompetitor",
@@ -481,8 +485,12 @@ class TestManagedCompetitorAPI:
         )
 
         with (
-            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
-            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.add_managed_competitor"
+            ) as mock_add,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.get_context"
+            ) as mock_context,
         ):
             mock_add.return_value = {
                 "name": "FullDataCompetitor",
@@ -508,7 +516,9 @@ class TestManagedCompetitorAPI:
 
         request = ManagedCompetitorCreate(name="ExistingCompetitor")
 
-        with patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add:
+        with patch(
+            "backend.api.context.competitors_routes.user_repository.add_managed_competitor"
+        ) as mock_add:
             mock_add.return_value = None  # Indicates duplicate
 
             with pytest.raises(HTTPException) as exc_info:
@@ -526,9 +536,15 @@ class TestManagedCompetitorAPI:
         request = ManagedCompetitorCreate(name="SkepticTestCompetitor")
 
         with (
-            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
-            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
-            patch("backend.api.context.routes.evaluate_competitor_relevance") as mock_skeptic,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.add_managed_competitor"
+            ) as mock_add,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.get_context"
+            ) as mock_context,
+            patch(
+                "backend.api.context.competitors_routes.evaluate_competitor_relevance"
+            ) as mock_skeptic,
         ):
             mock_add.return_value = {
                 "name": "SkepticTestCompetitor",
@@ -561,10 +577,14 @@ class TestManagedCompetitorAPI:
         request = ManagedCompetitorCreate(name="WeakCompetitor")
 
         with (
-            patch("backend.api.context.routes.user_repository.add_managed_competitor") as mock_add,
-            patch("backend.api.context.routes.user_repository.get_context") as mock_context,
             patch(
-                "backend.api.context.routes.evaluate_competitor_relevance",
+                "backend.api.context.competitors_routes.user_repository.add_managed_competitor"
+            ) as mock_add,
+            patch(
+                "backend.api.context.competitors_routes.user_repository.get_context"
+            ) as mock_context,
+            patch(
+                "backend.api.context.competitors_routes.evaluate_competitor_relevance",
                 new_callable=AsyncMock,
             ) as mock_skeptic,
         ):

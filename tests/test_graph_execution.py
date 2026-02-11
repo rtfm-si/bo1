@@ -74,8 +74,8 @@ async def test_graph_executes_end_to_end(sample_problem_marketing):
     assert result["round_number"] >= 1  # At least one round completed
 
     # Verify voting and synthesis completed (Day 31)
-    assert "votes" in result
-    assert len(result["votes"]) > 0, "Votes should be collected"
+    assert "recommendations" in result
+    assert len(result["recommendations"]) > 0, "Recommendations should be collected"
 
     assert "synthesis" in result
     assert result["synthesis"] is not None, "Synthesis should be generated"

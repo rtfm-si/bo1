@@ -31,6 +31,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { ManagedCompetitor } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		/** Initial competitors to display */
 		initialCompetitors?: ManagedCompetitor[];
@@ -252,10 +253,6 @@
 		newNotes = '';
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function getRelevanceBadge(score: number | null | undefined): { label: string; variant: 'success' | 'warning' | 'error'; tooltip: string } {
 		if (score === null || score === undefined) {

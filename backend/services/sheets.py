@@ -13,19 +13,19 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
+from backend.services.google_oauth import refresh_google_token
+from backend.services.http_utils import create_resilient_session
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 # Google Drive API base URL
 DRIVE_API_BASE = "https://www.googleapis.com/drive/v3/files"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 
 # URL patterns for Google Drive files
 DRIVE_URL_PATTERNS = [
@@ -90,15 +90,9 @@ class SheetsClient:
                 "Google API key not configured. Set GOOGLE_API_KEY environment variable."
             )
 
-        # Configure session with retry logic
-        self._session = requests.Session()
-        retry = Retry(
-            total=3,
-            backoff_factor=0.5,
+        self._session = create_resilient_session(
             status_forcelist=[429, 500, 502, 503, 504],
         )
-        adapter = HTTPAdapter(max_retries=retry)
-        self._session.mount("https://", adapter)
 
     def parse_sheets_url(self, url: str) -> str:
         """Extract file ID from a Google Drive/Sheets URL.
@@ -335,9 +329,9 @@ class SheetsClient:
 
 
 # Singleton instance
-_sheets_client: SheetsClient | None = None
 
 
+@lru_cache(maxsize=1)
 def get_sheets_client() -> SheetsClient:
     """DEPRECATED: Use get_oauth_sheets_client instead.
 
@@ -350,16 +344,12 @@ def get_sheets_client() -> SheetsClient:
         DeprecationWarning,
         stacklevel=2,
     )
-    global _sheets_client
-    if _sheets_client is None:
-        _sheets_client = SheetsClient()
-    return _sheets_client
+    return SheetsClient()
 
 
 def reset_sheets_client() -> None:
     """Reset the singleton client (for testing)."""
-    global _sheets_client
-    _sheets_client = None
+    get_sheets_client.cache_clear()
 
 
 class OAuthSheetsClient:
@@ -385,15 +375,7 @@ class OAuthSheetsClient:
         self._refresh_token = refresh_token
         self._expires_at = expires_at
 
-        # Configure session with retry logic
-        self._session = requests.Session()
-        retry = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[500, 502, 503, 504],  # Don't retry 401/403
-        )
-        adapter = HTTPAdapter(max_retries=retry)
-        self._session.mount("https://", adapter)
+        self._session = create_resilient_session()
 
     def _is_token_expired(self) -> bool:
         """Check if access token is expired."""
@@ -423,48 +405,29 @@ class OAuthSheetsClient:
             logger.error("Google OAuth credentials not configured")
             return False
 
-        try:
-            response = requests.post(
-                GOOGLE_TOKEN_URL,
-                data={
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": self._refresh_token,
-                    "grant_type": "refresh_token",
-                },
-                timeout=30,
-            )
-
-            if response.status_code != 200:
-                logger.error(f"Token refresh failed: {response.text}")
-                return False
-
-            tokens = response.json()
-            self._access_token = tokens.get("access_token", "")
-            expires_in = tokens.get("expires_in")
-
-            if expires_in:
-                self._expires_at = (
-                    datetime.now(UTC) + timedelta(seconds=int(expires_in))
-                ).isoformat()
-
-            # Persist refreshed tokens
-            from bo1.state.repositories import user_repository
-
-            user_repository.save_google_tokens(
-                user_id=self._user_id,
-                access_token=self._access_token,
-                refresh_token=self._refresh_token,
-                expires_at=self._expires_at,
-                scopes=tokens.get("scope"),
-            )
-
-            logger.info(f"Refreshed Google access token for user {self._user_id}")
-            return True
-
-        except requests.RequestException as e:
-            logger.error(f"Token refresh request failed: {e}")
+        tokens = refresh_google_token(self._refresh_token, client_id, client_secret)
+        if tokens is None:
             return False
+
+        self._access_token = tokens.get("access_token", "")
+        expires_in = tokens.get("expires_in")
+
+        if expires_in:
+            self._expires_at = (datetime.now(UTC) + timedelta(seconds=int(expires_in))).isoformat()
+
+        # Persist refreshed tokens
+        from bo1.state.repositories import user_repository
+
+        user_repository.save_google_tokens(
+            user_id=self._user_id,
+            access_token=self._access_token,
+            refresh_token=self._refresh_token,
+            expires_at=self._expires_at,
+            scopes=tokens.get("scope"),
+        )
+
+        logger.info(f"Refreshed Google access token for user {self._user_id}")
+        return True
 
     def _ensure_valid_token(self) -> None:
         """Ensure we have a valid access token, refreshing if needed."""

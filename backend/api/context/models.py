@@ -1891,3 +1891,19 @@ class DismissBusinessMetricSuggestionRequest(BaseModel):
         max_length=500,
         description="The source question of the suggestion to dismiss",
     )
+
+
+class InsightEnrichRequest(BaseModel):
+    """Request to enrich a specific insight with market context."""
+
+    question_key: str = Field(..., description="The clarification question key to enrich")
+
+
+class InsightEnrichResponse(BaseModel):
+    """Response from insight enrichment."""
+
+    success: bool = Field(..., description="Whether enrichment succeeded")
+    enriched: bool = Field(False, description="Whether market context was added")
+    percentile_position: int | None = Field(None, description="User's percentile (0-100)")
+    comparison_text: str | None = Field(None, description="Human-readable comparison")
+    error: str | None = Field(None, description="Error message if failed")

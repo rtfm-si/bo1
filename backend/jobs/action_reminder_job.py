@@ -8,15 +8,14 @@ Runs hourly to:
 """
 
 import logging
-from typing import Any
 
+from backend.jobs.shared import get_frontend_url, get_user_data, should_send_email
 from backend.services.action_reminders import get_pending_reminders, mark_reminder_sent
 from backend.services.email import send_email_async
 from backend.services.email_templates import (
     render_action_deadline_reminder_email,
     render_action_start_reminder_email,
 )
-from bo1.config import get_settings
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -91,32 +90,17 @@ def _process_user_reminders(user_id: str) -> dict[str, int]:
     """
     stats = {"sent": 0, "skipped": 0, "failed": 0}
 
-    # Get user data
-    user_data = _get_user_data(user_id)
-    if not user_data:
-        stats["skipped"] += 1
-        return stats
-
-    email = user_data.get("email")
-    if not email or email.endswith("@placeholder.local"):
-        stats["skipped"] += 1
-        return stats
-
-    # Check email preferences
-    prefs = user_data.get("email_preferences") or {}
-    if prefs.get("reminder_emails") is False:
+    can_send, email = should_send_email(get_user_data(user_id), "reminder_emails")
+    if not can_send:
         stats["skipped"] += 1
         return stats
 
     # Get pending reminders (max 5 per user per run)
     reminders = get_pending_reminders(user_id, limit=5)
 
-    settings = get_settings()
-    frontend_domain = settings.supertokens_website_domain
-
     for reminder in reminders:
         try:
-            action_url = f"{frontend_domain}/actions/{reminder.action_id}"
+            action_url = get_frontend_url(f"/actions/{reminder.action_id}")
 
             if reminder.reminder_type == "start_overdue":
                 html, text = render_action_start_reminder_email(
@@ -153,26 +137,6 @@ def _process_user_reminders(user_id: str) -> dict[str, int]:
             stats["failed"] += 1
 
     return stats
-
-
-def _get_user_data(user_id: str) -> dict[str, Any] | None:
-    """Fetch user data from database."""
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, email, email_preferences
-                    FROM users
-                    WHERE id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                return dict(row) if row else None
-    except Exception as e:
-        logger.error(f"Failed to get user data: {e}")
-        return None
 
 
 # CLI entrypoint for manual/cron execution

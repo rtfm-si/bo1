@@ -9,6 +9,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 from backend.services.action_failure_detector import (
@@ -398,12 +399,9 @@ class ImprovementPlanGenerator:
 
 
 # Module-level singleton
-_generator: ImprovementPlanGenerator | None = None
 
 
+@lru_cache(maxsize=1)
 def get_improvement_plan_generator() -> ImprovementPlanGenerator:
     """Get or create the improvement plan generator singleton."""
-    global _generator
-    if _generator is None:
-        _generator = ImprovementPlanGenerator()
-    return _generator
+    return ImprovementPlanGenerator()

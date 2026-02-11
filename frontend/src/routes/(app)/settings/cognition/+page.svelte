@@ -18,6 +18,7 @@
 	import Tier2AssessmentFlow from '$lib/components/cognition/Tier2AssessmentFlow.svelte';
 	import { MessageCircle, ChevronDown, ChevronUp } from 'lucide-svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	type Tier2Instrument = 'leverage' | 'tension' | 'time_bias';
 
 	// State
@@ -81,11 +82,6 @@
 		expandedBlindspots[blindspotId] = !expandedBlindspots[blindspotId];
 	}
 
-	// Format date for display
-	function formatDate(isoDate: string): string {
-		const date = new Date(isoDate);
-		return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-	}
 
 	onMount(async () => {
 		await loadProfile();

@@ -19,46 +19,45 @@ import type {
 	CheckpointStateResponse,
 	ApiError,
 	UserContextResponse,
-	UserContext,
-	AdminUser,
-	AdminUserListResponse,
+	BusinessContext,
+	UserInfo,
+	UserListResponse,
 	AdminUserUpdateRequest,
-	WhitelistEntry,
-	WhitelistResponse,
+	BetaWhitelistEntry,
+	BetaWhitelistResponse,
 	WaitlistResponse,
 	WaitlistApprovalResponse,
 	TaskExtractionResponse,
 	SessionEventsResponse,
 	SessionActionsResponse,
-	TaskStatusUpdateRequest,
+	TaskStatusUpdate,
 	AllActionsResponse,
 	ActionDetailResponse,
 	ActionStatus,
 	// Project types
 	ProjectStatus,
-	ProjectCreateRequest,
-	ProjectUpdateRequest,
+	ProjectCreate,
+	ProjectUpdate,
 	ProjectDetailResponse,
 	ProjectListResponse,
 	ProjectActionsResponse,
 	ProjectSessionsResponse,
 	GanttResponse,
 	// Action Update types (Phase 5)
-	ActionUpdateCreateRequest,
+	ActionUpdateCreate,
 	ActionUpdateResponse,
 	ActionUpdatesResponse,
 	// Action Dates types (Gantt drag-to-reschedule)
-	ActionDatesUpdateRequest,
+	ActionDatesUpdate,
 	ActionDatesResponse,
 	// Replanning types (Phase 7)
 	ReplanRequest,
 	ReplanResponse,
 	// Tag types
-	TagCreateRequest,
-	TagUpdateRequest,
+	TagCreate,
+	TagUpdate,
 	TagResponse,
 	TagListResponse,
-	ActionTagsUpdateRequest,
 	// Dependency types
 	DependencyType,
 	DependencyListResponse,
@@ -81,14 +80,13 @@ import type {
 	// Action Reminder types
 	ActionRemindersResponse,
 	ReminderSettingsResponse,
-	ReminderSettingsUpdateRequest,
+	ReminderSettingsUpdate,
 	// Unblock Suggestions types
 	UnblockPathsResponse,
 	// Query types (Data Analysis)
 	QuerySpec,
 	QueryResultResponse,
 	// Dataset types (Data Analysis)
-	Dataset,
 	DatasetResponse,
 	DatasetDetailResponse,
 	DatasetListResponse,
@@ -514,7 +512,7 @@ export interface EnrichmentRequest {
 
 export interface EnrichmentResponse {
 	success: boolean;
-	context?: UserContext;
+	context?: BusinessContext;
 	enrichment_source?: string;
 	confidence?: string;
 	error?: string;
@@ -1200,7 +1198,7 @@ export class ApiClient {
 		return this.fetch<UserContextResponse>('/api/v1/context');
 	}
 
-	async updateUserContext(context: UserContext): Promise<{ status: string }> {
+	async updateUserContext(context: BusinessContext): Promise<{ status: string }> {
 		return this.put<{ status: string }>('/api/v1/context', context);
 	}
 
@@ -1350,7 +1348,7 @@ export class ApiClient {
 	async updateTaskStatus(
 		sessionId: string,
 		taskId: string,
-		status: TaskStatusUpdateRequest['status']
+		status: TaskStatusUpdate['status']
 	): Promise<{ status: string; message: string }> {
 		return this.patch<{ status: string; message: string }>(
 			`/api/v1/sessions/${sessionId}/actions/${taskId}`,
@@ -1471,7 +1469,7 @@ export class ApiClient {
 
 	async updateActionReminderSettings(
 		actionId: string,
-		settings: ReminderSettingsUpdateRequest
+		settings: ReminderSettingsUpdate
 	): Promise<ReminderSettingsResponse> {
 		return this.patch<ReminderSettingsResponse>(`/api/v1/actions/${actionId}/reminder-settings`, settings);
 	}
@@ -1513,29 +1511,29 @@ export class ApiClient {
 	// Admin Endpoints - Users
 	// ==========================================================================
 
-	async listUsers(params?: { page?: number; per_page?: number; email?: string }): Promise<AdminUserListResponse> {
+	async listUsers(params?: { page?: number; per_page?: number; email?: string }): Promise<UserListResponse> {
 		const endpoint = withQueryString('/api/admin/users', params || {});
-		return this.fetch<AdminUserListResponse>(endpoint);
+		return this.fetch<UserListResponse>(endpoint);
 	}
 
-	async getUser(userId: string): Promise<AdminUser> {
-		return this.fetch<AdminUser>(`/api/admin/users/${userId}`);
+	async getUser(userId: string): Promise<UserInfo> {
+		return this.fetch<UserInfo>(`/api/admin/users/${userId}`);
 	}
 
-	async updateUser(userId: string, data: AdminUserUpdateRequest): Promise<AdminUser> {
-		return this.patch<AdminUser>(`/api/admin/users/${userId}`, data);
+	async updateUser(userId: string, data: AdminUserUpdateRequest): Promise<UserInfo> {
+		return this.patch<UserInfo>(`/api/admin/users/${userId}`, data);
 	}
 
 	// ==========================================================================
 	// Admin Endpoints - Whitelist
 	// ==========================================================================
 
-	async listWhitelist(): Promise<WhitelistResponse> {
-		return this.fetch<WhitelistResponse>('/api/admin/beta-whitelist');
+	async listWhitelist(): Promise<BetaWhitelistResponse> {
+		return this.fetch<BetaWhitelistResponse>('/api/admin/beta-whitelist');
 	}
 
-	async addToWhitelist(data: { email: string; notes?: string }): Promise<WhitelistEntry> {
-		return this.post<WhitelistEntry>('/api/admin/beta-whitelist', data);
+	async addToWhitelist(data: { email: string; notes?: string }): Promise<BetaWhitelistEntry> {
+		return this.post<BetaWhitelistEntry>('/api/admin/beta-whitelist', data);
 	}
 
 	async removeFromWhitelist(email: string): Promise<ControlResponse> {
@@ -2068,7 +2066,7 @@ export class ApiClient {
 		return this.fetch<ProjectListResponse>(endpoint);
 	}
 
-	async createProject(request: ProjectCreateRequest): Promise<ProjectDetailResponse> {
+	async createProject(request: ProjectCreate): Promise<ProjectDetailResponse> {
 		return this.post<ProjectDetailResponse>('/api/v1/projects', request);
 	}
 
@@ -2076,7 +2074,7 @@ export class ApiClient {
 		return this.fetch<ProjectDetailResponse>(`/api/v1/projects/${projectId}`);
 	}
 
-	async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailResponse> {
+	async updateProject(projectId: string, request: ProjectUpdate): Promise<ProjectDetailResponse> {
 		return this.fetch<ProjectDetailResponse>(`/api/v1/projects/${projectId}`, {
 			method: 'PATCH',
 			body: JSON.stringify(request)
@@ -2215,7 +2213,7 @@ export class ApiClient {
 	 */
 	async updateActionDates(
 		actionId: string,
-		dates: ActionDatesUpdateRequest
+		dates: ActionDatesUpdate
 	): Promise<ActionDatesResponse> {
 		return this.patch<ActionDatesResponse>(`/api/v1/actions/${actionId}/dates`, dates);
 	}
@@ -2241,7 +2239,7 @@ export class ApiClient {
 	 */
 	async addActionUpdate(
 		actionId: string,
-		update: ActionUpdateCreateRequest
+		update: ActionUpdateCreate
 	): Promise<ActionUpdateResponse> {
 		return this.post<ActionUpdateResponse>(`/api/v1/actions/${actionId}/updates`, update);
 	}
@@ -2306,14 +2304,14 @@ export class ApiClient {
 	/**
 	 * Create a new tag
 	 */
-	async createTag(request: TagCreateRequest): Promise<TagResponse> {
+	async createTag(request: TagCreate): Promise<TagResponse> {
 		return this.post<TagResponse>('/api/v1/tags', request);
 	}
 
 	/**
 	 * Update an existing tag
 	 */
-	async updateTag(tagId: string, request: TagUpdateRequest): Promise<TagResponse> {
+	async updateTag(tagId: string, request: TagUpdate): Promise<TagResponse> {
 		return this.patch<TagResponse>(`/api/v1/tags/${tagId}`, request);
 	}
 
@@ -2372,7 +2370,7 @@ export class ApiClient {
 	 * Upload a CSV dataset
 	 * Note: Uses FormData, not JSON
 	 */
-	async uploadDataset(file: File, name: string, description?: string): Promise<Dataset> {
+	async uploadDataset(file: File, name: string, description?: string): Promise<DatasetResponse> {
 		const formData = new FormData();
 		formData.append('file', file);
 		formData.append('name', name);
@@ -2426,8 +2424,8 @@ export class ApiClient {
 	/**
 	 * Import a Google Sheet as a dataset
 	 */
-	async importSheetsDataset(url: string, name?: string, description?: string): Promise<Dataset> {
-		return this.post<Dataset>('/api/v1/datasets/import-sheets', {
+	async importSheetsDataset(url: string, name?: string, description?: string): Promise<DatasetResponse> {
+		return this.post<DatasetResponse>('/api/v1/datasets/import-sheets', {
 			url,
 			name,
 			description

@@ -18,6 +18,7 @@
 	import { preferredCurrency } from '$lib/stores/preferences';
 	import { getCurrencySymbol } from '$lib/utils/currency';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// Config
 	const TOP_UNFILLED_COUNT = 5;
 
@@ -198,11 +199,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Never';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	async function dismissMetric(metricKey: string) {
 		dismissingMetric = metricKey;

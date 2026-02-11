@@ -133,12 +133,6 @@ export const decisionTypesRow2: readonly string[] = [
 	'Exit planning',
 ] as const;
 
-/** @deprecated Use decisionTypesRow1 and decisionTypesRow2 instead */
-export const decisionTypes: readonly string[] = [
-	...decisionTypesRow1,
-	...decisionTypesRow2,
-] as const;
-
 /**
  * Frequently asked questions
  * Common questions about Board of One with detailed answers

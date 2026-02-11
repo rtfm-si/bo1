@@ -25,6 +25,7 @@
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let health = $state<SystemHealthResponse | null>(null);
 	let patterns = $state<ErrorPattern[]>([]);
@@ -147,9 +148,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleString();
-	}
 
 	function getComponentIcon(name: string) {
 		switch (name) {

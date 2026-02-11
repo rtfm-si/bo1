@@ -17,10 +17,12 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 import httpx
 
+from backend.services.safe_types import safe_list, safe_str
 from bo1.config import get_settings
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.circuit_breaker import get_service_circuit_breaker
@@ -541,25 +543,16 @@ class TrendSummaryGenerator:
             )
 
     def _safe_str(self, value: Any, max_len: int) -> str | None:
-        """Safely convert value to string with length limit."""
-        if value is None:
-            return None
-        return str(value)[:max_len] if value else None
+        return safe_str(value, max_len)
 
     def _safe_list(self, value: Any, max_items: int) -> list[str]:
-        """Safely convert value to list of strings."""
-        if not value or not isinstance(value, list):
-            return []
-        return [str(item)[:300] for item in value[:max_items] if item]
+        return safe_list(value, max_items)
 
 
 # Module-level singleton
-_generator: TrendSummaryGenerator | None = None
 
 
+@lru_cache(maxsize=1)
 def get_trend_summary_generator() -> TrendSummaryGenerator:
     """Get or create the trend summary generator singleton."""
-    global _generator
-    if _generator is None:
-        _generator = TrendSummaryGenerator()
-    return _generator
+    return TrendSummaryGenerator()

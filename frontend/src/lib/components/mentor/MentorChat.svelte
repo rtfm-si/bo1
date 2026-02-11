@@ -2,7 +2,7 @@
 	/**
 	 * MentorChat - Main chat interface for mentor conversations
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { MentorMessage as MessageType, ResolvedMentions, HoneypotFields as HoneypotFieldsType, ConversationSearchResult } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
@@ -11,7 +11,8 @@
 	import PersonaPicker from './PersonaPicker.svelte';
 	import ContextSourcesBadge from './ContextSourcesBadge.svelte';
 	import MentionAutocomplete from './MentionAutocomplete.svelte';
-	import { Send, Square, Loader2, Search, X } from 'lucide-svelte';
+	import { Send, Square, Loader2, Search, X, MessageSquarePlus, ArrowRight } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 
 	// Props for pre-filling from URL query params
 	interface Props {
@@ -59,6 +60,12 @@
 	let searchResults = $state<ConversationSearchResult[]>([]);
 	let isSearching = $state(false);
 	let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Meeting extraction state
+	let pendingMeetingExtraction = $state(false);
+	let meetingStatement = $state<string | null>(null);
+
+	const MEETING_EXTRACT_PROMPT = 'Can you summarise the key decision or problem we\'ve been discussing? Write it as a clear, specific problem statement I could bring to my board.';
 
 	function scrollToBottom() {
 		if (messagesContainer) {
@@ -276,6 +283,10 @@
 							// Clear blindspot after first message to avoid tagging all messages
 							activeBlindspotId = null;
 							isGenerating = false;
+							if (pendingMeetingExtraction) {
+								pendingMeetingExtraction = false;
+								meetingStatement = streamingContent.trim();
+							}
 						} catch {
 							// Ignore parse errors
 						}
@@ -346,6 +357,29 @@
 		activeBlindspotId = null;
 		// Notify parent to update sidebar selection
 		onConversationChange?.(null);
+		// Flash input to signal ready for new chat
+		tick().then(() => {
+			textareaElement?.classList.add('ring-2', 'ring-brand-400');
+			setTimeout(() => textareaElement?.classList.remove('ring-2', 'ring-brand-400'), 800);
+		});
+	}
+
+	function startMeetingExtraction() {
+		if (isStreaming || messages.length === 0) return;
+		pendingMeetingExtraction = true;
+		inputValue = MEETING_EXTRACT_PROMPT;
+		handleSubmit({ preventDefault: () => {} } as Event);
+	}
+
+	function confirmStartMeeting() {
+		if (!meetingStatement?.trim()) return;
+		const text = meetingStatement.trim().slice(0, 5000);
+		meetingStatement = null;
+		goto(`/meeting/new?q=${encodeURIComponent(text)}`);
+	}
+
+	function cancelMeetingExtraction() {
+		meetingStatement = null;
 	}
 
 	function handlePersonaChange(persona: string | null) {
@@ -385,6 +419,7 @@
 		} else if (loadConversationId === null && conversationId !== null) {
 			// Clear for new conversation
 			clearConversation();
+			tick().then(() => textareaElement?.focus());
 		}
 	});
 
@@ -429,6 +464,22 @@
 						<Search class="w-4 h-4" />
 					{/if}
 				</button>
+				{#if messages.length > 0 && conversationId && !meetingStatement}
+					<button
+						onclick={startMeetingExtraction}
+						disabled={isStreaming || pendingMeetingExtraction}
+						class="p-1.5 rounded-md text-neutral-500 hover:text-brand-600 hover:bg-neutral-100
+							   dark:text-neutral-400 dark:hover:text-brand-400 dark:hover:bg-neutral-800
+							   disabled:opacity-50"
+						title="Start a meeting from this conversation"
+					>
+						{#if pendingMeetingExtraction}
+							<Loader2 class="w-4 h-4 animate-spin" />
+						{:else}
+							<MessageSquarePlus class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
 				{#if messages.length > 0}
 					<button
 						onclick={clearConversation}
@@ -488,7 +539,7 @@
 	<!-- Messages -->
 	<div bind:this={messagesContainer} class="flex-1 overflow-y-auto p-4 space-y-4">
 		{#if messages.length === 0}
-			<div class="h-full flex items-center justify-center text-neutral-500 dark:text-neutral-400">
+			<div class="flex items-start justify-center pt-12 text-neutral-500 dark:text-neutral-400">
 				<div class="text-center max-w-md">
 					<svg
 						class="w-12 h-12 mx-auto mb-3 text-neutral-300 dark:text-neutral-600"
@@ -530,6 +581,42 @@
 			{/if}
 		{/if}
 	</div>
+
+	<!-- Meeting extraction editor -->
+	{#if meetingStatement !== null}
+		<div class="mx-4 mb-2 p-3 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-950/30">
+			<label for="meeting-statement" class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+				Problem statement for your meeting
+			</label>
+			<textarea
+				id="meeting-statement"
+				bind:value={meetingStatement}
+				rows="4"
+				maxlength="5000"
+				class="w-full px-3 py-2 text-sm rounded-md border border-neutral-300 dark:border-neutral-600
+					   bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white
+					   focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
+			></textarea>
+			<div class="flex items-center justify-between mt-2">
+				<span class="text-xs text-neutral-400">{meetingStatement.length}/5000</span>
+				<div class="flex gap-2">
+					<button
+						onclick={cancelMeetingExtraction}
+						class="px-3 py-1.5 text-sm rounded-md text-neutral-600 dark:text-neutral-400
+							   hover:bg-neutral-100 dark:hover:bg-neutral-800"
+					>Cancel</button>
+					<button
+						onclick={confirmStartMeeting}
+						disabled={!meetingStatement?.trim() || meetingStatement.trim().length < 20}
+						class="px-3 py-1.5 text-sm rounded-md bg-brand-600 text-white
+							   hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5"
+					>
+						Start Meeting <ArrowRight class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Error -->
 	{#if error}

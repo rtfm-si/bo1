@@ -422,15 +422,6 @@ class RedisManager:
         logger.info(f"📝 Created new session: {session_id}")
         return session_id
 
-    @property
-    def client(self) -> redis.Redis | None:  # type: ignore[type-arg,unused-ignore]
-        """Backward compatibility: alias for self.redis.
-
-        Returns:
-            Redis client instance or None if unavailable
-        """
-        return self.redis
-
     def _get_key(self, session_id: str) -> str:
         """Get Redis key for a session.
 
@@ -440,8 +431,7 @@ class RedisManager:
         Returns:
             Redis key string
         """
-        # Support both "session:id" and "deliberation:id" formats for backward compatibility
-        if session_id.startswith("session:") or session_id.startswith("deliberation:"):
+        if session_id.startswith("session:"):
             return session_id
         return f"session:{session_id}"
 
@@ -454,7 +444,7 @@ class RedisManager:
         """Save deliberation state to Redis.
 
         Args:
-            session_id: Session identifier (can include "session:" or "deliberation:" prefix)
+            session_id: Session identifier (can include "session:" prefix)
             state: Deliberation state to save (dict)
             ttl: Optional TTL in seconds (overrides default)
 
@@ -505,7 +495,7 @@ class RedisManager:
         """Load deliberation state from Redis.
 
         Args:
-            session_id: Session identifier (can include "session:" or "deliberation:" prefix)
+            session_id: Session identifier (can include "session:" prefix)
 
         Returns:
             Deliberation state as dict if found, None otherwise

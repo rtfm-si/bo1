@@ -8,6 +8,7 @@
 	import type { ConversationResponse } from '$lib/api/types';
 	import { MessageSquare, Trash2 } from 'lucide-svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		datasetId: string;
 		selectedId?: string | null;
@@ -46,21 +47,6 @@
 		}
 	}
 
-	function formatDate(isoString: string): string {
-		const date = new Date(isoString);
-		const now = new Date();
-		const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-		if (diffDays === 0) {
-			return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-		} else if (diffDays === 1) {
-			return 'Yesterday';
-		} else if (diffDays < 7) {
-			return date.toLocaleDateString([], { weekday: 'short' });
-		} else {
-			return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-		}
-	}
 
 	function getDisplayTitle(conv: ConversationResponse): string {
 		// Generate title from conversation date

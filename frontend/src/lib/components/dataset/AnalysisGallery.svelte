@@ -7,6 +7,7 @@
 	import { apiClient } from '$lib/api/client';
 	import ChartRenderer from './ChartRenderer.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	let {
 		analyses,
 		datasetId,
@@ -49,15 +50,6 @@
 		chartPreviewError = null;
 	}
 
-	function formatDate(timestamp: string): string {
-		const date = new Date(timestamp);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit'
-		});
-	}
 
 	function getChartTypeIcon(chartType: string | undefined): string {
 		switch (chartType) {

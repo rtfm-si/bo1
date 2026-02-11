@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.workspace_auth import WorkspaceAccessChecker
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
@@ -90,7 +91,7 @@ async def get_workspace_billing(
 
     Any workspace member can view billing info.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         info = workspace_billing_service.get_billing_info(workspace_id, user_id)
@@ -136,7 +137,7 @@ async def create_workspace_checkout(
 
     Requires owner or admin role.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         result = await workspace_billing_service.create_checkout_session(
@@ -176,7 +177,7 @@ async def create_workspace_portal(
 
     Requires billing owner, owner, or admin role.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         url = await workspace_billing_service.create_portal_session(

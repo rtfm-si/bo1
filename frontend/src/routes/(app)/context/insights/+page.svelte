@@ -14,6 +14,7 @@
 	import PendingUpdates from '$lib/components/context/PendingUpdates.svelte';
 	import { getCategoryColor } from '$lib/utils/colors';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let insights = $state<ClarificationInsight[]>([]);
 	let isLoading = $state(true);
@@ -125,17 +126,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return 'Unknown date';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function formatSessionId(sessionId: string | undefined): string {
 		if (!sessionId) return 'Unknown meeting';

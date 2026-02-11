@@ -7,6 +7,7 @@ dataset metadata (name, description, columns, insights).
 import json
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 
 from bo1.llm.embeddings import cosine_similarity, generate_embeddings_batch
 from bo1.state.redis_manager import RedisManager
@@ -291,12 +292,9 @@ class DatasetSimilarityService:
 
 
 # Module-level singleton
-_similarity_service: DatasetSimilarityService | None = None
 
 
+@lru_cache(maxsize=1)
 def get_similarity_service() -> DatasetSimilarityService:
     """Get or create the similarity service singleton."""
-    global _similarity_service
-    if _similarity_service is None:
-        _similarity_service = DatasetSimilarityService()
-    return _similarity_service
+    return DatasetSimilarityService()

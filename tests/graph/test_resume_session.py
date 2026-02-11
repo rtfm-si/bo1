@@ -121,7 +121,7 @@ class TestResumeSession:
                 "contributions": [],
                 "round_summaries": [],
                 "max_rounds": 10,
-                "votes": [],
+                "recommendations": [],
                 "synthesis": "Final synthesis complete",
             }
             mock_graph.aget_state = AsyncMock(return_value=mock_checkpoint)
@@ -144,7 +144,7 @@ class TestResumeSession:
                             "contributions": [],
                             "round_summaries": [],
                             "max_rounds": 10,
-                            "votes": [],
+                            "recommendations": [],
                         }
                     },
                 }

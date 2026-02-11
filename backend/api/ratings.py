@@ -24,6 +24,7 @@ from backend.api.models import (
     RatingResponse,
     RatingTrendItem,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
 from bo1.security import sanitize_for_prompt
 from bo1.state.repositories.ratings_repository import ratings_repository
@@ -54,7 +55,7 @@ async def submit_rating(
 
     Upserts: if user already rated this entity, updates the rating.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Sanitize optional comment
     safe_comment = sanitize_for_prompt(body.comment) if body.comment else None
@@ -97,7 +98,7 @@ async def get_rating(
             detail={"error": "Invalid entity_type", "message": "Must be 'meeting' or 'action'"},
         )
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     rating = ratings_repository.get_user_rating(user_id, entity_type, entity_id)
 
     if not rating:

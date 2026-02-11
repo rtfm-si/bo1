@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
 from bo1.state.repositories.terms_repository import terms_repository
 from bo1.utils.logging import get_logger
@@ -154,7 +155,7 @@ async def get_consent_status(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ConsentStatusResponse:
     """Check user's consent status for all required policies."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Get current active version
     current_version = terms_repository.get_active_version()
@@ -226,7 +227,7 @@ async def record_consent(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ConsentRecordResponse:
     """Record user's consent to a policy version."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Validate policy type
     if body.policy_type not in POLICY_CONFIG:
@@ -284,7 +285,7 @@ async def record_multi_consent(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> MultiConsentResponse:
     """Record user's consent to multiple policies at once."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Validate all policy types
     for pt in body.policy_types:

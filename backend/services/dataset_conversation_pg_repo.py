@@ -5,6 +5,7 @@ Provides durable storage for dataset Q&A conversations. Redis cache layer
 """
 
 import logging
+from functools import lru_cache
 from typing import Any
 
 from psycopg2.extras import Json
@@ -386,12 +387,9 @@ class DatasetConversationPgRepository(BaseRepository):
 
 
 # Singleton instance
-_dataset_conversation_pg_repo: DatasetConversationPgRepository | None = None
 
 
+@lru_cache(maxsize=1)
 def get_dataset_conversation_pg_repo() -> DatasetConversationPgRepository:
     """Get or create the dataset conversation PostgreSQL repository singleton."""
-    global _dataset_conversation_pg_repo
-    if _dataset_conversation_pg_repo is None:
-        _dataset_conversation_pg_repo = DatasetConversationPgRepository()
-    return _dataset_conversation_pg_repo
+    return DatasetConversationPgRepository()

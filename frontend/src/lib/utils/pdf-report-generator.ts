@@ -21,12 +21,13 @@ import {
 	calculateDuration,
 	getContributionCount,
 	formatReportDate,
-	getInitials
 } from './report-data-extractor';
+import { getInitials } from '$lib/utils/colors';
 
 // Import CSS as raw string for inline embedding in HTML document
 import pdfReportCss from '$lib/styles/pdf-report.css?raw';
 
+import { formatDate } from '$lib/utils/time-formatting';
 // Session data interface (compatible with SessionDetailResponse and local SessionData)
 interface SessionInfo {
 	id: string;
@@ -189,18 +190,6 @@ function renderConsiderations(items: string[], sectionNum: number): string {
 /**
  * Format a date string to a readable format
  */
-function formatDate(dateStr: string | null): string {
-	if (!dateStr) return 'Not set';
-	try {
-		return new Date(dateStr).toLocaleDateString('en-GB', {
-			day: 'numeric',
-			month: 'short',
-			year: 'numeric'
-		});
-	} catch {
-		return 'Not set';
-	}
-}
 
 /**
  * Check if a date is overdue (past today)
@@ -483,16 +472,6 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 
 	if (sections.confidence) {
 		synthHtml += renderSection(sectionNum++, 'Board Confidence', formatMarkdownToHtml(sections.confidence), 'full-analysis');
-	}
-
-	// Legacy format fallback
-	if (!sections.bottomLine && !sections.whyItMatters && !sections.nextSteps) {
-		if (sections.recommendation) {
-			synthHtml += renderSection(sectionNum++, 'Recommendation', formatMarkdownToHtml(sections.recommendation), 'recommendation-box');
-		}
-		if (sections.rationale) {
-			synthHtml += renderSection(sectionNum++, 'Rationale', formatMarkdownToHtml(sections.rationale), 'full-analysis');
-		}
 	}
 
 	// Full synthesis fallback

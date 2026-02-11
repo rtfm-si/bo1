@@ -17,6 +17,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -348,15 +349,12 @@ class ServiceMonitor:
 
 
 # Global instance
-_service_monitor: ServiceMonitor | None = None
 
 
+@lru_cache(maxsize=1)
 def get_service_monitor() -> ServiceMonitor:
     """Get the global service monitor instance."""
-    global _service_monitor
-    if _service_monitor is None:
-        _service_monitor = ServiceMonitor()
-    return _service_monitor
+    return ServiceMonitor()
 
 
 def record_service_success(service: str, latency_ms: float | None = None) -> None:

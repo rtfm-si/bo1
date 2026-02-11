@@ -164,7 +164,7 @@ def make_sub_problem_result(
         "sub_problem_id": sp_id,
         "sub_problem_goal": f"Goal for {sp_id}",
         "synthesis": f"Synthesis for {sp_id}: recommend approach X based on analysis.",
-        "votes": [
+        "recommendations": [
             {"persona": "ceo", "choice": "approve", "confidence": 0.85},
             {"persona": "cfo", "choice": "approve", "confidence": 0.72},
         ],
@@ -340,7 +340,7 @@ def make_full_state(
         # Visualization
         "current_node": "synthesis_node",
         # Final outputs
-        "votes": [
+        "recommendations": [
             {"persona_code": "ceo", "recommendation": "approve", "confidence": 0.85},
             {"persona_code": "cfo", "recommendation": "approve", "confidence": 0.72},
         ],
@@ -898,13 +898,13 @@ class TestDeepEquality:
         restored = deserialized["sub_problem_results"][0]
         assert restored.expert_summaries == summaries
 
-    def test_nested_dict_in_votes(self) -> None:
-        """Nested dicts in votes field preserved."""
-        votes = [
+    def test_nested_dict_in_recommendations(self) -> None:
+        """Nested dicts in recommendations field preserved."""
+        recommendations = [
             {"persona": "ceo", "choice": "approve", "meta": {"confidence": 0.9}},
             {"persona": "cfo", "choice": "reject", "meta": {"reason": "budget"}},
         ]
-        result = make_sub_problem_result(votes=votes)
+        result = make_sub_problem_result(recommendations=recommendations)
         state = make_full_state(num_sub_problem_results=0)
         state["sub_problem_results"] = [result]
 
@@ -912,8 +912,8 @@ class TestDeepEquality:
         deserialized = deserialize_state_from_checkpoint(serialized)
 
         restored = deserialized["sub_problem_results"][0]
-        assert restored.votes == votes
-        assert restored.votes[0]["meta"]["confidence"] == 0.9
+        assert restored.recommendations == recommendations
+        assert restored.recommendations[0]["meta"]["confidence"] == 0.9
 
     def test_business_context_nested_structure(self) -> None:
         """Nested business_context structure preserved."""

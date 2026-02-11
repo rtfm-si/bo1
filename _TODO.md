@@ -44,3 +44,7 @@ when we click through activity calendar, we can access meetings and actions etc 
 users can ask for help breaking a task down
 
 users can chat about their problem before starting a mneeting
+
+check frontend
+backend
+prompt

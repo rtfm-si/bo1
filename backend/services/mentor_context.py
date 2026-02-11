@@ -9,6 +9,7 @@ Gathers context from multiple sources for mentor chat:
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.repositories.action_repository import ActionRepository
@@ -245,12 +246,9 @@ class MentorContextService:
 
 
 # Singleton instance
-_mentor_context_service: MentorContextService | None = None
 
 
+@lru_cache(maxsize=1)
 def get_mentor_context_service() -> MentorContextService:
     """Get or create the mentor context service singleton."""
-    global _mentor_context_service
-    if _mentor_context_service is None:
-        _mentor_context_service = MentorContextService()
-    return _mentor_context_service
+    return MentorContextService()

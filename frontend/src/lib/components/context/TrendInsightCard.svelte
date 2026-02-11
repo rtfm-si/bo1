@@ -21,6 +21,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import type { TrendInsight } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		insight: TrendInsight;
 		isGenerating?: boolean;
@@ -30,11 +31,6 @@
 
 	let { insight, isGenerating = false, onRefresh, onDelete }: Props = $props();
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Unknown';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function getTimeframeBadge(
 		timeframe: string | null

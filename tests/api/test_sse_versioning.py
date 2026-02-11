@@ -7,7 +7,7 @@ Tests:
 - Event version field in formatted events
 """
 
-from backend.api.constants import SSE_MIN_SUPPORTED_VERSION, SSE_SCHEMA_VERSION
+from backend.api.constants import SSE_SCHEMA_VERSION
 from backend.api.events import SSE_EVENT_VERSION, format_sse_event
 
 
@@ -18,15 +18,6 @@ class TestSSEVersionConstants:
         """SSE_SCHEMA_VERSION should be a positive integer."""
         assert isinstance(SSE_SCHEMA_VERSION, int)
         assert SSE_SCHEMA_VERSION >= 1
-
-    def test_min_supported_version_is_positive(self) -> None:
-        """SSE_MIN_SUPPORTED_VERSION should be a positive integer."""
-        assert isinstance(SSE_MIN_SUPPORTED_VERSION, int)
-        assert SSE_MIN_SUPPORTED_VERSION >= 1
-
-    def test_min_supported_not_greater_than_current(self) -> None:
-        """MIN_SUPPORTED_VERSION should not exceed current version."""
-        assert SSE_MIN_SUPPORTED_VERSION <= SSE_SCHEMA_VERSION
 
     def test_events_py_imports_version_from_constants(self) -> None:
         """SSE_EVENT_VERSION in events.py should match constants."""
@@ -94,18 +85,17 @@ class TestParseAcceptSSEVersion:
         assert parse_accept_sse_version("v1") == SSE_SCHEMA_VERSION
         assert parse_accept_sse_version("1.0") == SSE_SCHEMA_VERSION
 
-    def test_parse_below_minimum_returns_minimum(self) -> None:
-        """Version below minimum should return minimum."""
+    def test_parse_zero_returns_current(self) -> None:
+        """Version 0 should return current version."""
         from backend.api.streaming import parse_accept_sse_version
 
-        if SSE_MIN_SUPPORTED_VERSION > 0:
-            assert parse_accept_sse_version("0") == SSE_MIN_SUPPORTED_VERSION
+        assert parse_accept_sse_version("0") == SSE_SCHEMA_VERSION
 
-    def test_parse_negative_returns_minimum(self) -> None:
-        """Negative version should return minimum."""
+    def test_parse_negative_returns_current(self) -> None:
+        """Negative version should return current version."""
         from backend.api.streaming import parse_accept_sse_version
 
-        assert parse_accept_sse_version("-1") == SSE_MIN_SUPPORTED_VERSION
+        assert parse_accept_sse_version("-1") == SSE_SCHEMA_VERSION
 
 
 class TestVersionMismatchLogging:
@@ -130,15 +120,7 @@ class TestVersionHeaderIntegration:
 
     def test_version_constants_consistency(self) -> None:
         """All version-related constants should be consistent."""
-        from backend.api.constants import (
-            SSE_DEPRECATED_FIELDS,
-            SSE_MIN_SUPPORTED_VERSION,
-            SSE_SCHEMA_VERSION,
-        )
+        from backend.api.constants import SSE_SCHEMA_VERSION
         from backend.api.events import SSE_EVENT_VERSION
 
-        # All should reference the same version
         assert SSE_EVENT_VERSION == SSE_SCHEMA_VERSION
-        assert SSE_MIN_SUPPORTED_VERSION <= SSE_SCHEMA_VERSION
-        # Deprecated fields dict should exist (may be empty)
-        assert isinstance(SSE_DEPRECATED_FIELDS, dict)

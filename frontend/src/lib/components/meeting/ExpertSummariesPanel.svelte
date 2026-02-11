@@ -4,7 +4,7 @@
 	 * Displays expert summaries in a collapsible accordion format
 	 * Shows each expert's summary from the synthesis phase
 	 */
-	import type { Persona } from '$lib/api/sse-events';
+	import type { PersonaInfo } from '$lib/api/sse-events';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import {
 		Accordion,
@@ -15,13 +15,13 @@
 
 	interface Props {
 		expertSummaries: Record<string, string>;
-		personas: Persona[];
+		personas: PersonaInfo[];
 		subProblemGoal?: string;
 	}
 
 	let { expertSummaries, personas, subProblemGoal }: Props = $props();
 
-	function getPersona(code: string): Persona | undefined {
+	function getPersona(code: string): PersonaInfo | undefined {
 		return personas.find((p) => p.code === code);
 	}
 

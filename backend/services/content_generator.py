@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from backend.services.tavily_client import get_tavily_client
 from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.llm.cost_tracker import CostTracker
@@ -58,48 +59,36 @@ async def _brave_search_topic(queries: list[str]) -> list[dict[str, Any]]:
 
 async def _tavily_search_topic(query: str) -> list[dict[str, Any]]:
     """Run a single Tavily deep search for blog content research."""
-    settings = get_settings()
-    api_key = settings.tavily_api_key
-
-    if not api_key:
+    if not get_settings().tavily_api_key:
         logger.warning("TAVILY_API_KEY not set - skipping Tavily research")
         return []
 
     results: list[dict[str, Any]] = []
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": api_key,
-                    "query": query,
-                    "search_depth": "advanced",
-                    "include_answer": True,
-                    "include_raw_content": False,
-                    "max_results": 5,
-                },
-                timeout=15.0,
+        data = await get_tavily_client().search(
+            query,
+            search_depth="advanced",
+            include_answer=True,
+            timeout=15.0,
+        )
+
+        if data.get("answer"):
+            results.append(
+                {
+                    "title": query,
+                    "snippet": data["answer"],
+                    "url": "",
+                }
             )
-            response.raise_for_status()
-            data = response.json()
 
-            if data.get("answer"):
-                results.append(
-                    {
-                        "title": query,
-                        "snippet": data["answer"],
-                        "url": "",
-                    }
-                )
-
-            for r in data.get("results", []):
-                results.append(
-                    {
-                        "title": r.get("title", ""),
-                        "snippet": r.get("content", ""),
-                        "url": r.get("url", ""),
-                    }
-                )
+        for r in data.get("results", []):
+            results.append(
+                {
+                    "title": r.get("title", ""),
+                    "snippet": r.get("content", ""),
+                    "url": r.get("url", ""),
+                }
+            )
     except Exception as e:
         logger.warning(f"Tavily research failed for '{query[:50]}': {e}")
     return results

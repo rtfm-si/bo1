@@ -56,7 +56,6 @@ class ExtractedTask(BaseModel):
     parent_action_title: str | None = Field(
         default=None, description="Exact title of parent strategic action this task belongs to"
     )
-    # Legacy field for backwards compatibility
     suggested_completion_date: str | None = Field(
         default=None, description="ISO date or relative (e.g., 'Week 1') - use timeline instead"
     )

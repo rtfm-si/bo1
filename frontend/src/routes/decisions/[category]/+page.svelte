@@ -15,6 +15,7 @@
 	} from '$lib/utils/jsonld';
 	import { BookOpen, ArrowRight, Users, ChevronRight } from 'lucide-svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let decisions = $state<PublicDecisionListItem[]>([]);
 	let total = $state(0);
@@ -66,14 +67,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return '';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 
 	onMount(() => {
 		loadDecisions();

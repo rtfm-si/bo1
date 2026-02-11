@@ -7,6 +7,7 @@ to enable proactive improvement suggestions.
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.database import db_session
@@ -177,12 +178,9 @@ class ActionFailureDetector:
 
 
 # Module-level singleton
-_detector: ActionFailureDetector | None = None
 
 
+@lru_cache(maxsize=1)
 def get_action_failure_detector() -> ActionFailureDetector:
     """Get or create the action failure detector singleton."""
-    global _detector
-    if _detector is None:
-        _detector = ActionFailureDetector()
-    return _detector
+    return ActionFailureDetector()

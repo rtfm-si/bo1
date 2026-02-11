@@ -11,6 +11,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { RatingMetricsResponse, RatingTrendItem, NegativeRatingItem } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let metrics = $state<RatingMetricsResponse | null>(null);
 	let trend = $state<RatingTrendItem[]>([]);
@@ -40,16 +41,6 @@
 		}
 	}
 
-	// Format date
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	// Format short date for trend
 	function formatShortDate(dateStr: string): string {

@@ -186,4 +186,8 @@ def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
             for spr in result["sub_problem_results"]
         ]
 
+    # Backward compat: rename legacy "votes" key → "recommendations"
+    if "votes" in result and "recommendations" not in result:
+        result["recommendations"] = result.pop("votes")
+
     return result

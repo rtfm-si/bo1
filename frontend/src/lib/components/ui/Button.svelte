@@ -1,12 +1,13 @@
 <script lang="ts">
 	/**
-	 * Button Component - shadcn-svelte wrapper with backward-compatible API
-	 * Maps existing Bo1 variant/size props to shadcn equivalents
+	 * Button Component - shadcn-svelte wrapper
+	 * Adds loading spinner on top of shadcn Button
 	 */
-	import { Button as ShadcnButton, type ButtonProps } from './shadcn/button';
+	import { Button as ShadcnButton } from './shadcn/button';
+	import type { ButtonVariant, ButtonSize } from './shadcn/button';
 	import type { Snippet } from 'svelte';
 
-	// Props matching the legacy API
+	// Props
 	let {
 		variant = 'brand',
 		size = 'md',
@@ -32,47 +33,18 @@
 		class?: string;
 		children?: Snippet;
 	} = $props();
-
-	// Map legacy variants to shadcn variants
-	const variantMap: Record<string, ButtonProps['variant']> = {
-		brand: 'default',
-		accent: 'default', // Use default with accent styling
-		secondary: 'secondary',
-		outline: 'outline',
-		ghost: 'ghost',
-		danger: 'destructive',
-	};
-
-	// Map legacy sizes to shadcn sizes
-	const sizeMap: Record<string, ButtonProps['size']> = {
-		sm: 'sm',
-		md: 'default',
-		lg: 'lg',
-	};
-
-	// Custom classes for variants shadcn doesn't have built-in
-	const customVariantClasses: Record<string, string> = {
-		brand: 'bg-brand-600 hover:bg-brand-700 text-white',
-		accent: 'bg-accent-600 hover:bg-accent-700 text-white',
-	};
-
-	const shadcnVariant = $derived(variantMap[variant] ?? 'default');
-	const shadcnSize = $derived(sizeMap[size] ?? 'default');
-	const customClass = $derived(
-		variant === 'brand' || variant === 'accent' ? customVariantClasses[variant] : ''
-	);
 </script>
 
 <ShadcnButton
 	{type}
-	variant={shadcnVariant}
-	size={shadcnSize}
+	variant={variant as ButtonVariant}
+	size={size as ButtonSize}
 	disabled={disabled || loading}
 	aria-label={ariaLabel}
 	{title}
 	{href}
 	{onclick}
-	class="{customClass} {className}"
+	class={className}
 >
 	{#if loading}
 		<svg

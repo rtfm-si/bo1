@@ -89,8 +89,8 @@ def _state_to_serializable(state: DeliberationGraphState) -> dict[str, Any]:
         c.model_dump() if hasattr(c, "model_dump") else dict(c) for c in contributions
     ]
 
-    # Serialize votes/recommendations
-    result["votes"] = state.get("votes", [])
+    # Serialize recommendations
+    result["recommendations"] = state.get("recommendations", [])
 
     # Serialize metrics
     metrics = state.get("metrics")
@@ -149,8 +149,8 @@ def _dict_to_state(data: dict[str, Any]) -> DeliberationGraphState:
     if data.get("contributions"):
         state["contributions"] = [ContributionMessage(**c) for c in data["contributions"]]
 
-    # Restore votes
-    state["votes"] = data.get("votes", [])
+    # Restore recommendations
+    state["recommendations"] = data.get("recommendations", data.get("votes", []))
 
     # Restore synthesis
     state["synthesis"] = data.get("synthesis")
@@ -192,7 +192,7 @@ def to_markdown(state: DeliberationGraphState, include_metadata: bool = True) ->
     current_sp = state.get("current_sub_problem")
     personas = state.get("personas", [])
     contributions = state.get("contributions", [])
-    votes = state.get("votes", [])
+    recommendations = state.get("recommendations", [])
     synthesis = state.get("synthesis")
     metrics = state.get("metrics")
 
@@ -268,20 +268,16 @@ def to_markdown(state: DeliberationGraphState, include_metadata: bool = True) ->
                 lines.append(f"{content}\n")
 
             # Metadata
-            tokens_used = (
-                contrib.tokens_used
-                if hasattr(contrib, "tokens_used")
-                else (contrib.token_count or 0)
-            )
+            token_count = contrib.token_count or 0
             cost = contrib.cost or 0.0
-            lines.append(f"_Tokens: {tokens_used} | Cost: ${cost:.6f}_\n")
+            lines.append(f"_Tokens: {token_count} | Cost: ${cost:.6f}_\n")
             lines.append("---\n")
 
-    # Votes/Recommendations
-    if votes:
+    # Recommendations
+    if recommendations:
         lines.append("## Voting Results\n")
 
-        for vote in votes:
+        for vote in recommendations:
             # Handle both dict and object formats
             if isinstance(vote, dict):
                 persona_name = vote.get("persona_name", "Unknown")
@@ -353,7 +349,7 @@ def to_summary_dict(state: DeliberationGraphState) -> dict[str, Any]:
     phase = state.get("phase")
     round_number = state.get("round_number", 0)
     contributions = state.get("contributions", [])
-    votes = state.get("votes", [])
+    recommendations = state.get("recommendations", [])
     personas = state.get("personas", [])
     synthesis = state.get("synthesis")
     metrics = state.get("metrics")
@@ -372,7 +368,7 @@ def to_summary_dict(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": phase.value if phase else None,
         "current_round": round_number,
         "total_contributions": len(contributions),
-        "total_votes": len(votes),
+        "total_recommendations": len(recommendations),
         "participants": [p.code for p in personas],
         "total_tokens": total_tokens,
         "total_cost": total_cost,

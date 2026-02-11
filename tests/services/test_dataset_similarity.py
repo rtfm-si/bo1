@@ -400,9 +400,7 @@ class TestGetSimilarityService:
     def test_returns_singleton_instance(self):
         """Should return same instance on repeated calls."""
         # Reset singleton for test
-        import backend.services.dataset_similarity as module
-
-        module._similarity_service = None
+        get_similarity_service.cache_clear()
 
         with patch.object(DatasetSimilarityService, "__init__", return_value=None):
             service1 = get_similarity_service()

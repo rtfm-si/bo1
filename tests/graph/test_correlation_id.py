@@ -142,7 +142,7 @@ class TestPersonaExecutorCorrelationId:
             "max_rounds": 4,
             "phase": None,
             "synthesis": None,
-            "votes": [],
+            "recommendations": [],
             "metrics": {},
         }
 

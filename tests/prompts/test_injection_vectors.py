@@ -394,7 +394,7 @@ class TestPromptBuilderSanitization:
         # Build a minimal prompt - we just need to verify sanitization
         result = compose_synthesis_prompt(
             problem_statement=malicious,
-            all_contributions_and_votes="Test contributions",
+            all_contributions_and_recommendations="Test contributions",
         )
 
         # The prompt string should have sanitized content

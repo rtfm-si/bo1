@@ -79,7 +79,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         synthesis_len = len(result.synthesis) if result.synthesis else 0
         logger.info(
             f"meta_synthesize_node: Sub-problem {i} ({result.sub_problem_id}) synthesis length: {synthesis_len} chars, "
-            f"votes: {len(result.votes)}, contributions: {result.contribution_count}"
+            f"recommendations: {len(result.recommendations)}, contributions: {result.contribution_count}"
         )
         if synthesis_len == 0:
             logger.warning(
@@ -106,9 +106,9 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
             (sp.get("goal") if isinstance(sp, dict) else sp.goal) if sp else result.sub_problem_goal
         )
 
-        # Format votes
+        # Format recommendations
         votes_summary = []
-        for vote in result.votes:
+        for vote in result.recommendations:
             votes_summary.append(
                 f"- {vote.get('persona_name', 'Unknown')}: {vote.get('recommendation', 'N/A')} "
                 f"(confidence: {vote.get('confidence', 0.0):.2f})"
@@ -258,7 +258,7 @@ Always verify recommendations using licensed legal/financial professionals for y
     # Extract decision options from all sub-problem recommendations
     all_recommendations: list[Recommendation] = []
     for result in sub_problem_results:
-        for vote in result.votes:
+        for vote in result.recommendations:
             if isinstance(vote, dict):
                 try:
                     all_recommendations.append(Recommendation.model_validate(vote))

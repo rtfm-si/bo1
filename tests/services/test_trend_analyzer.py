@@ -255,9 +255,7 @@ class TestGetTrendAnalyzer:
     def test_returns_same_instance(self) -> None:
         """Test that get_trend_analyzer returns singleton."""
         # Reset singleton
-        import backend.services.trend_analyzer as module
-
-        module._analyzer = None
+        get_trend_analyzer.cache_clear()
 
         analyzer1 = get_trend_analyzer()
         analyzer2 = get_trend_analyzer()
@@ -265,7 +263,7 @@ class TestGetTrendAnalyzer:
         assert analyzer1 is analyzer2
 
         # Cleanup
-        module._analyzer = None
+        get_trend_analyzer.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -275,11 +273,9 @@ class TestTrendAnalyzerAsync:
     @pytest.fixture(autouse=True)
     def reset_singleton(self) -> None:
         """Reset singleton before each test to ensure isolation."""
-        import backend.services.trend_analyzer as module
-
-        module._analyzer = None
+        get_trend_analyzer.cache_clear()
         yield
-        module._analyzer = None
+        get_trend_analyzer.cache_clear()
 
     async def test_invalid_url_returns_error(self) -> None:
         """Test that invalid URLs return error result."""

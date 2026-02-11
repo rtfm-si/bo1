@@ -7,7 +7,7 @@
 	 * - General data guidance (when no dataset)
 	 */
 	import { apiClient, ApiClientError } from '$lib/api/client';
-	import type { MentorMessage as MessageType, Dataset, DatasetDetailResponse, DatasetInsightsResponse } from '$lib/api/types';
+	import type { MentorMessage as MessageType, DatasetResponse, DatasetDetailResponse, DatasetInsightsResponse } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
 	import MentorMessage from '$lib/components/mentor/MentorMessage.svelte';
 	import InsightsPreview from './InsightsPreview.svelte';
@@ -17,7 +17,7 @@
 	let {
 		datasets = []
 	}: {
-		datasets?: Dataset[];
+		datasets?: DatasetResponse[];
 	} = $props();
 
 	// Chat state

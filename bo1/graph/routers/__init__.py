@@ -3,13 +3,13 @@
 This module provides:
 - Domain-specific router modules (facilitator, synthesis)
 - A registry for dynamic router lookup
-- Re-exports for backward compatibility
+- Re-exports for convenient imports
 """
 
 from collections.abc import Callable
 from typing import Any
 
-# Re-export router_utils for backward compatibility
+# Re-export router_utils
 from bo1.graph.router_utils import (
     get_problem_attr,
     get_subproblem_attr,
@@ -73,7 +73,7 @@ def list_routers() -> list[str]:
     return sorted(ROUTER_REGISTRY.keys())
 
 
-# Re-export all router functions for backward compatibility
+# Public API
 __all__ = [
     # Registry functions
     "ROUTER_REGISTRY",

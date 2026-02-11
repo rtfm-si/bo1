@@ -363,9 +363,7 @@ class TestGetInsightParser:
     def test_singleton(self):
         """Test that get_insight_parser returns singleton."""
         # Reset singleton for test
-        import backend.services.insight_parser as module
-
-        module._parser = None
+        get_insight_parser.cache_clear()
 
         parser1 = get_insight_parser()
         parser2 = get_insight_parser()

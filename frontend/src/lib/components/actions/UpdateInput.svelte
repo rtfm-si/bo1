@@ -2,10 +2,10 @@
 	/**
 	 * UpdateInput - Form to add progress updates, blockers, or notes to an action
 	 */
-	import type { ActionUpdateCreateRequest } from '$lib/api/types';
+	import type { ActionUpdateCreate } from '$lib/api/types';
 
 	interface Props {
-		onSubmit: (update: ActionUpdateCreateRequest) => Promise<void>;
+		onSubmit: (update: ActionUpdateCreate) => Promise<void>;
 		disabled?: boolean;
 	}
 
@@ -33,7 +33,7 @@
 		submitting = true;
 
 		try {
-			const update: ActionUpdateCreateRequest = {
+			const update: ActionUpdateCreate = {
 				update_type: updateType,
 				content: content.trim(),
 				progress_percent: updateType === 'progress' ? progressPercent : null

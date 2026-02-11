@@ -6,6 +6,7 @@
 	import { ChevronLeft, ChevronRight, FileText, Clock, Globe, User } from 'lucide-svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface ConsentAuditItem {
 		user_id: string;
 		email: string | null;
@@ -63,11 +64,6 @@
 		}
 	}
 
-	function formatDate(dateString: string): string {
-		if (!dateString) return '-';
-		const date = new Date(dateString);
-		return date.toLocaleString();
-	}
 
 	function maskIp(ip: string | null): string {
 		if (!ip) return '-';

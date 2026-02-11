@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from bo1.llm.client import ClaudeClient
@@ -267,15 +268,12 @@ Return ONLY valid JSON, no other text."""
 
 
 # Module-level singleton
-_analyzer: FeedbackAnalyzer | None = None
 
 
+@lru_cache(maxsize=1)
 def get_feedback_analyzer() -> FeedbackAnalyzer:
     """Get or create feedback analyzer singleton."""
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = FeedbackAnalyzer()
-    return _analyzer
+    return FeedbackAnalyzer()
 
 
 async def analyze_feedback(title: str, description: str) -> FeedbackAnalysis | None:

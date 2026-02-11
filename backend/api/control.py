@@ -464,20 +464,11 @@ router = APIRouter(prefix="/v1/sessions", tags=["deliberation-control"])
 class ClarificationRequest(BaseModel):
     """Request model for clarification answers.
 
-    Supports both single answer (legacy) and multiple answers (new).
-
     Attributes:
-        answer: Single answer to clarification question (legacy, optional)
-        answers: Dict of question->answer pairs (new, optional)
+        answers: Dict of question->answer pairs
         skip: Whether to skip all questions without answering
     """
 
-    answer: str | None = Field(
-        None,
-        max_length=5000,
-        description="Single answer to clarification question (legacy)",
-        examples=["Our current churn rate is 3.5% monthly"],
-    )
     answers: dict[str, str] | None = Field(
         None,
         description="Dict of question->answer pairs for multiple questions (max 5000 chars per answer)",
@@ -1786,15 +1777,7 @@ async def _submit_clarification_impl(
                 message="Questions skipped. Session ready to resume.",
             )
 
-        # Get answers - support both legacy single answer and new multiple answers
-        answers_to_process: dict[str, str] = {}
-        if request.answers:
-            answers_to_process = request.answers
-        elif request.answer:
-            # Legacy single answer - need to get question from pending_clarification
-            pending_clarification = metadata.get("pending_clarification", {})
-            question = pending_clarification.get("question", "Clarification")
-            answers_to_process = {question: request.answer}
+        answers_to_process: dict[str, str] = request.answers or {}
 
         if not answers_to_process:
             raise http_error(

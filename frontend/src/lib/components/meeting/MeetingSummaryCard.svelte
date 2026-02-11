@@ -5,6 +5,7 @@
 	 */
 	import { Award, Users, Calendar } from 'lucide-svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		/** Meeting recommendation/decision title */
 		recommendation: string;
@@ -20,19 +21,6 @@
 
 	let { recommendation, consensusLevel, expertCount, completionDate, problemStatement }: Props = $props();
 
-	// Format date for display
-	function formatDate(dateStr: string): string {
-		try {
-			const date = new Date(dateStr);
-			return date.toLocaleDateString('en-US', {
-				month: 'short',
-				day: 'numeric',
-				year: 'numeric'
-			});
-		} catch {
-			return dateStr;
-		}
-	}
 
 	// Get consensus label based on level
 	function getConsensusLabel(level: number): string {

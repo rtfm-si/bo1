@@ -41,7 +41,7 @@ from bo1.utils.checkpoint_helpers import get_attr_safe
 
 logger = logging.getLogger(__name__)
 
-# Re-export for backward compatibility
+# Public API
 __all__ = [
     "topological_batch_sort",
     "analyze_dependencies_node",

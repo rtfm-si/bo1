@@ -4,9 +4,8 @@
 	import type { MetaSynthesisCompleteEvent } from '$lib/api/sse-events';
 
 	interface ActionItem {
-		title?: string; // New: short heading (5-15 words)
-		description?: string; // New: brief explanation (20-40 words)
-		action?: string; // Legacy: combined field (backwards compat)
+		title?: string; // Short heading (5-15 words)
+		description?: string; // Brief explanation (20-40 words)
 		rationale: string;
 		priority: 'critical' | 'high' | 'medium' | 'low';
 		timeline: string;
@@ -14,23 +13,12 @@
 		risks: string[];
 	}
 
-	// Helper to get display title (new field or fallback to first part of legacy action)
 	function getActionTitle(item: ActionItem): string {
-		if (item.title) return item.title;
-		if (item.action && typeof item.action === 'string') {
-			// Legacy: use first sentence or first 80 chars
-			const firstSentence = item.action.split(/[.!?]/)[0];
-			return firstSentence.length > 80 ? firstSentence.slice(0, 77) + '...' : firstSentence;
-		}
-		return 'Action';
+		return item.title || 'Action';
 	}
 
-	// Helper to get description (new field or fallback to legacy action minus title)
 	function getActionDescription(item: ActionItem): string | null {
-		if (item.description) return item.description;
-		// Legacy: show full action only if different from title
-		if (item.action && item.title && item.action !== item.title) return item.action;
-		return null;
+		return item.description || null;
 	}
 
 	// Track expanded state per action

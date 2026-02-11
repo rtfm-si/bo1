@@ -10,7 +10,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
 	EXPECTED_SSE_VERSION,
-	MIN_SUPPORTED_VERSION,
 	checkEventVersion,
 	checkServerVersion,
 	type SSEEvent
@@ -23,15 +22,6 @@ describe('SSE Version Constants', () => {
 		expect(Number.isInteger(EXPECTED_SSE_VERSION)).toBe(true);
 	});
 
-	it('MIN_SUPPORTED_VERSION should be a positive integer', () => {
-		expect(typeof MIN_SUPPORTED_VERSION).toBe('number');
-		expect(MIN_SUPPORTED_VERSION).toBeGreaterThanOrEqual(1);
-		expect(Number.isInteger(MIN_SUPPORTED_VERSION)).toBe(true);
-	});
-
-	it('MIN_SUPPORTED_VERSION should not exceed EXPECTED_SSE_VERSION', () => {
-		expect(MIN_SUPPORTED_VERSION).toBeLessThanOrEqual(EXPECTED_SSE_VERSION);
-	});
 });
 
 describe('checkEventVersion', () => {
@@ -76,19 +66,6 @@ describe('checkEventVersion', () => {
 		expect(result.warning).toBeUndefined();
 	});
 
-	it('returns incompatible and warns for version below minimum', () => {
-		const event: SSEEvent = {
-			event_type: 'contribution',
-			data: { event_version: MIN_SUPPORTED_VERSION - 1, persona_code: 'CFO' }
-		};
-
-		const result = checkEventVersion(event);
-
-		expect(result.isCompatible).toBe(false);
-		expect(result.warning).toContain('below minimum supported version');
-		expect(warnSpy).toHaveBeenCalled();
-	});
-
 	it('returns compatible with info log for newer version', () => {
 		const event: SSEEvent = {
 			event_type: 'contribution',
@@ -124,7 +101,6 @@ describe('checkEventVersion', () => {
 		const result = checkEventVersion(event);
 
 		expect(result.expectedVersion).toBe(EXPECTED_SSE_VERSION);
-		expect(result.minSupported).toBe(MIN_SUPPORTED_VERSION);
 	});
 });
 
@@ -155,14 +131,6 @@ describe('checkServerVersion', () => {
 
 		expect(result.isCompatible).toBe(true);
 		expect(result.eventVersion).toBe(EXPECTED_SSE_VERSION);
-	});
-
-	it('returns incompatible for version below minimum', () => {
-		const result = checkServerVersion(String(MIN_SUPPORTED_VERSION - 1));
-
-		expect(result.isCompatible).toBe(false);
-		expect(result.warning).toContain('below minimum supported');
-		expect(warnSpy).toHaveBeenCalled();
 	});
 
 	it('returns compatible with info for newer version', () => {

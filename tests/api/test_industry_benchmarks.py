@@ -16,35 +16,32 @@ from backend.api.industry_insights import (
     get_upgrade_prompt,
     get_user_tier,
 )
-from bo1.constants import IndustryBenchmarkLimits
+from bo1.billing import PlanConfig
 
 
 class TestTierLimits:
-    """Test tier-based benchmark limit constants."""
+    """Test tier-based benchmark limit constants via PlanConfig."""
 
     def test_free_tier_limit(self):
         """Free tier should allow 3 benchmarks."""
-        assert IndustryBenchmarkLimits.FREE == 3
-        assert IndustryBenchmarkLimits.get_limit_for_tier("free") == 3
+        assert PlanConfig.get_benchmark_limit("free") == 3
 
     def test_starter_tier_limit(self):
         """Starter tier should allow 5 benchmarks."""
-        assert IndustryBenchmarkLimits.STARTER == 5
-        assert IndustryBenchmarkLimits.get_limit_for_tier("starter") == 5
+        assert PlanConfig.get_benchmark_limit("starter") == 5
 
     def test_pro_tier_unlimited(self):
         """Pro tier should have unlimited (-1) benchmarks."""
-        assert IndustryBenchmarkLimits.PRO == -1
-        assert IndustryBenchmarkLimits.get_limit_for_tier("pro") == -1
+        assert PlanConfig.get_benchmark_limit("pro") == -1
 
     def test_enterprise_tier_unlimited(self):
         """Enterprise tier should have unlimited benchmarks."""
-        assert IndustryBenchmarkLimits.get_limit_for_tier("enterprise") == -1
+        assert PlanConfig.get_benchmark_limit("enterprise") == -1
 
     def test_unknown_tier_defaults_to_free(self):
         """Unknown tier should default to free limit."""
-        assert IndustryBenchmarkLimits.get_limit_for_tier("unknown") == 3
-        assert IndustryBenchmarkLimits.get_limit_for_tier("") == 3
+        assert PlanConfig.get_benchmark_limit("unknown") == 3
+        assert PlanConfig.get_benchmark_limit("") == 3
 
 
 class TestGetStubInsights:

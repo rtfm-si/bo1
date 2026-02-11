@@ -73,7 +73,7 @@ class TestRetentionSettingModels:
 class TestRetentionSettingEndpoints:
     """Test retention setting endpoint logic."""
 
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     def test_get_retention_returns_user_setting(self, mock_db: MagicMock) -> None:
         """Test GET returns user's configured retention days."""
         mock_conn = MagicMock()
@@ -89,7 +89,7 @@ class TestRetentionSettingEndpoints:
         result = mock_cursor.fetchone()
         assert result["data_retention_days"] == 180
 
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     def test_update_retention_persists_value(self, mock_db: MagicMock) -> None:
         """Test PATCH persists and returns updated retention days."""
         mock_conn = MagicMock()
@@ -223,7 +223,7 @@ class TestRetentionReminderSettingsModels:
 class TestRetentionReminderEndpoints:
     """Test retention reminder endpoint logic."""
 
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     def test_get_settings_returns_values(self, mock_db: MagicMock) -> None:
         """Test GET returns user's reminder settings."""
         mock_conn = MagicMock()
@@ -241,7 +241,7 @@ class TestRetentionReminderEndpoints:
         assert result["deletion_reminder_suppressed"] is False
         assert result["last_deletion_reminder_sent_at"] is None
 
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     def test_suppress_sets_flag(self, mock_db: MagicMock) -> None:
         """Test suppress sets deletion_reminder_suppressed to true."""
         mock_conn = MagicMock()
@@ -258,7 +258,7 @@ class TestRetentionReminderEndpoints:
         result = mock_cursor.fetchone()
         assert result["deletion_reminder_suppressed"] is True
 
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     def test_enable_clears_flag(self, mock_db: MagicMock) -> None:
         """Test enable sets deletion_reminder_suppressed to false."""
         mock_conn = MagicMock()

@@ -6,7 +6,7 @@ State is organized into logical groups:
 - ProblemState: Problem context and sub-problem tracking
 - PhaseState: Deliberation phase and round tracking
 - ParticipantState: Personas and expert assignments
-- DiscussionState: Contributions, summaries, votes, synthesis
+- DiscussionState: Contributions, summaries, recommendations, synthesis
 - ResearchState: Research queries and results
 - ComparisonState: X vs Y comparison detection
 - ContextState: Business context and clarification handling
@@ -69,11 +69,11 @@ class ParticipantState(TypedDict, total=False):
 
 
 class DiscussionState(TypedDict, total=False):
-    """Contributions, summaries, votes, synthesis."""
+    """Contributions, summaries, recommendations, synthesis."""
 
     contributions: list[ContributionMessage]
     round_summaries: list[str]
-    votes: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]]
     synthesis: str | None
     extracted_options: list[dict[str, Any]]
     dissenting_views: list[str]
@@ -213,7 +213,7 @@ class DeliberationGraphState(TypedDict, total=False):
     | max_rounds              | int              | Pass-through                     |
     | metrics                 | DelibMetrics     | Pydantic → dict on serialize     |
     | sub_problem_results     | list[SPResult]   | Pydantic → dict on serialize     |
-    | votes                   | list[dict]       | Pass-through                     |
+    | recommendations         | list[dict]       | Pass-through                     |
     | synthesis               | str|None         | Pass-through                     |
     | All other fields        | various          | Pass-through (primitives/dicts)  |
     +-------------------------+------------------+----------------------------------+
@@ -314,7 +314,7 @@ class DeliberationGraphState(TypedDict, total=False):
     current_node: str
 
     # Final outputs
-    votes: list[dict[str, Any]]  # Vote objects
+    recommendations: list[dict[str, Any]]  # Recommendation objects
     synthesis: str | None
     extracted_options: list[dict[str, Any]]  # Decision Gate option cards
     dissenting_views: list[str]  # Minority perspectives from aggregation
@@ -470,7 +470,7 @@ def create_initial_state(
         subscription_tier=subscription_tier or "free",  # Default to free tier
         research_sharing_consented=research_sharing_consented,
         current_node="start",
-        votes=[],
+        recommendations=[],
         synthesis=None,
         extracted_options=[],
         dissenting_views=[],
@@ -620,7 +620,7 @@ def get_discussion_state(state: DeliberationGraphState) -> DiscussionState:
     return DiscussionState(
         contributions=state.get("contributions", []),
         round_summaries=state.get("round_summaries", []),
-        votes=state.get("votes", []),
+        recommendations=state.get("recommendations", []),
         synthesis=state.get("synthesis"),
         extracted_options=state.get("extracted_options", []),
         dissenting_views=state.get("dissenting_views", []),

@@ -19,6 +19,7 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let feedback = $state<FeedbackResponse[]>([]);
 	let stats = $state<FeedbackStatsResponse | null>(null);
@@ -107,17 +108,6 @@
 		}
 	}
 
-	// Format date
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	onMount(() => {
 		loadData();

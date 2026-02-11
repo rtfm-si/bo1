@@ -54,3 +54,15 @@ export function formatAbsoluteTime(timestamp: string): string {
 		second: '2-digit',
 	});
 }
+
+/**
+ * Format a date string as a short date (e.g., "Jan 5, 2025")
+ */
+export function formatDate(dateStr: string | null | undefined): string {
+	if (!dateStr) return 'Unknown';
+	return new Date(dateStr).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric'
+	});
+}

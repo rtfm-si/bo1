@@ -1,11 +1,7 @@
 """Tests for vote and synthesis nodes implementation.
 
-Note: This test uses "votes" terminology for backward compatibility during the migration
-from binary voting decisions to free-form recommendations.
-
-Migration Details:
-- Old system: VoteDecision enum (SUPPORT/OPPOSE) - DEPRECATED
-- New system: Recommendation model with free-form recommendation text
+Note: "votes" is the state channel name; the actual model is Recommendation
+with free-form text (not binary VoteDecision).
 - vote_node() now collects recommendations but returns them in "votes" key for compatibility
 - See bo1/orchestration/voting.py:collect_recommendations() for the actual implementation
 """
@@ -136,13 +132,13 @@ async def test_vote_node_collects_votes(state_with_contributions):
     updates = await vote_node(state_with_contributions)
 
     # Verify updates
-    assert "votes" in updates
+    assert "recommendations" in updates
     assert "metrics" in updates
     assert "phase" in updates
     assert "current_node" in updates
 
     # Verify votes structure
-    votes = updates["votes"]
+    votes = updates["recommendations"]
     assert isinstance(votes, list)
     assert len(votes) == 3  # One vote per persona
 
@@ -179,7 +175,7 @@ async def test_synthesize_node_generates_synthesis(state_with_contributions):
     vote_updates = await vote_node(state_with_contributions)
 
     # Update state with votes
-    state_with_contributions["votes"] = vote_updates["votes"]
+    state_with_contributions["recommendations"] = vote_updates["recommendations"]
     state_with_contributions["metrics"] = vote_updates["metrics"]
 
     # Run synthesis node
@@ -216,12 +212,12 @@ async def test_vote_and_synthesis_end_to_end(state_with_contributions):
     vote_updates = await vote_node(state_with_contributions)
 
     # Apply vote updates to state
-    state_with_contributions["votes"] = vote_updates["votes"]
+    state_with_contributions["recommendations"] = vote_updates["recommendations"]
     state_with_contributions["metrics"] = vote_updates["metrics"]
     state_with_contributions["phase"] = vote_updates["phase"]
 
     # Verify voting completed
-    assert len(state_with_contributions["votes"]) == 3
+    assert len(state_with_contributions["recommendations"]) == 3
     assert state_with_contributions["phase"] == DeliberationPhase.VOTING
 
     # Run synthesis node

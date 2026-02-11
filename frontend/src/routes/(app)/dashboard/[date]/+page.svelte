@@ -6,6 +6,7 @@
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	const dateParam = $derived($page.params.date ?? '');
 
 	// Validate YYYY-MM-DD format
@@ -19,10 +20,6 @@
 		}
 	});
 
-	function formatDate(dateStr: string): string {
-		const d = new Date(dateStr + 'T12:00:00');
-		return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-	}
 
 	const typeLabels: Record<string, string> = {
 		session: 'Meetings',

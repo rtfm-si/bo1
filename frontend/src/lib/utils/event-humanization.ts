@@ -167,7 +167,7 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 		return `${name} has provided their recommendation (${Math.round(confidence * 100)}% confidence).`;
 	},
 	voting_complete: (data: any) => {
-		const count = data.votes_count || 0;
+		const count = data.recommendations_count || 0;
 		const level = data.consensus_level || 'moderate';
 		return `Collected ${count} recommendation${count !== 1 ? 's' : ''} with ${level} consensus.`;
 	},

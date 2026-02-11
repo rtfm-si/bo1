@@ -51,44 +51,9 @@
 		subProblemResults.filter(r => r.status === 'complete').length
 	);
 
-	// Map legacy error types to user-friendly messages (for backward compatibility)
-	const legacyErrorDisplayMap: Record<string, { title: string; description: string }> = {
-		LLMError: {
-			title: 'AI Service Unavailable',
-			description: 'The AI service encountered an error. This is usually temporary.',
-		},
-		RateLimitError: {
-			title: 'Rate Limit Reached',
-			description: 'Too many requests. Please wait a moment before trying again.',
-		},
-		TimeoutError: {
-			title: 'Request Timed Out',
-			description: 'The operation took too long. The server may be under heavy load.',
-		},
-		ValidationError: {
-			title: 'Invalid Request',
-			description: 'There was a problem with the meeting configuration.',
-		},
-		default: {
-			title: 'Meeting Failed',
-			description: 'An unexpected error occurred during the meeting.',
-		},
-	};
-
-	// Get error info from new utility (prefers errorCode, falls back to legacy errorType)
+	// Get error info from centralized error code mapping
 	const errorInfo = $derived.by((): ErrorMessage => {
-		// If we have an errorCode from backend, use the new centralized mapping
-		if (errorCode) {
-			return getErrorMessage(errorCode);
-		}
-		// Fall back to legacy errorType mapping
-		const legacy = legacyErrorDisplayMap[errorType] || legacyErrorDisplayMap['default'];
-		return {
-			title: legacy.title,
-			description: legacy.description,
-			severity: 'error',
-			isTransient: errorType !== 'ValidationError'
-		};
+		return getErrorMessage(errorCode ?? errorType);
 	});
 
 	// Determine if retry is recommended based on error type

@@ -41,6 +41,7 @@ from backend.api.models import (
     SessionResponse,
     UnassignedCountResponse,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.openapi_security import CSRFTokenDep, SessionAuthDep
 from backend.api.utils.pagination import make_page_pagination_fields
@@ -121,7 +122,7 @@ async def get_projects(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
 ) -> ProjectListResponse:
     """Get all projects for the current user."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     total, projects = project_repository.get_by_user(
         user_id=user_id,
@@ -156,7 +157,7 @@ async def create_project(
     _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Create a new project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Parse dates if provided
     target_start = None
@@ -197,7 +198,7 @@ async def get_unassigned_count(
         get_unassigned_action_count,
     )
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     count = get_unassigned_action_count(user_id)
 
     return UnassignedCountResponse(
@@ -231,7 +232,7 @@ async def get_autogen_suggestions(
         get_autogen_suggestions as get_suggestions,
     )
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Get unassigned count first
     unassigned_count = get_unassigned_action_count(user_id)
@@ -291,7 +292,7 @@ async def create_from_autogen(
         create_projects_from_suggestions,
     )
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     if not request.suggestions:
         return {"created_projects": [], "count": 0}
@@ -346,7 +347,7 @@ async def get_context_suggestions(
         suggest_from_context,
     )
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Check context completeness first
     completeness = get_context_completeness(user_id)
@@ -402,7 +403,7 @@ async def create_from_context_suggestions(
 
     Creates projects from the provided suggestions.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     if not request.suggestions:
         return {"created_projects": [], "count": 0}
@@ -468,7 +469,7 @@ async def get_project(
     user: SessionAuthDep,
 ) -> ProjectDetailResponse:
     """Get a single project by ID."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     project = project_repository.get(project_id)
     if not project:
@@ -495,7 +496,7 @@ async def update_project(
     _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Update a project's basic fields."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -542,7 +543,7 @@ async def delete_project(
     _csrf: CSRFTokenDep,
 ) -> None:
     """Archive a project (soft delete)."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     success = project_repository.delete(project_id, user_id)
     if not success:
@@ -566,7 +567,7 @@ async def update_project_status(
     _csrf: CSRFTokenDep,
 ) -> ProjectDetailResponse:
     """Update a project's status."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         updated = project_repository.update_status(
@@ -602,7 +603,7 @@ async def create_project_version(
     Completed projects cannot be reopened. Instead, create a new version
     which starts fresh as an active project (v2, v3, etc).
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         new_project = project_repository.create_new_version(
@@ -639,7 +640,7 @@ async def get_project_actions(
     per_page: int = Query(50, ge=1, le=100, description="Items per page"),
 ) -> ProjectActionsResponse:
     """Get all actions for a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -706,7 +707,7 @@ async def assign_action_to_project(
     _csrf: CSRFTokenDep,
 ) -> None:
     """Assign an action to a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     success = project_repository.assign_action(
         action_id=action_id,
@@ -735,7 +736,7 @@ async def remove_action_from_project(
     _csrf: CSRFTokenDep,
 ) -> None:
     """Remove an action from a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     success = project_repository.unassign_action(
         action_id=action_id,
@@ -766,7 +767,7 @@ async def get_gantt_data(
     user: SessionAuthDep,
 ) -> GanttResponse:
     """Get Gantt chart data for a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -800,7 +801,7 @@ async def link_session_to_project(
     _csrf: CSRFTokenDep,
 ) -> dict[str, str]:
     """Link a session to a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -837,7 +838,7 @@ async def unlink_session_from_project(
     _csrf: CSRFTokenDep,
 ) -> None:
     """Unlink a session from a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -865,7 +866,7 @@ async def get_project_sessions(
     user: SessionAuthDep,
 ) -> dict[str, list[dict[str, Any]]]:
     """Get all sessions linked to a project."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify ownership
     project = project_repository.get(project_id)
@@ -920,7 +921,7 @@ async def create_project_meeting(
     from backend.api.dependencies import get_redis_manager
     from bo1.state.repositories.session_repository import SessionRepository
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify project ownership
     project = project_repository.get(project_id)

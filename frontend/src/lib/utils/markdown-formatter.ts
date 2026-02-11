@@ -81,9 +81,7 @@ export function extractMarkdownSection(text: string, sectionNames: string[]): st
 /**
  * Parse a synthesis document and extract all known sections.
  *
- * Supports both lean template format and legacy format:
- * - Lean: The Bottom Line, Why This Matters, What To Do Next, Key Risks, Board Confidence
- * - Legacy: Executive Summary, Recommendation, Rationale
+ * Sections: The Bottom Line, Why This Matters, What To Do Next, Key Risks, Board Confidence
  *
  * @param synthesis - Full synthesis markdown text
  * @returns Object with all extracted sections
@@ -104,7 +102,6 @@ export interface SynthesisSections {
 	nextSteps: string;
 	keyRisks: string;
 	confidence: string;
-	rationale: string;
 	recommendation: string;
 	executiveSummary: string;
 	recommendedActions?: ParsedAction[];
@@ -209,7 +206,6 @@ function parseJsonSynthesis(text: string): SynthesisSections | null {
 		nextSteps,
 		keyRisks,
 		confidence: '',
-		rationale: '',
 		recommendation: bottomLine,
 		executiveSummary,
 		recommendedActions,
@@ -224,18 +220,15 @@ export function parseSynthesisSections(synthesis: string): SynthesisSections {
 
 	const getSection = (names: string[]) => extractMarkdownSection(synthesis, names);
 
-	// Extract all sections (supports lean template and legacy format)
-	const bottomLine = getSection(['The Bottom Line', 'Executive Summary']);
+	// Extract all sections
+	const bottomLine = getSection(['The Bottom Line']);
 	const whyItMatters = getSection(['Why This Matters', 'Why It Matters']);
-	const nextSteps = getSection(['What To Do Next', 'Next Steps', 'Recommendation']);
-	const keyRisks = getSection(['Key Risks', 'Risks']);
-	const confidence = getSection(['Board Confidence', 'Confidence Assessment']);
-	const rationale = getSection(['Rationale']);
+	const nextSteps = getSection(['What To Do Next']);
+	const keyRisks = getSection(['Key Risks']);
+	const confidence = getSection(['Board Confidence']);
 
-	// For executive summary display, use bottom line or first section
-	const executiveSummary = bottomLine || rationale?.substring(0, 500) || '';
-	// For recommendation, combine next steps or use legacy recommendation
-	const recommendation = nextSteps || getSection(['Recommendation']);
+	const executiveSummary = bottomLine || '';
+	const recommendation = nextSteps;
 
 	return {
 		bottomLine,
@@ -243,7 +236,6 @@ export function parseSynthesisSections(synthesis: string): SynthesisSections {
 		nextSteps,
 		keyRisks,
 		confidence,
-		rationale,
 		recommendation,
 		executiveSummary
 	};

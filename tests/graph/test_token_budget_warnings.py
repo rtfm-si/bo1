@@ -150,7 +150,7 @@ class TestSynthesisTokenBudgetWarning:
                     round_number=1,
                 ),
             ],
-            "votes": [
+            "recommendations": [
                 {
                     "persona_name": "Expert 1",
                     "recommendation": "PROCEED",

@@ -166,7 +166,7 @@ class TestResultFromSubgraphState:
             "current_phase": "convergence",
             "experts_per_round": [persona_codes],
             "expert_memory": {},
-            "votes": [{"persona_code": first_persona.code, "recommendation": "Proceed"}],
+            "recommendations": [{"persona_code": first_persona.code, "recommendation": "Proceed"}],
             "synthesis": "Final synthesis report...",
             "expert_summaries": {first_persona.code: "Expert recommended proceeding"},
             "user_id": None,
@@ -178,7 +178,7 @@ class TestResultFromSubgraphState:
         assert result.sub_problem_id == "sp_1"
         assert result.sub_problem_goal == "Test goal"
         assert result.synthesis == "Final synthesis report..."
-        assert len(result.votes) == 1
+        assert len(result.recommendations) == 1
         assert result.contribution_count == 1
         assert result.cost == 0.05
         assert result.expert_panel == persona_codes
@@ -200,7 +200,7 @@ class TestBuildExpertMemory:
                 sub_problem_id="sp_1",
                 sub_problem_goal="Goal 1",
                 synthesis="Synthesis 1",
-                votes=[],
+                recommendations=[],
                 contribution_count=5,
                 cost=0.03,
                 duration_seconds=60,
@@ -211,7 +211,7 @@ class TestBuildExpertMemory:
                 sub_problem_id="sp_2",
                 sub_problem_goal="Goal 2",
                 synthesis="Synthesis 2",
-                votes=[],
+                recommendations=[],
                 contribution_count=4,
                 cost=0.02,
                 duration_seconds=45,
@@ -243,7 +243,7 @@ class TestBuildExpertMemory:
                 sub_problem_id="sp_1",
                 sub_problem_goal="Identify target markets",
                 synthesis="Synthesis",
-                votes=[],
+                recommendations=[],
                 contribution_count=3,
                 cost=0.01,
                 duration_seconds=30,

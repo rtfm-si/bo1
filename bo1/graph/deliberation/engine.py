@@ -201,7 +201,7 @@ async def _generate_synthesis(
         problem_statement=sub_problem.goal,
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
-        votes="\n".join(votes_text),
+        recommendations="\n".join(votes_text),
         limited_context_section=prompt_section,
         limited_context_output_section=output_section,
         constraints_section="",
@@ -342,7 +342,7 @@ async def deliberate_subproblem(
         user_input=None,
         user_id=user_id,
         current_node="parallel_subproblem_deliberation",
-        votes=[],
+        recommendations=[],
         synthesis=None,
         sub_problem_results=previous_results,
         sub_problem_index=sub_problem_index,
@@ -453,7 +453,7 @@ async def deliberate_subproblem(
     track_aggregated_cost(metrics, "voting", llm_responses)
 
     # Convert recommendations to dicts
-    votes = [
+    recs = [
         {
             "persona_code": r.persona_code,
             "persona_name": r.persona_name,
@@ -467,7 +467,7 @@ async def deliberate_subproblem(
     ]
 
     logger.info(
-        f"deliberate_subproblem: Collected {len(votes)} recommendations for {sub_problem.id}"
+        f"deliberate_subproblem: Collected {len(recs)} recommendations for {sub_problem.id}"
     )
 
     # Emit voting complete event
@@ -475,22 +475,22 @@ async def deliberate_subproblem(
         # Calculate consensus level based on agreement (simple heuristic)
         # Could be improved with actual consensus analysis
         consensus_level = "moderate"
-        if len(votes) >= len(personas) * 0.8:
+        if len(recs) >= len(personas) * 0.8:
             consensus_level = "strong"
-        elif len(votes) < len(personas) * 0.5:
+        elif len(recs) < len(personas) * 0.5:
             consensus_level = "weak"
 
         event_bridge.emit(
             "voting_complete",
             {
-                "votes_count": len(votes),
+                "recommendations_count": len(recs),
                 "consensus_level": consensus_level,
             },
         )
 
     # Step 5: Generate synthesis
     logger.info(f"deliberate_subproblem: Generating synthesis for {sub_problem.id}")
-    synthesis = await _generate_synthesis(sub_problem, contributions, votes, metrics, event_bridge)
+    synthesis = await _generate_synthesis(sub_problem, contributions, recs, metrics, event_bridge)
 
     # Step 6: Generate expert summaries for memory
     expert_summaries = await _generate_expert_summaries(
@@ -507,7 +507,7 @@ async def deliberate_subproblem(
         sub_problem_id=sub_problem_id,
         sub_problem_goal=sub_problem_goal,
         synthesis=synthesis,
-        votes=votes,
+        votes=recs,
         contribution_count=len(contributions),
         cost=metrics.total_cost,
         duration_seconds=duration_seconds,

@@ -12,6 +12,7 @@
 	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
 	import { startProjectsPageTour, injectTourStyles, destroyActiveTour } from '$lib/tour/onboarding-tour';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// Cleanup tour popup on navigation to prevent persistence
 	beforeNavigate(() => {
 		destroyActiveTour();
@@ -78,11 +79,6 @@
 		loadUnassignedCount();
 	}
 
-	function formatDate(dateString: string | null): string {
-		if (!dateString) return '—';
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function getStatusColor(status: ProjectStatus): string {
 		switch (status) {

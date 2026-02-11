@@ -1,7 +1,6 @@
 """Tests for circuit breaker Prometheus metrics."""
 
 from backend.api.middleware.metrics import (
-    bo1_circuit_breaker_state,
     bo1_circuit_breaker_state_labeled,
     record_circuit_breaker_state,
 )
@@ -102,20 +101,6 @@ class TestCircuitBreakerMetrics:
             bo1_circuit_breaker_state_labeled.labels(provider="openai", state="open")._value.get()
             == 0
         )
-
-    def test_legacy_gauge_also_updated(self) -> None:
-        """Verify legacy gauge with numeric state values is also updated."""
-        record_circuit_breaker_state("anthropic", "open")
-        legacy_value = bo1_circuit_breaker_state.labels(service="anthropic")._value.get()
-        assert legacy_value == 2  # open = 2 in legacy gauge
-
-        record_circuit_breaker_state("anthropic", "half_open")
-        legacy_value = bo1_circuit_breaker_state.labels(service="anthropic")._value.get()
-        assert legacy_value == 1  # half_open = 1 in legacy gauge
-
-        record_circuit_breaker_state("anthropic", "closed")
-        legacy_value = bo1_circuit_breaker_state.labels(service="anthropic")._value.get()
-        assert legacy_value == 0  # closed = 0 in legacy gauge
 
     def test_state_transition_open_to_closed(self) -> None:
         """Verify gauge correctly transitions from open to closed."""

@@ -10,6 +10,7 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		datasetId: string;
 		onReportGenerated?: (report: DatasetReportResponse) => void;
@@ -106,15 +107,6 @@
 		modalOpen = true;
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit'
-		});
-	}
 
 	// Fetch on mount
 	$effect(() => {

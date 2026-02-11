@@ -25,6 +25,8 @@ from backend.api.models import (
     KanbanColumnsUpdate,
     UserPromotion,
 )
+from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import http_error
 from backend.services.audit import (
     get_recent_deletion_request,
@@ -106,7 +108,7 @@ async def record_gdpr_consent(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Record GDPR consent timestamp for user."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     client_ip = _get_client_ip(request)
 
     try:
@@ -173,7 +175,7 @@ async def export_user_data(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> Response:
     """Export all user data as downloadable JSON."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     client_ip = _get_client_ip(request)
 
     # Rate limit: 1 export per 24 hours
@@ -258,7 +260,7 @@ async def delete_user_account(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Delete user account and anonymize data."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     client_ip = _get_client_ip(request)
 
     # Check for recent deletion request (prevent accidental double-deletion)
@@ -344,25 +346,23 @@ async def get_retention_setting(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionSettingResponse:
     """Get user's data retention period setting."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT data_retention_days FROM users WHERE id = %s",
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            "SELECT data_retention_days FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                # Handle potential NULL from users created before migration
-                retention_days = row["data_retention_days"]
-                if retention_days is None:
-                    retention_days = 730  # Default fallback (2 years)
+        # Handle potential NULL from users created before migration
+        retention_days = row["data_retention_days"]
+        if retention_days is None:
+            retention_days = 730  # Default fallback (2 years)
 
-                return RetentionSettingResponse(data_retention_days=retention_days)
+        return RetentionSettingResponse(data_retention_days=retention_days)
 
     except HTTPException:
         raise
@@ -403,26 +403,24 @@ async def update_retention_setting(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionSettingResponse:
     """Update user's data retention period setting."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET data_retention_days = %s, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING data_retention_days
-                    """,
-                    (body.days, user_id),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            UPDATE users
+            SET data_retention_days = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING data_retention_days
+            """,
+            (body.days, user_id),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"Updated retention setting for {user_id}: {body.days} days")
-                return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
+        logger.info(f"Updated retention setting for {user_id}: {body.days} days")
+        return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
 
     except HTTPException:
         raise
@@ -488,24 +486,22 @@ async def get_preferences(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> PreferencesResponse:
     """Get user's meeting preferences."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT skip_clarification, default_reminder_frequency_days, preferred_currency FROM users WHERE id = %s",
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            "SELECT skip_clarification, default_reminder_frequency_days, preferred_currency FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                return PreferencesResponse(
-                    skip_clarification=row.get("skip_clarification", False) or False,
-                    default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
-                    preferred_currency=row.get("preferred_currency") or "GBP",
-                )
+        return PreferencesResponse(
+            skip_clarification=row.get("skip_clarification", False) or False,
+            default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
+            preferred_currency=row.get("preferred_currency") or "GBP",
+        )
 
     except HTTPException:
         raise
@@ -543,7 +539,7 @@ async def update_preferences(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> PreferencesResponse:
     """Update user's meeting preferences."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Build dynamic update query
     updates = []
@@ -577,31 +573,29 @@ async def update_preferences(
     params.append(user_id)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    UPDATE users
-                    SET {", ".join(updates)}, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING skip_clarification, default_reminder_frequency_days, preferred_currency
-                    """,
-                    params,
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            f"""
+            UPDATE users
+            SET {", ".join(updates)}, updated_at = NOW()
+            WHERE id = %s
+            RETURNING skip_clarification, default_reminder_frequency_days, preferred_currency
+            """,
+            tuple(params),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(
-                    f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}, "
-                    f"default_reminder_frequency_days={row.get('default_reminder_frequency_days')}, "
-                    f"preferred_currency={row.get('preferred_currency')}"
-                )
-                return PreferencesResponse(
-                    skip_clarification=row.get("skip_clarification", False) or False,
-                    default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
-                    preferred_currency=row.get("preferred_currency") or "GBP",
-                )
+        logger.info(
+            f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}, "
+            f"default_reminder_frequency_days={row.get('default_reminder_frequency_days')}, "
+            f"preferred_currency={row.get('preferred_currency')}"
+        )
+        return PreferencesResponse(
+            skip_clarification=row.get("skip_clarification", False) or False,
+            default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
+            preferred_currency=row.get("preferred_currency") or "GBP",
+        )
 
     except HTTPException:
         raise
@@ -651,22 +645,20 @@ async def get_gantt_color_preference(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> GanttColorPreferenceResponse:
     """Get user's Gantt color preference."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT gantt_color_strategy FROM users WHERE id = %s",
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            "SELECT gantt_color_strategy FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                return GanttColorPreferenceResponse(
-                    gantt_color_strategy=row.get("gantt_color_strategy", "BY_STATUS") or "BY_STATUS"
-                )
+        return GanttColorPreferenceResponse(
+            gantt_color_strategy=row.get("gantt_color_strategy", "BY_STATUS") or "BY_STATUS"
+        )
 
     except HTTPException:
         raise
@@ -704,29 +696,25 @@ async def update_gantt_color_preference(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> GanttColorPreferenceResponse:
     """Update user's Gantt color preference."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     strategy = body.gantt_color_strategy
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET gantt_color_strategy = %s, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING gantt_color_strategy
-                    """,
-                    (strategy, user_id),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            UPDATE users
+            SET gantt_color_strategy = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING gantt_color_strategy
+            """,
+            (strategy, user_id),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"Updated Gantt color strategy for {user_id}: {strategy}")
-                return GanttColorPreferenceResponse(
-                    gantt_color_strategy=row["gantt_color_strategy"]
-                )
+        logger.info(f"Updated Gantt color strategy for {user_id}: {strategy}")
+        return GanttColorPreferenceResponse(gantt_color_strategy=row["gantt_color_strategy"])
 
     except HTTPException:
         raise
@@ -786,27 +774,25 @@ async def get_kanban_columns(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> KanbanColumnsResponse:
     """Get user's kanban column configuration."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT kanban_columns FROM users WHERE id = %s",
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            "SELECT kanban_columns FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                # Return stored columns or defaults
-                stored = row.get("kanban_columns")
-                if stored:
-                    columns = [KanbanColumn(**col) for col in stored]
-                else:
-                    columns = DEFAULT_KANBAN_COLUMNS
+        # Return stored columns or defaults
+        stored = row.get("kanban_columns")
+        if stored:
+            columns = [KanbanColumn(**col) for col in stored]
+        else:
+            columns = DEFAULT_KANBAN_COLUMNS
 
-                return KanbanColumnsResponse(columns=columns)
+        return KanbanColumnsResponse(columns=columns)
 
     except HTTPException:
         raise
@@ -845,33 +831,29 @@ async def update_kanban_columns(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> KanbanColumnsResponse:
     """Update user's kanban column configuration."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Validate columns
     _validate_kanban_columns(body.columns)
 
     try:
-        import json
-
         columns_json = json.dumps([col.model_dump() for col in body.columns])
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET kanban_columns = %s, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING kanban_columns
-                    """,
-                    (columns_json, user_id),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            UPDATE users
+            SET kanban_columns = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING kanban_columns
+            """,
+            (columns_json, user_id),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"Updated kanban columns for {user_id}: {len(body.columns)} columns")
-                return KanbanColumnsResponse(columns=body.columns)
+        logger.info(f"Updated kanban columns for {user_id}: {len(body.columns)} columns")
+        return KanbanColumnsResponse(columns=body.columns)
 
     except HTTPException:
         raise
@@ -924,7 +906,7 @@ async def get_usage(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> UsageResponse:
     """Get user's current usage and limits."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     base_tier = user.get("subscription_tier", "free")
 
     try:
@@ -991,7 +973,7 @@ async def get_tier_info(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> TierLimitsResponse:
     """Get user's tier limits and features."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     base_tier = user.get("subscription_tier", "free")
     effective_tier = get_effective_tier(user_id, base_tier)
 
@@ -1042,7 +1024,7 @@ async def get_fair_usage_status(
     """Get user's fair usage status across all LLM features."""
     from backend.services.fair_usage import get_fair_usage_service
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     base_tier = user.get("subscription_tier", "free")
     effective_tier = get_effective_tier(user_id, base_tier)
 
@@ -1118,7 +1100,7 @@ async def apply_promo_code(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> UserPromotion:
     """Apply a promo code to user's account."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         result = validate_and_apply_code(user_id, body.code)
@@ -1197,7 +1179,7 @@ async def get_cost_calculator_defaults(
     """Get user's cost calculator defaults."""
     from bo1.state.repositories.user_repository import user_repository
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         defaults = user_repository.get_cost_calculator_defaults(user_id)
@@ -1242,7 +1224,7 @@ async def update_cost_calculator_defaults(
     """Update user's cost calculator defaults."""
     from bo1.state.repositories.user_repository import user_repository
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         defaults = user_repository.update_cost_calculator_defaults(
@@ -1364,7 +1346,7 @@ async def get_value_metrics(
     from backend.services.value_metrics import extract_value_metrics
     from bo1.state.repositories import user_repository
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
         # Load user's business context
@@ -1436,27 +1418,24 @@ async def get_retention_reminder_settings(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionReminderSettingsResponse:
     """Get user's retention reminder email settings."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT deletion_reminder_suppressed, last_deletion_reminder_sent_at
-                    FROM users WHERE id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            SELECT deletion_reminder_suppressed, last_deletion_reminder_sent_at
+            FROM users WHERE id = %s
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                return RetentionReminderSettingsResponse(
-                    deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False)
-                    or False,
-                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
-                )
+        return RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False) or False,
+            last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+        )
 
     except HTTPException:
         raise
@@ -1491,29 +1470,27 @@ async def suppress_retention_reminders(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionReminderSettingsResponse:
     """Suppress retention reminder emails for the user."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET deletion_reminder_suppressed = true, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            UPDATE users
+            SET deletion_reminder_suppressed = true, updated_at = NOW()
+            WHERE id = %s
+            RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"User {user_id} suppressed retention reminders")
-                return RetentionReminderSettingsResponse(
-                    deletion_reminder_suppressed=True,
-                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
-                )
+        logger.info(f"User {user_id} suppressed retention reminders")
+        return RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=True,
+            last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+        )
 
     except HTTPException:
         raise
@@ -1541,29 +1518,27 @@ async def enable_retention_reminders(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionReminderSettingsResponse:
     """Re-enable retention reminder emails for the user."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET deletion_reminder_suppressed = false, updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        row = execute_query(
+            """
+            UPDATE users
+            SET deletion_reminder_suppressed = false, updated_at = NOW()
+            WHERE id = %s
+            RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"User {user_id} enabled retention reminders")
-                return RetentionReminderSettingsResponse(
-                    deletion_reminder_suppressed=False,
-                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
-                )
+        logger.info(f"User {user_id} enabled retention reminders")
+        return RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=False,
+            last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+        )
 
     except HTTPException:
         raise
@@ -1596,31 +1571,28 @@ async def acknowledge_retention_reminder(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RetentionReminderSettingsResponse:
     """Acknowledge retention reminder (resets reminder timer)."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Just update the last sent timestamp to delay next reminder
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET last_deletion_reminder_sent_at = NOW(), updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
+        # Just update the last sent timestamp to delay next reminder
+        row = execute_query(
+            """
+            UPDATE users
+            SET last_deletion_reminder_sent_at = NOW(), updated_at = NOW()
+            WHERE id = %s
+            RETURNING deletion_reminder_suppressed, last_deletion_reminder_sent_at
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        if not row:
+            raise http_error(ErrorCode.API_NOT_FOUND, "User not found", status=404)
 
-                logger.info(f"User {user_id} acknowledged retention reminder")
-                return RetentionReminderSettingsResponse(
-                    deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False)
-                    or False,
-                    last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
-                )
+        logger.info(f"User {user_id} acknowledged retention reminder")
+        return RetentionReminderSettingsResponse(
+            deletion_reminder_suppressed=row.get("deletion_reminder_suppressed", False) or False,
+            last_deletion_reminder_sent_at=row.get("last_deletion_reminder_sent_at"),
+        )
 
     except HTTPException:
         raise
@@ -1692,7 +1664,7 @@ async def upgrade_password(
 
     from backend.api.supertokens_config import validate_password_strength
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     email = user.get("email")
 
     if not email:
@@ -1756,16 +1728,15 @@ async def upgrade_password(
             )
 
         # Step 4: Clear password_upgrade_needed flag
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET password_upgrade_needed = false, updated_at = NOW()
-                    WHERE id = %s
-                    """,
-                    (user_id,),
-                )
+        execute_query(
+            """
+            UPDATE users
+            SET password_upgrade_needed = false, updated_at = NOW()
+            WHERE id = %s
+            """,
+            (user_id,),
+            fetch="none",
+        )
 
         logger.info(f"Password upgraded successfully for user {user_id}")
         return PasswordUpgradeResponse(

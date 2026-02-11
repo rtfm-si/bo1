@@ -801,14 +801,14 @@ def persona_vote_event(
 
 def voting_complete_event(
     session_id: str,
-    votes_count: int,
+    recommendations_count: int,
     consensus_level: str,
 ) -> str:
     """Create SSE event for voting phase completion.
 
     Args:
         session_id: Session identifier
-        votes_count: Number of votes collected
+        recommendations_count: Number of recommendations collected
         consensus_level: Level of consensus (strong, moderate, weak)
 
     Returns:
@@ -818,7 +818,7 @@ def voting_complete_event(
         "voting_complete",
         {
             "session_id": session_id,
-            "votes_count": votes_count,
+            "recommendations_count": recommendations_count,
             "consensus_level": consensus_level,
             "timestamp": datetime.now(UTC).isoformat(),
         },

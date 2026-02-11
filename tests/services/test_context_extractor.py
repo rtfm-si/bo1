@@ -307,9 +307,7 @@ class TestGetContextExtractor:
     def test_singleton(self):
         """Test that get_context_extractor returns singleton."""
         # Reset singleton for test
-        import backend.services.context_extractor as module
-
-        module._extractor = None
+        get_context_extractor.cache_clear()
 
         extractor1 = get_context_extractor()
         extractor2 = get_context_extractor()

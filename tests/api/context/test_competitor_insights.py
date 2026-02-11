@@ -133,13 +133,13 @@ class TestCompetitorInsightEndpoints:
     @pytest.fixture
     def mock_user_repository(self):
         """Mock user_repository."""
-        with patch("backend.api.context.routes.user_repository") as mock:
+        with patch("backend.api.context.competitors_routes.user_repository") as mock:
             yield mock
 
     @pytest.fixture
     def mock_analyzer(self):
         """Mock competitor analyzer."""
-        with patch("backend.api.context.routes.get_competitor_analyzer") as mock_get:
+        with patch("backend.api.context.competitors_routes.get_competitor_analyzer") as mock_get:
             analyzer = MagicMock()
             mock_get.return_value = analyzer
             yield analyzer

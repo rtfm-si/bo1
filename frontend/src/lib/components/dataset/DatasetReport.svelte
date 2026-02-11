@@ -14,6 +14,7 @@
 	import ChartModal from './ChartModal.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		report: DatasetReportResponse;
 		favourites?: DatasetFavourite[];
@@ -71,16 +72,6 @@
 		}
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit'
-		});
-	}
 </script>
 
 <article class="max-w-4xl mx-auto">

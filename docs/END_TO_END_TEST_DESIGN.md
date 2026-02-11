@@ -291,9 +291,9 @@ async def test_complete_meeting_lifecycle(
         logger.info(f"✓ Rounds completed: {final_state['round_number']}")
 
         # Check recommendations collected
-        assert "votes" in final_state
-        assert len(final_state["votes"]) > 0
-        logger.info(f"✓ Recommendations: {len(final_state['votes'])} collected")
+        assert "recommendations" in final_state
+        assert len(final_state["recommendations"]) > 0
+        logger.info(f"✓ Recommendations: {len(final_state['recommendations'])} collected")
 
         # Check synthesis generated
         assert "synthesis" in final_state

@@ -11,7 +11,7 @@ class TestCurrencyPreferencesAPI:
     @pytest.fixture
     def mock_db_session(self):
         """Mock db_session context manager."""
-        with patch("backend.api.user.db_session") as mock:
+        with patch("backend.api.utils.db_helpers.db_session") as mock:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)

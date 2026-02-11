@@ -12,6 +12,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from backend.api.middleware.metrics import (
@@ -439,18 +440,15 @@ class EventBatcher:
 
 
 # Global batcher instance
-_batcher: EventBatcher | None = None
 
 
+@lru_cache(maxsize=1)
 def get_batcher() -> EventBatcher:
     """Get or create the global event batcher.
 
     Lazy initialization to support async context.
     """
-    global _batcher
-    if _batcher is None:
-        _batcher = EventBatcher()
-    return _batcher
+    return EventBatcher()
 
 
 async def flush_batcher() -> None:

@@ -126,6 +126,42 @@ def get_session_metadata_cache() -> SessionMetadataCache:
     )
 
 
+def _load_session_metadata(
+    session_id: str,
+    redis_manager: RedisManager,
+    *,
+    raise_if_missing: bool = True,
+) -> dict | None:
+    """Load session metadata from Redis cache.
+
+    Shared logic for get_session_metadata, get_verified_session_admin,
+    and get_verified_session.
+
+    Raises:
+        HTTPException 500: if Redis unavailable
+        HTTPException 404: if session not found and raise_if_missing=True
+    """
+    if not redis_manager.is_available:
+        raise HTTPException(
+            status_code=500,
+            detail="Redis unavailable - cannot access session",
+        )
+
+    cache = get_session_metadata_cache()
+    metadata = cache.get_or_load(
+        session_id,
+        lambda sid: redis_manager.load_metadata(sid),
+    )
+
+    if not metadata and raise_if_missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session not found: {session_id}",
+        )
+
+    return metadata
+
+
 class SessionMetadataDict(TypedDict, total=False):
     """Type definition for session metadata fields.
 
@@ -168,28 +204,8 @@ async def get_session_metadata(
         HTTPException: 500 if Redis unavailable
         HTTPException: 404 if session not found
     """
-    # Validate session ID format
     session_id = validate_session_id(session_id)
-
-    if not redis_manager.is_available:
-        raise HTTPException(
-            status_code=500,
-            detail="Redis unavailable - cannot access session",
-        )
-
-    # Use cache to reduce Redis lookups
-    cache = get_session_metadata_cache()
-    metadata = cache.get_or_load(
-        session_id,
-        lambda sid: redis_manager.load_metadata(sid),
-    )
-
-    if not metadata:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session not found: {session_id}",
-        )
-
+    metadata = _load_session_metadata(session_id, redis_manager)
     return metadata
 
 
@@ -225,29 +241,8 @@ async def get_verified_session_admin(
         HTTPException: 500 if Redis unavailable
         HTTPException: 404 if session not found
     """
-    # Validate session ID format
     session_id = validate_session_id(session_id)
-
-    if not redis_manager.is_available:
-        raise HTTPException(
-            status_code=500,
-            detail="Redis unavailable - cannot access session",
-        )
-
-    # Use cache to reduce Redis lookups
-    cache = get_session_metadata_cache()
-    metadata = cache.get_or_load(
-        session_id,
-        lambda sid: redis_manager.load_metadata(sid),
-    )
-
-    if not metadata:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session not found: {session_id}",
-        )
-
-    return metadata
+    return _load_session_metadata(session_id, redis_manager)
 
 
 # Type alias for admin session dependency
@@ -293,21 +288,8 @@ async def get_verified_session(
         ...     user_id, metadata = session_data
         ...     # ... endpoint logic
     """
-    if not redis_manager.is_available:
-        raise HTTPException(
-            status_code=500,
-            detail="Redis unavailable - cannot access session",
-        )
-
     user_id = extract_user_id(user)
-
-    # Use cache to reduce Redis lookups
-    cache = get_session_metadata_cache()
-    metadata = cache.get_or_load(
-        session_id,
-        lambda sid: redis_manager.load_metadata(sid),
-    )
-
+    metadata = _load_session_metadata(session_id, redis_manager, raise_if_missing=False)
     metadata = await verify_session_ownership(session_id, user_id, metadata)
 
     return user_id, metadata

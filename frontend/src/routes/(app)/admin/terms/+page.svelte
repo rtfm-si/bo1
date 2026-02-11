@@ -5,6 +5,7 @@
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import { apiClient, type TermsVersionItem } from '$lib/api/client';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import { formatDate } from '$lib/utils/time-formatting';
 	import {
 		ChevronLeft,
 		ChevronRight,
@@ -67,11 +68,6 @@
 		}
 	}
 
-	function formatDate(dateString: string | null): string {
-		if (!dateString) return '-';
-		const date = new Date(dateString);
-		return date.toLocaleString();
-	}
 
 	function getStatusBadge(version: TermsVersionItem): {
 		variant: 'success' | 'neutral' | 'info';

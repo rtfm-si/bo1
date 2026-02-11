@@ -7,6 +7,7 @@
 	import { Trash2, ChevronDown, ChevronUp, ArrowRight } from 'lucide-svelte';
 	import { type BankedTopic } from '$lib/api/admin';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		topics: BankedTopic[];
 		ondismiss: (id: string) => void;
@@ -48,13 +49,6 @@
 		return colors[category] || 'bg-neutral-100 text-neutral-600';
 	}
 
-	function formatDate(date: string | null) {
-		if (!date) return '';
-		return new Date(date).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 </script>
 
 {#if topics.length === 0}

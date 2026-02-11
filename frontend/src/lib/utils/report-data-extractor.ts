@@ -6,6 +6,7 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import { getInitials } from '$lib/utils/colors';
 
 // Type definitions for event data
 interface PersonaSelectedData {
@@ -198,21 +199,6 @@ export function formatReportDate(date: Date = new Date()): string {
 		month: 'long',
 		day: 'numeric'
 	});
-}
-
-/**
- * Get initials from a name.
- *
- * @param name - Full name
- * @returns Initials (up to 2 characters)
- */
-export function getInitials(name: string): string {
-	return name
-		.split(' ')
-		.map((n) => n[0])
-		.join('')
-		.substring(0, 2)
-		.toUpperCase();
 }
 
 /**

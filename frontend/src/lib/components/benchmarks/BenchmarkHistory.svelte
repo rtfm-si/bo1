@@ -8,6 +8,7 @@
 	 */
 	import type { BenchmarkHistoryEntry } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		history: BenchmarkHistoryEntry[];
 		unit?: string;
@@ -16,16 +17,6 @@
 	let { history = [], unit = '' }: Props = $props();
 
 	// Format date as "Jan 15" or "Jan '25"
-	function formatDate(dateStr: string): string {
-		try {
-			const date = new Date(dateStr + 'T00:00:00');
-			const month = date.toLocaleString('en', { month: 'short' });
-			const day = date.getDate();
-			return `${month} ${day}`;
-		} catch {
-			return dateStr;
-		}
-	}
 
 	// Calculate sparkline points
 	function getSparklinePoints(): string {

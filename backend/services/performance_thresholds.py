@@ -6,6 +6,7 @@ Defines default thresholds and provides database-backed runtime adjustment.
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.database import db_session
@@ -350,12 +351,9 @@ class ThresholdService:
 
 
 # Module-level singleton
-_service: ThresholdService | None = None
 
 
+@lru_cache(maxsize=1)
 def get_threshold_service() -> ThresholdService:
     """Get threshold service singleton."""
-    global _service
-    if _service is None:
-        _service = ThresholdService()
-    return _service
+    return ThresholdService()

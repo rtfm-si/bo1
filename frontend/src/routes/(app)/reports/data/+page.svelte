@@ -11,31 +11,29 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { toast } from '$lib/stores/toast';
+	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { FileBarChart, Database, ChevronRight } from 'lucide-svelte';
 
 	function getReportUrl(report: AllReportItem): string {
 		return `/datasets/${report.dataset_id}/report/${report.id}`;
 	}
 
-	let isLoading = $state(true);
-	let reports = $state<AllReportItem[]>([]);
+	const reportsFetch = useDataFetch(async () => {
+		const response = await apiClient.listAllReports();
+		return (response.reports || []).filter((r: AllReportItem) => r.dataset_name);
+	});
 
-	async function fetchReports() {
-		isLoading = true;
-		try {
-			const response = await apiClient.listAllReports();
-			// Filter out reports where dataset was deleted (no dataset_name)
-			reports = (response.reports || []).filter((r) => r.dataset_name);
-		} catch (err) {
-			console.error('Failed to fetch reports:', err);
-			toast.error(err instanceof Error ? err.message : 'Failed to load data reports');
-		} finally {
-			isLoading = false;
+	const isLoading = $derived(reportsFetch.isLoading);
+	const reports = $derived(reportsFetch.data ?? []);
+
+	$effect(() => {
+		if (reportsFetch.error) {
+			toast.error(reportsFetch.error);
 		}
-	}
+	});
 
 	onMount(() => {
-		fetchReports();
+		reportsFetch.fetch();
 	});
 
 	function truncateSummary(summary: string | null | undefined, maxLength: number = 120): string {

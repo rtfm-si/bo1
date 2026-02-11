@@ -6,6 +6,7 @@ using embedding-based similarity clustering.
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from bo1.llm.embeddings import (
@@ -337,12 +338,9 @@ class TopicDetector:
 
 
 # Module-level singleton
-_topic_detector: TopicDetector | None = None
 
 
+@lru_cache(maxsize=1)
 def get_topic_detector() -> TopicDetector:
     """Get or create the topic detector singleton."""
-    global _topic_detector
-    if _topic_detector is None:
-        _topic_detector = TopicDetector()
-    return _topic_detector
+    return TopicDetector()

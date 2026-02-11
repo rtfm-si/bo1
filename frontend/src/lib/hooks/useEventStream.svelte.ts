@@ -30,8 +30,7 @@
  */
 
 import { SSEClient } from '$lib/utils/sse';
-
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'retrying' | 'error';
+import type { ConnectionStatus } from '$lib/config/constants';
 
 export interface UseEventStreamOptions {
 	/** Session ID for the SSE stream */

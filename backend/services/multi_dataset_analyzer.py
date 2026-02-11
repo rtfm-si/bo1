@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from backend.services.dataset_comparator import DatasetComparator
+from backend.services.safe_types import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -140,16 +141,7 @@ class MultiDatasetAnalyzer:
         return dtype
 
     def _safe_float(self, val: Any) -> float | None:
-        """Safely convert to float, handling NaN and infinity."""
-        if val is None:
-            return None
-        try:
-            f = float(val)
-            if np.isnan(f) or np.isinf(f):
-                return None
-            return round(f, 4)
-        except (TypeError, ValueError):
-            return None
+        return safe_float(val)
 
     def _compute_dataset_summary(self, df: pd.DataFrame, name: str) -> DatasetSummary:
         """Compute summary statistics for a single dataset."""

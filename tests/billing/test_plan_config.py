@@ -1,8 +1,4 @@
-"""Tests for centralized PlanConfig.
-
-Validates that PlanConfig returns correct values matching the original
-TierLimits and TierFeatureFlags for all tiers.
-"""
+"""Tests for centralized PlanConfig."""
 
 from bo1.billing import PlanConfig
 from bo1.billing.config import TierConfig
@@ -216,41 +212,6 @@ class TestPlanConfigBackwardCompat:
         config1 = PlanConfig.get_plan_config()
         config2 = PlanConfig.get_plan_config()
         assert config1 is config2  # Same object (cached)
-
-
-class TestPlanConfigConsistency:
-    """Tests to ensure PlanConfig matches deprecated constants.
-
-    These tests verify that the migration is correct by comparing
-    PlanConfig values against the original TierLimits and TierFeatureFlags.
-    """
-
-    def test_limits_match_deprecated_tier_limits(self):
-        """PlanConfig limits should exactly match deprecated TierLimits."""
-        from bo1.constants import TierLimits
-
-        for tier in ["free", "starter", "pro", "enterprise"]:
-            old_limits = TierLimits.get_limits(tier)
-            new_limits = PlanConfig.get_limits(tier)
-            assert old_limits == new_limits, f"Mismatch for tier {tier}"
-
-    def test_features_match_deprecated_tier_feature_flags(self):
-        """PlanConfig features should exactly match deprecated TierFeatureFlags."""
-        from bo1.constants import TierFeatureFlags
-
-        for tier in ["free", "starter", "pro", "enterprise"]:
-            old_features = TierFeatureFlags.get_features(tier)
-            new_features = PlanConfig.get_features(tier)
-            assert old_features == new_features, f"Mismatch for tier {tier}"
-
-    def test_benchmark_limits_match_deprecated(self):
-        """PlanConfig benchmark limits should match deprecated IndustryBenchmarkLimits."""
-        from bo1.constants import IndustryBenchmarkLimits
-
-        for tier in ["free", "starter", "pro", "enterprise"]:
-            old_limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
-            new_limit = PlanConfig.get_benchmark_limit(tier)
-            assert old_limit == new_limit, f"Mismatch for tier {tier}"
 
 
 class TestPlanConfigFairUsage:

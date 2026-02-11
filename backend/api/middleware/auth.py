@@ -117,7 +117,6 @@ async def _get_current_user_with_session(
                     status=403,
                 )
         else:
-            # Legacy user without provider record - use ST user_id as primary
             primary_user_id = st_user_id
 
         # Fetch user data from database using primary_user_id

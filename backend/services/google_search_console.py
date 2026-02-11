@@ -10,15 +10,14 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 from backend.services.encryption import EncryptionError, get_encryption_service, is_encrypted
+from backend.services.google_oauth import GOOGLE_TOKEN_URL, refresh_google_token
+from backend.services.http_utils import create_resilient_session
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 WEBMASTERS_API_BASE = "https://www.googleapis.com/webmasters/v3"
 SEARCH_CONSOLE_API_BASE = "https://searchconsole.googleapis.com/v1"
@@ -70,15 +69,7 @@ class GoogleSearchConsoleClient:
         self._refresh_token = self._decrypt_if_needed(refresh_token) if refresh_token else None
         self._expires_at = expires_at
 
-        # Configure session with retry logic
-        self._session = requests.Session()
-        retry = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[500, 502, 503, 504],  # Don't retry 401/403
-        )
-        adapter = HTTPAdapter(max_retries=retry)
-        self._session.mount("https://", adapter)
+        self._session = create_resilient_session()
 
     @staticmethod
     def _decrypt_if_needed(value: str | None) -> str | None:
@@ -119,54 +110,37 @@ class GoogleSearchConsoleClient:
             logger.error("Google OAuth credentials not configured")
             return False
 
-        try:
-            response = requests.post(
-                GOOGLE_TOKEN_URL,
-                data={
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": self._refresh_token,
-                    "grant_type": "refresh_token",
-                },
-                timeout=30,
-            )
-
-            if response.status_code != 200:
-                logger.error(f"GSC token refresh failed: {response.text}")
-                return False
-
-            tokens = response.json()
-            self._access_token = tokens.get("access_token", "")
-            expires_in = tokens.get("expires_in")
-
-            if expires_in:
-                self._expires_at = datetime.now(UTC) + timedelta(seconds=int(expires_in))
-
-            # Persist refreshed tokens
-            from bo1.state.repositories.gsc_repository import gsc_repository
-
-            try:
-                service = get_encryption_service()
-                encrypted_access = service.encrypt(self._access_token)
-                encrypted_refresh = (
-                    service.encrypt(self._refresh_token) if self._refresh_token else None
-                )
-            except EncryptionError:
-                encrypted_access = self._access_token
-                encrypted_refresh = self._refresh_token
-
-            gsc_repository.update_connection_tokens(
-                access_token=encrypted_access,
-                refresh_token=encrypted_refresh,
-                expires_at=self._expires_at,
-            )
-
-            logger.info("Refreshed GSC token")
-            return True
-
-        except requests.RequestException as e:
-            logger.error(f"GSC token refresh request failed: {e}")
+        tokens = refresh_google_token(self._refresh_token, client_id, client_secret)
+        if tokens is None:
             return False
+
+        self._access_token = tokens.get("access_token", "")
+        expires_in = tokens.get("expires_in")
+
+        if expires_in:
+            self._expires_at = datetime.now(UTC) + timedelta(seconds=int(expires_in))
+
+        # Persist refreshed tokens (encrypted)
+        from bo1.state.repositories.gsc_repository import gsc_repository
+
+        try:
+            service = get_encryption_service()
+            encrypted_access = service.encrypt(self._access_token)
+            encrypted_refresh = (
+                service.encrypt(self._refresh_token) if self._refresh_token else None
+            )
+        except EncryptionError:
+            encrypted_access = self._access_token
+            encrypted_refresh = self._refresh_token
+
+        gsc_repository.update_connection_tokens(
+            access_token=encrypted_access,
+            refresh_token=encrypted_refresh,
+            expires_at=self._expires_at,
+        )
+
+        logger.info("Refreshed GSC token")
+        return True
 
     def _ensure_valid_token(self) -> None:
         """Ensure we have a valid access token, refreshing if needed."""

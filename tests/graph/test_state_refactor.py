@@ -118,7 +118,7 @@ def full_state(sample_problem, sample_persona, sample_contribution):
     # Add additional fields that aren't set by create_initial_state
     state["contributions"] = [sample_contribution]
     state["round_summaries"] = ["Round 1 summary"]
-    state["votes"] = [{"persona": "Expert1", "recommendation": "A"}]
+    state["recommendations"] = [{"persona": "Expert1", "recommendation": "A"}]
     state["synthesis"] = "Final synthesis text"
     state["business_context"] = {"industry": "tech"}
     state["comparison_detected"] = True
@@ -168,7 +168,7 @@ class TestNestedTypedDictDefinitions:
         ds = DiscussionState(
             contributions=[],
             round_summaries=["Summary 1"],
-            votes=[{"persona": "Test", "vote": "A"}],
+            recommendations=[{"persona": "Test", "vote": "A"}],
             synthesis="Final answer",
         )
         assert ds["synthesis"] == "Final answer"

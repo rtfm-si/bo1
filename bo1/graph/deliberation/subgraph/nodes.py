@@ -552,7 +552,7 @@ async def vote_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
     track_aggregated_cost(metrics, "voting", llm_responses)
 
     # Convert to dicts
-    votes = [
+    recs = [
         {
             "persona_code": r.persona_code,
             "persona_name": r.persona_name,
@@ -567,9 +567,9 @@ async def vote_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
 
     # Calculate consensus level
     consensus_level = "moderate"
-    if len(votes) >= len(personas) * 0.8:
+    if len(recs) >= len(personas) * 0.8:
         consensus_level = "strong"
-    elif len(votes) < len(personas) * 0.5:
+    elif len(recs) < len(personas) * 0.5:
         consensus_level = "weak"
 
     # Emit voting_complete
@@ -577,17 +577,17 @@ async def vote_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         {
             "event_type": "voting_complete",
             "sub_problem_index": sub_problem_index,
-            "votes_count": len(votes),
+            "recommendations_count": len(recs),
             "consensus_level": consensus_level,
         }
     )
 
     logger.info(
-        f"vote_sp_node: Collected {len(votes)} recommendations for sub-problem {sub_problem_index}"
+        f"vote_sp_node: Collected {len(recs)} recommendations for sub-problem {sub_problem_index}"
     )
 
     return {
-        "votes": votes,
+        "recommendations": recs,
         "metrics": metrics,
         "sub_problem_index": sub_problem_index,  # Pass through for event handlers
     }
@@ -604,7 +604,7 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
     sub_problem_index = state["sub_problem_index"]
     sub_problem = state["sub_problem"]
     contributions = state["contributions"]
-    votes = state["votes"]
+    votes = state["recommendations"]
     personas = state["personas"]
     metrics = state.get("metrics") or DeliberationMetrics()
 
@@ -679,7 +679,7 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         problem_statement=sub_problem.goal,
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
-        votes="\n".join(votes_text),
+        recommendations="\n".join(votes_text),
         limited_context_section=prompt_section,
         limited_context_output_section=output_section,
         constraints_section="",

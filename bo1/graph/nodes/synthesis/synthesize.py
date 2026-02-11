@@ -73,7 +73,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Get problem and contributions
     problem = problem_state.get("problem")
     contributions = pruned_contributions
-    votes = discussion_state.get("votes", [])
+    recommendations_list = discussion_state.get("recommendations", [])
     round_summaries = discussion_state.get("round_summaries", [])
     current_round = phase_state.get("round_number", 1)
 
@@ -107,18 +107,18 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
                 f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
             )
 
-    # Format votes/recommendations
-    votes_text = []
-    for vote in votes:
-        votes_text.append(
-            f"{vote['persona_name']}: {vote['recommendation']} "
-            f"(confidence: {vote['confidence']:.2f})\n"
-            f"Reasoning: {vote['reasoning']}\n"
+    # Format recommendations
+    recommendations_text = []
+    for rec in recommendations_list:
+        recommendations_text.append(
+            f"{rec['persona_name']}: {rec['recommendation']} "
+            f"(confidence: {rec['confidence']:.2f})\n"
+            f"Reasoning: {rec['reasoning']}\n"
         )
-        conditions = vote.get("conditions")
+        conditions = rec.get("conditions")
         if conditions and isinstance(conditions, list):
-            votes_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
-        votes_text.append("\n")
+            recommendations_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
+        recommendations_text.append("\n")
 
     # Check for limited context mode (Option D+E Hybrid - Phase 8)
     limited_context_mode = context_state.get("limited_context_mode", False)
@@ -145,7 +145,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         problem_statement=get_problem_attr(problem, "description", ""),
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
-        votes="\n".join(votes_text),
+        recommendations="\n".join(recommendations_text),
         limited_context_section=prompt_section,
         limited_context_output_section=output_section,
         constraints_section=constraints_text,
@@ -153,7 +153,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     logger.info(
         f"synthesize_node: Context built - {len(round_summaries)} round summaries, "
-        f"{len(final_round_contribs)} final round contributions, {len(votes)} votes"
+        f"{len(final_round_contribs)} final round contributions, {len(recommendations_list)} recommendations"
     )
 
     # Create broker and request

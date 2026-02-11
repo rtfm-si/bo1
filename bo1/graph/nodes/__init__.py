@@ -13,8 +13,7 @@ Each module focuses on a specific concern:
 - context: Context collection and clarification
 - utils: Shared helper functions
 
-All node functions are re-exported from this module for backward compatibility
-with existing imports from `bo1.graph.nodes`.
+All node functions are re-exported from this module.
 """
 
 # Decomposition
@@ -71,7 +70,7 @@ from bo1.graph.nodes.synthesis import (
     vote_node,
 )
 
-# Utils (re-export for backward compatibility)
+# Utils
 from bo1.graph.nodes.utils import (
     get_phase_prompt,
     phase_prompt_short,

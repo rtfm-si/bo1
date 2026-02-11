@@ -22,6 +22,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import type { CompetitorInsight } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		insight: CompetitorInsight;
 		isGenerating?: boolean;
@@ -31,11 +32,6 @@
 
 	let { insight, isGenerating = false, onRefresh, onDelete }: Props = $props();
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Unknown';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 </script>
 
 <BoCard variant="bordered" padding="md">

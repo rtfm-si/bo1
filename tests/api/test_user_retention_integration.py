@@ -24,7 +24,7 @@ class TestGetRetentionSettingEndpoint:
     """Tests for get_retention_setting endpoint logic."""
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_returns_valid_setting(self, mock_db: MagicMock) -> None:
         """GET returns user's configured retention days."""
         mock_conn = MagicMock()
@@ -41,7 +41,7 @@ class TestGetRetentionSettingEndpoint:
         assert result.data_retention_days == 730
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_handles_null_with_default(self, mock_db: MagicMock) -> None:
         """GET returns default 730 when column is NULL (legacy users)."""
         mock_conn = MagicMock()
@@ -59,7 +59,7 @@ class TestGetRetentionSettingEndpoint:
         assert result.data_retention_days == 730
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_returns_minimum_boundary(self, mock_db: MagicMock) -> None:
         """GET returns minimum valid value (365 days / 1 year)."""
         mock_conn = MagicMock()
@@ -75,7 +75,7 @@ class TestGetRetentionSettingEndpoint:
         assert result.data_retention_days == 365
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_returns_maximum_boundary(self, mock_db: MagicMock) -> None:
         """GET returns maximum valid value (1095 days / 3 years)."""
         mock_conn = MagicMock()
@@ -91,7 +91,7 @@ class TestGetRetentionSettingEndpoint:
         assert result.data_retention_days == 1095
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_returns_forever_value(self, mock_db: MagicMock) -> None:
         """GET returns -1 (forever) when set."""
         mock_conn = MagicMock()
@@ -107,7 +107,7 @@ class TestGetRetentionSettingEndpoint:
         assert result.data_retention_days == -1
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_raises_404_for_missing_user(self, mock_db: MagicMock) -> None:
         """GET raises 404 when user not found."""
         from fastapi import HTTPException
@@ -131,7 +131,7 @@ class TestUpdateRetentionSettingEndpoint:
     """Tests for update_retention_setting endpoint logic."""
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_updates_and_returns_value(self, mock_db: MagicMock) -> None:
         """PATCH persists and returns updated retention days."""
         mock_conn = MagicMock()
@@ -151,7 +151,7 @@ class TestUpdateRetentionSettingEndpoint:
         assert result.data_retention_days == 730
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_updates_minimum_boundary(self, mock_db: MagicMock) -> None:
         """PATCH with minimum value (365 / 1 year) succeeds."""
         mock_conn = MagicMock()
@@ -170,7 +170,7 @@ class TestUpdateRetentionSettingEndpoint:
         assert result.data_retention_days == 365
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_updates_maximum_boundary(self, mock_db: MagicMock) -> None:
         """PATCH with maximum value (1095 / 3 years) succeeds."""
         mock_conn = MagicMock()
@@ -189,7 +189,7 @@ class TestUpdateRetentionSettingEndpoint:
         assert result.data_retention_days == 1095
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_updates_to_forever(self, mock_db: MagicMock) -> None:
         """PATCH with -1 (forever) succeeds."""
         mock_conn = MagicMock()
@@ -208,7 +208,7 @@ class TestUpdateRetentionSettingEndpoint:
         assert result.data_retention_days == -1
 
     @pytest.mark.asyncio
-    @patch("backend.api.user.db_session")
+    @patch("backend.api.utils.db_helpers.db_session")
     async def test_raises_404_for_missing_user(self, mock_db: MagicMock) -> None:
         """PATCH raises 404 when user not found."""
         from fastapi import HTTPException

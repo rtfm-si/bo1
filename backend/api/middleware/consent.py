@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import Depends, HTTPException
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.utils.auth_helpers import extract_user_id
 from bo1.state.repositories.terms_repository import terms_repository
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ async def require_all_consents(
     Raises:
         HTTPException 403 if any consent is missing.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Check for missing policies
     missing = terms_repository.get_missing_policies(user_id)
@@ -67,7 +68,7 @@ async def require_gdpr_consent(
     Raises:
         HTTPException 403 if GDPR consent missing.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     if not terms_repository.has_user_consented_to_current(user_id, "gdpr"):
         logger.info(f"User {user_id} blocked - missing GDPR consent")
@@ -94,7 +95,7 @@ async def require_tc_consent(
     Raises:
         HTTPException 403 if T&C consent missing.
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     if not terms_repository.has_user_consented_to_current(user_id, "tc"):
         logger.info(f"User {user_id} blocked - missing T&C consent")

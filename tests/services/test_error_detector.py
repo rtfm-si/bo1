@@ -216,9 +216,9 @@ class TestErrorDetector:
 class TestGlobalFunctions:
     """Tests for module-level helper functions."""
 
-    @patch("backend.services.error_detector._error_detector", None)
     def test_get_error_detector_creates_singleton(self) -> None:
         """Test singleton pattern for global detector."""
+        get_error_detector.cache_clear()
         detector1 = get_error_detector()
         detector2 = get_error_detector()
         assert detector1 is detector2

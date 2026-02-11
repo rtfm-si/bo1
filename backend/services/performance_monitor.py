@@ -10,6 +10,7 @@ import statistics
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 from bo1.config import get_settings
@@ -413,15 +414,12 @@ class PerformanceMonitor:
 
 
 # Module-level singleton for convenience
-_monitor: PerformanceMonitor | None = None
 
 
+@lru_cache(maxsize=1)
 def get_performance_monitor() -> PerformanceMonitor:
     """Get the performance monitor singleton."""
-    global _monitor
-    if _monitor is None:
-        _monitor = PerformanceMonitor()
-    return _monitor
+    return PerformanceMonitor()
 
 
 def record_metric(

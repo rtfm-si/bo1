@@ -13,6 +13,7 @@
 	import { createArticleSchema, createBlogBreadcrumbSchema, serializeJsonLd } from '$lib/utils/jsonld';
 	import { ChevronRight } from 'lucide-svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let post = $state<PublicBlogPost | null>(null);
 	let isLoading = $state(true);
@@ -51,14 +52,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return '';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
 
 	function estimateReadTime(content: string | undefined): number {
 		if (!content) return 3;

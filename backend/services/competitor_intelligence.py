@@ -16,8 +16,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-import httpx
-
+from backend.services.tavily_client import get_tavily_client
 from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.logging.errors import ErrorCode, log_error
@@ -134,74 +133,39 @@ class CompetitorIntelligenceService:
 
     async def _search_funding(self, name: str) -> list[dict]:
         """Search for funding/investment news."""
-        query = f'"{name}" funding OR raised OR series OR investment'
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": self.settings.tavily_api_key,
-                    "query": query,
-                    "search_depth": "advanced",
-                    "include_domains": [
-                        "crunchbase.com",
-                        "techcrunch.com",
-                        "venturebeat.com",
-                        "businessinsider.com",
-                        "forbes.com",
-                    ],
-                    "max_results": 5,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
+        data = await get_tavily_client().search(
+            f'"{name}" funding OR raised OR series OR investment',
+            search_depth="advanced",
+            include_domains=[
+                "crunchbase.com",
+                "techcrunch.com",
+                "venturebeat.com",
+                "businessinsider.com",
+                "forbes.com",
+            ],
+        )
         return data.get("results", [])
 
     async def _search_product_updates(self, name: str) -> list[dict]:
         """Search for product launches and updates."""
-        query = f'"{name}" product launch OR release OR update OR feature'
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": self.settings.tavily_api_key,
-                    "query": query,
-                    "search_depth": "advanced",
-                    "include_domains": [
-                        "producthunt.com",
-                        "techcrunch.com",
-                        "theverge.com",
-                        "venturebeat.com",
-                    ],
-                    "max_results": 5,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
+        data = await get_tavily_client().search(
+            f'"{name}" product launch OR release OR update OR feature',
+            search_depth="advanced",
+            include_domains=[
+                "producthunt.com",
+                "techcrunch.com",
+                "theverge.com",
+                "venturebeat.com",
+            ],
+        )
         return data.get("results", [])
 
     async def _search_recent_news(self, name: str) -> list[dict]:
         """Search for recent news coverage."""
-        # Use current year for freshness
         current_year = datetime.now(UTC).year
-        query = f'"{name}" news {current_year}'
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": self.settings.tavily_api_key,
-                    "query": query,
-                    "search_depth": "basic",
-                    "max_results": 5,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
+        data = await get_tavily_client().search(
+            f'"{name}" news {current_year}',
+        )
         return data.get("results", [])
 
     async def _parse_intel_with_llm(

@@ -8,8 +8,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
+
+from backend.services.safe_types import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -346,16 +347,7 @@ class DatasetComparator:
         )
 
     def _safe_float(self, val: Any) -> float | None:
-        """Safely convert to float, handling NaN and infinity."""
-        if val is None:
-            return None
-        try:
-            f = float(val)
-            if np.isnan(f) or np.isinf(f):
-                return None
-            return round(f, 4)
-        except (TypeError, ValueError):
-            return None
+        return safe_float(val)
 
     def _compare_categorical_column(
         self, col: str, col_a: pd.Series, col_b: pd.Series

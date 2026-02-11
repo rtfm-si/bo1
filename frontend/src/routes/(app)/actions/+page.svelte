@@ -29,7 +29,7 @@
 	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
 	import KanbanBoard from '$lib/components/actions/KanbanBoard.svelte';
 	import StrategicActionCard from '$lib/components/actions/StrategicActionCard.svelte';
-	import { getDueDateStatus } from '$lib/utils/due-dates';
+	import { getDueDateStatus, getEffectiveDueDate } from '$lib/utils/due-dates';
 	import { toast } from '$lib/stores/toast';
 
 	// Cleanup tour popup on navigation to prevent persistence
@@ -150,15 +150,16 @@
 		// Specific date filter (from URL ?due_date=YYYY-MM-DD)
 		if (selectedSpecificDate) {
 			tasks = tasks.filter((t) => {
-				if (!t.suggested_completion_date) return false;
-				const taskDate = t.suggested_completion_date.split('T')[0];
-				return taskDate === selectedSpecificDate;
+				const dates = [t.target_start_date, t.estimated_start_date, t.target_end_date, t.estimated_end_date]
+					.filter(Boolean)
+					.map((d) => d!.split('T')[0]);
+				return dates.includes(selectedSpecificDate!);
 			});
 		}
 		// Due date filter (dropdown)
 		else if (selectedDueDate !== 'all') {
 			tasks = tasks.filter((t) => {
-				const status = getDueDateStatus(t.suggested_completion_date);
+				const status = getDueDateStatus(getEffectiveDueDate(t));
 				switch (selectedDueDate) {
 					case 'overdue': return status === 'overdue';
 					case 'due-today': return status === 'due-today';

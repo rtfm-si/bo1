@@ -10,6 +10,7 @@
 	import { BookOpen, ArrowRight, Users } from 'lucide-svelte';
 	import { createDecisionIndexItemListSchema, serializeJsonLd } from '$lib/utils/jsonld';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let categories = $state<DecisionCategoryCount[]>([]);
 	let featuredDecisions = $state<PublicDecisionListItem[]>([]);
@@ -44,14 +45,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return '';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 
 	function getCategoryColor(category: string): string {
 		const colors: Record<string, string> = {

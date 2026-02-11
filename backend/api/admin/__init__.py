@@ -96,7 +96,7 @@ router.include_router(billing.router)
 router.include_router(gsc_analytics.router)
 router.include_router(analytics_chat.router)
 
-# Re-export models for backward compatibility
+# Re-export models
 from backend.api.admin.models import (  # noqa: E402, F401
     ActiveSessionInfo,
     ActiveSessionsResponse,

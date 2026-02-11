@@ -33,7 +33,10 @@ backend/api/status.py  # 2 violations - status page
 backend/api/llm_health_probe.py  # 1 violation - probe results
 
 # Context/business logic
-backend/api/context/routes.py  # TODO: P4 - 2 violations
+backend/api/context/competitors_routes.py  # TODO: P4 - 2 violations (split from routes.py)
+backend/api/context/core_routes.py  # TODO: P4 - 1 violation (split from routes.py)
+backend/api/context/goals_routes.py  # TODO: P4 - 1 violation (split from routes.py)
+backend/api/context/pending_routes.py  # TODO: P4 - 1 violation (split from routes.py)
 backend/api/context/services.py  # TODO: P4 - 1 violation
 backend/api/context/auto_detect.py  # TODO: P4 - 1 violation - auto-detect timing
 backend/api/context/metric_mapping.py  # TODO: P4 - 1 violation - metric suggestion timestamp

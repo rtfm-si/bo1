@@ -14,8 +14,8 @@
 	interface Props {
 		event: SSEEvent & {
 			data: {
-				votes: VoteData[];
-				votes_count: number;
+				recommendations: VoteData[];
+				recommendations_count: number;
 				consensus_level: 'strong' | 'moderate' | 'weak' | 'unknown';
 				avg_confidence: number;
 			};
@@ -65,7 +65,7 @@
 
 	<!-- Votes Grid -->
 	<div class="space-y-2.5">
-		{#each event.data.votes as vote}
+		{#each event.data.recommendations as vote}
 			{@const isExpanded = expandedVotes.has(vote.persona_code)}
 			<div class="bg-white dark:bg-neutral-800 rounded-md p-3 border border-neutral-200 dark:border-neutral-700">
 				<div class="flex items-start justify-between gap-3">
@@ -129,7 +129,7 @@
 	<!-- Summary footer -->
 	<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700">
 		<p class="text-[0.75rem] text-neutral-600 dark:text-neutral-400 text-center">
-			{event.data.votes_count} expert{event.data.votes_count !== 1 ? 's' : ''} provided recommendation{event.data.votes_count !== 1 ? 's' : ''}
+			{event.data.recommendations_count} expert{event.data.recommendations_count !== 1 ? 's' : ''} provided recommendation{event.data.recommendations_count !== 1 ? 's' : ''}
 		</p>
 	</div>
 </div>

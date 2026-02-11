@@ -5,7 +5,7 @@
 	 * Fetches available personas from API and allows manual selection.
 	 * Includes "Auto" option that lets AI select based on question.
 	 */
-	import type { MentorPersonaDetail } from '$lib/api/types';
+	import type { MentorPersonaResponse } from '$lib/api/types';
 	import { apiClient } from '$lib/api/client';
 	import { User, Target, BarChart3, Sparkles, Briefcase, CheckCircle, ChevronDown, Search } from 'lucide-svelte';
 	import { onMount } from 'svelte';
@@ -30,7 +30,7 @@
 		search: Search
 	};
 
-	let personas = $state<MentorPersonaDetail[]>([]);
+	let personas = $state<MentorPersonaResponse[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let expanded = $state(false);

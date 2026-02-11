@@ -260,9 +260,9 @@ async def test_complete_meeting_lifecycle(
         logger.info(f"✓ Rounds completed: {final_state['round_number']}")
 
         # Check recommendations collected
-        assert "votes" in final_state
-        assert len(final_state["votes"]) > 0
-        logger.info(f"✓ Recommendations: {len(final_state['votes'])} collected")
+        assert "recommendations" in final_state
+        assert len(final_state["recommendations"]) > 0
+        logger.info(f"✓ Recommendations: {len(final_state['recommendations'])} collected")
 
         # Check synthesis generated
         assert "synthesis" in final_state
@@ -338,7 +338,7 @@ async def test_complete_meeting_lifecycle(
         logger.info(f"Experts: {len(final_state['personas'])}")
         logger.info(f"Contributions: {len(final_state['contributions'])}")
         logger.info(f"Rounds: {final_state['round_number']}")
-        logger.info(f"Recommendations: {len(final_state['votes'])}")
+        logger.info(f"Recommendations: {len(final_state['recommendations'])}")
         logger.info(f"Synthesis Length: {len(final_state['synthesis'])} chars")
         logger.info(f"Total Cost: ${metrics.total_cost:.4f}")
         logger.info(f"Events (DB): {len(events)}")

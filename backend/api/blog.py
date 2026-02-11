@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/blog", tags=["blog"])
 
 
+def _blog_not_found(slug: str) -> HTTPException:
+    return HTTPException(
+        status_code=404, detail={"error": "Not found", "message": f"Blog post '{slug}' not found"}
+    )
+
+
 @router.get(
     "/posts",
     response_model=BlogPostListResponse,
@@ -63,17 +69,11 @@ async def get_post_by_slug(
     post = blog_repository.get_by_slug(slug)
 
     if not post:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
-        )
+        raise _blog_not_found(slug)
 
     # Only return published posts
     if post.get("status") != "published":
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
-        )
+        raise _blog_not_found(slug)
 
     return BlogPostResponse(id=str(post["id"]), **{k: v for k, v in post.items() if k != "id"})
 
@@ -90,10 +90,7 @@ async def track_view(request: Request, slug: str) -> None:
     """Track a page view for analytics."""
     success = blog_repository.increment_view(slug)
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
-        )
+        raise _blog_not_found(slug)
 
 
 @router.post(
@@ -108,7 +105,4 @@ async def track_click(request: Request, slug: str) -> None:
     """Track a CTA click-through for analytics."""
     success = blog_repository.increment_click(slug)
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Not found", "message": f"Blog post '{slug}' not found"},
-        )
+        raise _blog_not_found(slug)

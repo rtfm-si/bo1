@@ -655,13 +655,13 @@ Consider:
         logger.info("Generating synthesis report")
 
         # Build full deliberation history
-        all_contributions_and_votes = self._format_full_deliberation(state, votes)
+        all_contributions_and_recommendations = self._format_full_deliberation(state, votes)
 
         # Compose synthesis prompt
         problem = state.get("problem")
         synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
             problem_statement=problem.description if problem else "",
-            all_contributions_and_votes=all_contributions_and_votes,
+            all_contributions_and_recommendations=all_contributions_and_recommendations,
         )
 
         # Validation config for synthesis (require report tag)

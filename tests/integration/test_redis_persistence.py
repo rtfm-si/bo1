@@ -23,15 +23,15 @@ def test_redis_connection_success(redis_manager):
     manager = redis_manager
 
     # Verify connection works
-    assert manager.client.ping() is True
+    assert manager.redis.ping() is True
 
     # Verify basic operations work
     # Note: decode_responses=True in RedisManager, so strings are returned
-    manager.client.set("test_key", "test_value")
-    assert manager.client.get("test_key") == "test_value"
+    manager.redis.set("test_key", "test_value")
+    assert manager.redis.get("test_key") == "test_value"
 
     # Cleanup
-    manager.client.delete("test_key")
+    manager.redis.delete("test_key")
 
 
 @pytest.mark.unit
@@ -41,7 +41,7 @@ def test_redis_connection_failure_handling(redis_manager):
     # This test validates the connection works
     if redis_manager is None:
         pytest.skip("Redis not available")
-    assert redis_manager.client.ping() is True
+    assert redis_manager.redis.ping() is True
 
 
 # ============================================================================
@@ -138,7 +138,7 @@ def test_state_persistence_round_trip(redis_manager):
     original_state["round_number"] = 1
 
     # Save state
-    session_key = "deliberation:test-persist-123"
+    session_key = "session:test-persist-123"
     serialized = serialize_state_for_checkpoint(original_state)
     manager.save_state(session_key, serialized)
 
@@ -158,7 +158,7 @@ def test_state_persistence_round_trip(redis_manager):
     assert loaded_data["max_rounds"] == 7
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)
 
 
 @pytest.mark.integration
@@ -220,7 +220,7 @@ def test_state_with_nested_objects_persists_correctly(redis_manager):
     state["round_summaries"] = ["Summary 1", "Summary 2", "Summary 3"]
 
     # Save and load
-    session_key = "deliberation:test-nested-123"
+    session_key = "session:test-nested-123"
     serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
@@ -235,7 +235,7 @@ def test_state_with_nested_objects_persists_correctly(redis_manager):
     assert loaded["personas"][2]["expertise"] == ["skill_2", "skill_3"]
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)
 
 
 @pytest.mark.integration
@@ -256,7 +256,7 @@ def test_state_with_none_optional_fields_persists(redis_manager):
     state["synthesis"] = None
 
     # Save and load
-    session_key = "deliberation:test-none-123"
+    session_key = "session:test-none-123"
     serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
@@ -270,7 +270,7 @@ def test_state_with_none_optional_fields_persists(redis_manager):
     assert loaded["synthesis"] is None
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)
 
 
 # ============================================================================
@@ -293,7 +293,7 @@ def test_concurrent_sessions_isolated(redis_manager):
         state = create_initial_state(session_id, problem, max_rounds=i + 3)
         state["round_number"] = i
 
-        session_key = f"deliberation:{session_id}"
+        session_key = f"session:{session_id}"
         serialized = serialize_state_for_checkpoint(state)
         manager.save_state(session_key, serialized)
         sessions.append((session_key, session_id, i))
@@ -308,7 +308,7 @@ def test_concurrent_sessions_isolated(redis_manager):
 
     # Cleanup
     for session_key, _, _ in sessions:
-        manager.client.delete(session_key)
+        manager.redis.delete(session_key)
 
 
 @pytest.mark.integration
@@ -321,12 +321,12 @@ def test_session_updates_dont_affect_other_sessions(redis_manager):
 
     # Create session 1
     state1 = create_initial_state("test-update-1", problem, max_rounds=5)
-    key1 = "deliberation:test-update-1"
+    key1 = "session:test-update-1"
     manager.save_state(key1, serialize_state_for_checkpoint(state1))
 
     # Create session 2
     state2 = create_initial_state("test-update-2", problem, max_rounds=7)
-    key2 = "deliberation:test-update-2"
+    key2 = "session:test-update-2"
     manager.save_state(key2, serialize_state_for_checkpoint(state2))
 
     # Update session 1
@@ -340,8 +340,8 @@ def test_session_updates_dont_affect_other_sessions(redis_manager):
     assert loaded2["max_rounds"] == 7
 
     # Cleanup
-    manager.client.delete(key1)
-    manager.client.delete(key2)
+    manager.redis.delete(key1)
+    manager.redis.delete(key2)
 
 
 # ============================================================================
@@ -358,19 +358,19 @@ def test_session_ttl_is_set(redis_manager):
     problem = Problem(title="Test", description="Test", context="Test")
 
     state = create_initial_state("test-ttl-123", problem)
-    session_key = "deliberation:test-ttl-123"
+    session_key = "session:test-ttl-123"
 
     # Save state with TTL (default 24h = 86400 seconds)
     serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized, ttl=3600)  # 1 hour for test
 
     # Verify TTL is set
-    ttl = manager.client.ttl(session_key)
+    ttl = manager.redis.ttl(session_key)
     assert ttl > 0, "TTL should be set"
     assert ttl <= 3600, "TTL should be <= 1 hour"
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)
 
 
 # ============================================================================
@@ -384,7 +384,7 @@ def test_loading_nonexistent_session_returns_none(redis_manager):
     """Test: Loading a non-existent session returns None."""
     manager = redis_manager
 
-    loaded = manager.load_state("deliberation:nonexistent-session")
+    loaded = manager.load_state("session:nonexistent-session")
     assert loaded is None
 
 
@@ -395,8 +395,8 @@ def test_corrupted_data_handling(redis_manager):
     manager = redis_manager
 
     # Store invalid JSON
-    session_key = "deliberation:test-corrupted"
-    manager.client.set(session_key, "invalid json {{{")
+    session_key = "session:test-corrupted"
+    manager.redis.set(session_key, "invalid json {{{")
 
     # Loading should handle gracefully (either return None or raise specific error)
     try:
@@ -408,7 +408,7 @@ def test_corrupted_data_handling(redis_manager):
         assert "json" in str(e).lower() or "decode" in str(e).lower()
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)
 
 
 # ============================================================================
@@ -445,7 +445,7 @@ def test_metrics_persist_correctly(redis_manager):
     state["metrics"] = metrics
 
     # Save and load
-    session_key = "deliberation:test-metrics-123"
+    session_key = "session:test-metrics-123"
     serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
@@ -461,4 +461,4 @@ def test_metrics_persist_correctly(redis_manager):
     assert loaded["metrics"]["conflict_score"] == 0.30
 
     # Cleanup
-    manager.client.delete(session_key)
+    manager.redis.delete(session_key)

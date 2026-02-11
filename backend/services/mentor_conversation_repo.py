@@ -14,6 +14,7 @@ Architecture:
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from bo1.state.redis_manager import RedisManager
@@ -411,12 +412,9 @@ class MentorConversationRepository:
 
 
 # Singleton instance
-_mentor_conversation_repo: MentorConversationRepository | None = None
 
 
+@lru_cache(maxsize=1)
 def get_mentor_conversation_repo() -> MentorConversationRepository:
     """Get or create the mentor conversation repository singleton."""
-    global _mentor_conversation_repo
-    if _mentor_conversation_repo is None:
-        _mentor_conversation_repo = MentorConversationRepository()
-    return _mentor_conversation_repo
+    return MentorConversationRepository()

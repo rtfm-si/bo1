@@ -188,7 +188,7 @@ def test_deliberation_graph_state_structure():
     assert state["stop_reason"] is None or isinstance(state["stop_reason"], str)
     assert state["user_input"] is None or isinstance(state["user_input"], str)
     assert isinstance(state["current_node"], str)
-    assert isinstance(state["votes"], list)
+    assert isinstance(state["recommendations"], list)
     assert state["synthesis"] is None or isinstance(state["synthesis"], str)
 
 

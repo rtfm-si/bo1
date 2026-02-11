@@ -182,7 +182,7 @@ async def test_meta_synthesize_node_missing_problem():
                 sub_problem_id="sp_001",
                 sub_problem_goal="Test goal",
                 synthesis="Test synthesis",
-                votes=[],
+                recommendations=[],
                 contribution_count=1,
                 cost=0.01,
                 duration_seconds=10.0,

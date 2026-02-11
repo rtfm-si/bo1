@@ -4,13 +4,12 @@
 	 * AI assistant chat with conversation history
 	 */
 	import { page } from '$app/stores';
-	import type { MentorPersonaId } from '$lib/api/types';
 	import MentorChat from '$lib/components/mentor/MentorChat.svelte';
 	import MentorChatHistory from '$lib/components/mentor/MentorChatHistory.svelte';
 
 	// Read query params for pre-filling
 	const initialMessage = $page.url.searchParams.get('message') || undefined;
-	const initialPersona = $page.url.searchParams.get('persona') as MentorPersonaId | undefined;
+	const initialPersona = $page.url.searchParams.get('persona') as 'general' | 'action_coach' | 'data_analyst' | undefined;
 	const initialBlindspotId = $page.url.searchParams.get('blindspot_id') || undefined;
 	const initialConversationId = $page.url.searchParams.get('conversation_id') || null;
 

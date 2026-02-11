@@ -76,18 +76,6 @@ class TestActionUpdateMaxLength:
 class TestClarificationRequestMaxLength:
     """Tests for ClarificationRequest max_length validation."""
 
-    def test_answer_at_boundary_accepted(self) -> None:
-        """Answer at exactly 5000 chars should be accepted."""
-        req = ClarificationRequest(answer="x" * 5000)
-        assert len(req.answer) == 5000
-
-    def test_answer_over_limit_rejected(self) -> None:
-        """Answer over 5000 chars should be rejected."""
-        with pytest.raises(ValidationError) as exc_info:
-            ClarificationRequest(answer="x" * 5001)
-        errors = exc_info.value.errors()
-        assert errors[0]["loc"] == ("answer",)
-
     def test_answers_dict_value_at_boundary_accepted(self) -> None:
         """Answer dict value at exactly 5000 chars should be accepted."""
         req = ClarificationRequest(answers={"Question?": "x" * 5000})

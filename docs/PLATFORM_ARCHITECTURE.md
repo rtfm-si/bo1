@@ -1317,7 +1317,7 @@ async def get_full_session(session_id: str):
     return {
         "session": session,
         "contributions": contributions,
-        "votes": votes,
+        "recommendations": votes,
         "total_cost": session["total_cost"],
         "cache_hit_rate": session["cache_hits"] / (session["cache_hits"] + session["cache_misses"])
     }

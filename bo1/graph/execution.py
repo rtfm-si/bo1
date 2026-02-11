@@ -931,13 +931,13 @@ async def publish_resume_failed_event(
         from bo1.state.redis_manager import RedisManager
 
         redis_mgr = RedisManager()
-        if redis_mgr.client is None:
+        if redis_mgr.redis is None:
             logger.warning(f"No Redis client available to publish resume_failed for {session_id}")
             return
 
         from backend.api.event_publisher import EventPublisher
 
-        publisher = EventPublisher(redis_client=redis_mgr.client)
+        publisher = EventPublisher(redis_client=redis_mgr.redis)
         publisher.publish_event(
             session_id,
             "resume_failed",

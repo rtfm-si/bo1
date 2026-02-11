@@ -19,6 +19,7 @@ from backend.api.models import (
     FeedbackResponse,
     FeedbackType,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.honeypot import validate_honeypot_fields
 from backend.services.feedback_analyzer import analyze_feedback
@@ -62,7 +63,7 @@ async def submit_feedback(
     # Honeypot validation (cheap first-pass bot filter)
     validate_honeypot_fields(body, "feedback.submit")
 
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Check rate limit
     recent_count = feedback_repository.get_user_recent_count(

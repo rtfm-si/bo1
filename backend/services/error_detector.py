@@ -10,6 +10,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.database import db_session
@@ -313,15 +314,12 @@ class ErrorDetector:
 
 
 # Global instance
-_error_detector: ErrorDetector | None = None
 
 
+@lru_cache(maxsize=1)
 def get_error_detector() -> ErrorDetector:
     """Get the global error detector instance."""
-    global _error_detector
-    if _error_detector is None:
-        _error_detector = ErrorDetector()
-    return _error_detector
+    return ErrorDetector()
 
 
 def detect_patterns(

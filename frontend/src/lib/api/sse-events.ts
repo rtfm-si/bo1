@@ -7,7 +7,6 @@
  *
  * Schema Versioning:
  * - EXPECTED_SSE_VERSION: The version this client expects
- * - MIN_SUPPORTED_VERSION: Minimum version client can handle
  * - checkEventVersion(): Utility to validate and warn on mismatches
  *
  * Event categories:
@@ -33,13 +32,8 @@
  * Expected SSE schema version - client expects server to send this version
  * Update this when upgrading to a new schema version
  */
-export const EXPECTED_SSE_VERSION = 1;
+export const EXPECTED_SSE_VERSION = 2;
 
-/**
- * Minimum supported SSE schema version - client can handle down to this version
- * Older events may be missing fields but should still work
- */
-export const MIN_SUPPORTED_VERSION = 1;
 
 // =============================================================================
 // Core Event Types
@@ -247,11 +241,6 @@ export interface ExpertInfo {
 	rationale: string;
 	order: number;
 }
-
-/**
- * Alias for PersonaInfo for backwards compatibility
- */
-export type Persona = PersonaInfo;
 
 // =============================================================================
 // Deliberation Events
@@ -465,8 +454,8 @@ export interface PersonaVotePayload {
  * Emitted: After vote node
  */
 export interface VotingCompletePayload {
-	votes: Vote[];
-	votes_count: number;
+	recommendations: Vote[];
+	recommendations_count: number;
 	consensus_level: 'strong' | 'moderate' | 'weak' | 'unknown';
 	avg_confidence: number;
 	sub_problem_index: number;
@@ -880,14 +869,8 @@ export type SSEEventHandlers = {
 };
 
 // =============================================================================
-// Type Aliases (Backwards Compatibility)
+// Convenience Type Aliases
 // =============================================================================
-
-/**
- * Legacy alias for SSEEvent - used throughout the codebase
- * @deprecated Use SSEEvent instead
- */
-export type DeliberationEvent = SSEEvent;
 
 /**
  * Typed decomposition_complete event
@@ -1238,7 +1221,6 @@ export interface VersionCheckResult {
 	isCompatible: boolean;
 	eventVersion: number;
 	expectedVersion: number;
-	minSupported: number;
 	warning?: string;
 }
 
@@ -1246,7 +1228,6 @@ export interface VersionCheckResult {
  * Check if an SSE event version is compatible with this client.
  *
  * Logs console warnings for:
- * - Events with version below MIN_SUPPORTED_VERSION
  * - Events with version above EXPECTED_SSE_VERSION (future version)
  *
  * @param event - SSE event to check (must have event_version in data)
@@ -1265,26 +1246,17 @@ export function checkEventVersion(event: SSEEvent): VersionCheckResult {
 			? ((event.data as Record<string, unknown>).event_version as number | undefined)
 			: undefined;
 
-	// Default to expected version if not present (backwards compatibility)
+	// Default to expected version if not present
 	const version = eventVersion ?? EXPECTED_SSE_VERSION;
 
 	const result: VersionCheckResult = {
 		isCompatible: true,
 		eventVersion: version,
-		expectedVersion: EXPECTED_SSE_VERSION,
-		minSupported: MIN_SUPPORTED_VERSION
+		expectedVersion: EXPECTED_SSE_VERSION
 	};
 
-	// Check if version is too old
-	if (version < MIN_SUPPORTED_VERSION) {
-		result.isCompatible = false;
-		result.warning = `SSE event version ${version} is below minimum supported version ${MIN_SUPPORTED_VERSION}. Some features may not work correctly.`;
-		if (typeof console !== 'undefined') {
-			console.warn(`[SSE VERSION] ${result.warning}`, { event_type: event.event_type });
-		}
-	}
 	// Check if version is newer than expected (future version)
-	else if (version > EXPECTED_SSE_VERSION) {
+	if (version > EXPECTED_SSE_VERSION) {
 		// Still compatible (additive changes), but log for awareness
 		result.warning = `SSE event version ${version} is newer than expected ${EXPECTED_SSE_VERSION}. Client may be outdated.`;
 		if (typeof console !== 'undefined') {
@@ -1317,8 +1289,7 @@ export function checkServerVersion(headerValue: string | null): VersionCheckResu
 	const result: VersionCheckResult = {
 		isCompatible: true,
 		eventVersion: version,
-		expectedVersion: EXPECTED_SSE_VERSION,
-		minSupported: MIN_SUPPORTED_VERSION
+		expectedVersion: EXPECTED_SSE_VERSION
 	};
 
 	if (isNaN(version)) {
@@ -1329,13 +1300,7 @@ export function checkServerVersion(headerValue: string | null): VersionCheckResu
 		return result;
 	}
 
-	if (version < MIN_SUPPORTED_VERSION) {
-		result.isCompatible = false;
-		result.warning = `Server SSE schema version ${version} is below minimum supported ${MIN_SUPPORTED_VERSION}`;
-		if (typeof console !== 'undefined') {
-			console.warn(`[SSE VERSION] ${result.warning}`);
-		}
-	} else if (version > EXPECTED_SSE_VERSION) {
+	if (version > EXPECTED_SSE_VERSION) {
 		result.warning = `Server SSE schema version ${version} is newer than client expected ${EXPECTED_SSE_VERSION}. Consider updating client.`;
 		if (typeof console !== 'undefined') {
 			console.info(`[SSE VERSION] ${result.warning}`);

@@ -7,10 +7,6 @@
 // API Client
 export { ApiClient, apiClient, ApiClientError } from './client';
 
-// SSE Event Types (moved to sse-events.ts)
-// Import SSEClient from $lib/utils/sse instead
-export type { DeliberationEvent } from './sse-events';
-
 // Types
 export type {
 	CreateSessionRequest,
@@ -20,6 +16,6 @@ export type {
 	ControlResponse,
 	HealthResponse,
 	ApiError,
-	UserContext,
+	BusinessContext,
 	UserContextResponse
 } from './types';

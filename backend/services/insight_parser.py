@@ -13,6 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from bo1.llm.client import ClaudeClient
@@ -400,15 +401,12 @@ Return ONLY valid JSON, no other text."""
 
 
 # Module-level singleton for convenience
-_parser: InsightParser | None = None
 
 
+@lru_cache(maxsize=1)
 def get_insight_parser() -> InsightParser:
     """Get or create insight parser singleton."""
-    global _parser
-    if _parser is None:
-        _parser = InsightParser()
-    return _parser
+    return InsightParser()
 
 
 async def parse_insight(raw_text: str) -> StructuredInsight:

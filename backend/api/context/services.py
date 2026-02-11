@@ -728,7 +728,7 @@ def calculate_trend_from_history(
 # Insight-to-Metric Mapping for Auto-Population
 # =============================================================================
 
-# Map clarification categories to context fields (legacy, for backward compat)
+# Map clarification categories to context fields
 CATEGORY_TO_FIELD_MAPPING = {
     "revenue": "revenue",
     "customers": "customers",
@@ -1094,3 +1094,27 @@ def get_key_metrics_for_user(
     metrics.sort(key=lambda m: (importance_order.get(m["importance"], 3), m["display_order"]))
 
     return metrics
+
+
+# ---------------------------------------------------------------------------
+# Constants previously in routes.py
+# ---------------------------------------------------------------------------
+
+# Context refresh interval (3 months)
+CONTEXT_REFRESH_DAYS = 90
+
+# Tier limits for visible competitor insights
+COMPETITOR_INSIGHT_TIER_LIMITS = {
+    "free": 1,
+    "starter": 3,
+    "pro": 100,  # effectively unlimited
+    "enterprise": 100,
+}
+
+# Goal staleness threshold (6 months)
+GOAL_STALENESS_THRESHOLD_DAYS = 180
+
+
+def _get_insight_limit_for_tier(tier: str) -> int:
+    """Get the insight visibility limit for a tier."""
+    return COMPETITOR_INSIGHT_TIER_LIMITS.get(tier, 1)

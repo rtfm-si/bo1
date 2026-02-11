@@ -935,7 +935,6 @@ def override_emailpassword_functions(
             # Update last_used_at for this provider
             auth_provider_repository.update_last_used(st_user_id)
         else:
-            # Legacy user without provider record - use ST user_id as primary
             primary_user_id = st_user_id
 
         # Check if primary user is locked or deleted

@@ -118,7 +118,7 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
                     "current_node": "next_subproblem_skipped",
                 }
     contributions = discussion_state.get("contributions", [])
-    votes = discussion_state.get("votes", [])
+    votes = discussion_state.get("recommendations", [])
     personas = participant_state.get("personas", [])
     synthesis = discussion_state.get("synthesis", "")
     metrics = state.get("metrics")  # metrics is not in any accessor yet
@@ -278,7 +278,7 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
             "sub_problem_results": sub_problem_results,
             "round_number": 0,  # Will be set to 1 by initial_round_node
             "contributions": [],
-            "votes": [],
+            "recommendations": [],
             "synthesis": None,
             "facilitator_decision": None,
             "should_stop": False,

@@ -5,6 +5,7 @@ Resolves mentions to actual entities and validates user ownership.
 
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from backend.services.mention_parser import Mention, MentionType
 from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
@@ -267,12 +268,9 @@ class MentionResolver:
 
 
 # Singleton instance
-_resolver: MentionResolver | None = None
 
 
+@lru_cache(maxsize=1)
 def get_mention_resolver() -> MentionResolver:
     """Get singleton mention resolver instance."""
-    global _resolver
-    if _resolver is None:
-        _resolver = MentionResolver()
-    return _resolver
+    return MentionResolver()

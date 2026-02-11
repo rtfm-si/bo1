@@ -286,9 +286,7 @@ class TestGetCompetitorAnalyzer:
     def test_returns_same_instance(self):
         """Test that get_competitor_analyzer returns singleton."""
         # Reset singleton for clean test
-        import backend.services.competitor_analyzer as module
-
-        module._analyzer = None
+        get_competitor_analyzer.cache_clear()
 
         analyzer1 = get_competitor_analyzer()
         analyzer2 = get_competitor_analyzer()
@@ -297,9 +295,7 @@ class TestGetCompetitorAnalyzer:
 
     def test_creates_instance(self):
         """Test that get_competitor_analyzer creates instance."""
-        import backend.services.competitor_analyzer as module
-
-        module._analyzer = None
+        get_competitor_analyzer.cache_clear()
 
         analyzer = get_competitor_analyzer()
 

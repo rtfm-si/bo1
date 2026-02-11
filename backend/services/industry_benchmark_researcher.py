@@ -20,6 +20,7 @@ from typing import Any, Literal
 import httpx
 from anthropic import AsyncAnthropic
 
+from backend.services.tavily_client import get_tavily_client
 from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.circuit_breaker import get_service_circuit_breaker
 from bo1.llm.cost_tracker import CostTracker
@@ -437,22 +438,13 @@ class IndustryBenchmarkResearcher:
                 prompt_type="industry_benchmark_research",
                 metadata={"query": query[:100], "industry": industry},
             ):
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        "https://api.tavily.com/search",
-                        json={
-                            "api_key": api_key,
-                            "query": query,
-                            "search_depth": "advanced",
-                            "include_answer": True,
-                            "include_raw_content": False,
-                            "max_results": 5,
-                        },
-                        timeout=15.0,
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-                    breaker._record_success_sync()
+                data = await get_tavily_client().search(
+                    query,
+                    search_depth="advanced",
+                    include_answer=True,
+                    timeout=15.0,
+                )
+                breaker._record_success_sync()
 
             # Track research metric
             self._track_research_metric(

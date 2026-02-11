@@ -11,6 +11,7 @@ import os
 import time
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 
 from bo1.state.database import db_session
 
@@ -340,15 +341,12 @@ class ClamAVScanner:
 
 
 # Singleton instance
-_scanner: ClamAVScanner | None = None
 
 
+@lru_cache(maxsize=1)
 def get_scanner() -> ClamAVScanner:
     """Get singleton ClamAV scanner instance."""
-    global _scanner
-    if _scanner is None:
-        _scanner = ClamAVScanner()
-    return _scanner
+    return ClamAVScanner()
 
 
 def log_quarantine(

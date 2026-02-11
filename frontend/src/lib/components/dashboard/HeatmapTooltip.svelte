@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { DailyActionStat } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		visible: boolean;
 		x: number;
@@ -14,10 +15,6 @@
 
 	let { visible, x, y, date, stat, isFuture, titles, loading }: Props = $props();
 
-	function formatDate(dateStr: string): string {
-		const d = new Date(dateStr + 'T12:00:00');
-		return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-	}
 
 	function truncateTitle(title: string, maxWords = 5): string {
 		const words = title.split(/\s+/);

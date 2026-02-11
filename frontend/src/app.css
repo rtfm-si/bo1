@@ -296,25 +296,6 @@ body {
 }
 
 /* ============================================================================
-   Utility Classes - Deprecated (use components instead)
-   ============================================================================ */
-
-/* Legacy button classes - prefer <Button> component */
-.btn-primary {
-	@apply bg-brand-600 text-white px-4 py-2 rounded-md hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors;
-}
-
-.btn-secondary {
-	@apply bg-neutral-200 text-neutral-900 px-4 py-2 rounded-md hover:bg-neutral-300 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 transition-colors dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600;
-}
-
-/* Legacy card class - prefer <Card> component */
-.card {
-	@apply rounded-lg shadow-md p-6;
-	background-color: var(--color-surface);
-}
-
-/* ============================================================================
    Theme-aware Color Overrides
    Note: These override Tailwind's default colors to use our theme system
    ============================================================================ */

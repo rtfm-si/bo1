@@ -2,7 +2,7 @@
 	/**
 	 * MentorMessage - Display a single mentor chat message
 	 */
-	import type { MentorMessage as MessageType, MentorPersonaId } from '$lib/api/types';
+	import type { MentorMessage as MessageType } from '$lib/api/types';
 	import { User, Bot, Target, BarChart3, Calendar, CheckSquare, Database } from 'lucide-svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 

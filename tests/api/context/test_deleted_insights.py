@@ -51,13 +51,15 @@ class TestDeletedInsightsExcluded:
         from backend.api.context.routes import get_insights
 
         # Mock user_repository.get_context to return sample clarifications
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {"clarifications": sample_clarifications}
 
             # Call get_insights (synchronously for test)
             import asyncio
 
-            with patch("backend.api.context.routes.get_current_user", return_value=mock_user):
+            with patch(
+                "backend.api.context.insights_routes.get_current_user", return_value=mock_user
+            ):
                 response = asyncio.get_event_loop().run_until_complete(get_insights(mock_user))
 
             # Verify both insights are returned
@@ -75,7 +77,7 @@ class TestDeletedInsightsExcluded:
         # Simulate deletion by removing one insight from the dict
         remaining = {k: v for k, v in sample_clarifications.items() if k != "What is your revenue?"}
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {"clarifications": remaining}
 
             import asyncio
@@ -92,7 +94,7 @@ class TestDeletedInsightsExcluded:
         """Verify empty clarifications dict returns empty response."""
         from backend.api.context.routes import get_insights
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {"clarifications": {}}
 
             import asyncio
@@ -106,7 +108,7 @@ class TestDeletedInsightsExcluded:
         """Verify missing context returns empty response."""
         from backend.api.context.routes import get_insights
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = None
 
             import asyncio
@@ -271,7 +273,7 @@ class TestInsightDeletionAPI:
             "Another question?": {"answer": "Answer", "source": "meeting"},
         }
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {"clarifications": initial_clarifications.copy()}
 
             import asyncio
@@ -299,7 +301,7 @@ class TestInsightDeletionAPI:
         question = "Non-existent question?"
         question_hash = base64.urlsafe_b64encode(question.encode()).decode()
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.insights_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {"clarifications": {}}
 
             import asyncio

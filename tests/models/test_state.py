@@ -82,26 +82,6 @@ class TestContributionMessageRoundtrip:
         assert msg.id is None
         assert msg.session_id is None
 
-    def test_tokens_used_alias(self) -> None:
-        """tokens_used property returns token_count for backward compat."""
-        msg = ContributionMessage(
-            persona_code="test",
-            persona_name="Test",
-            content="test",
-            round_number=0,
-            token_count=150,
-        )
-        assert msg.tokens_used == 150
-
-        # When token_count is None
-        msg2 = ContributionMessage(
-            persona_code="test",
-            persona_name="Test",
-            content="test",
-            round_number=0,
-        )
-        assert msg2.tokens_used == 0
-
 
 class TestDeliberationPhaseTypeEnum:
     """Test DeliberationPhaseType enum matches DB values."""
@@ -223,7 +203,7 @@ class TestSubProblemResult:
             sub_problem_id="sp_001",
             sub_problem_goal="Determine target CAC",
             synthesis="Based on deliberation, target CAC should be <$150...",
-            votes=[],
+            recommendations=[],
             contribution_count=15,
             cost=0.12,
             duration_seconds=180.5,

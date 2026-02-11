@@ -12,6 +12,7 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let posts = $state<BlogPost[]>([]);
 	let total = $state(0);
@@ -118,16 +119,6 @@
 		}
 	}
 
-	function formatDate(date: string | undefined) {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function getStatusColor(status: string) {
 		switch (status) {

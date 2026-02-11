@@ -237,7 +237,7 @@ class TestTrendSummaryRefresh:
 
         mock_user = {"user_id": "test_user_123", "subscription_tier": "free"}
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.trends_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {}  # No industry
 
             import asyncio
@@ -263,7 +263,7 @@ class TestTrendSummaryRefresh:
         # Last refresh was 10 days ago
         last_refresh = (datetime.now(UTC) - timedelta(days=10)).isoformat()
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.trends_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {
                 "industry": "SaaS",
                 "trend_summary": {
@@ -293,7 +293,7 @@ class TestTrendSummaryRefresh:
         last_refresh = (datetime.now(UTC) - timedelta(minutes=30)).isoformat()
         mock_user = {"user_id": "test_user", "subscription_tier": "pro"}
 
-        with patch("backend.api.context.routes.user_repository") as mock_repo:
+        with patch("backend.api.context.trends_routes.user_repository") as mock_repo:
             mock_repo.get_context.return_value = {
                 "industry": "SaaS",
                 "trend_summary": {

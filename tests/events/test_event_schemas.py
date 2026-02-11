@@ -161,7 +161,7 @@ class TestVotingCompleteEvent:
         for level in ["strong", "moderate", "weak"]:
             event = VotingCompleteEvent(
                 session_id="test",
-                votes_count=5,
+                recommendations_count=5,
                 consensus_level=level,
             )
             assert event.consensus_level == level
@@ -171,7 +171,7 @@ class TestVotingCompleteEvent:
         with pytest.raises(ValidationError):
             VotingCompleteEvent(
                 session_id="test",
-                votes_count=5,
+                recommendations_count=5,
                 consensus_level="invalid",
             )
 

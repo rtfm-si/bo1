@@ -5,6 +5,7 @@ and include all required data fields.
 """
 
 from backend.api.events import (
+    SSE_EVENT_VERSION,
     complete_event,
     contribution_event,
     convergence_event,
@@ -266,7 +267,6 @@ def test_format_sse_event_includes_version():
     # Verify event_version is present and correct
     assert "event_version" in data
     assert data["event_version"] == SSE_EVENT_VERSION
-    assert data["event_version"] == 1
     assert data["message"] == "hello"
 
 
@@ -288,4 +288,4 @@ def test_all_events_include_version():
         data = json.loads(data_json)
 
         assert "event_version" in data, f"event_version missing in event: {event[:50]}..."
-        assert data["event_version"] == 1
+        assert data["event_version"] == SSE_EVENT_VERSION

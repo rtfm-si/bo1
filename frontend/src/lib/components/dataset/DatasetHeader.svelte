@@ -6,6 +6,7 @@
 	import type { DatasetDetailResponse, DatasetResponse } from '$lib/api/types';
 	import { apiClient } from '$lib/api/client';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		dataset: DatasetDetailResponse;
 		datasetId: string;
@@ -43,16 +44,6 @@
 		goto(`/datasets/${datasetId}/compare/${otherDatasetId}`);
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function formatBytes(bytes: number | null): string {
 		if (!bytes) return '—';

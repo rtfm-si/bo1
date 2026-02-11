@@ -9,6 +9,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -300,15 +301,12 @@ class VendorHealthTracker:
 
 
 # Global instance
-_vendor_health: VendorHealthTracker | None = None
 
 
+@lru_cache(maxsize=1)
 def get_vendor_health_tracker() -> VendorHealthTracker:
     """Get the global vendor health tracker instance."""
-    global _vendor_health
-    if _vendor_health is None:
-        _vendor_health = VendorHealthTracker()
-    return _vendor_health
+    return VendorHealthTracker()
 
 
 def record_provider_success(provider: str) -> None:

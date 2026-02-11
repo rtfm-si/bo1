@@ -535,7 +535,7 @@ class TestExtractorConfigurations:
     def test_voting_extractors(self):
         """Test voting extractor configuration."""
         output = {
-            "votes": [
+            "recommendations": [
                 {
                     "persona_code": "cfo",
                     "persona_name": "CFO",
@@ -550,7 +550,7 @@ class TestExtractorConfigurations:
 
         result = extract_with_root_transform(output, VOTING_EXTRACTORS)
 
-        assert result["votes_count"] == 1
+        assert result["recommendations_count"] == 1
         assert result["consensus_level"] == "strong"
         assert result["avg_confidence"] == 0.9
 

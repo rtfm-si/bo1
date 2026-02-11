@@ -19,20 +19,6 @@
 		{ value: -1, label: 'Forever' }
 	];
 
-	// Compute display options (includes legacy value if needed)
-	const displayOptions = $derived(() => {
-		const knownValues = RETENTION_OPTIONS.map((o) => o.value);
-		if (!knownValues.includes(retentionDays) && retentionDays > 0) {
-			// Legacy value (e.g., 5 years = 1825, 10 years = 3650)
-			const years = Math.round(retentionDays / 365);
-			return [
-				{ value: retentionDays, label: `${years} years (legacy)` },
-				...RETENTION_OPTIONS
-			];
-		}
-		return RETENTION_OPTIONS;
-	});
-
 	// State
 	let emailPrefs = $state<EmailPreferences | null>(null);
 	let retentionDays = $state<number>(730);
@@ -403,7 +389,7 @@
 					bind:value={retentionDays}
 					class="flex-1 sm:flex-none sm:w-48 px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
 				>
-					{#each displayOptions() as option}
+					{#each RETENTION_OPTIONS as option}
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>

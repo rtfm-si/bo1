@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.database import db_session
@@ -550,15 +551,12 @@ class AutoRemediation:
 
 
 # Global instance
-_auto_remediation: AutoRemediation | None = None
 
 
+@lru_cache(maxsize=1)
 def get_auto_remediation() -> AutoRemediation:
     """Get the global auto remediation instance."""
-    global _auto_remediation
-    if _auto_remediation is None:
-        _auto_remediation = AutoRemediation()
-    return _auto_remediation
+    return AutoRemediation()
 
 
 async def execute_remediation(

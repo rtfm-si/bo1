@@ -470,9 +470,7 @@ class TestSingleton:
     def test_get_improvement_plan_generator_returns_same_instance(self):
         """Test singleton returns same instance."""
         # Reset singleton
-        import backend.services.improvement_plan_generator as module
-
-        module._generator = None
+        get_improvement_plan_generator.cache_clear()
 
         gen1 = get_improvement_plan_generator()
         gen2 = get_improvement_plan_generator()
@@ -480,4 +478,4 @@ class TestSingleton:
         assert gen1 is gen2
 
         # Reset for other tests
-        module._generator = None
+        get_improvement_plan_generator.cache_clear()

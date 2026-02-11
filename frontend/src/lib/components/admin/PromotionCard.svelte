@@ -6,6 +6,7 @@
 	import { Copy, Trash2, Check } from 'lucide-svelte';
 	import type { Promotion } from '$lib/api/admin';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		promotion: Promotion;
 		onDelete: (promotion: Promotion) => void;
@@ -68,11 +69,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Never';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-	}
 
 	async function copyCode() {
 		await navigator.clipboard.writeText(promotion.code);

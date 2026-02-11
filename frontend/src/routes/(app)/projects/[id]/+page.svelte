@@ -37,6 +37,7 @@
 	} from 'lucide-svelte';
 	import { toast } from '$lib/stores/toast';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	const projectId = $page.params.id!;
 
 	let project = $state<ProjectDetailResponse | null>(null);
@@ -114,11 +115,6 @@
 		}
 	};
 
-	function formatDate(dateString: string | null): string {
-		if (!dateString) return '—';
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function getPriorityConfig(priority: string) {
 		const key = priority?.toLowerCase() || 'medium';

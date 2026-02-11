@@ -7,7 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
 	import type {
-		Dataset,
+		DatasetResponse,
 		ObjectiveRequirementsSummary,
 		DataRequirements
 	} from '$lib/api/types';
@@ -21,6 +21,7 @@
 	import UploadDataModal from '$lib/components/dataset/UploadDataModal.svelte';
 	import SheetsImportModal from '$lib/components/dataset/SheetsImportModal.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// PII warning types (inline for now, will be generated from OpenAPI)
 	type PiiType =
 		| 'email'
@@ -60,7 +61,7 @@
 	let requirementsError = $state<string | null>(null);
 
 	// Datasets state
-	let datasets = $state<Dataset[]>([]);
+	let datasets = $state<DatasetResponse[]>([]);
 	let datasetsLoading = $state(true);
 
 	// Multi-select state
@@ -282,10 +283,6 @@
 		}
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function formatBytes(bytes: number | null): string {
 		if (!bytes) return '-';

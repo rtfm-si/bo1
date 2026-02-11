@@ -18,6 +18,7 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let isLoading = $state(true);
 	let competitors = $state<CompetitorProfile[]>([]);
@@ -138,14 +139,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | null | undefined): string {
-		if (!dateStr) return 'Never';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
 
 	function getTierBadgeColor(t: string): string {
 		switch (t) {

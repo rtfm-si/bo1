@@ -455,26 +455,6 @@ export type AutogenCreateRequest = components['schemas']['AutogenCreateRequest']
 export type ContextCreateRequest = components['schemas']['ContextCreateRequest'];
 export type TaskStatusUpdate = components['schemas']['TaskStatusUpdate'];
 
-// Legacy aliases for request types
-/** @deprecated Use ProjectCreate */
-export type ProjectCreateRequest = components['schemas']['ProjectCreate'];
-/** @deprecated Use ProjectUpdate */
-export type ProjectUpdateRequest = components['schemas']['ProjectUpdate'];
-/** @deprecated Use ActionUpdateCreate */
-export type ActionUpdateCreateRequest = components['schemas']['ActionUpdateCreate'];
-/** @deprecated Use ActionDatesUpdate */
-export type ActionDatesUpdateRequest = components['schemas']['ActionDatesUpdate'];
-/** @deprecated Use TagCreate */
-export type TagCreateRequest = components['schemas']['TagCreate'];
-/** @deprecated Use TagUpdate */
-export type TagUpdateRequest = components['schemas']['TagUpdate'];
-/** @deprecated Use ActionTagsUpdate */
-export type ActionTagsUpdateRequest = components['schemas']['ActionTagsUpdate'];
-/** @deprecated Use ReminderSettingsUpdate */
-export type ReminderSettingsUpdateRequest = components['schemas']['ReminderSettingsUpdate'];
-/** @deprecated Use TaskStatusUpdate */
-export type TaskStatusUpdateRequest = components['schemas']['TaskStatusUpdate'];
-
 // ---- Response Types (additional) ----
 export type ReplanResponse = components['schemas']['ReplanResponse'];
 export type ActionCloneReplanResponse = components['schemas']['ActionCloneReplanResponse'];
@@ -594,36 +574,6 @@ export type {
 	VotingCompletePayload,
 	SynthesisCompletePayload
 } from './sse-events';
-
-// =============================================================================
-// Legacy Type Aliases (for backward compatibility during migration)
-// =============================================================================
-// These aliases map old names to generated types. New code should import
-// the generated type names directly.
-
-/** @deprecated Use UserContext from BusinessContext fields */
-export type UserContext = components['schemas']['BusinessContext'];
-
-/** @deprecated Use UserInfo */
-export type AdminUser = components['schemas']['UserInfo'];
-
-/** @deprecated Use UserListResponse */
-export type AdminUserListResponse = components['schemas']['UserListResponse'];
-
-/** @deprecated Use BetaWhitelistEntry */
-export type WhitelistEntry = components['schemas']['BetaWhitelistEntry'];
-
-/** @deprecated Use BetaWhitelistResponse */
-export type WhitelistResponse = components['schemas']['BetaWhitelistResponse'];
-
-/** @deprecated Use DatasetResponse */
-export type Dataset = components['schemas']['DatasetResponse'];
-
-/** @deprecated Use MentorPersonaResponse['id'] */
-export type MentorPersonaId = 'general' | 'action_coach' | 'data_analyst';
-
-/** @deprecated Use MentorPersonaResponse */
-export type MentorPersonaDetail = components['schemas']['MentorPersonaResponse'];
 
 // =============================================================================
 // Derived Frontend Types

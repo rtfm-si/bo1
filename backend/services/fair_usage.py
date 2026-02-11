@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from bo1.billing.config import PlanConfig
@@ -361,12 +362,9 @@ class FairUsageService:
 
 
 # Singleton instance
-_fair_usage_service: FairUsageService | None = None
 
 
+@lru_cache(maxsize=1)
 def get_fair_usage_service() -> FairUsageService:
     """Get the fair usage service singleton."""
-    global _fair_usage_service
-    if _fair_usage_service is None:
-        _fair_usage_service = FairUsageService()
-    return _fair_usage_service
+    return FairUsageService()

@@ -9,8 +9,10 @@
 // TYPES
 // ============================================================================
 
+import type { ConnectionStatus } from '$lib/config/constants';
+
 export type StepStatus = 'complete' | 'active' | 'pending';
-export type ConnectionStatus = 'connecting' | 'connected' | 'retrying' | 'error' | 'disconnected';
+export type { ConnectionStatus };
 export type AvatarStatus = 'online' | 'offline' | 'typing' | 'busy';
 export type UserStatus = 'pending' | 'invited' | 'converted' | 'rejected' | 'active' | 'inactive';
 export type SectionType = 'executive' | 'recommendation' | 'details' | 'success' | 'warning' | 'error' | 'info' | 'neutral';

@@ -231,9 +231,9 @@ class TestFixImplementations:
 class TestGlobalFunctions:
     """Tests for module-level helper functions."""
 
-    @patch("backend.services.auto_remediation._auto_remediation", None)
     def test_get_auto_remediation_creates_singleton(self) -> None:
         """Test singleton pattern for global instance."""
+        get_auto_remediation.cache_clear()
         instance1 = get_auto_remediation()
         instance2 = get_auto_remediation()
         assert instance1 is instance2

@@ -11,6 +11,7 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let suggestions = $state<ContextUpdateSuggestion[]>([]);
 	let isLoading = $state(true);
@@ -96,13 +97,6 @@
 		return `${Math.round(confidence * 100)}%`;
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 
 	// Type for structured competitor
 	interface CompetitorEntry {

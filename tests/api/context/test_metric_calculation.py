@@ -261,7 +261,7 @@ class TestCalculateMetricRoute:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             response = await calculate_metric("churn", request, user=mock_user)
 
         assert response.success is True
@@ -287,7 +287,7 @@ class TestCalculateMetricRoute:
         mock_user = {"user_id": "user-123"}
 
         with pytest.raises(HTTPException) as exc_info:
-            with patch("backend.api.context.routes.user_repository", mock_user_repository):
+            with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
                 await calculate_metric("churn", request, user=mock_user)
 
         assert exc_info.value.status_code == 400
@@ -308,7 +308,7 @@ class TestCalculateMetricRoute:
         mock_user = {"user_id": "user-123"}
 
         with pytest.raises(HTTPException) as exc_info:
-            with patch("backend.api.context.routes.user_repository", mock_user_repository):
+            with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
                 await calculate_metric("unknown_xyz", request, user=mock_user)
 
         assert exc_info.value.status_code == 404
@@ -330,7 +330,7 @@ class TestCalculateMetricRoute:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             response = await calculate_metric("mrr", request, user=mock_user)
 
         assert response.success is True
@@ -367,7 +367,7 @@ class TestCalculateMetricRoute:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             response = await calculate_metric("mrr", request, user=mock_user)
 
         assert response.success is True

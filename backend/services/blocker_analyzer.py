@@ -13,6 +13,7 @@ import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.prompts.blocker import BLOCKER_SYSTEM_PROMPT, build_blocker_prompt
@@ -173,15 +174,12 @@ class BlockerAnalyzer:
 
 
 # Module-level singleton
-_analyzer: BlockerAnalyzer | None = None
 
 
+@lru_cache(maxsize=1)
 def get_blocker_analyzer() -> BlockerAnalyzer:
     """Get or create the blocker analyzer singleton."""
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = BlockerAnalyzer()
-    return _analyzer
+    return BlockerAnalyzer()
 
 
 async def escalate_blocked_action(

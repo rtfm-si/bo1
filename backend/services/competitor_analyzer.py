@@ -14,10 +14,11 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
-import httpx
-
+from backend.services.safe_types import safe_list, safe_str
+from backend.services.tavily_client import get_tavily_client
 from bo1.config import get_settings
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.logging.errors import ErrorCode, log_error
@@ -161,20 +162,10 @@ class CompetitorInsightAnalyzer:
             return None
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    "https://api.tavily.com/search",
-                    json={
-                        "api_key": self._settings.tavily_api_key,
-                        "query": f'"{competitor_name}" company products pricing revenue',
-                        "search_depth": "basic",
-                        "max_results": 5,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("results", [])
-
+            data = await get_tavily_client().search(
+                f'"{competitor_name}" company products pricing revenue',
+            )
+            return data.get("results", [])
         except Exception as e:
             logger.warning(f"Competitor search failed for {competitor_name}: {e}")
             return None
@@ -215,16 +206,10 @@ class CompetitorInsightAnalyzer:
             return self._fallback_insight(competitor_name, f"Parse error: {e}")
 
     def _safe_str(self, value: Any, max_len: int) -> str | None:
-        """Safely convert value to string with length limit."""
-        if value is None:
-            return None
-        return str(value)[:max_len] if value else None
+        return safe_str(value, max_len)
 
     def _safe_list(self, value: Any, max_items: int) -> list[str]:
-        """Safely convert value to list of strings."""
-        if not value or not isinstance(value, list):
-            return []
-        return [str(item)[:200] for item in value[:max_items] if item]
+        return safe_list(value, max_items, item_max_len=200)
 
     def _fallback_insight(
         self,
@@ -255,12 +240,9 @@ class CompetitorInsightAnalyzer:
 
 
 # Module-level singleton
-_analyzer: CompetitorInsightAnalyzer | None = None
 
 
+@lru_cache(maxsize=1)
 def get_competitor_analyzer() -> CompetitorInsightAnalyzer:
     """Get or create the competitor analyzer singleton."""
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = CompetitorInsightAnalyzer()
-    return _analyzer
+    return CompetitorInsightAnalyzer()

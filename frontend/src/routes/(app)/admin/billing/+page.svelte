@@ -16,6 +16,7 @@
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let config = $state<BillingConfigResponse | null>(null);
 	let syncStatus = $state<SyncStatus | null>(null);
@@ -105,15 +106,6 @@
 		}).format(amount);
 	}
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Never';
-		return new Date(dateStr).toLocaleString('en-GB', {
-			day: 'numeric',
-			month: 'short',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	onMount(() => {
 		loadData();

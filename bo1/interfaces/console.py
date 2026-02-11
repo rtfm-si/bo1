@@ -463,9 +463,9 @@ def _display_votes(console: Console, state: Any) -> None:
 
     Args:
         console: Console instance for output
-        state: Graph state with votes
+        state: Graph state with recommendations
     """
-    votes = state.get("votes", [])
+    votes = state.get("recommendations", [])
     if not votes:
         return
 

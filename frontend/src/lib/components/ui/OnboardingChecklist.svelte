@@ -6,7 +6,7 @@
 	 * Dismissed when all steps complete or user clicks dismiss.
 	 */
 
-	import type { UserContext } from '$lib/api/types';
+	import type { BusinessContext } from '$lib/api/types';
 
 	// Props
 	let {
@@ -16,7 +16,7 @@
 		settingsReviewed = false,
 		onDismiss,
 	}: {
-		userContext?: UserContext | null;
+		userContext?: BusinessContext | null;
 		sessionCount?: number;
 		hasCognitionProfile?: boolean;
 		settingsReviewed?: boolean;

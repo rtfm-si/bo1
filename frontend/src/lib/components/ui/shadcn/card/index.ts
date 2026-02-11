@@ -5,6 +5,7 @@ import Footer from "./card-footer.svelte";
 import Header from "./card-header.svelte";
 import Title from "./card-title.svelte";
 import Action from "./card-action.svelte";
+export { cardVariants, type CardVariant, type CardPadding } from "./card-variants";
 
 export {
 	Root,

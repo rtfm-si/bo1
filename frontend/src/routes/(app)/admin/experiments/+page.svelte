@@ -3,10 +3,6 @@
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import {
 		FlaskConical,
-		Users,
-		Clock,
-		DollarSign,
-		CheckCircle,
 		Plus,
 		Play,
 		Pause,
@@ -17,7 +13,6 @@
 	} from 'lucide-svelte';
 	import {
 		adminApi,
-		type ExperimentMetricsResponse,
 		type Experiment
 	} from '$lib/api/admin';
 	import BoButton from '$lib/components/ui/BoButton.svelte';
@@ -27,10 +22,9 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
-	// Legacy persona count experiment data
-	let legacyData = $state<ExperimentMetricsResponse | null>(null);
+	import { formatDate } from '$lib/utils/time-formatting';
 
-	// New experiments management
+	// Experiments management
 	let experiments = $state<Experiment[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -63,11 +57,7 @@
 		loading = true;
 		error = null;
 		try {
-			const [legacyResponse, experimentsResponse] = await Promise.all([
-				adminApi.getPersonaCountExperiment().catch(() => null),
-				adminApi.listExperiments()
-			]);
-			legacyData = legacyResponse;
+			const experimentsResponse = await adminApi.listExperiments();
 			experiments = experimentsResponse.experiments;
 		} catch (e) {
 			console.error('Failed to load experiments:', e);
@@ -173,18 +163,6 @@
 		if (createForm.variants.length > 2) {
 			createForm.variants = createForm.variants.filter((_, i) => i !== index);
 		}
-	}
-
-	function formatDuration(seconds: number | null): string {
-		if (seconds === null) return '-';
-		const mins = Math.floor(seconds / 60);
-		const secs = Math.round(seconds % 60);
-		return `${mins}m ${secs}s`;
-	}
-
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString();
 	}
 
 	function getStatusVariant(
@@ -419,157 +397,6 @@
 				{/if}
 			</div>
 
-			<!-- Legacy Persona Count Experiment -->
-			{#if legacyData}
-				<div class="mt-8">
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-						Legacy Experiments
-					</h2>
-					<div
-						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden"
-					>
-						<div class="p-6 border-b border-neutral-200 dark:border-neutral-700">
-							<div class="flex items-center justify-between">
-								<div>
-									<h3 class="text-xl font-semibold text-neutral-900 dark:text-white">
-										Persona Count Experiment
-									</h3>
-									<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-										Testing 3 vs 5 personas per meeting for cost optimization
-									</p>
-								</div>
-								<div class="text-right">
-									<p class="text-sm text-neutral-600 dark:text-neutral-400">Total Sessions</p>
-									<p class="text-2xl font-bold text-neutral-900 dark:text-white">
-										{legacyData.total_sessions}
-									</p>
-								</div>
-							</div>
-							<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">
-								Period: {new Date(legacyData.period_start).toLocaleDateString()} - {new Date(
-									legacyData.period_end
-								).toLocaleDateString()}
-							</p>
-						</div>
-
-						<!-- Variants Grid -->
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-							{#each legacyData.variants as variant}
-								<div class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-5">
-									<div class="flex items-center justify-between mb-4">
-										<div class="flex items-center gap-2">
-											<Users class="w-5 h-5 text-brand-600 dark:text-brand-400" />
-											<span class="text-lg font-semibold text-neutral-900 dark:text-white">
-												{variant.variant} Personas
-											</span>
-										</div>
-										<span
-											class="px-3 py-1 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-full text-sm font-medium"
-										>
-											{variant.variant === 3 ? 'Treatment' : 'Control'}
-										</span>
-									</div>
-
-									<div class="grid grid-cols-2 gap-4">
-										<div>
-											<p class="text-sm text-neutral-600 dark:text-neutral-400">Sessions</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{variant.session_count}
-											</p>
-										</div>
-
-										<div>
-											<p
-												class="text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-1"
-											>
-												<CheckCircle class="w-3.5 h-3.5" />
-												Completion
-											</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{variant.completion_rate.toFixed(1)}%
-											</p>
-										</div>
-
-										<div>
-											<p
-												class="text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-1"
-											>
-												<DollarSign class="w-3.5 h-3.5" />
-												Avg Cost
-											</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{variant.avg_cost !== null ? `$${variant.avg_cost.toFixed(3)}` : '-'}
-											</p>
-										</div>
-
-										<div>
-											<p
-												class="text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-1"
-											>
-												<Clock class="w-3.5 h-3.5" />
-												Avg Duration
-											</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{formatDuration(variant.avg_duration_seconds)}
-											</p>
-										</div>
-
-										<div>
-											<p class="text-sm text-neutral-600 dark:text-neutral-400">Avg Rounds</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{variant.avg_rounds !== null ? variant.avg_rounds.toFixed(1) : '-'}
-											</p>
-										</div>
-
-										<div>
-											<p class="text-sm text-neutral-600 dark:text-neutral-400">Actual Personas</p>
-											<p class="text-xl font-semibold text-neutral-900 dark:text-white">
-												{variant.avg_persona_count !== null
-													? variant.avg_persona_count.toFixed(1)
-													: '-'}
-											</p>
-										</div>
-									</div>
-								</div>
-							{/each}
-						</div>
-
-						<!-- Summary -->
-						{#if legacyData.variants.length >= 2}
-							{@const treatment = legacyData.variants.find((v) => v.variant === 3)}
-							{@const control = legacyData.variants.find((v) => v.variant === 5)}
-							{#if treatment && control && treatment.avg_cost !== null && control.avg_cost !== null}
-								{@const costDiff = control.avg_cost - treatment.avg_cost}
-								{@const costPctDiff = (costDiff / control.avg_cost) * 100}
-								<div
-									class="p-6 bg-neutral-100 dark:bg-neutral-700/30 border-t border-neutral-200 dark:border-neutral-700"
-								>
-									<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-										Cost Savings Analysis
-									</h4>
-									<p class="text-neutral-600 dark:text-neutral-400">
-										{#if costDiff > 0}
-											3 personas saves <span
-												class="font-semibold text-success-600 dark:text-success-400"
-												>${costDiff.toFixed(4)}</span
-											>
-											(<span class="font-semibold text-success-600 dark:text-success-400"
-												>{costPctDiff.toFixed(1)}%</span
-											>) per session compared to 5 personas.
-										{:else}
-											3 personas costs <span
-												class="font-semibold text-error-600 dark:text-error-400"
-												>${Math.abs(costDiff).toFixed(4)}</span
-											>
-											more per session compared to 5 personas.
-										{/if}
-									</p>
-								</div>
-							{/if}
-						{/if}
-					</div>
-				</div>
-			{/if}
 		{/if}
 	</main>
 </div>

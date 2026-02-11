@@ -6606,24 +6606,8 @@
         "type": "object"
       },
       "ClarificationRequest": {
-        "description": "Request model for clarification answers.\n\nSupports both single answer (legacy) and multiple answers (new).\n\nAttributes:\n    answer: Single answer to clarification question (legacy, optional)\n    answers: Dict of question->answer pairs (new, optional)\n    skip: Whether to skip all questions without answering",
+        "description": "Request model for clarification answers.\n\nAttributes:\n    answers: Dict of question->answer pairs\n    skip: Whether to skip all questions without answering",
         "properties": {
-          "answer": {
-            "anyOf": [
-              {
-                "maxLength": 5000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Single answer to clarification question (legacy)",
-            "examples": [
-              "Our current churn rate is 3.5% monthly"
-            ],
-            "title": "Answer"
-          },
           "answers": {
             "anyOf": [
               {
@@ -29757,6 +29741,12 @@
             "title": "Event Type",
             "type": "string"
           },
+          "recommendations_count": {
+            "description": "Number of recommendations collected",
+            "minimum": 0,
+            "title": "Recommendations Count",
+            "type": "integer"
+          },
           "session_id": {
             "description": "Session identifier",
             "title": "Session Id",
@@ -29779,17 +29769,11 @@
             "description": "ISO 8601 timestamp",
             "title": "Timestamp",
             "type": "string"
-          },
-          "votes_count": {
-            "description": "Number of votes cast",
-            "minimum": 0,
-            "title": "Votes Count",
-            "type": "integer"
           }
         },
         "required": [
           "session_id",
-          "votes_count",
+          "recommendations_count",
           "consensus_level"
         ],
         "title": "VotingCompleteEvent",
@@ -59705,6 +59689,7 @@
         "summary": "Delete user's saved context",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       },
@@ -59764,6 +59749,7 @@
         },
         "summary": "Get user's saved business context",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -59833,6 +59819,7 @@
         "summary": "Update user's business context",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -59900,6 +59887,7 @@
         },
         "summary": "Apply a metric suggestion to context",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -59980,6 +59968,7 @@
         "summary": "Auto-detect competitors",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60012,6 +60001,7 @@
         },
         "summary": "List cached competitor insights",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60080,6 +60070,7 @@
         },
         "summary": "Delete cached competitor insight",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60172,6 +60163,7 @@
         "summary": "Generate insight for a competitor",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60208,6 +60200,7 @@
         },
         "summary": "Clear cached demo questions",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60274,6 +60267,7 @@
         },
         "summary": "Get personalized demo questions",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60348,6 +60342,7 @@
         },
         "summary": "Dismiss refresh prompt",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60431,6 +60426,7 @@
         "summary": "Enrich context from website",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60486,6 +60482,7 @@
         "summary": "Get goal change history",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60519,6 +60516,7 @@
         "summary": "Get goal progress metrics",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60551,6 +60549,7 @@
         },
         "summary": "Check goal staleness",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60603,6 +60602,7 @@
         },
         "summary": "Get heatmap history depth",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60684,6 +60684,7 @@
         "summary": "Update heatmap history depth",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60727,6 +60728,7 @@
         },
         "summary": "Get accumulated insights from meetings",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60805,6 +60807,7 @@
         },
         "summary": "Delete a specific clarification insight",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -60888,6 +60891,7 @@
         "summary": "Update a clarification insight",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -60968,6 +60972,7 @@
         "summary": "Enrich an insight with market context",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61019,6 +61024,7 @@
         },
         "summary": "Get key metrics",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61092,6 +61098,7 @@
         "summary": "Update key metrics config",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61124,6 +61131,7 @@
         },
         "summary": "List user's managed competitors",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61186,6 +61194,7 @@
         "summary": "Add a managed competitor",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61237,6 +61246,7 @@
         },
         "summary": "Enrich all managed competitors (monthly refresh)",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61305,6 +61315,7 @@
         },
         "summary": "Remove a managed competitor",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61377,6 +61388,7 @@
         },
         "summary": "Update a managed competitor",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61461,6 +61473,7 @@
         "summary": "Enrich a managed competitor with Tavily data",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61508,6 +61521,7 @@
         "summary": "Get metric suggestions from insights",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61542,6 +61556,7 @@
         },
         "summary": "List metrics with calculation support",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61591,6 +61606,7 @@
         },
         "summary": "Get business metric suggestions from insights",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61670,6 +61686,7 @@
         "summary": "Apply a business metric suggestion",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61727,6 +61744,7 @@
         },
         "summary": "Dismiss a business metric suggestion",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -61810,6 +61828,7 @@
         "summary": "Calculate a metric from Q&A answers",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61884,6 +61903,7 @@
         "summary": "Get calculation questions for a metric",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -61935,6 +61955,7 @@
         },
         "summary": "Get all objective progress",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62012,6 +62033,7 @@
         },
         "summary": "Delete objective progress",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62114,6 +62136,7 @@
         "summary": "Update objective progress",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62146,6 +62169,7 @@
         },
         "summary": "List pending context update suggestions",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62215,6 +62239,7 @@
         "summary": "Dismiss a pending context update",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62278,6 +62303,7 @@
         },
         "summary": "Approve a pending context update",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62357,6 +62383,7 @@
         "summary": "Get recent research",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62389,6 +62416,7 @@
         },
         "summary": "Check if context refresh needed",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62442,6 +62470,7 @@
         "summary": "Get research embeddings for visualization",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62474,6 +62503,7 @@
         },
         "summary": "Get stale business context metrics",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62569,6 +62599,7 @@
         "summary": "Analyze a trend URL for insights",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62635,6 +62666,7 @@
         },
         "summary": "Get trend forecast for timeframe",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62703,6 +62735,7 @@
         "summary": "Refresh trend forecast for timeframe",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62735,6 +62768,7 @@
         },
         "summary": "List cached trend insights",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62813,6 +62847,7 @@
         },
         "summary": "Delete a cached trend insight",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62893,6 +62928,7 @@
         "summary": "Refresh market trends",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -62927,6 +62963,7 @@
         },
         "summary": "Get cached trend summary",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -62992,6 +63029,7 @@
         "summary": "Refresh trend summary",
         "tags": [
           "context",
+          "context",
           "context"
         ]
       }
@@ -63024,6 +63062,7 @@
         },
         "summary": "Get business context with trend indicators",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -63076,6 +63115,7 @@
         },
         "summary": "Get working pattern",
         "tags": [
+          "context",
           "context",
           "context"
         ]
@@ -63156,6 +63196,7 @@
         },
         "summary": "Update working pattern",
         "tags": [
+          "context",
           "context",
           "context"
         ]

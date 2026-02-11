@@ -81,9 +81,7 @@ KNOWN_EXCEPTIONS: dict[str, set[str]] = {
     "sessions": {
         # These are Pydantic model fields that don't exist in DB
     },
-    "contributions": {
-        "tokens_used",  # Property alias for token_count
-    },
+    "contributions": set(),
     "recommendations": {
         "weight",  # Computed at runtime, not persisted
         "alternatives_considered",  # Optional rich field, not in DB

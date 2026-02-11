@@ -7,6 +7,7 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { adminApi, type AlertHistoryResponse, type AlertHistoryItem } from '$lib/api/admin';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let alerts = $state<AlertHistoryResponse | null>(null);
 	let alertTypes = $state<string[]>([]);
@@ -40,16 +41,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function getSeverityBadge(severity: string): { bg: string; text: string } {
 		switch (severity) {

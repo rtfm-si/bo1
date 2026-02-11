@@ -10,6 +10,7 @@ Validates:
 import json
 
 from backend.api.events import (
+    SSE_EVENT_VERSION,
     gap_detected_event,
     make_event_id,
     parse_event_id,
@@ -330,7 +331,7 @@ class TestGapDetectedEvent:
         assert data["missed_count"] == 4
         assert "message" in data
         assert "timestamp" in data
-        assert data["event_version"] == 1
+        assert data["event_version"] == SSE_EVENT_VERSION
 
     def test_gap_detected_event_message(self):
         """gap_detected event has user-friendly message."""

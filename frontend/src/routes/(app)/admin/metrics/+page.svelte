@@ -29,6 +29,7 @@
 	} from '$lib/api/admin';
 	import ObservabilityLinks from '$lib/components/admin/ObservabilityLinks.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let userMetrics = $state<UserMetricsResponse | null>(null);
 	let usageMetrics = $state<UsageMetricsResponse | null>(null);
@@ -71,10 +72,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-	}
 
 	function getBarHeight(value: number, max: number): number {
 		if (max === 0) return 0;

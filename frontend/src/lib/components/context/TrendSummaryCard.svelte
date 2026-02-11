@@ -23,6 +23,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface TrendSummary {
 		summary: string;
 		key_trends: string[];
@@ -94,11 +95,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | null): string {
-		if (!dateStr) return 'Unknown';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 
 	function daysAgo(dateStr: string | null): number {
 		if (!dateStr) return 0;

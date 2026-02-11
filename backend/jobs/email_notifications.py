@@ -9,12 +9,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from backend.jobs.shared import get_frontend_url, get_user_data, should_send_email
 from backend.services.email import send_email_async
 from backend.services.email_templates import (
     render_action_reminder_email,
     render_meeting_completed_email,
 )
-from bo1.config import get_settings
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -44,21 +44,9 @@ def send_meeting_completed_email(session_id: str) -> bool:
             logger.warning(f"No user_id for session: {session_id}")
             return False
 
-        # Get user email
-        user_data = _get_user_data(user_id)
-        if not user_data or not user_data.get("email"):
-            logger.warning(f"No email for user: {user_id}")
-            return False
-
-        email = user_data["email"]
-        if email.endswith("@placeholder.local"):
-            logger.info(f"Skipping email for placeholder: {email}")
-            return False
-
-        # Check email preferences
-        prefs = user_data.get("email_preferences") or {}
-        if prefs.get("meeting_emails") is False:
-            logger.info(f"Meeting emails disabled for user: {user_id}")
+        can_send, email = should_send_email(get_user_data(user_id), "meeting_emails")
+        if not can_send:
+            logger.info(f"Skipping meeting email for user: {user_id}")
             return False
 
         # Extract email content
@@ -74,10 +62,7 @@ def send_meeting_completed_email(session_id: str) -> bool:
         # Get actions
         actions = _get_session_actions(session_id)
 
-        # Build meeting URL
-        settings = get_settings()
-        frontend_domain = settings.supertokens_website_domain
-        meeting_url = f"{frontend_domain}/meeting/{session_id}"
+        meeting_url = get_frontend_url(f"/meeting/{session_id}")
 
         # Render and send email
         html, text = render_meeting_completed_email(
@@ -126,26 +111,12 @@ def send_action_reminders() -> dict[str, int]:
                     stats["skipped"] += 1
                     continue
 
-                # Get user email and check preferences
-                user_data = _get_user_data(user_id)
-                if not user_data or not user_data.get("email"):
+                can_send, email = should_send_email(get_user_data(user_id), "reminder_emails")
+                if not can_send:
                     stats["skipped"] += 1
                     continue
 
-                email = user_data["email"]
-                if email.endswith("@placeholder.local"):
-                    stats["skipped"] += 1
-                    continue
-
-                prefs = user_data.get("email_preferences") or {}
-                if prefs.get("reminder_emails") is False:
-                    stats["skipped"] += 1
-                    continue
-
-                # Build action URL
-                settings = get_settings()
-                frontend_domain = settings.supertokens_website_domain
-                action_url = f"{frontend_domain}/actions/{action['id']}"
+                action_url = get_frontend_url(f"/actions/{action['id']}")
 
                 # Determine if overdue
                 due_date = action.get("target_end_date") or action.get("estimated_end_date")
@@ -214,28 +185,6 @@ def _get_session_data(session_id: str) -> dict[str, Any] | None:
         return None
     except Exception as e:
         logger.error(f"Failed to get session data: {e}")
-        return None
-
-
-def _get_user_data(user_id: str) -> dict[str, Any] | None:
-    """Fetch user data from database."""
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, email, email_preferences
-                    FROM users
-                    WHERE id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if row:
-                    return dict(row)
-        return None
-    except Exception as e:
-        logger.error(f"Failed to get user data: {e}")
         return None
 
 

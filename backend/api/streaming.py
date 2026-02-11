@@ -23,7 +23,6 @@ from fastapi.responses import StreamingResponse
 from backend.api.constants import (
     COST_EVENT_TYPES,
     COST_FIELDS,
-    SSE_MIN_SUPPORTED_VERSION,
     SSE_RECONNECT_BACKOFF_BASE_SECONDS,
     SSE_RECONNECT_BACKOFF_MAX_SECONDS,
     SSE_RECONNECT_BURST_THRESHOLD,
@@ -417,7 +416,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("conditions", []),
         ),
         "voting_complete": lambda: events.voting_complete_event(
-            session_id, data.get("votes_count", 0), data.get("consensus_level", "unknown")
+            session_id, data.get("recommendations_count", 0), data.get("consensus_level", "unknown")
         ),
         "synthesis_started": lambda: events.synthesis_started_event(session_id),
         "synthesis_complete": lambda: events.synthesis_complete_event(
@@ -1085,11 +1084,9 @@ def parse_accept_sse_version(header_value: str | None) -> int:
         return SSE_SCHEMA_VERSION
     try:
         version = int(header_value.strip())
-        if version < SSE_MIN_SUPPORTED_VERSION:
-            logger.warning(
-                f"[SSE VERSION] Requested version {version} below minimum {SSE_MIN_SUPPORTED_VERSION}"
-            )
-            return SSE_MIN_SUPPORTED_VERSION
+        if version < 1:
+            logger.warning(f"[SSE VERSION] Requested version {version} below minimum 1")
+            return SSE_SCHEMA_VERSION
         return version
     except ValueError:
         logger.warning(f"[SSE VERSION] Invalid version header: {header_value}")

@@ -142,9 +142,10 @@ class TestSendRetentionReminder:
             with patch(
                 "backend.jobs.retention_reminder_job._update_last_reminder_sent"
             ) as mock_update:
-                with patch("backend.jobs.retention_reminder_job.get_settings") as mock_settings:
-                    mock_settings.return_value.supertokens_website_domain = "https://test.com"
-
+                with patch(
+                    "backend.jobs.retention_reminder_job.get_frontend_url",
+                    return_value="https://test.com/settings/privacy",
+                ):
                     result = send_retention_reminder(
                         user_id="user-1",
                         email="test@example.com",
@@ -161,9 +162,10 @@ class TestSendRetentionReminder:
 
         with patch("backend.services.email.send_email_async") as mock_send:
             with patch("backend.jobs.retention_reminder_job._update_last_reminder_sent"):
-                with patch("backend.jobs.retention_reminder_job.get_settings") as mock_settings:
-                    mock_settings.return_value.supertokens_website_domain = "https://test.com"
-
+                with patch(
+                    "backend.jobs.retention_reminder_job.get_frontend_url",
+                    return_value="https://test.com/settings/privacy",
+                ):
                     send_retention_reminder(
                         user_id="user-1",
                         email="test@example.com",
@@ -179,9 +181,10 @@ class TestSendRetentionReminder:
 
         with patch("backend.services.email.send_email_async") as mock_send:
             with patch("backend.jobs.retention_reminder_job._update_last_reminder_sent"):
-                with patch("backend.jobs.retention_reminder_job.get_settings") as mock_settings:
-                    mock_settings.return_value.supertokens_website_domain = "https://test.com"
-
+                with patch(
+                    "backend.jobs.retention_reminder_job.get_frontend_url",
+                    return_value="https://test.com/settings/privacy",
+                ):
                     send_retention_reminder(
                         user_id="user-1",
                         email="test@example.com",

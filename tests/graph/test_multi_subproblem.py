@@ -62,7 +62,7 @@ class TestRouteAfterSynthesis:
             stop_reason=None,
             user_input=None,
             current_node="synthesize",
-            votes=[],
+            recommendations=[],
             synthesis="Test synthesis",
             sub_problem_results=[],
             sub_problem_index=0,  # Just finished first sub-problem
@@ -105,7 +105,7 @@ class TestRouteAfterSynthesis:
                 sub_problem_id="sp_001",
                 sub_problem_goal="SP1",
                 synthesis="Synthesis for SP1",
-                votes=[],
+                recommendations=[],
                 contribution_count=5,
                 cost=0.50,
                 duration_seconds=30.0,
@@ -130,7 +130,7 @@ class TestRouteAfterSynthesis:
             stop_reason=None,
             user_input=None,
             current_node="synthesize",
-            votes=[],
+            recommendations=[],
             synthesis="Test synthesis",
             sub_problem_results=sub_problem_results,
             sub_problem_index=1,  # Just finished second (last) sub-problem
@@ -172,7 +172,7 @@ class TestRouteAfterSynthesis:
             stop_reason=None,
             user_input=None,
             current_node="synthesize",
-            votes=[],
+            recommendations=[],
             synthesis="Test synthesis",
             sub_problem_results=[],
             sub_problem_index=0,
@@ -244,7 +244,7 @@ class TestNextSubproblemNode:
             stop_reason=None,
             user_input=None,
             current_node="synthesize",
-            votes=[],
+            recommendations=[],
             synthesis="Test synthesis",
             sub_problem_results=[],
             sub_problem_index=0,
@@ -311,7 +311,7 @@ class TestNextSubproblemNode:
 
         # Should reset deliberation state
         assert result["contributions"] == []
-        assert result["votes"] == []
+        assert result["recommendations"] == []
         assert result["round_number"] == 0  # Will be set to 1 by initial_round_node
         assert result["round_summaries"] == []
         assert result["synthesis"] is None
@@ -364,7 +364,7 @@ class TestNextSubproblemNode:
             stop_reason=None,
             user_input=None,
             current_node="synthesize",
-            votes=[],
+            recommendations=[],
             synthesis="SP1 synthesis",
             sub_problem_results=[],
             sub_problem_index=0,

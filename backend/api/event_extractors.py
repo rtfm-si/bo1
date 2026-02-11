@@ -569,15 +569,15 @@ def _create_voting_extractors() -> list[FieldExtractor]:
 
     def extract_voting_data(output: dict[str, Any]) -> dict[str, Any]:
         """Extract voting data with consensus metrics."""
-        votes = output.get("votes", [])
+        votes = output.get("recommendations", output.get("votes", []))
         sub_problem_index = _get_sub_problem_index_safe(output, "extract_voting_data")
 
         formatted_votes = extract_formatted_votes(votes)
         consensus_level, avg_confidence = calculate_consensus_level(votes)
 
         return {
-            "votes": formatted_votes,
-            "votes_count": len(votes),
+            "recommendations": formatted_votes,
+            "recommendations_count": len(votes),
             "consensus_level": consensus_level,
             "avg_confidence": avg_confidence,
             "sub_problem_index": sub_problem_index,

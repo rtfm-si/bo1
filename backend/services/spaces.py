@@ -4,6 +4,7 @@ S3-compatible object storage for datasets, charts, and exports.
 """
 
 import logging
+from functools import lru_cache
 from typing import BinaryIO
 
 import boto3
@@ -276,22 +277,18 @@ class SpacesClient:
 
 
 # Singleton instance (lazy-loaded)
-_spaces_client: SpacesClient | None = None
 
 
+@lru_cache(maxsize=1)
 def get_spaces_client() -> SpacesClient:
     """Get or create Spaces client singleton.
 
     Returns:
         SpacesClient instance
     """
-    global _spaces_client
-    if _spaces_client is None:
-        _spaces_client = SpacesClient()
-    return _spaces_client
+    return SpacesClient()
 
 
 def reset_spaces_client() -> None:
-    """Reset Spaces client singleton (for testing)."""
-    global _spaces_client
-    _spaces_client = None
+    """Reset the singleton client (for testing)."""
+    get_spaces_client.cache_clear()

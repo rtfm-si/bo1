@@ -339,13 +339,11 @@ class TestModuleFunctions:
 
     def test_record_metric_convenience(self) -> None:
         """Test record_metric convenience function."""
-        with patch("backend.services.performance_monitor._monitor") as mock:
-            mock.record_metric.return_value = True
-            # Reset singleton for test
-            import backend.services.performance_monitor as pm
-
-            pm._monitor = mock
-
+        mock = MagicMock()
+        mock.record_metric.return_value = True
+        with patch(
+            "backend.services.performance_monitor.get_performance_monitor", return_value=mock
+        ):
             record_metric("test", 100.0)
             mock.record_metric.assert_called_once_with("test", 100.0, None, None)
 

@@ -18,6 +18,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
 from bo1.logging.errors import ErrorCode
 from bo1.models.dataset_folder import (
@@ -47,7 +48,7 @@ async def create_folder(
     user: dict = Depends(get_current_user),
 ) -> DatasetFolderResponse:
     """Create a new dataset folder."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     folder = dataset_folder_repository.create_folder(
         user_id=user_id,
@@ -70,7 +71,7 @@ async def list_folders(
     tag: str | None = Query(None, description="Filter by tag"),
 ) -> DatasetFolderListResponse:
     """List user's dataset folders (flat list)."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     if parent_id or tag:
         folders = dataset_folder_repository.list_folders(
@@ -93,7 +94,7 @@ async def list_folders_tree(
     user: dict = Depends(get_current_user),
 ) -> DatasetFolderTreeResponse:
     """Get folder tree with nested children."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     folders = dataset_folder_repository.get_folder_tree(user_id)
     return DatasetFolderTreeResponse(
         folders=[_build_tree_node(f) for f in folders],
@@ -126,7 +127,7 @@ async def list_tags(
     user: dict = Depends(get_current_user),
 ) -> FolderTagsResponse:
     """List all unique folder tags for the user."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     tags = dataset_folder_repository.get_all_tags(user_id)
     return FolderTagsResponse(tags=tags)
 
@@ -138,7 +139,7 @@ async def get_folder(
     user: dict = Depends(get_current_user),
 ) -> DatasetFolderResponse:
     """Get a folder by ID."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     folder = dataset_folder_repository.get_folder(folder_id, user_id)
     if not folder:
         raise http_error(ErrorCode.API_NOT_FOUND, "Folder not found", status=404)
@@ -153,7 +154,7 @@ async def update_folder(
     user: dict = Depends(get_current_user),
 ) -> DatasetFolderResponse:
     """Update a folder."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Check if clearing parent (moving to root)
     clear_parent = request.parent_folder_id == ""
@@ -183,7 +184,7 @@ async def delete_folder(
     user: dict = Depends(get_current_user),
 ) -> None:
     """Delete a folder. Datasets are removed from folder (not deleted)."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     deleted = dataset_folder_repository.delete_folder(folder_id, user_id)
     if not deleted:
         raise http_error(ErrorCode.API_NOT_FOUND, "Folder not found", status=404)
@@ -197,7 +198,7 @@ async def add_datasets_to_folder(
     user: dict = Depends(get_current_user),
 ) -> AddDatasetsResponse:
     """Add datasets to a folder."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify folder exists
     folder = dataset_folder_repository.get_folder(folder_id, user_id)
@@ -221,7 +222,7 @@ async def remove_dataset_from_folder(
     user: dict = Depends(get_current_user),
 ) -> None:
     """Remove a dataset from a folder."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     removed = dataset_folder_repository.remove_dataset_from_folder(
         folder_id=folder_id,
         dataset_id=dataset_id,
@@ -238,7 +239,7 @@ async def get_folder_datasets(
     user: dict = Depends(get_current_user),
 ) -> FolderDatasetsListResponse:
     """List datasets in a folder."""
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
 
     # Verify folder exists
     folder = dataset_folder_repository.get_folder(folder_id, user_id)

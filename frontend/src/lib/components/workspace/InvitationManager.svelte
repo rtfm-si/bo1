@@ -12,6 +12,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { InvitationResponse, MemberRole } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	interface Props {
 		workspaceId: string;
 		canInvite?: boolean;
@@ -85,14 +86,6 @@
 		}
 	}
 
-	// Format date
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString(undefined, {
-			month: 'short',
-			day: 'numeric'
-		});
-	}
 
 	// Days until expiry
 	function daysUntilExpiry(expiresAt: string): number {

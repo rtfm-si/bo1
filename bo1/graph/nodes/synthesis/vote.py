@@ -110,10 +110,8 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
         extracted_options = []
 
     # Return state updates
-    # Keep "votes" key for backward compatibility during migration
     emit_node_duration("vote_node", (time.perf_counter() - _start_time) * 1000)
     return {
-        "votes": recommendations_dicts,
         "recommendations": recommendations_dicts,
         "extracted_options": extracted_options,
         "dissenting_views": dissenting_views,

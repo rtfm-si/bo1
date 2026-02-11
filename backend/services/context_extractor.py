@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from bo1.llm.client import ClaudeClient
@@ -456,15 +457,12 @@ Return ONLY valid JSON array, no other text."""
 
 
 # Module-level singleton
-_extractor: ContextExtractor | None = None
 
 
+@lru_cache(maxsize=1)
 def get_context_extractor() -> ContextExtractor:
     """Get or create context extractor singleton."""
-    global _extractor
-    if _extractor is None:
-        _extractor = ContextExtractor()
-    return _extractor
+    return ContextExtractor()
 
 
 async def extract_context_updates(

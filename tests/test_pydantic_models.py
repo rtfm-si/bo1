@@ -406,34 +406,6 @@ def test_models_handle_special_characters():
     assert restored.title == special_text
 
 
-@pytest.mark.unit
-def test_contribution_message_tokens_used_property():
-    """Test: ContributionMessage.tokens_used property works correctly."""
-    # With token_count set
-    contribution = ContributionMessage(
-        persona_code="test",
-        persona_name="Test",
-        content="Test",
-        thinking=None,
-        cost=None,
-        round_number=0,
-        token_count=500,
-    )
-    assert contribution.tokens_used == 500
-
-    # With token_count None
-    contribution_no_tokens = ContributionMessage(
-        persona_code="test",
-        persona_name="Test",
-        content="Test",
-        thinking=None,
-        cost=None,
-        round_number=0,
-        token_count=None,
-    )
-    assert contribution_no_tokens.tokens_used == 0
-
-
 # ============================================================================
 # Type Coercion Tests
 # ============================================================================

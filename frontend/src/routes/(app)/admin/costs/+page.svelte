@@ -27,6 +27,7 @@
 	import StatCard from '$lib/components/ui/StatCard.svelte';
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import { formatDate } from '$lib/utils/time-formatting';
 	import {
 		adminApi,
 		type CostSummaryResponse,
@@ -296,10 +297,6 @@
 		return `$${value.toFixed(2)}`;
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-	}
 
 	function downloadCsv() {
 		if (!userCosts || !dailyCosts) return;

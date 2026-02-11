@@ -5,6 +5,7 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import AdminPageHeader from '$lib/components/admin/AdminPageHeader.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import { formatDate } from '$lib/utils/time-formatting';
 	import {
 		adminApi,
 		type LandingPageMetricsResponse
@@ -51,10 +52,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-	}
 
 	function formatDuration(ms: number | null): string {
 		if (!ms) return '-';

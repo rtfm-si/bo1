@@ -7,6 +7,7 @@ and suggest new projects for user review before creation.
 import json
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from backend.services.runtime_config import get_effective_value
@@ -19,15 +20,12 @@ from bo1.utils.json_parsing import parse_json_with_fallback
 logger = logging.getLogger(__name__)
 
 # Lazy-initialized client
-_claude_client: ClaudeClient | None = None
 
 
+@lru_cache(maxsize=1)
 def _get_client() -> ClaudeClient:
     """Get or create Claude client."""
-    global _claude_client
-    if _claude_client is None:
-        _claude_client = ClaudeClient()
-    return _claude_client
+    return ClaudeClient()
 
 
 @dataclass

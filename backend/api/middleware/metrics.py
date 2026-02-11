@@ -190,14 +190,6 @@ bo1_early_exit_total = Counter(
 )
 
 # Circuit breaker metrics
-# Legacy gauge (numeric state values, kept for backward compatibility)
-bo1_circuit_breaker_state = Gauge(
-    "bo1_circuit_breaker_state",
-    "Circuit breaker state (0=closed, 1=half_open, 2=open)",
-    ["service"],
-)
-
-# New gauge with provider+state labels for better alerting
 # Each state is a separate time series: circuit_breaker_state{provider="anthropic", state="open"} = 1
 bo1_circuit_breaker_state_labeled = Gauge(
     "circuit_breaker_state",
@@ -698,18 +690,12 @@ def record_early_exit(reason: str = "convergence_high") -> None:
 def record_circuit_breaker_state(service: str, state: str) -> None:
     """Record circuit breaker state for a service.
 
-    Updates both legacy gauge (numeric values) and new labeled gauge (per-state values).
-    The labeled gauge enables alerting like: circuit_breaker_state{provider="anthropic", state="open"} == 1
+    Sets labeled gauge: circuit_breaker_state{provider="anthropic", state="open"} == 1
 
     Args:
         service: Service name (e.g., "anthropic", "voyage", "brave", "openai")
         state: State string ("closed", "half_open", "open")
     """
-    # Update legacy gauge (for backward compatibility)
-    state_map = {"closed": 0, "half_open": 1, "open": 2}
-    bo1_circuit_breaker_state.labels(service=service).set(state_map.get(state, -1))
-
-    # Update new labeled gauge - set current state to 1, reset others to 0
     all_states = ["closed", "half_open", "open"]
     for s in all_states:
         value = 1 if s == state else 0

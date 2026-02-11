@@ -7,6 +7,7 @@
 	import { adminApi, type SessionKillsResponse, type SessionKill } from '$lib/api/admin';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// State
 	let kills = $state<SessionKillsResponse | null>(null);
 	let loading = $state(true);
@@ -26,16 +27,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function formatCost(cost: number | null): string {
 		if (cost === null) return '-';

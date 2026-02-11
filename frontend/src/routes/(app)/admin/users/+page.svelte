@@ -12,6 +12,7 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	let { data } = $props();
 
 	let users = $state<typeof data.users>([]);
@@ -97,11 +98,6 @@
 		editForm = {};
 	}
 
-	function formatDate(dateString: string | null): string {
-		if (!dateString) return 'Never';
-		const date = new Date(dateString);
-		return date.toLocaleDateString();
-	}
 
 	function openLockModal(user: { user_id: string; email: string }) {
 		lockModalUser = user;

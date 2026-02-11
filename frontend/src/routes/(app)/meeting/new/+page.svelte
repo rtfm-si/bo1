@@ -10,13 +10,13 @@
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
 	import { AlertTriangle, X, Clock, Plus, ChevronDown, ChevronUp } from 'lucide-svelte';
-	import type { Dataset, StaleInsight, SessionContextIds, MeetingCapStatus, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
+	import type { DatasetResponse, StaleInsight, SessionContextIds, MeetingCapStatus, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 	import { toast } from '$lib/stores/toast';
 
 	let problemStatement = $state('');
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);
-	let datasets = $state<Dataset[]>([]);
+	let datasets = $state<DatasetResponse[]>([]);
 	let selectedDatasetId = $state<string | null>(null);
 	let loadingDatasets = $state(false);
 	// Staleness warning state

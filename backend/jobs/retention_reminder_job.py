@@ -8,7 +8,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from bo1.config import get_settings
+from backend.jobs.shared import get_frontend_url
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -134,12 +134,10 @@ def send_retention_reminder(
     from backend.services.email_templates import render_data_retention_reminder_email
 
     try:
-        settings = get_settings()
-        base_url = settings.supertokens_website_domain
-
-        # Generate URLs
-        settings_url = f"{base_url}/settings/privacy"
-        suppress_url = f"{base_url}/api/v1/user/retention-reminder/suppress?token={_generate_suppress_token(user_id)}"
+        settings_url = get_frontend_url("/settings/privacy")
+        suppress_url = get_frontend_url(
+            f"/api/v1/user/retention-reminder/suppress?token={_generate_suppress_token(user_id)}"
+        )
 
         # Render email
         html, text = render_data_retention_reminder_email(

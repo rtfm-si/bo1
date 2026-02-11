@@ -22,13 +22,8 @@ As of 2025-12-02, this module has been split into domain-specific files:
 - persona.py: Persona contribution prompts
 - utils.py: Utility functions (prefill, phase config)
 
-This __init__.py re-exports everything for backward compatibility.
-All existing imports like `from bo1.prompts.reusable_prompts import X` continue to work.
+This __init__.py re-exports all public APIs.
 """
-
-# =============================================================================
-# Re-export all public APIs for backward compatibility
-# =============================================================================
 
 # Protocol definitions
 # Facilitator prompts

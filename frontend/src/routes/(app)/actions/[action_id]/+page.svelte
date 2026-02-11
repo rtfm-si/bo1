@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { ActionDetailExtended, ActionUpdateResponse, ActionUpdateCreateRequest, DependencyListResponse } from '$lib/api/types';
+	import type { ActionDetailExtended, ActionUpdateResponse, ActionUpdateCreate, DependencyListResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import RatingPrompt from '$lib/components/ui/RatingPrompt.svelte';
 	import ActivityTimeline from '$lib/components/actions/ActivityTimeline.svelte';
@@ -46,19 +46,6 @@
 	import type { ActionAchievementData } from '$lib/utils/canvas-export';
 
 	// Helper function to format dates nicely
-	function formatDate(dateStr: string | null | undefined): string {
-		if (!dateStr) return '—';
-		try {
-			const date = new Date(dateStr);
-			return date.toLocaleDateString('en-US', {
-				month: 'short',
-				day: 'numeric',
-				year: 'numeric'
-			});
-		} catch {
-			return dateStr;
-		}
-	}
 
 	// Check if action has any date information
 	function hasAnyDates(action: ActionDetailExtended): boolean {
@@ -189,6 +176,7 @@
 
 	import type { ActionStatus } from '$lib/api/types';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// Open cancellation modal (instead of directly cancelling)
 	function openCancellationModal() {
 		showCancellationModal = true;
@@ -611,7 +599,7 @@
 	}
 
 	// Add a new update
-	async function handleAddUpdate(update: ActionUpdateCreateRequest) {
+	async function handleAddUpdate(update: ActionUpdateCreate) {
 		const created = await apiClient.addActionUpdate(actionId, update);
 		// Add to the beginning of the list (most recent first)
 		updates = [created, ...updates];
@@ -1420,27 +1408,7 @@
 					</div>
 				{/if}
 
-				<!-- Legacy Dependencies (from synthesis, text-based) -->
-				{#if (action.dependencies?.length ?? 0) > 0}
-					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
-						<h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
-							Related Prerequisites
-						</h2>
-						<p class="text-xs text-neutral-500 dark:text-neutral-400 mb-3">
-							From meeting analysis
-						</p>
-						<ul class="space-y-2">
-							{#each action.dependencies as dependency, i (i)}
-								<li class="flex items-start gap-2 text-neutral-700 dark:text-neutral-300">
-									<span class="text-neutral-400">-</span>
-									<span>{dependency}</span>
-								</li>
-							{/each}
-						</ul>
-					</div>
-				{/if}
-
-				<!-- Activity Timeline -->
+					<!-- Activity Timeline -->
 				<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 					<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-4">
 						<History class="w-4 h-4 text-brand-500" />

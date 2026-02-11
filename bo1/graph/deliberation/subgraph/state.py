@@ -63,7 +63,7 @@ class SubProblemGraphState(TypedDict, total=False):
     missing_critical_aspects: list[str]
 
     # Outputs
-    votes: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]]
     synthesis: str | None
     expert_summaries: dict[str, str]
 
@@ -123,7 +123,7 @@ def create_subproblem_initial_state(
         # P2 FIX: Initialize judge feedback fields
         next_round_focus_prompts=[],
         missing_critical_aspects=[],
-        votes=[],
+        recommendations=[],
         synthesis=None,
         expert_summaries={},
         user_id=user_id,
@@ -149,7 +149,7 @@ def result_from_subgraph_state(state: SubProblemGraphState) -> SubProblemResult:
         sub_problem_id=get_sub_problem_id_safe(sub_problem),
         sub_problem_goal=get_sub_problem_goal_safe(sub_problem),
         synthesis=state.get("synthesis") or "",
-        votes=state.get("votes", []),
+        votes=state.get("recommendations", []),
         contribution_count=len(state.get("contributions", [])),
         cost=state.get("metrics", DeliberationMetrics()).total_cost,
         duration_seconds=0.0,  # Will be set by caller based on timing

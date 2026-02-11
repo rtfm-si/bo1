@@ -37,7 +37,7 @@ class TestGetKanbanColumns:
         # User exists but has no kanban_columns set
         mock_cursor.fetchone.return_value = {"kanban_columns": None}
 
-        with patch("backend.api.user.db_session") as mock_db:
+        with patch("backend.api.utils.db_helpers.db_session") as mock_db:
             mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
             mock_db.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -65,7 +65,7 @@ class TestGetKanbanColumns:
         ]
         mock_cursor.fetchone.return_value = {"kanban_columns": stored_columns}
 
-        with patch("backend.api.user.db_session") as mock_db:
+        with patch("backend.api.utils.db_helpers.db_session") as mock_db:
             mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
             mock_db.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -100,7 +100,7 @@ class TestUpdateKanbanColumns:
             ]
         )
 
-        with patch("backend.api.user.db_session") as mock_db:
+        with patch("backend.api.utils.db_helpers.db_session") as mock_db:
             mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
             mock_db.return_value.__exit__ = MagicMock(return_value=False)
 

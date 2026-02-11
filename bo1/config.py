@@ -833,10 +833,10 @@ TAVILY_PRICING = {
 }
 
 # =============================================================================
-# MODEL PRICING - Backward compatibility (maps to ANTHROPIC_PRICING with metadata)
+# MODEL PRICING
 # =============================================================================
-# Used by calculate_cost() and existing code. Includes context_window and max_output
-# for reference. New code should use ANTHROPIC_PRICING and get_service_pricing().
+# Used by calculate_cost() and LLMResponse.cost_input. Includes context_window
+# and max_output for reference.
 
 MODEL_PRICING = {
     "claude-sonnet-4-5-20250929": {
@@ -1062,7 +1062,7 @@ def get_model_for_role(role: str, provider: str | None = None) -> str:
         tier = TASK_MODEL_DEFAULTS[role_lower]
         return resolve_tier_to_model(tier, provider=provider)
 
-    # Fall back to legacy MODEL_BY_ROLE for backward compatibility
+    # Fall back to MODEL_BY_ROLE
     if role_lower in MODEL_BY_ROLE:
         model_alias = MODEL_BY_ROLE[role_lower]
         return resolve_model_alias(model_alias)

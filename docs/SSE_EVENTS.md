@@ -316,7 +316,7 @@ Emitted when all votes are collected.
 ```json
 {
   "session_id": "bo1_abc123",
-  "votes_count": 3,
+  "recommendations_count": 3,
   "consensus_level": "moderate"
 }
 ```

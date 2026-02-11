@@ -10,6 +10,7 @@
 	import type { PublicBlogPost } from '$lib/api/types';
 	import { createBlogSchema, serializeJsonLd } from '$lib/utils/jsonld';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// JSON-LD structured data for blog listing
 	const blogJsonLd = serializeJsonLd(createBlogSchema());
 
@@ -72,14 +73,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return '';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
 
 	function estimateReadTime(content: string | undefined): number {
 		if (!content) return 3;

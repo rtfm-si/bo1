@@ -12,25 +12,24 @@
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { toast } from '$lib/stores/toast';
+	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 
-	let isLoading = $state(true);
-	let sessions = $state<SessionResponse[]>([]);
+	const sessionsFetch = useDataFetch(async () => {
+		const response = await apiClient.listSessions({ status: 'completed' });
+		return response.sessions || [];
+	});
 
-	async function fetchSessions() {
-		isLoading = true;
-		try {
-			const response = await apiClient.listSessions({ status: 'completed' });
-			sessions = response.sessions || [];
-		} catch (err) {
-			console.error('Failed to fetch sessions:', err);
-			toast.error(err instanceof Error ? err.message : 'Failed to load meeting reports');
-		} finally {
-			isLoading = false;
+	const isLoading = $derived(sessionsFetch.isLoading);
+	const sessions = $derived(sessionsFetch.data ?? []);
+
+	$effect(() => {
+		if (sessionsFetch.error) {
+			toast.error(sessionsFetch.error);
 		}
-	}
+	});
 
 	onMount(() => {
-		fetchSessions();
+		sessionsFetch.fetch();
 	});
 
 	function truncateProblem(problem: string, maxLength: number = 80): string {

@@ -116,7 +116,7 @@ def basic_meta_synthesis_state() -> DeliberationGraphState:
         sub_problem_id="sp1",
         sub_problem_goal="Sub-problem 1",
         synthesis="Test synthesis for sp1",
-        votes=[],
+        recommendations=[],
         contribution_count=3,
         cost=0.01,
         duration_seconds=10.0,

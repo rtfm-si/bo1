@@ -52,7 +52,11 @@ class SubProblemResult(BaseModel):
     sub_problem_id: str = Field(..., description="Sub-problem ID")
     sub_problem_goal: str = Field(..., description="Sub-problem goal statement")
     synthesis: str = Field(..., description="Final synthesis report for this sub-problem")
-    votes: list[Any] = Field(default_factory=list, description="Votes from personas (Vote objects)")
+    recommendations: list[Any] = Field(
+        default_factory=list,
+        alias="votes",
+        description="Recommendations from personas (Recommendation objects)",
+    )
     contribution_count: int = Field(..., description="Number of contributions made")
     cost: float = Field(..., description="Total cost for this sub-problem deliberation (USD)")
     duration_seconds: float = Field(..., description="Duration of deliberation in seconds")
@@ -70,13 +74,14 @@ class SubProblemResult(BaseModel):
     )
 
     model_config = ConfigDict(
+        populate_by_name=True,
         json_schema_extra={
             "examples": [
                 {
                     "sub_problem_id": "sp_001",
                     "sub_problem_goal": "Determine target CAC for acquisition channels",
                     "synthesis": "Based on deliberation, target CAC should be <$150...",
-                    "votes": [],
+                    "recommendations": [],
                     "contribution_count": 15,
                     "cost": 0.12,
                     "duration_seconds": 180.5,
@@ -87,7 +92,7 @@ class SubProblemResult(BaseModel):
                     },
                 }
             ]
-        }
+        },
     )
 
 
@@ -187,11 +192,6 @@ class ContributionMessage(BaseModel):
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Extra metadata (e.g., contribution_id for recovery)"
     )
-
-    @property
-    def tokens_used(self) -> int:
-        """Alias for token_count for backward compatibility."""
-        return self.token_count or 0
 
     @classmethod
     def from_db_row(cls, row: dict[str, Any]) -> "ContributionMessage":

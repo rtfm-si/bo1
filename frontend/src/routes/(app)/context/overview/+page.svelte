@@ -10,7 +10,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { CONTEXT_WELCOME_KEY } from '$lib/stores/tour';
 	import { toast } from '$lib/stores/toast';
-	import type { UserContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
+	import type { BusinessContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Dropdown, { type DropdownItem } from '$lib/components/ui/Dropdown.svelte';
@@ -20,6 +20,7 @@
 	import GoalHistory from '$lib/components/context/GoalHistory.svelte';
 	import { trackEvent, AnalyticsEvents, trackContextEnriched } from '$lib/utils/analytics';
 
+	import { formatDate } from '$lib/utils/time-formatting';
 	// Form state
 	let companyName = $state('');
 	let websiteUrl = $state('');
@@ -214,7 +215,7 @@
 		saveSuccess = false;
 
 		try {
-			const context: Partial<UserContext> = {
+			const context: Partial<BusinessContext> = {
 				company_name: companyName.trim() || undefined,
 				website: websiteUrl.trim() || undefined,
 				business_stage: businessStage,
@@ -232,7 +233,7 @@
 				...enrichedStrategicFields
 			};
 
-			await apiClient.updateUserContext(context as UserContext);
+			await apiClient.updateUserContext(context as BusinessContext);
 			// Clear enriched fields after save
 			enrichedStrategicFields = {};
 			trackEvent(AnalyticsEvents.CONTEXT_UPDATED);
@@ -286,14 +287,6 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
 </script>
 
 <svelte:head>

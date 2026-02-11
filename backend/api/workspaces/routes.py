@@ -25,6 +25,7 @@ from backend.api.middleware.workspace_auth import (
     WorkspacePermissionChecker,
     WorkspaceRoleChecker,
 )
+from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.responses import (
     ERROR_400_RESPONSE,
@@ -94,7 +95,7 @@ async def create_workspace(
     Raises:
         HTTPException: 409 if slug already exists
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     logger.info(f"Creating workspace: name={request.name}, owner={user_id}")
 
     try:
@@ -129,7 +130,7 @@ async def list_workspaces(
     Returns:
         List of workspaces with default workspace indicator
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     workspaces = workspace_repository.get_user_workspaces(user_id)
     default_workspace_id = user_repository.get_default_workspace(user_id)
     return WorkspaceListResponse(
@@ -302,7 +303,7 @@ async def add_member(
         HTTPException: 409 if user already a member
         HTTPException: 403 if trying to add with higher role
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
     logger.info(f"Adding member to workspace {workspace_id}: email={invite.email}")
 
     # Look up user by email
@@ -376,7 +377,7 @@ async def update_member_role(
         HTTPException: 404 if member not found
         HTTPException: 403 if trying to change owner or self
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
 
     # Cannot change own role
     if actor_id == target_user_id:
@@ -445,7 +446,7 @@ async def remove_member(
         HTTPException: 404 if member not found
         HTTPException: 403 if not allowed to remove
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
 
     # Check removal is allowed
     can_remove, error = can_remove_member(workspace_id, actor_id, target_user_id)
@@ -495,7 +496,7 @@ async def submit_join_request(
         HTTPException: 409 if user already has pending request or is member
         HTTPException: 404 if workspace not found
     """
-    user_id = user["user_id"]
+    user_id = extract_user_id(user)
     logger.info(f"Join request for workspace {workspace_id} from user {user_id}")
 
     # Check workspace exists
@@ -581,7 +582,7 @@ async def approve_join_request(
     Raises:
         HTTPException: 404 if request not found or not pending
     """
-    reviewer_id = user["user_id"]
+    reviewer_id = extract_user_id(user)
     logger.info(f"Approving join request {request_id} by {reviewer_id}")
 
     # Verify request belongs to this workspace
@@ -634,7 +635,7 @@ async def reject_join_request(
     Raises:
         HTTPException: 404 if request not found or not pending
     """
-    reviewer_id = user["user_id"]
+    reviewer_id = extract_user_id(user)
     logger.info(f"Rejecting join request {request_id} by {reviewer_id}")
 
     # Verify request belongs to this workspace
@@ -822,7 +823,7 @@ async def transfer_ownership(
         HTTPException: 403 if transfer not allowed
         HTTPException: 404 if workspace not found
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
     logger.info(
         f"Ownership transfer requested: workspace={workspace_id}, "
         f"from={actor_id}, to={request.new_owner_id}"
@@ -896,7 +897,7 @@ async def promote_member(
         HTTPException: 403 if promotion not allowed
         HTTPException: 404 if member not found
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
     logger.info(f"Promoting member {target_user_id} in workspace {workspace_id}")
 
     # Check promotion is allowed
@@ -949,7 +950,7 @@ async def demote_member(
         HTTPException: 403 if demotion not allowed
         HTTPException: 404 if member not found
     """
-    actor_id = user["user_id"]
+    actor_id = extract_user_id(user)
     logger.info(f"Demoting admin {target_user_id} in workspace {workspace_id}")
 
     # Check demotion is allowed

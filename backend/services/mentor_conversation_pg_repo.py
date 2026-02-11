@@ -5,6 +5,7 @@ Provides durable storage for mentor chat conversations. Redis cache layer
 """
 
 import logging
+from functools import lru_cache
 from typing import Any
 
 from bo1.state.database import db_session
@@ -445,12 +446,9 @@ class MentorConversationPgRepository(BaseRepository):
 
 
 # Singleton instance
-_mentor_conversation_pg_repo: MentorConversationPgRepository | None = None
 
 
+@lru_cache(maxsize=1)
 def get_mentor_conversation_pg_repo() -> MentorConversationPgRepository:
     """Get or create the mentor conversation PostgreSQL repository singleton."""
-    global _mentor_conversation_pg_repo
-    if _mentor_conversation_pg_repo is None:
-        _mentor_conversation_pg_repo = MentorConversationPgRepository()
-    return _mentor_conversation_pg_repo
+    return MentorConversationPgRepository()

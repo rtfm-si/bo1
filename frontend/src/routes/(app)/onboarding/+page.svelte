@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
-	import type { UserContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
+	import type { BusinessContext, BusinessStage, PrimaryObjective } from '$lib/api/types';
 	import type { LiteCognitionAssessmentRequest } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -160,7 +160,7 @@
 
 		try {
 			// Save context
-			const context: Partial<UserContext> = {
+			const context: Partial<BusinessContext> = {
 				company_name: companyName.trim(),
 				website: websiteUrl.trim() || undefined,
 				business_stage: businessStage,
@@ -168,7 +168,7 @@
 				onboarding_completed: true
 			};
 
-			await apiClient.updateUserContext(context as UserContext);
+			await apiClient.updateUserContext(context as BusinessContext);
 
 			// Mark onboarding step complete
 			await apiClient.completeOnboardingStep('business_context');

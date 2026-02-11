@@ -151,7 +151,7 @@ def test_extract_voting_data():
     registry = get_event_registry()
 
     output = {
-        "votes": [
+        "recommendations": [
             {
                 "persona_code": "ceo",
                 "persona_name": "CEO",
@@ -174,7 +174,7 @@ def test_extract_voting_data():
 
     result = registry.extract("voting", output)
 
-    assert result["votes_count"] == 2
+    assert result["recommendations_count"] == 2
     assert result["consensus_level"] == "strong"
     assert abs(result["avg_confidence"] - 0.85) < 0.001  # Float comparison with tolerance
 

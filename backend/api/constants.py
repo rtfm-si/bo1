@@ -52,9 +52,6 @@ GRAPH_LIVENESS_TIMEOUT_SECONDS = int(
     os.environ.get("GRAPH_LIVENESS_TIMEOUT_SECONDS", "600")
 )  # 10 min
 
-# Legacy alias for backwards compatibility
-GRAPH_EXECUTION_TIMEOUT_SECONDS = GRAPH_HARD_TIMEOUT_SECONDS
-
 # Events that indicate meeting is making progress (reset liveness timer)
 MEANINGFUL_PROGRESS_EVENTS: set[str] = {
     "contribution",
@@ -95,12 +92,7 @@ COST_FIELDS: set[str] = {"cost", "total_cost", "phase_costs", "by_provider"}
 
 # SSE Schema Versioning
 # Current schema version - increment on breaking changes
-SSE_SCHEMA_VERSION: int = 1
-# Minimum supported version for backwards compatibility
-SSE_MIN_SUPPORTED_VERSION: int = 1
-# Deprecated fields with sunset dates (field_name -> ISO date string)
-# Format: {"field_name": "2025-06-01"} means field will be removed after June 1, 2025
-SSE_DEPRECATED_FIELDS: dict[str, str] = {}
+SSE_SCHEMA_VERSION: int = 2
 
 # SSE Reconnect Tracking
 # Redis key: {session_id}:reconnects

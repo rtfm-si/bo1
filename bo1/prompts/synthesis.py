@@ -62,7 +62,7 @@ Generate a comprehensive synthesis report for the user.
 </problem_statement>
 
 <full_deliberation>
-{all_contributions_and_votes}
+{all_contributions_and_recommendations}
 </full_deliberation>
 
 <thinking>
@@ -178,7 +178,7 @@ Full detail from the final round of discussion:
 </final_round_detail>
 
 <expert_recommendations>
-{votes}
+{recommendations}
 </expert_recommendations>
 
 <thinking>
@@ -406,7 +406,7 @@ How the expert discussion evolved:
 </final_positions>
 
 <expert_recommendations>
-{votes}
+{recommendations}
 </expert_recommendations>
 
 <output_format>
@@ -515,14 +515,14 @@ def get_limited_context_sections(limited_context_mode: bool) -> tuple[str, str]:
 
 def compose_synthesis_prompt(
     problem_statement: str,
-    all_contributions_and_votes: str,
+    all_contributions_and_recommendations: str,
     business_context: dict[str, Any] | None = None,
 ) -> str:
     """Compose final synthesis prompt.
 
     Args:
         problem_statement: The problem being synthesized
-        all_contributions_and_votes: Deliberation content
+        all_contributions_and_recommendations: Deliberation content
         business_context: Optional business context for style adaptation
 
     Returns:
@@ -538,7 +538,7 @@ def compose_synthesis_prompt(
 
     return SYNTHESIS_PROMPT_TEMPLATE.format(
         problem_statement=safe_problem_statement,
-        all_contributions_and_votes=all_contributions_and_votes,
+        all_contributions_and_recommendations=all_contributions_and_recommendations,
     )
 
 

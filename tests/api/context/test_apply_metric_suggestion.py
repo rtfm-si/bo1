@@ -38,7 +38,7 @@ class TestApplyMetricSuggestionTimestamps:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         # Check save was called
@@ -74,7 +74,7 @@ class TestApplyMetricSuggestionTimestamps:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         saved_context = mock_user_repository.save_context.call_args[0][1]
@@ -108,7 +108,7 @@ class TestApplyMetricSuggestionHistory:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         saved_context = mock_user_repository.save_context.call_args[0][1]
@@ -145,7 +145,7 @@ class TestApplyMetricSuggestionHistory:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         saved_context = mock_user_repository.save_context.call_args[0][1]
@@ -173,7 +173,7 @@ class TestApplyMetricSuggestionHistory:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         saved_context = mock_user_repository.save_context.call_args[0][1]
@@ -200,7 +200,7 @@ class TestApplyMetricSuggestionHistory:
 
         mock_user = {"user_id": "user-123"}
 
-        with patch("backend.api.context.routes.user_repository", mock_user_repository):
+        with patch("backend.api.context.metrics_routes.user_repository", mock_user_repository):
             await apply_metric_suggestion(request, user=mock_user)
 
         saved_context = mock_user_repository.save_context.call_args[0][1]

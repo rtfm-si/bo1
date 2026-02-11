@@ -1628,13 +1628,13 @@ def _extract_actions_for_session(
     session_repository.save_tasks(
         session_id=session_id,
         tasks=all_tasks,
-        total_tasks=len(all_tasks) + len(parent_actions),
+        total_tasks=len(parent_actions) if parent_actions else len(all_tasks),
         extraction_confidence=avg_conf,
         synthesis_sections_analyzed=list(set(all_sections)),
         user_id=user_id,
         parent_actions=parent_actions,
     )
-    return {"total_tasks": len(all_tasks) + len(parent_actions)}
+    return {"total_tasks": len(parent_actions) if parent_actions else len(all_tasks)}
 
 
 @router.post(
@@ -1978,7 +1978,7 @@ async def extract_tasks(
                 session_repository.save_tasks(
                     session_id=session_id,
                     tasks=all_tasks,
-                    total_tasks=len(all_tasks) + len(parent_actions),
+                    total_tasks=len(parent_actions) if parent_actions else len(all_tasks),
                     extraction_confidence=avg_confidence,
                     synthesis_sections_analyzed=list(set(all_sections_analyzed)),
                     parent_actions=parent_actions,

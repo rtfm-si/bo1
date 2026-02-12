@@ -267,7 +267,7 @@ class SessionManager:
                 self._update_session_status(session_id, "completed")
 
                 # Track meeting completion for cognitive profile
-                completed_user_id = state.get("user_id")
+                completed_user_id = state.get("user_id") or user_id
                 if completed_user_id:
                     try:
                         # Increment meeting count for tier unlock
